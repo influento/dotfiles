@@ -43,7 +43,7 @@ Options:
 
 Profiles:
   server       CLI tools only: zsh, neovim, tmux, git, starship
-  workstation  CLI tools + desktop: hyprland, waybar, ghostty, theming
+  workstation  CLI tools + desktop: sway, waybar, ghostty, theming
 
 Examples:
   bash install.sh --profile server
@@ -115,7 +115,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, lazygit, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  workstation configs: hypr, waybar, ghostty, swaylock, swayidle, mako, walker, swaybg, wlsunset, swayosd, cliphist, theming"
+    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, walker, swaybg, wlsunset, swayosd, cliphist, theming"
   fi
   log_info "  oh-my-zsh: install if missing"
   exit 0

@@ -1,0 +1,14 @@
+# Sway configuration
+# Managed by dotfiles repo.
+# Docs: https://man.archlinux.org/man/sway.5
+
+# TODO: Configure Sway
+# Key sections to add:
+#   - Output configuration (monitors, resolution, wallpaper)
+#   - Input configuration (keyboard, mouse, touchpad)
+#   - Keybindings (mod key, app launchers, window management)
+#   - Workspace assignment and rules
+#   - Window rules (floating, borders)
+#   - Bar configuration (or use waybar)
+#   - Startup applications (waybar, swaybg, mako, etc.)
+#   - Appearance (gaps, borders, colors)

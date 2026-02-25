@@ -28,7 +28,7 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 
 Configs with real content:
 
-- [x] Hyprland: keybindings, monitors, workspaces, animations, startup apps
+- [ ] Sway: keybindings, monitors, workspaces, window rules, startup apps
 - [x] Waybar: module layout (workspaces, clock, tray, battery), CSS theme
 - [x] Ghostty: font, theme, window settings
 - [x] swaylock: colors, indicator, behavior (themed)
@@ -69,4 +69,4 @@ Configs still scaffolded (TODOs):
 
 - [ ] PipeWire / WirePlumber custom config
 - [ ] Additional themes (catppuccin-latte, gruvbox, etc.)
-- [ ] Theme more configs (hyprland, waybar, ghostty, starship) as they get content
+- [ ] Theme more configs (sway, waybar, ghostty, starship) as they get content

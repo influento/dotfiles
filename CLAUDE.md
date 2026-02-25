@@ -36,7 +36,7 @@ bash ~/.dotfiles/install.sh --profile workstation
 | Profile | What gets deployed |
 |---|---|
 | `server` | Common configs only: zsh, neovim, tmux, git, starship |
-| `workstation` | Common + workstation: adds hyprland, waybar, ghostty, theming |
+| `workstation` | Common + workstation: adds sway, waybar, ghostty, theming |
 
 ### Deployment Method
 
@@ -60,7 +60,7 @@ This means:
 | `common/lazygit/` | `~/.config/lazygit/` | all |
 | `common/btop/` | `~/.config/btop/` | all |
 | `common/fastfetch/` | `~/.config/fastfetch/` | all |
-| `workstation/hypr/` | `~/.config/hypr/` | workstation |
+| `workstation/sway/` | `~/.config/sway/` | workstation |
 | `workstation/swaylock/` | `~/.config/swaylock/` | workstation |
 | `workstation/swayidle/` | `~/.config/swayidle/` | workstation |
 | `workstation/mako/` | `~/.config/mako/` | workstation |
@@ -136,7 +136,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 - `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
 - 6 themed config files (lazygit, mako, swaylock, swayosd, swaybg, walker)
 - Real configs: lazygit, mako, swaylock, swayosd, swaybg, walker, wlsunset, cliphist,
-  btop, fastfetch, fontconfig, swayidle, hyprland, waybar, ghostty
+  btop, fastfetch, fontconfig, swayidle, sway, waybar, ghostty
 
 **What needs content (scaffolds with TODOs):**
 - `common/zsh/.zshrc` — needs plugins, aliases, environment
@@ -167,7 +167,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 
 | Tool | Config location | Purpose |
 |---|---|---|
-| **Hyprland** | `workstation/hypr/hyprland.conf` | Wayland compositor: keybindings, monitors, workspaces, animations |
+| **Sway** | `workstation/sway/config` | Wayland compositor: keybindings, monitors, workspaces, window rules |
 | **Waybar** | `workstation/waybar/config`, `style.css` | Status bar: modules (clock, workspaces, tray), CSS styling |
 | **Ghostty** | `workstation/ghostty/config` | Terminal emulator: font, theme, window settings |
 | **swaylock** | `workstation/swaylock/config.tpl` | Screen locker: colors, indicator, behavior (themed) |
@@ -251,7 +251,7 @@ dotfiles/
 │   ├── lazygit/config.yml.tpl   # Themed (generates config.yml)
 │   └── starship/starship.toml
 ├── workstation/                 # Workstation-only configs
-│   ├── hypr/hyprland.conf
+│   ├── sway/config
 │   ├── waybar/config, style.css
 │   ├── ghostty/config
 │   ├── mako/config.tpl          # Themed (generates config)
