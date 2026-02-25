@@ -1,0 +1,11 @@
+# Ghostty terminal configuration
+# Managed by dotfiles repo.
+# Docs: https://ghostty.org/docs/config
+
+# TODO: Configure Ghostty
+# Key settings:
+#   font-family = JetBrains Mono
+#   font-size = 13
+#   theme = ...
+#   window-padding-x = ...
+#   window-padding-y = ...

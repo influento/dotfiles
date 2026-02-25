@@ -1,0 +1,9 @@
+{
+  "// NOTE": "Waybar configuration — managed by dotfiles repo",
+  "// TODO": "Configure waybar modules and layout",
+  "layer": "top",
+  "position": "top",
+  "modules-left": [],
+  "modules-center": [],
+  "modules-right": []
+}
