@@ -16,12 +16,15 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DOTFILES_DIR}/lib/log.sh"
 # shellcheck source=lib/helpers.sh
 source "${DOTFILES_DIR}/lib/helpers.sh"
+# shellcheck source=lib/theme.sh
+source "${DOTFILES_DIR}/lib/theme.sh"
 
 # --- Defaults ---
 PROFILE=""
 TARGET_USER="${USER:-}"
 USER_HOME=""
 DRY_RUN=0
+THEME=""
 
 # --- CLI argument parsing ---
 
@@ -34,6 +37,7 @@ Deploy user-level configuration (dotfiles) with profile-based selection.
 Options:
   --profile PROFILE   Required. server | workstation
   --user USERNAME     Target user (default: current user)
+  --theme THEME       Color theme (default: from theme.conf or catppuccin-mocha)
   --dry-run           Show what would be done without making changes
   --help              Show this help message
 
@@ -52,6 +56,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile)   PROFILE="$2"; shift 2 ;;
     --user)      TARGET_USER="$2"; shift 2 ;;
+    --theme)     THEME="$2"; shift 2 ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --help)      usage ;;
     *)           die "Unknown option: $1. Use --help for usage." ;;
@@ -84,6 +89,15 @@ if [[ ! -d "$USER_HOME" ]]; then
   die "Home directory not found: $USER_HOME"
 fi
 
+# Resolve theme: CLI flag > theme.conf > fallback
+if [[ -z "$THEME" ]]; then
+  if [[ -f "${DOTFILES_DIR}/theme.conf" ]]; then
+    # shellcheck source=/dev/null
+    source "${DOTFILES_DIR}/theme.conf"
+  fi
+  THEME="${THEME:-catppuccin-mocha}"
+fi
+
 export TARGET_USER
 
 # --- Summary ---
@@ -93,13 +107,15 @@ log_info "Profile:    $PROFILE"
 log_info "User:       $TARGET_USER"
 log_info "Home:       $USER_HOME"
 log_info "Dotfiles:   $DOTFILES_DIR"
+log_info "Theme:      $THEME"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info ""
   log_info "Dry run — would deploy:"
-  log_info "  common configs: zsh, nvim, tmux, git, starship"
+  log_info "  theme: $THEME (render .tpl templates with theme colors)"
+  log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, lazygit, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  workstation configs: hypr, waybar, ghostty, theming"
+    log_info "  workstation configs: hypr, waybar, ghostty, swaylock, swayidle, mako, walker, swaybg, wlsunset, swayosd, cliphist, theming"
   fi
   log_info "  oh-my-zsh: install if missing"
   exit 0
@@ -109,6 +125,18 @@ fi
 
 # Install oh-my-zsh (prerequisite for zsh config)
 install_omz "$USER_HOME"
+
+# Load theme and render templates
+load_theme "$THEME"
+build_sed_script
+render_templates "${DOTFILES_DIR}/common" "common"
+if [[ "$PROFILE" == "workstation" ]]; then
+  render_templates "${DOTFILES_DIR}/workstation" "workstation"
+fi
+validate_rendered "${DOTFILES_DIR}/common"
+if [[ "$PROFILE" == "workstation" ]]; then
+  validate_rendered "${DOTFILES_DIR}/workstation"
+fi
 
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"

@@ -1,0 +1,15 @@
+# swayidle — Idle management daemon for Sway
+#
+# Timeline:
+#   5 min  → lock screen (swaylock)
+#   10 min → turn off displays
+#   30 min → suspend
+#
+# Display is turned back on when activity resumes (resume event).
+# Lock is triggered before sleep to ensure screen is locked on wake.
+
+timeout 300 'swaylock -f'
+timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"'
+timeout 1800 'systemctl suspend'
+before-sleep 'swaylock -f'
+lock 'swaylock -f'

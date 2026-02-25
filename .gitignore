@@ -7,3 +7,11 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Generated from .tpl templates by theme engine (do not edit directly)
+common/lazygit/config.yml
+workstation/mako/config
+workstation/swaylock/config
+workstation/swayosd/style.css
+workstation/swaybg/wallpaper.sh
+workstation/walker/themes/dotfiles/style.css

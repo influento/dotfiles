@@ -7,7 +7,7 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 
 ---
 
-## Phase 0: Scaffold (current)
+## Phase 0: Scaffold
 
 - [x] Directory structure (common/ + workstation/)
 - [x] install.sh with profile selection and symlink deployment
@@ -16,26 +16,49 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 - [x] Empty scaffold configs for all tools
 - [x] CLAUDE.md with full documentation
 
-## Phase 1: Common Configs (server + workstation)
+## Phase 1: Theming System
 
-Fill in the scaffold configs with real, working content.
-
-- [ ] Zsh: .zshrc with oh-my-zsh plugins, aliases, environment vars
-- [ ] Neovim: init.lua with lazy.nvim, LSP, treesitter, keymaps
-- [ ] tmux: prefix key, mouse, truecolor, status bar, tpm plugins
-- [ ] Git: .gitconfig with user template, aliases, pull strategy, difftool
-- [ ] Starship: starship.toml with prompt segments and theme
+- [x] Central color palette (themes/catppuccin-mocha.sh)
+- [x] Template rendering engine (lib/theme.sh)
+- [x] --theme CLI flag and theme.conf
+- [x] Convert 6 configs to .tpl templates (lazygit, mako, swaylock, swayosd, swaybg, walker)
+- [x] Generated files gitignored, only templates tracked
 
 ## Phase 2: Workstation Configs
 
-- [ ] Hyprland: keybindings, monitors, workspaces, animations, startup apps
-- [ ] Waybar: module layout (workspaces, clock, tray, battery), CSS theme
-- [ ] Ghostty: font (JetBrains Mono), theme, window settings
-- [ ] GTK: Adwaita-dark / Papirus icons / Noto Sans
-- [ ] Qt: Kvantum theme, Papirus icons
-- [ ] SDDM: custom theme (or themed existing)
+Configs with real content:
 
-## Phase 3: Polish
+- [x] Hyprland: keybindings, monitors, workspaces, animations, startup apps
+- [x] Waybar: module layout (workspaces, clock, tray, battery), CSS theme
+- [x] Ghostty: font, theme, window settings
+- [x] swaylock: colors, indicator, behavior (themed)
+- [x] swayidle: lock, screen off, suspend timers
+- [x] mako: notification daemon, urgency overrides (themed)
+- [x] Walker: app launcher, providers, keybinds (themed)
+- [x] swaybg: wallpaper launcher (themed)
+- [x] wlsunset: night light, temperature schedule
+- [x] SwayOSD: volume/brightness popup styling (themed)
+- [x] cliphist: clipboard history picker script
+- [x] LazyGit: theme, pager, editor (themed)
+- [x] btop: theme, layout, vim keys
+- [x] fastfetch: system info modules, layout
+- [x] fontconfig: font rendering, hinting, default families
+
+Configs still scaffolded (TODOs):
+
+- [ ] GTK: settings.ini with Adwaita-dark / Papirus icons / Noto Sans
+- [ ] Qt: qt6ct.conf with Kvantum theme, Papirus icons
+- [ ] SDDM: custom theme (placeholder, .gitkeep only)
+
+## Phase 3: Common Configs
+
+- [ ] Zsh: .zshrc with oh-my-zsh plugins, aliases, environment vars, starship eval
+- [ ] Neovim: init.lua with lazy.nvim, LSP, treesitter, keymaps
+- [ ] tmux: prefix key, mouse, truecolor, status bar, tpm plugins
+- [ ] Git: .gitconfig with user identity, aliases, pull strategy, difftool
+- [ ] Starship: starship.toml with prompt segments and theme
+
+## Phase 4: Polish
 
 - [ ] Update script (pull latest + re-run install.sh)
 - [ ] Uninstall script (remove symlinks, restore backups)
@@ -45,6 +68,5 @@ Fill in the scaffold configs with real, working content.
 ## Future Ideas
 
 - [ ] PipeWire / WirePlumber custom config
-- [ ] Clipboard history (cliphist config)
-- [ ] App-specific configs (lazygit, btop, yazi)
-- [ ] Color scheme system (single source of truth for all tools)
+- [ ] Additional themes (catppuccin-latte, gruvbox, etc.)
+- [ ] Theme more configs (hyprland, waybar, ghostty, starship) as they get content

@@ -56,24 +56,96 @@ This means:
 | `common/tmux/` | `~/.config/tmux/` | all |
 | `common/git/.gitconfig` | `~/.gitconfig` | all |
 | `common/starship/` | `~/.config/starship/` | all |
+| `common/fontconfig/` | `~/.config/fontconfig/` | all |
+| `common/lazygit/` | `~/.config/lazygit/` | all |
+| `common/btop/` | `~/.config/btop/` | all |
+| `common/fastfetch/` | `~/.config/fastfetch/` | all |
 | `workstation/hypr/` | `~/.config/hypr/` | workstation |
+| `workstation/swaylock/` | `~/.config/swaylock/` | workstation |
+| `workstation/swayidle/` | `~/.config/swayidle/` | workstation |
+| `workstation/mako/` | `~/.config/mako/` | workstation |
+| `workstation/walker/` | `~/.config/walker/` | workstation |
+| `workstation/swaybg/` | `~/.config/swaybg/` | workstation |
+| `workstation/wlsunset/` | `~/.config/wlsunset/` | workstation |
+| `workstation/swayosd/` | `~/.config/swayosd/` | workstation |
+| `workstation/cliphist/` | `~/.config/cliphist/` | workstation |
 | `workstation/waybar/` | `~/.config/waybar/` | workstation |
 | `workstation/ghostty/` | `~/.config/ghostty/` | workstation |
 | `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
 | `workstation/theming/qt6ct/` | `~/.config/qt6ct/` | workstation |
 
+## Theming System
+
+### How It Works
+
+Colors are centralized in theme palette files under `themes/`. Config files that use
+colors are stored as `.tpl` templates with `@@TOKEN@@` placeholders. At install time,
+`lib/theme.sh` renders templates into final config files using `sed`.
+
+### Token Syntax
+
+| Token format | Rendered as | Use when |
+|---|---|---|
+| `@@COLOR_NAME@@` | `#hexvalue` (hash-prefixed) | CSS, YAML, most configs |
+| `@@COLOR_NAME_RAW@@` | `hexvalue` (bare hex) | swaylock and tools expecting no `#` |
+
+### Theme Selection
+
+Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
+
+```bash
+# Use default theme from theme.conf:
+bash install.sh --profile workstation
+
+# Override theme:
+bash install.sh --profile workstation --theme catppuccin-mocha
+```
+
+### Adding a New Theme
+
+1. Copy `themes/catppuccin-mocha.sh` to `themes/<name>.sh`
+2. Update `THEME_META` (NAME, DISPLAY_NAME) and all `THEME_COLORS` values
+3. Set `THEME=<name>` in `theme.conf` or pass `--theme <name>`
+4. Run `bash install.sh --profile workstation` to regenerate configs
+
+### Adding Colors to a Config
+
+1. Rename the config file to `<name>.tpl` (e.g., `config` → `config.tpl`)
+2. Replace hardcoded hex colors with `@@TOKEN@@` or `@@TOKEN_RAW@@` tokens
+3. Add the generated file path to `.gitignore`
+4. The generated file will be created alongside the template at install time
+
+### Template Files
+
+| Template | Generated file | Token format |
+|---|---|---|
+| `common/lazygit/config.yml.tpl` | `config.yml` | `@@TOKEN@@` |
+| `workstation/mako/config.tpl` | `config` | `@@TOKEN@@` |
+| `workstation/swaylock/config.tpl` | `config` | `@@TOKEN_RAW@@` |
+| `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
+| `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
+| `workstation/walker/themes/dotfiles/style.css.tpl` | `style.css` | `@@TOKEN@@` |
+
 ## Current Status
 
-**Scaffold state** — directory structure and install.sh are complete. All config files
-are empty scaffolds with TODOs describing what to add.
-
 **What works:**
-- `install.sh` — profile selection, oh-my-zsh installation, symlink deployment
+- `install.sh` — profile selection, oh-my-zsh installation, theme rendering, symlink deployment
 - `lib/helpers.sh` — idempotent link_config, backup existing, deploy_configs
 - `lib/log.sh` — colored logging
+- `lib/theme.sh` — template rendering engine with `@@TOKEN@@` replacement
+- `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
+- 6 themed config files (lazygit, mako, swaylock, swayosd, swaybg, walker)
+- Real configs: lazygit, mako, swaylock, swayosd, swaybg, walker, wlsunset, cliphist,
+  btop, fastfetch, fontconfig, swayidle, hyprland, waybar, ghostty
 
-**What needs content:**
-- All config files in `common/` and `workstation/` are scaffolds with TODOs
+**What needs content (scaffolds with TODOs):**
+- `common/zsh/.zshrc` — needs plugins, aliases, environment
+- `common/nvim/init.lua` — needs lazy.nvim, LSP, treesitter
+- `common/tmux/tmux.conf` — needs prefix, status bar, plugins
+- `common/git/.gitconfig` — needs user identity, aliases, defaults
+- `common/starship/starship.toml` — needs prompt segments
+- `workstation/theming/gtk-3.0/settings.ini` — needs theme, icons, font
+- `workstation/theming/qt6ct/qt6ct.conf` — needs Kvantum style, icons
 
 ## What Each Tool Does
 
@@ -86,6 +158,10 @@ are empty scaffolds with TODOs describing what to add.
 | **tmux** | `common/tmux/tmux.conf` | Terminal multiplexer: prefix key, panes, status bar |
 | **Git** | `common/git/.gitconfig` | Version control: user identity, aliases, defaults |
 | **Starship** | `common/starship/starship.toml` | Cross-shell prompt: segments, theme, icons |
+| **fontconfig** | `common/fontconfig/fonts.conf` | Font rendering: hinting, antialiasing, default families |
+| **LazyGit** | `common/lazygit/config.yml.tpl` | Terminal git UI: theme, pager, editor (themed) |
+| **btop** | `common/btop/btop.conf` | System monitor: theme, layout, vim keys |
+| **fastfetch** | `common/fastfetch/config.jsonc` | System info display: modules, layout |
 
 ### Workstation only
 
@@ -94,6 +170,14 @@ are empty scaffolds with TODOs describing what to add.
 | **Hyprland** | `workstation/hypr/hyprland.conf` | Wayland compositor: keybindings, monitors, workspaces, animations |
 | **Waybar** | `workstation/waybar/config`, `style.css` | Status bar: modules (clock, workspaces, tray), CSS styling |
 | **Ghostty** | `workstation/ghostty/config` | Terminal emulator: font, theme, window settings |
+| **swaylock** | `workstation/swaylock/config.tpl` | Screen locker: colors, indicator, behavior (themed) |
+| **swayidle** | `workstation/swayidle/config` | Idle manager: lock, screen off, suspend timers |
+| **mako** | `workstation/mako/config.tpl` | Notification daemon: appearance, urgency, timeouts (themed) |
+| **Walker** | `workstation/walker/config.toml`, `themes/dotfiles/` | App launcher: providers, keybinds, theme (themed) |
+| **swaybg** | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/` | Wallpaper: launcher script, image storage (themed) |
+| **wlsunset** | `workstation/wlsunset/wlsunset.sh` | Night light: temperature, location-based schedule |
+| **SwayOSD** | `workstation/swayosd/style.css.tpl` | On-screen display: volume/brightness popup styling (themed) |
+| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (Walker or wofi) |
 | **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
 | **SDDM** | `workstation/sddm/` | Display manager theme (placeholder, future) |
@@ -145,25 +229,36 @@ fi
 - Indent with 2 spaces, no tabs
 - Functions use `snake_case`
 - Quote all variable expansions
+- Never add `Co-Authored-By` trailers to git commits
 
 ## File Organization
 
 ```
 dotfiles/
-├── install.sh                   # Entry point: --profile server|workstation
+├── install.sh                   # Entry point: --profile server|workstation [--theme]
+├── theme.conf                   # Default theme selection (THEME=catppuccin-mocha)
+├── themes/
+│   └── catppuccin-mocha.sh      # Palette: THEME_COLORS + THEME_META
 ├── lib/
 │   ├── log.sh                   # Colored logging
-│   └── helpers.sh               # Symlink helpers, oh-my-zsh installer
+│   ├── helpers.sh               # Symlink helpers, oh-my-zsh installer
+│   └── theme.sh                 # Theme engine: load, render .tpl, validate
 ├── common/                      # Shared configs (all profiles)
 │   ├── zsh/.zshrc
 │   ├── nvim/init.lua
 │   ├── tmux/tmux.conf
 │   ├── git/.gitconfig
+│   ├── lazygit/config.yml.tpl   # Themed (generates config.yml)
 │   └── starship/starship.toml
 ├── workstation/                 # Workstation-only configs
 │   ├── hypr/hyprland.conf
 │   ├── waybar/config, style.css
 │   ├── ghostty/config
+│   ├── mako/config.tpl          # Themed (generates config)
+│   ├── swaylock/config.tpl      # Themed (generates config)
+│   ├── swayosd/style.css.tpl    # Themed (generates style.css)
+│   ├── swaybg/wallpaper.sh.tpl  # Themed (generates wallpaper.sh)
+│   ├── walker/themes/dotfiles/style.css.tpl  # Themed
 │   ├── theming/gtk-3.0/, qt6ct/
 │   └── sddm/
 └── docs/
@@ -172,7 +267,7 @@ dotfiles/
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh`
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh`
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
@@ -181,10 +276,11 @@ dotfiles/
 
 1. Create a directory under `common/` (all profiles) or `workstation/` (desktop only)
 2. Add config files inside it
-3. If the target path follows `~/.config/<name>/`, it works automatically via `deploy_configs`
-4. If the target path is special (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
-5. Update the mapping table in this CLAUDE.md
-6. Run `shellcheck -x install.sh lib/*.sh` to verify
+3. If the config uses theme colors, use a `.tpl` template (see "Adding Colors to a Config" above)
+4. If the target path follows `~/.config/<name>/`, it works automatically via `deploy_configs`
+5. If the target path is special (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
+6. Update the mapping table in this CLAUDE.md
+7. Run `shellcheck -x install.sh lib/*.sh themes/*.sh` to verify
 
 ## Changes Required in OS Repos
 
