@@ -4,6 +4,10 @@
 # --- Oh-My-Zsh ---
 export ZSH="$HOME/.oh-my-zsh"
 
+# Move compinit cache out of $HOME
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION}"
+
 # TODO: Choose theme (powerlevel10k, robbyrussell, etc.)
 ZSH_THEME="robbyrussell"
 

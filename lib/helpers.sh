@@ -73,6 +73,9 @@ install_omz() {
     RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   fi
 
+  # Remove the default .zshrc that oh-my-zsh creates — we deploy our own
+  rm -f "${user_home}/.zshrc"
+
   log_info "oh-my-zsh installed."
 }
 
