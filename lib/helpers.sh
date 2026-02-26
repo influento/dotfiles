@@ -76,6 +76,108 @@ install_omz() {
   log_info "oh-my-zsh installed."
 }
 
+# Install Obsidian community plugins from plugins.conf into a vault.
+# Downloads plugin assets from GitHub releases if not already installed.
+# Updates community-plugins.json to register each plugin.
+# Usage: install_obsidian_plugins "/home/username"
+install_obsidian_plugins() {
+  local user_home="$1"
+  local vault_dir="${user_home}/dropbox/data-vault"
+  local plugins_file="${DOTFILES_DIR}/workstation/obsidian/plugins.conf"
+
+  if [[ ! -f "$plugins_file" ]]; then
+    log_warn "No plugins.conf found, skipping Obsidian plugins."
+    return 0
+  fi
+
+  if [[ ! -d "$vault_dir" ]]; then
+    log_info "Obsidian vault not found at ${vault_dir}, skipping plugins."
+    return 0
+  fi
+
+  log_section "Installing Obsidian plugins"
+
+  local plugins_dir="${vault_dir}/.obsidian/plugins"
+  ensure_dir "$plugins_dir"
+
+  local community_json="${vault_dir}/.obsidian/community-plugins.json"
+  if [[ ! -f "$community_json" ]]; then
+    echo '[]' > "$community_json"
+  fi
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Skip comments and blank lines
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// /}" ]] && continue
+
+    local repo plugin_id
+    repo="$(echo "$line" | awk '{print $1}')"
+    plugin_id="$(echo "$line" | awk '{print $2}')"
+
+    if [[ -z "$repo" || -z "$plugin_id" ]]; then
+      log_warn "Malformed line in plugins.conf: $line"
+      continue
+    fi
+
+    local plugin_dir="${plugins_dir}/${plugin_id}"
+
+    if [[ -d "$plugin_dir" && -f "${plugin_dir}/manifest.json" ]]; then
+      log_info "Plugin already installed: ${plugin_id}"
+    else
+      log_info "Installing plugin: ${plugin_id} from ${repo}..."
+      ensure_dir "$plugin_dir"
+
+      local base_url="https://github.com/${repo}/releases/latest/download"
+      local dl_cmd="curl -fsSL"
+
+      if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
+        sudo -u "$TARGET_USER" bash -c "
+          set -euo pipefail
+          ${dl_cmd} '${base_url}/main.js' -o '${plugin_dir}/main.js'
+          ${dl_cmd} '${base_url}/manifest.json' -o '${plugin_dir}/manifest.json'
+          ${dl_cmd} '${base_url}/styles.css' -o '${plugin_dir}/styles.css' 2>/dev/null || true
+        "
+      else
+        ${dl_cmd} "${base_url}/main.js" -o "${plugin_dir}/main.js"
+        ${dl_cmd} "${base_url}/manifest.json" -o "${plugin_dir}/manifest.json"
+        ${dl_cmd} "${base_url}/styles.css" -o "${plugin_dir}/styles.css" 2>/dev/null || true
+      fi
+
+      if [[ ! -f "${plugin_dir}/manifest.json" ]]; then
+        log_warn "Failed to download plugin: ${plugin_id}"
+        continue
+      fi
+
+      log_info "Plugin installed: ${plugin_id}"
+    fi
+
+    # Register plugin in community-plugins.json if not already present
+    if command -v jq &>/dev/null; then
+      local already_registered
+      already_registered="$(jq -r --arg id "$plugin_id" 'index($id) // empty' "$community_json" 2>/dev/null || true)"
+      if [[ -z "$already_registered" ]]; then
+        local tmp_json="${community_json}.tmp"
+        jq --arg id "$plugin_id" '. + [$id]' "$community_json" > "$tmp_json"
+        mv "$tmp_json" "$community_json"
+        log_info "Registered ${plugin_id} in community-plugins.json"
+      fi
+    else
+      # Fallback without jq: simple grep check and text manipulation
+      if ! grep -q "\"${plugin_id}\"" "$community_json" 2>/dev/null; then
+        local current
+        current="$(cat "$community_json")"
+        if [[ "$current" == "[]" ]]; then
+          echo "[\"${plugin_id}\"]" > "$community_json"
+        else
+          # Replace trailing ] with ,"plugin-id"]
+          sed -i "s/\]$/,\"${plugin_id}\"]/" "$community_json"
+        fi
+        log_info "Registered ${plugin_id} in community-plugins.json"
+      fi
+    fi
+  done < "$plugins_file"
+}
+
 # Deploy all config files/directories from a source directory.
 # Maps each child of source_dir to the appropriate target location.
 # Usage: deploy_configs "/path/to/dotfiles/common" "/home/username" "common"
@@ -98,12 +200,28 @@ deploy_configs() {
     name="$(basename "$item")"
 
     case "$name" in
+      # Handled by dedicated functions, not symlinked
+      obsidian)
+        continue
+        ;;
       # Files that go directly in $HOME (not .config)
       zsh)
         link_config "${item}.zshrc" "${user_home}/.zshrc"
         ;;
       git)
         link_config "${item}.gitconfig" "${user_home}/.gitconfig"
+        ;;
+      # Scripts are symlinked individually into ~/.local/bin/
+      scripts)
+        ensure_dir "${user_home}/.local/bin"
+        local script
+        for script in "${item}"*; do
+          [[ -f "$script" ]] || continue
+          local script_name
+          script_name="$(basename "$script")"
+          [[ "$script_name" == ".gitkeep" ]] && continue
+          link_config "$script" "${user_home}/.local/bin/${script_name}"
+        done
         ;;
       # Theming has nested subdirectories
       theming)

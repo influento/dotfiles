@@ -60,6 +60,8 @@ This means:
 | `common/lazygit/` | `~/.config/lazygit/` | all |
 | `common/btop/` | `~/.config/btop/` | all |
 | `common/fastfetch/` | `~/.config/fastfetch/` | all |
+| `common/yazi/` | `~/.config/yazi/` | all |
+| `common/scripts/*` | `~/.local/bin/*` | all |
 | `workstation/sway/` | `~/.config/sway/` | workstation |
 | `workstation/swaylock/` | `~/.config/swaylock/` | workstation |
 | `workstation/swayidle/` | `~/.config/swayidle/` | workstation |
@@ -71,8 +73,11 @@ This means:
 | `workstation/cliphist/` | `~/.config/cliphist/` | workstation |
 | `workstation/waybar/` | `~/.config/waybar/` | workstation |
 | `workstation/ghostty/` | `~/.config/ghostty/` | workstation |
+| `workstation/scripts/*` | `~/.local/bin/*` | workstation |
+| `workstation/obsidian/plugins.conf` | `~/dropbox/data-vault/.obsidian/plugins/` | workstation |
 | `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
 | `workstation/theming/qt6ct/` | `~/.config/qt6ct/` | workstation |
+| `workstation/theming/Kvantum/` | `~/.config/Kvantum/` | workstation |
 
 ## Theming System
 
@@ -130,7 +135,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 
 **What works:**
 - `install.sh` — profile selection, oh-my-zsh installation, theme rendering, symlink deployment
-- `lib/helpers.sh` — idempotent link_config, backup existing, deploy_configs
+- `lib/helpers.sh` — idempotent link_config, backup existing, deploy_configs, obsidian plugin installer
 - `lib/log.sh` — colored logging
 - `lib/theme.sh` — template rendering engine with `@@TOKEN@@` replacement
 - `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
@@ -162,6 +167,8 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | **LazyGit** | `common/lazygit/config.yml.tpl` | Terminal git UI: theme, pager, editor (themed) |
 | **btop** | `common/btop/btop.conf` | System monitor: theme, layout, vim keys |
 | **fastfetch** | `common/fastfetch/config.jsonc` | System info display: modules, layout |
+| **yazi** | `common/yazi/yazi.toml` | File manager: keymaps, appearance overrides |
+| **scripts (common)** | `common/scripts/` | Shared personal scripts → `~/.local/bin/` |
 
 ### Workstation only
 
@@ -178,9 +185,11 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | **wlsunset** | `workstation/wlsunset/wlsunset.sh` | Night light: temperature, location-based schedule |
 | **SwayOSD** | `workstation/swayosd/style.css.tpl` | On-screen display: volume/brightness popup styling (themed) |
 | **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (Walker or wofi) |
+| **Obsidian plugins** | `workstation/obsidian/plugins.conf` | Plugin installer: downloads from GitHub releases into vault |
 | **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
-| **SDDM** | `workstation/sddm/` | Display manager theme (placeholder, future) |
+| **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | Qt theme engine: renders Qt widgets to match GTK theme |
+| **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
 
 ## Integration with OS Repos
 
@@ -248,8 +257,13 @@ dotfiles/
 │   ├── nvim/init.lua
 │   ├── tmux/tmux.conf
 │   ├── git/.gitconfig
+│   ├── starship/starship.toml
+│   ├── fontconfig/fonts.conf
 │   ├── lazygit/config.yml.tpl   # Themed (generates config.yml)
-│   └── starship/starship.toml
+│   ├── btop/btop.conf
+│   ├── fastfetch/config.jsonc
+│   ├── yazi/yazi.toml
+│   └── scripts/                 # Shared scripts → ~/.local/bin/
 ├── workstation/                 # Workstation-only configs
 │   ├── sway/config
 │   ├── waybar/config, style.css
@@ -259,10 +273,10 @@ dotfiles/
 │   ├── swayosd/style.css.tpl    # Themed (generates style.css)
 │   ├── swaybg/wallpaper.sh.tpl  # Themed (generates wallpaper.sh)
 │   ├── walker/themes/dotfiles/style.css.tpl  # Themed
-│   ├── theming/gtk-3.0/, qt6ct/
-│   └── sddm/
+│   ├── obsidian/plugins.conf     # Plugin list → downloaded into vault
+│   ├── theming/gtk-3.0/, qt6ct/, Kvantum/
+│   └── scripts/                 # Desktop scripts → ~/.local/bin/
 └── docs/
-    └── TODO.md
 ```
 
 ## Commands

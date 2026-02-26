@@ -116,6 +116,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, lazygit, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, walker, swaybg, wlsunset, swayosd, cliphist, theming"
+    log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
   fi
   log_info "  oh-my-zsh: install if missing"
   exit 0
@@ -144,6 +145,7 @@ deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 # Deploy workstation configs (workstation profile only)
 if [[ "$PROFILE" == "workstation" ]]; then
   deploy_configs "${DOTFILES_DIR}/workstation" "$USER_HOME" "workstation"
+  install_obsidian_plugins "$USER_HOME"
 fi
 
 # --- Fix ownership if running as root ---
@@ -154,6 +156,10 @@ if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.zshrc" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.gitconfig" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.oh-my-zsh" 2>/dev/null || true
+  # Fix ownership for Obsidian vault plugin files if they were created
+  if [[ -d "${USER_HOME}/dropbox/data-vault/.obsidian" ]]; then
+    chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}/dropbox/data-vault/.obsidian" 2>/dev/null || true
+  fi
 fi
 
 log_section "Done"
