@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# setup-github — First-login setup for SSH keys, GitHub auth, and git identity.
+# Idempotent: each step checks if already done and skips.
+
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+info()  { echo -e "${GREEN}[✓]${RESET} $1"; }
+warn()  { echo -e "${YELLOW}[!]${RESET} $1"; }
+step()  { echo -e "\n${BLUE}${BOLD}→ $1${RESET}"; }
+error() { echo -e "${RED}[✗]${RESET} $1"; }
+
+# --- Preflight checks ---
+for cmd in ssh-keygen ssh-add gh git; do
+  if ! command -v "$cmd" &>/dev/null; then
+    error "Required command not found: $cmd"
+    exit 1
+  fi
+done
+
+SSH_KEY="$HOME/.ssh/id_ed25519"
+
+# --- Step 1: Generate SSH key ---
+step "SSH key"
+
+if [[ -f "$SSH_KEY" ]]; then
+  info "SSH key already exists: $SSH_KEY"
+else
+  read -rp "Email for SSH key (press Enter to skip label): " ssh_email
+  if [[ -n "$ssh_email" ]]; then
+    ssh-keygen -t ed25519 -C "$ssh_email" -f "$SSH_KEY"
+  else
+    ssh-keygen -t ed25519 -f "$SSH_KEY"
+  fi
+  info "SSH key generated: $SSH_KEY"
+fi
+
+# --- Step 2: Start ssh-agent and add key ---
+step "ssh-agent"
+
+if ssh-add -l &>/dev/null 2>&1; then
+  info "ssh-agent already has keys loaded."
+else
+  eval "$(ssh-agent -s)" > /dev/null
+  ssh-add "$SSH_KEY"
+  info "Key added to ssh-agent."
+fi
+
+# --- Step 3: Authenticate with GitHub ---
+step "GitHub authentication"
+
+if gh auth status &>/dev/null 2>&1; then
+  info "Already authenticated with GitHub."
+else
+  echo "This will open a browser for GitHub device authentication."
+  echo "You'll get a one-time code — enter it in the browser to approve."
+  echo ""
+  gh auth login -p ssh -h github.com -w
+  info "GitHub authentication complete."
+fi
+
+# --- Step 4: Refresh token with admin:public_key scope ---
+step "SSH key upload scope"
+
+# Check if we can list SSH keys (requires admin:public_key scope)
+if gh ssh-key list &>/dev/null 2>&1; then
+  info "Already have SSH key management scope."
+else
+  echo "GitHub needs an extra permission to upload your SSH key."
+  echo "This will open a second browser flow — approve it to continue."
+  echo ""
+  gh auth refresh -h github.com -s admin:public_key
+  info "SSH key scope granted."
+fi
+
+# --- Step 5: Upload SSH key to GitHub ---
+step "Upload SSH key to GitHub"
+
+key_title="$(hostname)"
+
+# Check if this key is already uploaded
+if gh ssh-key list 2>/dev/null | grep -qF "$key_title"; then
+  info "SSH key already uploaded with title: $key_title"
+else
+  gh ssh-key add "${SSH_KEY}.pub" --title "$key_title"
+  info "SSH key uploaded to GitHub as: $key_title"
+fi
+
+# --- Step 6: Configure git identity ---
+step "Git identity"
+
+gitconfig_local="$HOME/.gitconfig.local"
+
+if [[ -f "$gitconfig_local" ]]; then
+  info "Git identity already configured in $gitconfig_local"
+  echo "  name:  $(git config --file "$gitconfig_local" user.name 2>/dev/null || echo '(not set)')"
+  echo "  email: $(git config --file "$gitconfig_local" user.email 2>/dev/null || echo '(not set)')"
+else
+  read -rp "Git name (e.g. John Doe): " git_name
+  read -rp "Git email: " git_email
+
+  if [[ -z "$git_name" || -z "$git_email" ]]; then
+    warn "Skipping git identity — name and email are both required."
+  else
+    cat > "$gitconfig_local" <<EOF
+[user]
+    name = $git_name
+    email = $git_email
+EOF
+    info "Wrote git identity to $gitconfig_local"
+  fi
+fi
+
+# --- Step 7: Switch dotfiles remote to SSH ---
+step "Dotfiles remote"
+
+dotfiles_dir="$HOME/.dotfiles"
+
+if [[ -d "$dotfiles_dir/.git" ]]; then
+  current_remote="$(git -C "$dotfiles_dir" remote get-url origin 2>/dev/null || echo "")"
+
+  if [[ "$current_remote" == git@* ]]; then
+    info "Dotfiles remote already uses SSH: $current_remote"
+  elif [[ "$current_remote" == https://github.com/* ]]; then
+    # Convert https://github.com/user/repo.git → git@github.com:user/repo.git
+    ssh_remote="${current_remote/https:\/\/github.com\//git@github.com:}"
+    echo "Current remote: $current_remote"
+    read -rp "Switch to SSH ($ssh_remote)? [Y/n] " switch_answer
+    switch_answer="${switch_answer:-Y}"
+    if [[ "$switch_answer" =~ ^[Yy]$ ]]; then
+      git -C "$dotfiles_dir" remote set-url origin "$ssh_remote"
+      info "Remote switched to: $ssh_remote"
+    else
+      info "Keeping HTTPS remote."
+    fi
+  else
+    warn "Dotfiles remote is not a GitHub URL: $current_remote"
+  fi
+else
+  warn "No dotfiles repo found at $dotfiles_dir"
+fi
+
+# --- Done ---
+echo ""
+echo -e "${GREEN}${BOLD}Setup complete!${RESET}"
+echo "  SSH key:  $SSH_KEY"
+echo "  GitHub:   $(gh api user --jq '.login' 2>/dev/null || echo 'authenticated')"
+echo "  Git name: $(git config user.name 2>/dev/null || echo '(not set)')"
+echo "  Git email:$(git config user.email 2>/dev/null || echo '(not set)')"

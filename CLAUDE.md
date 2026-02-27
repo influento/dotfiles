@@ -148,7 +148,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 - `common/zsh/.zshrc` — needs plugins, aliases, environment
 - `common/nvim/init.lua` — needs lazy.nvim, LSP, treesitter
 - `common/tmux/tmux.conf` — needs prefix, status bar, plugins
-- `common/git/.gitconfig` — needs user identity, aliases, defaults
+- `common/git/.gitconfig` — needs aliases, defaults (identity via `~/.gitconfig.local`)
 - `common/starship/starship.toml` — needs prompt segments
 - `workstation/theming/gtk-3.0/settings.ini` — needs theme, icons, font
 - `workstation/theming/qt6ct/qt6ct.conf` — needs Kvantum style, icons
@@ -169,6 +169,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | **btop** | `common/btop/btop.conf` | System monitor: theme, layout, vim keys |
 | **fastfetch** | `common/fastfetch/config.jsonc` | System info display: modules, layout |
 | **yazi** | `common/yazi/yazi.toml` | File manager: keymaps, appearance overrides |
+| **setup-github** | `common/scripts/setup-github` | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **scripts (common)** | `common/scripts/` | Shared personal scripts → `~/.local/bin/` |
 
 ### Workstation only

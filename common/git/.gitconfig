@@ -1,24 +1,19 @@
 # Git global configuration
 # Managed by dotfiles repo.
 
-# TODO: Fill in user details and preferences
+[user]
+    # Identity loaded from ~/.gitconfig.local (not tracked)
+    # Run setup-github to configure
 
-# [user]
-#     name = Your Name
-#     email = your@email.com
+[include]
+    path = ~/.gitconfig.local
 
-# [core]
-#     editor = nvim
-#     autocrlf = input
+[core]
+    editor = nvim
+    autocrlf = input
 
-# [init]
-#     defaultBranch = main
+[init]
+    defaultBranch = main
 
-# [pull]
-#     rebase = true
-
-# [alias]
-#     st = status
-#     co = checkout
-#     br = branch
-#     lg = log --oneline --graph --all
+[pull]
+    rebase = true

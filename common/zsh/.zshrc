@@ -35,6 +35,11 @@ export LANG="en_US.UTF-8"
 # Uncomment once starship.toml is configured:
 # eval "$(starship init zsh)"
 
+# --- First-login hint ---
+if command -v gh &>/dev/null && ! gh auth status &>/dev/null 2>&1; then
+  echo "→ Run setup-github to configure SSH + GitHub"
+fi
+
 # --- Tool integrations ---
 # TODO: Add fzf, zoxide, etc. integrations
 
