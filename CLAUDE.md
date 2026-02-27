@@ -66,7 +66,6 @@ This means:
 | `workstation/swaylock/` | `~/.config/swaylock/` | workstation |
 | `workstation/swayidle/` | `~/.config/swayidle/` | workstation |
 | `workstation/mako/` | `~/.config/mako/` | workstation |
-| `workstation/walker/` | `~/.config/walker/` | workstation |
 | `workstation/swaybg/` | `~/.config/swaybg/` | workstation |
 | `workstation/wlsunset/` | `~/.config/wlsunset/` | workstation |
 | `workstation/swayosd/` | `~/.config/swayosd/` | workstation |
@@ -130,7 +129,6 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | `workstation/swaylock/config.tpl` | `config` | `@@TOKEN_RAW@@` |
 | `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
-| `workstation/walker/themes/dotfiles/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 
 ## Current Status
 
@@ -140,8 +138,8 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 - `lib/log.sh` — colored logging
 - `lib/theme.sh` — template rendering engine with `@@TOKEN@@` replacement
 - `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
-- 6 themed config files (lazygit, mako, swaylock, swayosd, swaybg, walker)
-- Real configs: lazygit, mako, swaylock, swayosd, swaybg, walker, wlsunset, cliphist,
+- 5 themed config files (lazygit, mako, swaylock, swayosd, swaybg)
+- Real configs: lazygit, mako, swaylock, swayosd, swaybg, wlsunset, cliphist,
   btop, fastfetch, fontconfig, swayidle, sway, waybar, ghostty, xdg-desktop-portal
 
 **What needs content (scaffolds with TODOs):**
@@ -181,11 +179,10 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | **swaylock** | `workstation/swaylock/config.tpl` | Screen locker: colors, indicator, behavior (themed) |
 | **swayidle** | `workstation/swayidle/config` | Idle manager: lock, screen off, suspend timers |
 | **mako** | `workstation/mako/config.tpl` | Notification daemon: appearance, urgency, timeouts (themed) |
-| **Walker** | `workstation/walker/config.toml`, `themes/dotfiles/` | App launcher: providers, keybinds, theme (themed) |
 | **swaybg** | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/` | Wallpaper: launcher script, image storage (themed) |
 | **wlsunset** | `workstation/wlsunset/wlsunset.sh` | Night light: temperature, location-based schedule |
 | **SwayOSD** | `workstation/swayosd/style.css.tpl` | On-screen display: volume/brightness popup styling (themed) |
-| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (Walker or wofi) |
+| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (wofi) |
 | **Obsidian plugins** | `workstation/obsidian/plugins.conf` | Plugin installer: downloads from GitHub releases into vault |
 | **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
@@ -274,7 +271,6 @@ dotfiles/
 │   ├── swaylock/config.tpl      # Themed (generates config)
 │   ├── swayosd/style.css.tpl    # Themed (generates style.css)
 │   ├── swaybg/wallpaper.sh.tpl  # Themed (generates wallpaper.sh)
-│   ├── walker/themes/dotfiles/style.css.tpl  # Themed
 │   ├── obsidian/plugins.conf     # Plugin list → downloaded into vault
 │   ├── xdg-desktop-portal/portals.conf
 │   ├── theming/gtk-3.0/, qt6ct/, Kvantum/

@@ -5,7 +5,7 @@
 # --- Variables ---
 set $mod Mod1
 set $term ghostty
-set $menu walker
+set $menu wofi --show drun
 
 # --- Output ---
 output * bg #1e1e2e solid_color
@@ -139,4 +139,3 @@ exec wl-paste --watch cliphist store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
 exec nm-applet --indicator
-exec walker --gapplication-service

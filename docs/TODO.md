@@ -21,7 +21,7 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 - [x] Central color palette (themes/catppuccin-mocha.sh)
 - [x] Template rendering engine (lib/theme.sh)
 - [x] --theme CLI flag and theme.conf
-- [x] Convert 6 configs to .tpl templates (lazygit, mako, swaylock, swayosd, swaybg, walker)
+- [x] Convert 5 configs to .tpl templates (lazygit, mako, swaylock, swayosd, swaybg)
 - [x] Generated files gitignored, only templates tracked
 
 ## Phase 2: Workstation Configs
@@ -34,7 +34,6 @@ Configs with real content:
 - [x] swaylock: colors, indicator, behavior (themed)
 - [x] swayidle: lock, screen off, suspend timers
 - [x] mako: notification daemon, urgency overrides (themed)
-- [x] Walker: app launcher, providers, keybinds (themed)
 - [x] swaybg: wallpaper launcher (themed)
 - [x] wlsunset: night light, temperature schedule
 - [x] SwayOSD: volume/brightness popup styling (themed)
