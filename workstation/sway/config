@@ -2,13 +2,139 @@
 # Managed by dotfiles repo.
 # Docs: https://man.archlinux.org/man/sway.5
 
-# TODO: Configure Sway
-# Key sections to add:
-#   - Output configuration (monitors, resolution, wallpaper)
-#   - Input configuration (keyboard, mouse, touchpad)
-#   - Keybindings (mod key, app launchers, window management)
-#   - Workspace assignment and rules
-#   - Window rules (floating, borders)
-#   - Bar configuration (or use waybar)
-#   - Startup applications (waybar, swaybg, mako, etc.)
-#   - Appearance (gaps, borders, colors)
+# --- Variables ---
+set $mod Mod4
+set $term ghostty
+set $menu walker
+
+# --- Output ---
+output * bg #1e1e2e solid_color
+
+# --- Input ---
+input type:keyboard {
+  xkb_layout us
+  repeat_delay 300
+  repeat_rate 30
+}
+
+input type:touchpad {
+  tap enabled
+  natural_scroll enabled
+  dwt enabled
+}
+
+# --- Appearance ---
+gaps inner 8
+gaps outer 4
+default_border pixel 2
+default_floating_border pixel 2
+
+# Catppuccin Mocha border colors
+# class                 border  bg      text    indicator child_border
+client.focused          #89b4fa #89b4fa #1e1e2e #89b4fa   #89b4fa
+client.focused_inactive #45475a #45475a #cdd6f4 #45475a   #45475a
+client.unfocused        #313244 #313244 #cdd6f4 #313244   #313244
+client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8   #f38ba8
+
+# --- Keybindings: Applications ---
+bindsym $mod+Return exec $term
+bindsym $mod+d exec $menu
+bindsym $mod+Shift+q kill
+bindsym $mod+v exec ~/.config/cliphist/cliphist-pick.sh
+bindsym $mod+Escape exec swaylock -f
+
+# Screenshots
+bindsym Print exec grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+bindsym $mod+Print exec grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+
+# --- Keybindings: Focus (vim-style) ---
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+
+# Arrow key alternatives
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# --- Keybindings: Move windows ---
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# --- Keybindings: Layout ---
+bindsym $mod+b splith
+bindsym $mod+n splitv
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+bindsym $mod+a focus parent
+
+# --- Keybindings: Workspaces ---
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+
+# --- Keybindings: Resize mode ---
+mode "resize" {
+  bindsym h resize shrink width 10px
+  bindsym j resize grow height 10px
+  bindsym k resize shrink height 10px
+  bindsym l resize grow width 10px
+
+  bindsym Left resize shrink width 10px
+  bindsym Down resize grow height 10px
+  bindsym Up resize shrink height 10px
+  bindsym Right resize grow width 10px
+
+  bindsym Return mode "default"
+  bindsym Escape mode "default"
+}
+
+bindsym $mod+r mode "resize"
+
+# --- Keybindings: Session ---
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+e exec swaynag -t warning \
+  -m 'Exit Sway?' -B 'Yes, exit' 'swaymsg exit'
+
+# --- Bar ---
+bar {
+  swaybar_command waybar
+}
+
+# --- Autostart ---
+exec ~/.config/swaybg/wallpaper.sh
+exec swayidle -w
+exec mako
+exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+exec wl-paste --watch cliphist store
+exec ~/.config/wlsunset/wlsunset.sh
+exec swayosd-server

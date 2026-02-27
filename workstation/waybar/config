@@ -1,9 +1,43 @@
 {
-  "// NOTE": "Waybar configuration — managed by dotfiles repo",
-  "// TODO": "Configure waybar modules and layout",
   "layer": "top",
   "position": "top",
-  "modules-left": [],
-  "modules-center": [],
-  "modules-right": []
+  "height": 32,
+  "spacing": 8,
+  "modules-left": ["sway/workspaces", "sway/mode"],
+  "modules-center": ["clock"],
+  "modules-right": ["pulseaudio", "network", "cpu", "memory", "tray"],
+  "sway/workspaces": {
+    "disable-scroll": true,
+    "all-outputs": true,
+    "format": "{name}"
+  },
+  "sway/mode": {
+    "format": "{}"
+  },
+  "clock": {
+    "format": "{:%a %b %d  %H:%M}",
+    "tooltip-format": "{:%Y-%m-%d %H:%M:%S}"
+  },
+  "cpu": {
+    "format": "CPU {usage}%",
+    "interval": 5
+  },
+  "memory": {
+    "format": "MEM {}%",
+    "interval": 5
+  },
+  "network": {
+    "format-wifi": "WiFi {signalStrength}%",
+    "format-ethernet": "ETH",
+    "format-disconnected": "OFF",
+    "tooltip-format": "{ifname}: {ipaddr}/{cidr}"
+  },
+  "pulseaudio": {
+    "format": "VOL {volume}%",
+    "format-muted": "MUTE",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+  "tray": {
+    "spacing": 8
+  }
 }

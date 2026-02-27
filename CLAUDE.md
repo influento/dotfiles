@@ -73,6 +73,7 @@ This means:
 | `workstation/cliphist/` | `~/.config/cliphist/` | workstation |
 | `workstation/waybar/` | `~/.config/waybar/` | workstation |
 | `workstation/ghostty/` | `~/.config/ghostty/` | workstation |
+| `workstation/xdg-desktop-portal/` | `~/.config/xdg-desktop-portal/` | workstation |
 | `workstation/scripts/*` | `~/.local/bin/*` | workstation |
 | `workstation/obsidian/plugins.conf` | `~/dropbox/data-vault/.obsidian/plugins/` | workstation |
 | `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
@@ -141,7 +142,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 - `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
 - 6 themed config files (lazygit, mako, swaylock, swayosd, swaybg, walker)
 - Real configs: lazygit, mako, swaylock, swayosd, swaybg, walker, wlsunset, cliphist,
-  btop, fastfetch, fontconfig, swayidle, sway, waybar, ghostty
+  btop, fastfetch, fontconfig, swayidle, sway, waybar, ghostty, xdg-desktop-portal
 
 **What needs content (scaffolds with TODOs):**
 - `common/zsh/.zshrc` — needs plugins, aliases, environment
@@ -189,6 +190,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
 | **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | Qt theme engine: renders Qt widgets to match GTK theme |
+| **XDG desktop portal** | `workstation/xdg-desktop-portal/portals.conf` | Portal backend: routes desktop portals to wlr for Sway |
 | **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
 
 ## Integration with OS Repos
@@ -274,6 +276,7 @@ dotfiles/
 │   ├── swaybg/wallpaper.sh.tpl  # Themed (generates wallpaper.sh)
 │   ├── walker/themes/dotfiles/style.css.tpl  # Themed
 │   ├── obsidian/plugins.conf     # Plugin list → downloaded into vault
+│   ├── xdg-desktop-portal/portals.conf
 │   ├── theming/gtk-3.0/, qt6ct/, Kvantum/
 │   └── scripts/                 # Desktop scripts → ~/.local/bin/
 └── docs/

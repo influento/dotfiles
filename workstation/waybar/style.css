@@ -1,4 +1,81 @@
 /* Waybar style — managed by dotfiles repo */
+/* Catppuccin Mocha palette */
 
-/* TODO: Add waybar CSS styling */
-/* Docs: https://github.com/Alexays/Waybar/wiki/Styling */
+* {
+  font-family: "JetBrains Mono", sans-serif;
+  font-size: 12px;
+  min-height: 0;
+}
+
+window#waybar {
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+  border-bottom: 2px solid #313244;
+}
+
+#workspaces button {
+  padding: 0 8px;
+  color: #cdd6f4;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  margin: 4px 2px;
+}
+
+#workspaces button.focused {
+  background-color: #89b4fa;
+  color: #1e1e2e;
+}
+
+#workspaces button.urgent {
+  background-color: #f38ba8;
+  color: #1e1e2e;
+}
+
+#workspaces button.visible {
+  background-color: #45475a;
+}
+
+#workspaces button:hover {
+  background-color: #585b70;
+}
+
+#mode {
+  padding: 0 8px;
+  color: #f38ba8;
+  font-weight: bold;
+}
+
+#clock,
+#cpu,
+#memory,
+#network,
+#pulseaudio,
+#tray {
+  padding: 0 10px;
+  margin: 4px 2px;
+  border-radius: 4px;
+  background-color: #313244;
+  color: #cdd6f4;
+}
+
+#clock {
+  font-weight: bold;
+}
+
+#pulseaudio.muted {
+  color: #a6adc8;
+}
+
+#network.disconnected {
+  color: #a6adc8;
+}
+
+#tray > .passive {
+  -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+  -gtk-icon-effect: highlight;
+  background-color: #f38ba8;
+}

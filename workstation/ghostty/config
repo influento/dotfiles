@@ -2,10 +2,14 @@
 # Managed by dotfiles repo.
 # Docs: https://ghostty.org/docs/config
 
-# TODO: Configure Ghostty
-# Key settings:
-#   font-family = JetBrains Mono
-#   font-size = 13
-#   theme = ...
-#   window-padding-x = ...
-#   window-padding-y = ...
+font-family = JetBrains Mono
+font-size = 13
+theme = catppuccin-mocha
+
+window-padding-x = 8
+window-padding-y = 8
+cursor-style = block
+cursor-style-blink = false
+scrollback-limit = 10000
+copy-on-select = clipboard
+confirm-close-surface = false
