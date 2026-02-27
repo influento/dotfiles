@@ -3,7 +3,7 @@
 # Docs: https://man.archlinux.org/man/sway.5
 
 # --- Variables ---
-set $mod Mod4
+set $mod Mod1
 set $term ghostty
 set $menu walker
 
@@ -138,3 +138,4 @@ exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 exec wl-paste --watch cliphist store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
+exec nm-applet --indicator

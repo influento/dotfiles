@@ -37,3 +37,8 @@ export LANG="en_US.UTF-8"
 
 # --- Tool integrations ---
 # TODO: Add fzf, zoxide, etc. integrations
+
+# --- Auto-start Sway on tty1 ---
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
+  exec sway
+fi
