@@ -131,6 +131,7 @@ bar {
 }
 
 # --- Autostart ---
+exec gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 exec ~/.config/swaybg/wallpaper.sh
 exec swayidle -w
 exec mako

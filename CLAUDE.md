@@ -76,6 +76,7 @@ This means:
 | `workstation/scripts/*` | `~/.local/bin/*` | workstation |
 | `workstation/obsidian/plugins.conf` | `~/dropbox/data-vault/.obsidian/plugins/` | workstation |
 | `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
+| `workstation/theming/gtk-4.0/` | `~/.config/gtk-4.0/` | workstation |
 | `workstation/theming/qt6ct/` | `~/.config/qt6ct/` | workstation |
 | `workstation/theming/Kvantum/` | `~/.config/Kvantum/` | workstation |
 
@@ -129,6 +130,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | `workstation/swaylock/config.tpl` | `config` | `@@TOKEN_RAW@@` |
 | `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
+| `workstation/theming/gtk-4.0/gtk.css.tpl` | `gtk.css` | `@@TOKEN@@` |
 
 ## Current Status
 

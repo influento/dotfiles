@@ -6,7 +6,7 @@ layer=overlay
 margin=10
 
 # Appearance
-font=sans-serif 11
+font=JetBrainsMono Nerd Font 11
 width=350
 height=150
 padding=12

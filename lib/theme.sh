@@ -67,6 +67,7 @@ render_templates() {
   while IFS= read -r -d '' tpl; do
     local output="${tpl%.tpl}"
     sed "$SED_SCRIPT" "$tpl" > "$output"
+    chmod --reference="$tpl" "$output"
     count=$((count + 1))
   done < <(find "$search_dir" -name '*.tpl' -print0)
 
