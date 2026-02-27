@@ -139,3 +139,4 @@ exec wl-paste --watch cliphist store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
 exec nm-applet --indicator
+exec walker --gapplication-service
