@@ -128,7 +128,7 @@ bar {
 }
 
 # --- Window rules ---
-for_window [app_id="dev.dotfiles.calendar-popup"] floating enable, move absolute position 1770 40
+for_window [app_id="dev.dotfiles.calendar-popup"] floating enable, move position center
 
 # --- Autostart ---
 exec gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
