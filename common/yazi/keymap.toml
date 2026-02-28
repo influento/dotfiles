@@ -1,0 +1,33 @@
+# yazi — custom key mappings
+
+# Bookmarks
+[[mgr.prepend_keymap]]
+on   = ["g", "h"]
+run  = "cd ~"
+desc = "Go to home"
+
+[[mgr.prepend_keymap]]
+on   = ["g", "d"]
+run  = "cd ~/dev"
+desc = "Go to dev"
+
+[[mgr.prepend_keymap]]
+on   = ["g", "c"]
+run  = "cd ~/.config"
+desc = "Go to config"
+
+[[mgr.prepend_keymap]]
+on   = ["g", "o"]
+run  = "cd ~/dev/infra/dotfiles"
+desc = "Go to dotfiles"
+
+[[mgr.prepend_keymap]]
+on   = ["g", "D"]
+run  = "cd ~/Dropbox"
+desc = "Go to Dropbox"
+
+# Make file executable
+[[mgr.prepend_keymap]]
+on   = ["c", "m"]
+run  = "shell -- chmod +x %s"
+desc = "Make executable"

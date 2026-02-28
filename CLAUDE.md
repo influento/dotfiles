@@ -51,7 +51,7 @@ This means:
 
 | Source | Target | Profile |
 |---|---|---|
-| `common/zsh/.zshrc` | `~/.zshrc` | all |
+| `common/zsh/.zshrc.tpl` | `~/.zshrc` (via generated `.zshrc`) | all |
 | `common/nvim/` | `~/.config/nvim/` | all |
 | `common/tmux/` | `~/.config/tmux/` | all |
 | `common/git/.gitconfig` | `~/.gitconfig` | all |
@@ -125,6 +125,8 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 
 | Template | Generated file | Token format |
 |---|---|---|
+| `common/zsh/.zshrc.tpl` | `.zshrc` | `@@TOKEN@@` |
+| `common/starship/starship.toml.tpl` | `starship.toml` | `@@TOKEN@@` |
 | `common/lazygit/config.yml.tpl` | `config.yml` | `@@TOKEN@@` |
 | `workstation/mako/config.tpl` | `config` | `@@TOKEN@@` |
 | `workstation/swaylock/config.tpl` | `config` | `@@TOKEN_RAW@@` |
@@ -140,16 +142,15 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 - `lib/log.sh` — colored logging
 - `lib/theme.sh` — template rendering engine with `@@TOKEN@@` replacement
 - `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
-- 5 themed config files (lazygit, mako, swaylock, swayosd, swaybg)
-- Real configs: lazygit, mako, swaylock, swayosd, swaybg, wlsunset, cliphist,
-  btop, fastfetch, fontconfig, swayidle, sway, waybar, ghostty, xdg-desktop-portal
+- 8 themed template files (zshrc, starship, lazygit, mako, swaylock, swayosd, swaybg, gtk-4.0)
+- Customized configs: zsh, starship, fastfetch, yazi, lazygit, mako, swaylock, swayosd,
+  swaybg, wlsunset, cliphist, btop, fastfetch, fontconfig, swayidle, sway, waybar,
+  ghostty, xdg-desktop-portal
 
 **What needs content (scaffolds with TODOs):**
-- `common/zsh/.zshrc` — needs plugins, aliases, environment
 - `common/nvim/init.lua` — needs lazy.nvim, LSP, treesitter
 - `common/tmux/tmux.conf` — needs prefix, status bar, plugins
 - `common/git/.gitconfig` — needs aliases, defaults (identity via `~/.gitconfig.local`)
-- `common/starship/starship.toml` — needs prompt segments
 - `workstation/theming/gtk-3.0/settings.ini` — needs theme, icons, font
 - `workstation/theming/qt6ct/qt6ct.conf` — needs Kvantum style, icons
 
@@ -159,11 +160,11 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 
 | Tool | Config location | Purpose |
 |---|---|---|
-| **zsh + oh-my-zsh** | `common/zsh/.zshrc` | Shell: plugins, aliases, environment, prompt theme |
+| **zsh + oh-my-zsh** | `common/zsh/.zshrc.tpl` | Shell: plugins, aliases, environment, prompt theme (themed) |
 | **Neovim** | `common/nvim/init.lua` | Editor: keymaps, plugins (lazy.nvim), options |
 | **tmux** | `common/tmux/tmux.conf` | Terminal multiplexer: prefix key, panes, status bar |
 | **Git** | `common/git/.gitconfig` | Version control: user identity, aliases, defaults |
-| **Starship** | `common/starship/starship.toml` | Cross-shell prompt: segments, theme, icons |
+| **Starship** | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed) |
 | **fontconfig** | `common/fontconfig/fonts.conf` | Font rendering: hinting, antialiasing, default families |
 | **LazyGit** | `common/lazygit/config.yml.tpl` | Terminal git UI: theme, pager, editor (themed) |
 | **btop** | `common/btop/btop.conf` | System monitor: theme, layout, vim keys |
@@ -255,11 +256,11 @@ dotfiles/
 │   ├── helpers.sh               # Symlink helpers, oh-my-zsh installer
 │   └── theme.sh                 # Theme engine: load, render .tpl, validate
 ├── common/                      # Shared configs (all profiles)
-│   ├── zsh/.zshrc
+│   ├── zsh/.zshrc.tpl           # Themed (generates .zshrc)
 │   ├── nvim/init.lua
 │   ├── tmux/tmux.conf
 │   ├── git/.gitconfig
-│   ├── starship/starship.toml
+│   ├── starship/starship.toml.tpl  # Themed (generates starship.toml)
 │   ├── fontconfig/fonts.conf
 │   ├── lazygit/config.yml.tpl   # Themed (generates config.yml)
 │   ├── btop/btop.conf
@@ -288,7 +289,23 @@ dotfiles/
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
 
-## Adding New Configs
+## Editing Configs
+
+When modifying any config, follow this workflow:
+
+1. **Check if the config is a template** — look for a `.tpl` file. If it exists, edit
+   the `.tpl`, never the generated file (it will be overwritten on next install)
+2. **Use theme tokens for colors** — any hardcoded hex color that comes from the theme
+   palette must use `@@TOKEN@@` (hash-prefixed) or `@@TOKEN_RAW@@` (bare hex) placeholders.
+   Never hardcode theme colors in a config that could be a template
+3. **If adding colors to a non-template config** — convert it to a template first
+   (see "Adding Colors to a Config" above), add the generated file to `.gitignore`,
+   and update the Template Files table
+4. **Check `docs/references.md`** for official documentation links before making changes
+   to any tool config — especially after tool upgrades that may introduce breaking changes
+5. **Run `install.sh`** after template changes to regenerate files and verify rendering
+
+### Adding New Configs
 
 1. Create a directory under `common/` (all profiles) or `workstation/` (desktop only)
 2. Add config files inside it
@@ -297,6 +314,11 @@ dotfiles/
 5. If the target path is special (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
 6. Update the mapping table in this CLAUDE.md
 7. Run `shellcheck -x install.sh lib/*.sh themes/*.sh` to verify
+
+## Documentation
+
+- **`docs/references.md`** — official doc links and config format notes for every tool.
+  Consult before modifying configs, especially after package upgrades.
 
 ## Changes Required in OS Repos
 

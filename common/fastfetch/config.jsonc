@@ -3,7 +3,7 @@
   "display": {
     "separator": "  ",
     "color": {
-      "keys": "blue"
+      "keys": "34"
     }
   },
   "logo": {
@@ -15,27 +15,30 @@
   "modules": [
     "title",
     "separator",
-    "os",
-    "kernel",
-    "host",
-    "uptime",
-    "packages",
-    "shell",
-    "terminal",
-    "editor",
-    {
-      "type": "display",
-      "compactType": "original-with-refresh-rate"
-    },
+    { "type": "os", "key": "OS" },
+    { "type": "kernel", "key": "Kernel" },
+    { "type": "host", "key": "Host" },
+    { "type": "uptime", "key": "Uptime" },
+    { "type": "packages", "key": "Pkgs" },
+    "break",
+    { "type": "shell", "key": "Shell" },
+    { "type": "terminal", "key": "Term" },
+    { "type": "editor", "key": "Editor" },
     {
       "type": "wm",
-      "key": "Compositor"
+      "key": "WM"
     },
-    "cpu",
-    "gpu",
-    "memory",
-    "swap",
-    "disk",
+    {
+      "type": "display",
+      "key": "Display",
+      "compactType": "original-with-refresh-rate"
+    },
+    "break",
+    { "type": "cpu", "key": "CPU" },
+    { "type": "gpu", "key": "GPU" },
+    { "type": "memory", "key": "Memory" },
+    { "type": "disk", "key": "Disk" },
+    { "type": "localip", "key": "IP" },
     "break",
     "colors"
   ]

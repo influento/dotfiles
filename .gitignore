@@ -10,6 +10,8 @@ Thumbs.db
 .nvimlog
 
 # Generated from .tpl templates by theme engine (do not edit directly)
+common/zsh/.zshrc
+common/starship/starship.toml
 common/lazygit/config.yml
 workstation/mako/config
 workstation/swaylock/config
