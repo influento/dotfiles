@@ -17,3 +17,29 @@
 
 [pull]
     rebase = true
+
+[push]
+    autoSetupRemote = true
+
+[fetch]
+    prune = true
+
+[diff]
+    colorMoved = default
+
+[merge]
+    conflictstyle = zdiff3
+
+[rerere]
+    enabled = true
+
+[alias]
+    st = status
+    co = checkout
+    br = branch
+    ci = commit
+    sw = switch
+    unstage = reset HEAD --
+    last = log -1 HEAD
+    amend = commit --amend --no-edit
+    lg = log --oneline --graph --decorate --all

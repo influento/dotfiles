@@ -8,10 +8,9 @@ export ZSH="$HOME/.oh-my-zsh"
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION}"
 
-# TODO: Choose theme (powerlevel10k, robbyrussell, etc.)
-ZSH_THEME="robbyrussell"
+# Starship handles the prompt
+ZSH_THEME=""
 
-# TODO: Configure plugins
 plugins=(
   git
   zsh-autosuggestions
@@ -26,22 +25,61 @@ source "$ZSH/oh-my-zsh.sh"
 export EDITOR="nvim"
 export VISUAL="nvim"
 export LANG="en_US.UTF-8"
+export PATH="$HOME/.local/bin:$PATH"
 
 # --- Aliases ---
 
-# TODO: Add aliases
+# Modern replacements
+alias ls='eza --group-directories-first --icons'
+alias ll='eza -la --group-directories-first --icons'
+alias lt='eza -T --group-directories-first --icons --level=2'
+alias cat='bat --plain'
+alias vim='nvim'
+alias grep='rg'
+alias find='fd'
+
+# Git shortcuts
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git pull'
+alias gd='git diff'
+alias gco='git checkout'
+alias gb='git branch'
+alias glg='git log --oneline --graph --decorate'
+
+# Safety nets
+alias rm='rm -i'
+alias mv='mv -i'
+alias cp='cp -i'
+
+# --- Tool integrations ---
+
+# fzf
+eval "$(fzf --zsh)"
+
+# zoxide (smarter cd)
+eval "$(zoxide init zsh)"
+
+# yazi — cd into directory on exit
+y() {
+  local tmp
+  tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+  yazi "$@" --cwd-file="$tmp"
+  if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+    builtin cd -- "$cwd" || return
+  fi
+  rm -f -- "$tmp"
+}
 
 # --- Starship prompt ---
-# Uncomment once starship.toml is configured:
-# eval "$(starship init zsh)"
+eval "$(starship init zsh)"
 
 # --- First-login hint ---
 if command -v gh &>/dev/null && ! gh auth status &>/dev/null 2>&1; then
   echo "→ Run setup-github to configure SSH + GitHub"
 fi
-
-# --- Tool integrations ---
-# TODO: Add fzf, zoxide, etc. integrations
 
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then

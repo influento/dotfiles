@@ -16,7 +16,7 @@ link_config() {
   # Already correctly linked
   if [[ -L "$target" ]]; then
     local current
-    current="$(readlink -f "$target")"
+    current="$(readlink -f "$target" 2>/dev/null)" || current=""
     local expected
     expected="$(readlink -f "$src")"
     if [[ "$current" == "$expected" ]]; then
@@ -63,7 +63,7 @@ install_omz() {
 
   # Run as the target user if we're root, otherwise run directly
   if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-    sudo -u "$TARGET_USER" bash -c '
+    sudo -Hu "$TARGET_USER" bash -c '
       set -euo pipefail
       export RUNZSH=no
       export CHSH=no
@@ -77,6 +77,48 @@ install_omz() {
   rm -f "${user_home}/.zshrc"
 
   log_info "oh-my-zsh installed."
+}
+
+# Install zsh plugins into oh-my-zsh custom plugins directory.
+# Clones zsh-autosuggestions and zsh-syntax-highlighting if not already present.
+# Usage: install_zsh_plugins "/home/username"
+install_zsh_plugins() {
+  local user_home="$1"
+  local custom_dir="${user_home}/.oh-my-zsh/custom/plugins"
+
+  if [[ ! -d "${user_home}/.oh-my-zsh" ]]; then
+    log_warn "oh-my-zsh not found, skipping zsh plugin installation."
+    return 0
+  fi
+
+  ensure_dir "$custom_dir"
+
+  local -a plugins=(
+    "zsh-users/zsh-autosuggestions"
+    "zsh-users/zsh-syntax-highlighting"
+  )
+
+  local repo plugin_name dest
+  for repo in "${plugins[@]}"; do
+    plugin_name="${repo##*/}"
+    dest="${custom_dir}/${plugin_name}"
+
+    if [[ -d "$dest" ]]; then
+      log_info "zsh plugin already installed: ${plugin_name}"
+      continue
+    fi
+
+    log_info "Installing zsh plugin: ${plugin_name}..."
+
+    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
+      sudo -Hu "$TARGET_USER" git clone --depth 1 \
+        "https://github.com/${repo}.git" "$dest"
+    else
+      git clone --depth 1 "https://github.com/${repo}.git" "$dest"
+    fi
+
+    log_info "zsh plugin installed: ${plugin_name}"
+  done
 }
 
 # Install Obsidian community plugins from plugins.conf into a vault.

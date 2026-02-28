@@ -28,7 +28,7 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 
 Configs with real content:
 
-- [ ] Sway: keybindings, monitors, workspaces, window rules, startup apps
+- [x] Sway: keybindings, monitors, workspaces, window rules, startup apps
 - [x] Waybar: module layout (workspaces, clock, tray, battery), CSS theme
 - [x] Ghostty: font, theme, window settings
 - [x] swaylock: colors, indicator, behavior (themed)
@@ -45,8 +45,8 @@ Configs with real content:
 
 Configs still scaffolded (TODOs):
 
-- [ ] GTK: settings.ini with Adwaita-dark / Papirus icons / Noto Sans
-- [ ] Qt: qt6ct.conf with Kvantum theme, Papirus icons
+- [x] GTK: settings.ini with Catppuccin-Mocha-Mauve / Papirus-Dark icons / JetBrainsMono Nerd Font
+- [x] Qt: qt6ct.conf with Kvantum style, Papirus-Dark icons
 - [ ] SDDM: custom theme (placeholder, .gitkeep only)
 
 ## Phase 3: Common Configs

@@ -121,9 +121,16 @@ fi
 # --- Step 7: Switch dotfiles remote to SSH ---
 step "Dotfiles remote"
 
-dotfiles_dir="$HOME/.dotfiles"
+# Find dotfiles repo: check new location first, fall back to legacy
+if [[ -d "$HOME/dev/infra/dotfiles/.git" ]]; then
+  dotfiles_dir="$HOME/dev/infra/dotfiles"
+elif [[ -d "$HOME/.dotfiles/.git" ]]; then
+  dotfiles_dir="$HOME/.dotfiles"
+else
+  dotfiles_dir=""
+fi
 
-if [[ -d "$dotfiles_dir/.git" ]]; then
+if [[ -n "$dotfiles_dir" ]]; then
   current_remote="$(git -C "$dotfiles_dir" remote get-url origin 2>/dev/null || echo "")"
 
   if [[ "$current_remote" == git@* ]]; then
@@ -144,7 +151,7 @@ if [[ -d "$dotfiles_dir/.git" ]]; then
     warn "Dotfiles remote is not a GitHub URL: $current_remote"
   fi
 else
-  warn "No dotfiles repo found at $dotfiles_dir"
+  warn "No dotfiles repo found at ~/dev/infra/dotfiles or ~/.dotfiles"
 fi
 
 # --- Done ---

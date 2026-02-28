@@ -1,2 +1,6 @@
 # yazi — file manager configuration
-# TODO: Add overrides as needed
+
+[manager]
+show_hidden = true
+sort_dir_first = true
+sort_by = "natural"

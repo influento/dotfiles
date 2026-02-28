@@ -24,11 +24,11 @@ Each OS installer clones this repository and executes it with the appropriate pr
 
 ```bash
 # From the OS installer (as root, targeting a specific user):
-git clone <DOTFILES_REPO_URL> /home/<username>/.dotfiles
-bash /home/<username>/.dotfiles/install.sh --profile server --user <username>
+git clone <DOTFILES_REPO_URL> /home/<username>/dev/infra/dotfiles
+bash /home/<username>/dev/infra/dotfiles/install.sh --profile server --user <username>
 
 # Or run manually as a regular user:
-bash ~/.dotfiles/install.sh --profile workstation
+bash ~/dev/infra/dotfiles/install.sh --profile workstation
 ```
 
 ### Profiles
@@ -202,7 +202,7 @@ Both OS repos have a `DOTFILES_REPO` variable in their `config.sh`:
 ```bash
 # In the OS repo's config.sh:
 DOTFILES_REPO="https://github.com/<user>/dotfiles.git"
-DOTFILES_DEST="/home/${USERNAME}/.dotfiles"
+DOTFILES_DEST="/home/${USERNAME}/dev/infra/dotfiles"
 ```
 
 The OS installer's `profiles/base.sh` clones and runs:
@@ -331,7 +331,7 @@ Apply the same pattern:
        log_warn "DOTFILES_REPO not set — skipping dotfiles deployment."
        return 0
      fi
-     local dest="${DOTFILES_DEST:-/home/${USERNAME}/.dotfiles}"
+     local dest="${DOTFILES_DEST:-/home/${USERNAME}/dev/infra/dotfiles}"
      if [[ -d "$dest" ]]; then
        sudo -u "$USERNAME" git -C "$dest" pull --ff-only || log_warn "Pull failed."
      else

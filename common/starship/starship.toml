@@ -2,7 +2,54 @@
 # Managed by dotfiles repo.
 # Docs: https://starship.rs/config/
 
-# TODO: Configure starship prompt
-# Recommended: start with a preset and customize
-#   starship preset gruvbox-rainbow -o ~/.config/starship.toml
-#   starship preset nerd-font-symbols -o ~/.config/starship.toml
+add_newline = false
+
+format = """$directory$git_branch$git_status$python$nodejs$rust$golang$lua$cmd_duration$character"""
+
+[directory]
+style = "bold #89b4fa"
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "#cba6f7"
+symbol = " "
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+style = "#fab387"
+
+[python]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "#a6e3a1"
+
+[nodejs]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "#a6e3a1"
+
+[rust]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "#a6e3a1"
+
+[golang]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "#a6e3a1"
+
+[lua]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "#a6e3a1"
+
+[cmd_duration]
+format = "[$duration]($style) "
+style = "#f9e2af"
+min_time = 2_000
+
+[character]
+success_symbol = "[❯](bold #a6e3a1)"
+error_symbol = "[❯](bold #f38ba8)"

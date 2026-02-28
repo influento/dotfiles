@@ -126,6 +126,7 @@ fi
 
 # Install oh-my-zsh (prerequisite for zsh config)
 install_omz "$USER_HOME"
+install_zsh_plugins "$USER_HOME"
 
 # Load theme and render templates
 load_theme "$THEME"
@@ -153,6 +154,7 @@ fi
 if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
   log_info "Fixing ownership for $TARGET_USER..."
   chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.config" 2>/dev/null || true
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.local" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.zshrc" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.gitconfig" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.oh-my-zsh" 2>/dev/null || true
