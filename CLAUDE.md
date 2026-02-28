@@ -133,6 +133,32 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
 | `workstation/theming/gtk-4.0/gtk.css.tpl` | `gtk.css` | `@@TOKEN@@` |
+| `workstation/waybar/style.css.tpl` | `style.css` | `@@TOKEN@@` |
+| `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
+
+## Custom GTK4 Widgets
+
+Custom UI popups and widgets are built with Python + PyGObject (GTK4). This avoids
+installing extra packages — `python3` and `gtk4` are already present on workstation
+systems (ghostty depends on GTK4).
+
+**How it works:**
+- Widget scripts live in `workstation/scripts/` and are deployed to `~/.local/bin/`
+- CSS in widgets uses `@@TOKEN@@` placeholders (`.tpl` template) for theme consistency
+- Sway `for_window` rules control floating behavior and positioning
+- Toggle scripts use `flock` to prevent duplicate windows on rapid clicks
+
+**Existing widgets:**
+- `calendar-popup` — GTK4 calendar opened by clicking waybar clock
+
+**Adding a new widget:**
+1. Create `workstation/scripts/<name>.tpl` with a Python GTK4 app
+2. Use `@@TOKEN@@` placeholders in the CSS string for theme colors
+3. Set a unique `application_id` (e.g., `dev.dotfiles.<name>`)
+4. Add a toggle script in `workstation/scripts/<name>-toggle`
+5. Add a `for_window [app_id="dev.dotfiles.<name>"]` rule in sway config
+6. Add the generated file to `.gitignore`
+7. Wire it up in waybar config via `bash -c "$HOME/.local/bin/<name>-toggle"`
 
 ## Current Status
 
