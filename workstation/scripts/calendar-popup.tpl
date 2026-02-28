@@ -7,58 +7,58 @@ from gi.repository import Gtk, Gdk
 
 CSS = """
 window {
-  background-color: #1e1e2e;
-  color: #cdd6f4;
+  background-color: @@BASE@@;
+  color: @@TEXT@@;
 }
 
 calendar {
   font-family: "JetBrainsMono Nerd Font", monospace;
   font-size: 14px;
-  background-color: #1e1e2e;
-  color: #cdd6f4;
+  background-color: @@BASE@@;
+  color: @@TEXT@@;
   padding: 8px;
 }
 
 calendar > header {
-  background-color: #181825;
+  background-color: @@MANTLE@@;
   border-radius: 8px;
   padding: 4px;
 }
 
 calendar > header > button {
-  color: #89b4fa;
+  color: @@BLUE@@;
   min-height: 24px;
   min-width: 24px;
 }
 
 calendar > header > button:hover {
-  background-color: #313244;
+  background-color: @@SURFACE1@@;
   border-radius: 4px;
 }
 
 calendar.view {
-  background-color: #1e1e2e;
+  background-color: @@BASE@@;
 }
 
 calendar > grid > label.day-name {
-  color: #cba6f7;
+  color: @@MAUVE@@;
   font-weight: bold;
 }
 
 calendar > grid > label.day-number {
-  color: #cdd6f4;
+  color: @@TEXT@@;
   border-radius: 50%;
   padding: 4px;
 }
 
 calendar > grid > label.day-number:selected {
-  background-color: #89b4fa;
-  color: #1e1e2e;
+  background-color: @@BLUE@@;
+  color: @@BASE@@;
   font-weight: bold;
 }
 
 calendar > grid > label.day-number.other-month {
-  color: #585b70;
+  color: @@SURFACE2@@;
 }
 """
 

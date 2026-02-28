@@ -19,3 +19,4 @@ workstation/swaylock/config
 workstation/swayosd/style.css
 workstation/swaybg/wallpaper.sh
 workstation/theming/gtk-4.0/gtk.css
+workstation/scripts/calendar-popup
