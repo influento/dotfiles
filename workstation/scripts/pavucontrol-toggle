@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle pavucontrol. Uses flock to prevent duplicates.
+
+LOCKFILE="/tmp/.pavucontrol-toggle.lock"
+
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  if pgrep -x pavucontrol >/dev/null 2>&1; then
+    pkill -x pavucontrol
+  fi
+  exit 0
+fi
+
+if pgrep -x pavucontrol >/dev/null 2>&1; then
+  pkill -x pavucontrol
+  flock -u 9
+else
+  flock -u 9
+  pavucontrol
+  exec 9>"$LOCKFILE"
+  flock -n 9 && sleep 0.5
+fi

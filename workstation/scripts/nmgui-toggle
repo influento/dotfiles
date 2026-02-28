@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle nm-connection-editor. Uses flock to prevent duplicates.
+
+LOCKFILE="/tmp/.nmgui-toggle.lock"
+
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  if pgrep -x nm-connection-e >/dev/null 2>&1; then
+    pkill -x nm-connection-e
+  fi
+  exit 0
+fi
+
+if pgrep -x nm-connection-e >/dev/null 2>&1; then
+  pkill -x nm-connection-e
+  flock -u 9
+else
+  flock -u 9
+  nm-connection-editor
+  exec 9>"$LOCKFILE"
+  flock -n 9 && sleep 0.5
+fi

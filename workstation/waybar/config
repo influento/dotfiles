@@ -26,39 +26,24 @@
   "sway/mode": {
     "format": "{}"
   },
-  "clock": {
-    "format": "  {:%a %b %d  %H:%M}",
-    "tooltip-format": "<big>{:%B %Y}</big>\n<tt>{calendar}</tt>",
-    "calendar": {
-      "mode": "month",
-      "weeks-pos": "left",
-      "format": {
-        "months": "<span color=\"#89b4fa\"><b>{}</b></span>",
-        "weekdays": "<span color=\"#cba6f7\"><b>{}</b></span>",
-        "weeks": "<span color=\"#6c7086\">{}</span>",
-        "today": "<span color=\"#a6e3a1\"><b><u>{}</u></b></span>",
-        "days": "<span color=\"#cdd6f4\">{}</span>"
-      }
-    }
-  },
   "cpu": {
     "format": "  {usage}%",
     "interval": 5,
     "tooltip-format": "CPU: {usage}% ({avg_frequency} GHz)",
-    "on-click": "btop-toggle"
+    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "memory": {
     "format": "  {}%",
     "interval": 5,
     "tooltip-format": "RAM: {used:0.1f} / {total:0.1f} GiB",
-    "on-click": "btop-toggle"
+    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "disk": {
     "format": "  {percentage_used}%",
     "interval": 30,
     "path": "/",
     "tooltip-format": "Disk: {used} / {total} ({percentage_used}%)",
-    "on-click": "btop-toggle"
+    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "network": {
     "format-wifi": "  {signalStrength}%",
@@ -66,18 +51,24 @@
     "format-disconnected": "  off",
     "tooltip-format": "{ifname}: {ipaddr}/{cidr}\n↑ {bandwidthUpBytes}  ↓ {bandwidthDownBytes}",
     "interval": 5,
-    "on-click": "nm-connection-editor"
+    "on-click": "bash -c \"$HOME/.local/bin/nmgui-toggle\""
   },
   "pulseaudio": {
     "format": "  {volume}%",
     "format-muted": "  mute",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "tooltip-format": "{desc}: {volume}%",
-    "on-click-right": "pavucontrol",
+    "on-click-right": "bash -c \"$HOME/.local/bin/pavucontrol-toggle\"",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
   "tray": {
     "spacing": 8
+  },
+  "clock": {
+    "format": "  {:%a %b %d  %H:%M}",
+    "tooltip-format": "{:%A, %B %d %Y}",
+    "on-click": "bash -c \"$HOME/.local/bin/calendar-toggle\"",
+    "tooltip": false
   }
 }

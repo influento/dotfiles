@@ -127,6 +127,9 @@ bar {
   swaybar_command waybar
 }
 
+# --- Window rules ---
+for_window [app_id="dev.dotfiles.calendar-popup"] floating enable, move absolute position 1770 40
+
 # --- Autostart ---
 exec gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 exec ~/.config/swaybg/wallpaper.sh
