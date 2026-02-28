@@ -127,7 +127,7 @@ install_zsh_plugins() {
 # Usage: install_obsidian_plugins "/home/username"
 install_obsidian_plugins() {
   local user_home="$1"
-  local vault_dir="${user_home}/dropbox/data-vault"
+  local vault_dir="${user_home}/Dropbox/data-vault"
   local plugins_file="${DOTFILES_DIR}/workstation/obsidian/plugins.conf"
 
   if [[ ! -f "$plugins_file" ]]; then

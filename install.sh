@@ -140,6 +140,13 @@ if [[ "$PROFILE" == "workstation" ]]; then
   validate_rendered "${DOTFILES_DIR}/workstation"
 fi
 
+# Ensure all shell scripts are executable
+find "${DOTFILES_DIR}" -name '*.sh' ! -name '*.tpl' -exec chmod +x {} +
+find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+if [[ "$PROFILE" == "workstation" ]]; then
+  find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+fi
+
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 
@@ -159,8 +166,8 @@ if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.gitconfig" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.oh-my-zsh" 2>/dev/null || true
   # Fix ownership for Obsidian vault plugin files if they were created
-  if [[ -d "${USER_HOME}/dropbox/data-vault/.obsidian" ]]; then
-    chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}/dropbox/data-vault/.obsidian" 2>/dev/null || true
+  if [[ -d "${USER_HOME}/Dropbox/data-vault/.obsidian" ]]; then
+    chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}/Dropbox/data-vault/.obsidian" 2>/dev/null || true
   fi
 fi
 

@@ -7,9 +7,6 @@ set $mod Mod1
 set $term ghostty
 set $menu wofi --show drun
 
-# --- Output ---
-output * bg #1e1e2e solid_color
-
 # --- Input ---
 input type:keyboard {
   xkb_layout us
@@ -40,7 +37,7 @@ client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8   #f38ba8
 bindsym $mod+Return exec $term
 bindsym $mod+d exec $menu
 bindsym $mod+Shift+q kill
-bindsym $mod+v exec ~/.config/cliphist/cliphist-pick.sh
+bindsym Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
 bindsym $mod+Escape exec swaylock -f
 
 # Screenshots

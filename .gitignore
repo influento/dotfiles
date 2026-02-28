@@ -13,6 +13,7 @@ Thumbs.db
 common/zsh/.zshrc
 common/starship/starship.toml
 common/lazygit/config.yml
+workstation/waybar/style.css
 workstation/mako/config
 workstation/swaylock/config
 workstation/swayosd/style.css

@@ -74,7 +74,7 @@ This means:
 | `workstation/ghostty/` | `~/.config/ghostty/` | workstation |
 | `workstation/xdg-desktop-portal/` | `~/.config/xdg-desktop-portal/` | workstation |
 | `workstation/scripts/*` | `~/.local/bin/*` | workstation |
-| `workstation/obsidian/plugins.conf` | `~/dropbox/data-vault/.obsidian/plugins/` | workstation |
+| `workstation/obsidian/plugins.conf` | `~/Dropbox/data-vault/.obsidian/plugins/` | workstation |
 | `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
 | `workstation/theming/gtk-4.0/` | `~/.config/gtk-4.0/` | workstation |
 | `workstation/theming/qt6ct/` | `~/.config/qt6ct/` | workstation |

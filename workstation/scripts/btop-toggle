@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle btop in a ghostty window.
+# Lock is held the entire time btop runs — no race windows possible.
+
+LOCKFILE="/tmp/.btop-toggle.lock"
+
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  # Lock held = btop is running (or cooldown). Kill if running.
+  if pgrep -x btop >/dev/null 2>&1; then
+    pkill -INT btop
+  fi
+  exit 0
+fi
+
+# We hold the lock. Launch btop (lock stays held while ghostty blocks).
+ghostty -e btop
+
+# btop closed — 1s cooldown before releasing lock.
+sleep 0.5

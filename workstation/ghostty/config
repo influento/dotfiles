@@ -2,17 +2,34 @@
 # Managed by dotfiles repo.
 # Docs: https://ghostty.org/docs/config
 
+# Font
 font-family = JetBrainsMono Nerd Font
 font-size = 13
-theme = catppuccin-mocha.conf
+font-feature = calt
+font-feature = liga
 
+# Theme
+theme = catppuccin-mocha.conf
+bold-is-bright = true
+
+# Window
 window-padding-x = 8
 window-padding-y = 8
+window-decoration = none
+
+# Cursor
 cursor-style = block
 cursor-style-blink = false
-scrollback-limit = 10000
+mouse-hide-while-typing = true
+
+# Scrollback
+scrollback-limit = 50000
 copy-on-select = clipboard
 confirm-close-surface = false
 
+# Shell integration (prompt jumping, command output selection)
+shell-integration = detect
+
+# Keybinds
 keybind = ctrl+v=paste_from_clipboard
 keybind = ctrl+c=copy_to_clipboard

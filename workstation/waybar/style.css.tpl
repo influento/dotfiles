@@ -1,5 +1,4 @@
 /* Waybar style — managed by dotfiles repo */
-/* Catppuccin Mocha palette */
 
 * {
   font-family: "JetBrainsMono Nerd Font", sans-serif;
@@ -8,14 +7,14 @@
 }
 
 window#waybar {
-  background-color: #1e1e2e;
-  color: #cdd6f4;
-  border-bottom: 2px solid #313244;
+  background-color: @@BASE@@;
+  color: @@TEXT@@;
+  border-bottom: 2px solid @@SURFACE0@@;
 }
 
 #workspaces button {
   padding: 0 8px;
-  color: #cdd6f4;
+  color: @@TEXT@@;
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -23,52 +22,74 @@ window#waybar {
 }
 
 #workspaces button.focused {
-  background-color: #89b4fa;
-  color: #1e1e2e;
+  background-color: @@BLUE@@;
+  color: @@BASE@@;
 }
 
 #workspaces button.urgent {
-  background-color: #f38ba8;
-  color: #1e1e2e;
+  background-color: @@RED@@;
+  color: @@BASE@@;
 }
 
 #workspaces button.visible {
-  background-color: #45475a;
+  background-color: @@SURFACE1@@;
 }
 
 #workspaces button:hover {
-  background-color: #585b70;
+  background-color: @@SURFACE2@@;
 }
 
 #mode {
   padding: 0 8px;
-  color: #f38ba8;
+  color: @@RED@@;
   font-weight: bold;
 }
 
 #clock,
 #cpu,
 #memory,
+#disk,
 #network,
 #pulseaudio,
 #tray {
   padding: 0 10px;
   margin: 4px 2px;
   border-radius: 4px;
-  background-color: #313244;
-  color: #cdd6f4;
+  background-color: @@SURFACE0@@;
+  color: @@TEXT@@;
 }
 
 #clock {
+  color: @@BLUE@@;
   font-weight: bold;
 }
 
+#cpu {
+  color: @@GREEN@@;
+}
+
+#memory {
+  color: @@YELLOW@@;
+}
+
+#disk {
+  color: @@PEACH@@;
+}
+
+#network {
+  color: @@TEAL@@;
+}
+
+#pulseaudio {
+  color: @@MAUVE@@;
+}
+
 #pulseaudio.muted {
-  color: #a6adc8;
+  color: @@SUBTEXT0@@;
 }
 
 #network.disconnected {
-  color: #a6adc8;
+  color: @@SUBTEXT0@@;
 }
 
 #tray > .passive {
@@ -77,5 +98,5 @@ window#waybar {
 
 #tray > .needs-attention {
   -gtk-icon-effect: highlight;
-  background-color: #f38ba8;
+  background-color: @@RED@@;
 }
