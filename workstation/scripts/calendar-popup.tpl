@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """Calendar popup for waybar — native GTK4 calendar widget with Catppuccin Mocha theme."""
 
+import os, sys
+
+# gtk4-layer-shell must be loaded before libwayland-client
+if "LD_PRELOAD" not in os.environ:
+    os.environ["LD_PRELOAD"] = "/usr/lib/libgtk4-layer-shell.so"
+    os.execvp(sys.argv[0], sys.argv)
+
 import gi
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gdk
+gi.require_version("Gtk4LayerShell", "1.0")
+from gi.repository import Gtk, Gdk, Gtk4LayerShell
 
 CSS = """
 window {
+  background-color: transparent;
+}
+
+.calendar-container {
   background-color: @@BASE@@;
   color: @@TEXT@@;
 }
@@ -77,24 +89,47 @@ class CalendarPopup(Gtk.Application):
         )
 
         win = Gtk.ApplicationWindow(application=self, title="calendar-popup")
-        win.set_default_size(300, 280)
-        win.set_resizable(False)
+
+        # Layer-shell: fullscreen transparent overlay (catches clicks everywhere)
+        Gtk4LayerShell.init_for_window(win)
+        Gtk4LayerShell.set_layer(win, Gtk4LayerShell.Layer.OVERLAY)
+        Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.TOP, True)
+        Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.BOTTOM, True)
+        Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.LEFT, True)
+        Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.RIGHT, True)
+        Gtk4LayerShell.set_keyboard_mode(win, Gtk4LayerShell.KeyboardMode.EXCLUSIVE)
+
+        # Transparent backdrop — clicking it closes the popup
+        overlay = Gtk.Overlay()
+        backdrop = Gtk.DrawingArea()
+        backdrop.set_hexpand(True)
+        backdrop.set_vexpand(True)
+        backdrop_click = Gtk.GestureClick()
+        backdrop_click.connect("released", lambda *_: self.quit())
+        backdrop.add_controller(backdrop_click)
+        overlay.set_child(backdrop)
+
+        # Calendar widget at top-center (same size as before)
+        calendar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        calendar_box.add_css_class("calendar-container")
+        calendar_box.set_halign(Gtk.Align.CENTER)
+        calendar_box.set_valign(Gtk.Align.START)
+        calendar_box.set_margin_top(40)
 
         calendar = Gtk.Calendar()
         calendar.set_margin_top(8)
         calendar.set_margin_bottom(8)
         calendar.set_margin_start(8)
         calendar.set_margin_end(8)
+        calendar_box.append(calendar)
+        overlay.add_overlay(calendar_box)
 
         # Close on Escape or q
         controller = Gtk.EventControllerKey()
         controller.connect("key-pressed", self._on_key)
         win.add_controller(controller)
 
-        # Close on focus loss
-        win.connect("notify::is-active", self._on_focus_change)
-
-        win.set_child(calendar)
+        win.set_child(overlay)
         win.present()
 
     def _on_key(self, controller, keyval, keycode, state):
@@ -102,10 +137,6 @@ class CalendarPopup(Gtk.Application):
             self.quit()
             return True
         return False
-
-    def _on_focus_change(self, window, pspec):
-        if not window.is_active():
-            self.quit()
 
 
 if __name__ == "__main__":
