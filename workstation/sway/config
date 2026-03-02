@@ -127,9 +127,11 @@ bar {
   swaybar_command waybar
 }
 
+# --- Environment ---
+exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP ELECTRON_OZONE_PLATFORM_HINT
+exec dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP ELECTRON_OZONE_PLATFORM_HINT
+
 # --- Autostart ---
-exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-exec dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 exec gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 exec ~/.config/swaybg/wallpaper.sh
 exec swayidle -w

@@ -182,5 +182,6 @@ fi
 
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
+  export ELECTRON_OZONE_PLATFORM_HINT=wayland
   exec sway
 fi
