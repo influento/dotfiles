@@ -46,6 +46,7 @@ window#waybar {
 }
 
 #clock,
+#language,
 #cpu,
 #memory,
 #disk,
@@ -62,6 +63,10 @@ window#waybar {
 #clock {
   color: @@BLUE@@;
   font-weight: bold;
+}
+
+#language {
+  color: @@LAVENDER@@;
 }
 
 #cpu {

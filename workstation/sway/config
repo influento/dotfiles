@@ -9,7 +9,7 @@ set $menu wofi --show drun
 
 # --- Input ---
 input type:keyboard {
-  xkb_layout us
+  xkb_layout us,ru
   repeat_delay 300
   repeat_rate 30
 }
@@ -116,6 +116,9 @@ mode "resize" {
 }
 
 bindsym $mod+r mode "resize"
+
+# --- Keybindings: Language ---
+bindsym Shift+space input type:keyboard xkb_switch_layout next
 
 # --- Keybindings: Session ---
 bindsym $mod+Shift+c reload

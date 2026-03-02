@@ -11,6 +11,7 @@
     "clock"
   ],
   "modules-right": [
+    "sway/language",
     "pulseaudio",
     "network",
     "disk",
@@ -61,6 +62,10 @@
     "on-click-right": "bash -c \"$HOME/.local/bin/pavucontrol-toggle\"",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+  },
+  "sway/language": {
+    "format": " {short}",
+    "tooltip-format": "{long}"
   },
   "tray": {
     "spacing": 8
