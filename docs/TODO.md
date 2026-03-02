@@ -69,3 +69,4 @@ Configs still scaffolded (TODOs):
 - [ ] PipeWire / WirePlumber custom config
 - [ ] Additional themes (catppuccin-latte, gruvbox, etc.)
 - [ ] Theme more configs (sway, waybar, ghostty, starship) as they get content
+- [x] Startup reminders via mako (notify-send from reminders/*.txt on each sway start)

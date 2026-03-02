@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# setup-wireguard — Import WireGuard VPN configs from Dropbox into NetworkManager.
+# Idempotent: skips configs that are already imported.
+
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+info()  { echo -e "${GREEN}[✓]${RESET} $1"; }
+warn()  { echo -e "${YELLOW}[!]${RESET} $1"; }
+step()  { echo -e "\n${BLUE}${BOLD}→ $1${RESET}"; }
+error() { echo -e "${RED}[✗]${RESET} $1"; }
+
+# --- Preflight checks ---
+if ! command -v nmcli &>/dev/null; then
+  error "Required command not found: nmcli"
+  exit 1
+fi
+
+WG_DIR="$HOME/Dropbox/wireguard"
+
+step "WireGuard VPN import"
+
+if [[ ! -d "$WG_DIR" ]]; then
+  error "WireGuard config directory not found: $WG_DIR"
+  echo "  Make sure Dropbox has finished syncing first."
+  exit 1
+fi
+
+configs=("$WG_DIR"/*.conf)
+
+if [[ ! -e "${configs[0]}" ]]; then
+  warn "No .conf files found in $WG_DIR"
+  exit 0
+fi
+
+# Get list of existing connections once
+existing="$(nmcli -t -f NAME connection show 2>/dev/null)"
+
+imported=0
+skipped=0
+
+for conf in "${configs[@]}"; do
+  name="$(basename "$conf" .conf)"
+
+  if echo "$existing" | grep -qxF "$name"; then
+    info "Already imported: $name"
+    ((skipped++)) || true
+  else
+    nmcli connection import type wireguard file "$conf"
+    nmcli connection down "$name" 2>/dev/null || true
+    nmcli connection modify "$name" connection.autoconnect no
+    info "Imported: $name"
+    ((imported++)) || true
+  fi
+done
+
+# --- Mark as completed ---
+mkdir -p ~/.local/state/dotfiles
+echo "setup-wireguard" >> ~/.local/state/dotfiles/completed
+
+# --- Done ---
+echo ""
+echo -e "${GREEN}${BOLD}WireGuard setup complete!${RESET}"
+echo "  Imported: $imported"
+echo "  Skipped:  $skipped (already existed)"
+echo "  Total:    $(( imported + skipped ))"

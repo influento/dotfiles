@@ -174,3 +174,30 @@ fi
 log_section "Done"
 log_info "Dotfiles deployed for $TARGET_USER ($PROFILE profile)."
 log_info "Re-run this script anytime to update symlinks."
+
+# --- Post-install reminders ---
+_state_file="${USER_HOME}/.local/state/dotfiles/completed"
+_completed=""
+if [[ -f "$_state_file" ]]; then
+  _completed="$(cat "$_state_file")"
+fi
+
+for reminder_file in "${DOTFILES_DIR}/reminders/common.txt" "${DOTFILES_DIR}/reminders/${PROFILE}.txt"; do
+  if [[ -f "$reminder_file" ]]; then
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+
+      if [[ "$line" == *:* ]]; then
+        _key="${line%%:*}"
+        _msg="${line#*:}"
+        if echo "$_completed" | grep -qxF "$_key"; then
+          continue
+        fi
+      else
+        _msg="$line"
+      fi
+
+      log_warn "Reminder: $_msg"
+    done < "$reminder_file"
+  fi
+done

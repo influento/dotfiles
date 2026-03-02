@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# startup-reminders — Show pending reminders as desktop notifications on sway start.
+# Reads reminders/*.txt from the dotfiles repo and sends each line via notify-send.
+# Lines prefixed with "key:" are skipped if the key exists in the state file.
+
+DOTFILES_DIR="$HOME/dev/infra/dotfiles"
+STATE_FILE="$HOME/.local/state/dotfiles/completed"
+
+completed=""
+if [[ -f "$STATE_FILE" ]]; then
+  completed="$(cat "$STATE_FILE")"
+fi
+
+sleep 10
+
+for f in "${DOTFILES_DIR}/reminders/common.txt" "${DOTFILES_DIR}/reminders/workstation.txt"; do
+  [[ -f "$f" ]] || continue
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+
+    if [[ "$line" == *:* ]]; then
+      key="${line%%:*}"
+      msg="${line#*:}"
+      if echo "$completed" | grep -qxF "$key"; then
+        continue
+      fi
+    else
+      msg="$line"
+    fi
+
+    notify-send -u critical "Reminder" "$msg"
+  done < "$f"
+done
