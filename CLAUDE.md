@@ -140,6 +140,11 @@ systems (ghostty depends on GTK4).
   layer-shell, backdrop, CSS provider, key handler) lives inside the widget file itself
 - Never extract shared base classes or helper modules between widgets
 - Always use `widget-toggle <name>` for toggling, never create per-widget toggle scripts
+- Every widget container MUST have `border: 1px solid @@SURFACE1@@` and `border-radius: 8px`
+  — the border must be on the outermost container so it's flush with the widget edge (no
+  inner margins that create a gap between border and content)
+- Disable built-in borders and backgrounds on GTK widgets inside the container — the
+  container owns the border, background, and rounding
 
 **Adding a new widget:**
 1. Create `workstation/scripts/<name>.tpl` with a self-contained Python GTK4 app

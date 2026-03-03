@@ -19,6 +19,7 @@ window {
 .scaling-container {
   background-color: @@BASE@@;
   color: @@TEXT@@;
+  border: 1px solid @@SURFACE1@@;
   border-radius: 8px;
   padding: 16px 24px;
 }

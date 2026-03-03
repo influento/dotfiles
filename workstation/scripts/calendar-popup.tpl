@@ -21,13 +21,16 @@ window {
 .calendar-container {
   background-color: @@BASE@@;
   color: @@TEXT@@;
+  border: 1px solid @@SURFACE1@@;
+  border-radius: 8px;
 }
 
 calendar {
   font-family: "JetBrainsMono Nerd Font", monospace;
   font-size: 14px;
-  background-color: @@BASE@@;
   color: @@TEXT@@;
+  background: none;
+  border: none;
   padding: 8px;
 }
 
@@ -49,7 +52,7 @@ calendar > header > button:hover {
 }
 
 calendar.view {
-  background-color: @@BASE@@;
+  background: none;
 }
 
 calendar > grid > label.day-name {
@@ -117,10 +120,6 @@ class CalendarPopup(Gtk.Application):
         calendar_box.set_margin_top(40)
 
         calendar = Gtk.Calendar()
-        calendar.set_margin_top(8)
-        calendar.set_margin_bottom(8)
-        calendar.set_margin_start(8)
-        calendar.set_margin_end(8)
         calendar_box.append(calendar)
         overlay.add_overlay(calendar_box)
 
