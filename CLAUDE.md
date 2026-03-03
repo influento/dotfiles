@@ -218,6 +218,7 @@ systems (ghostty depends on GTK4).
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
 | **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | Qt theme engine: renders Qt widgets to match GTK theme |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/portals.conf` | Portal backend: routes desktop portals to wlr for Sway |
+| **auto-update** | `workstation/scripts/auto-update` | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
 | **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
 
 ## Integration with OS Repos

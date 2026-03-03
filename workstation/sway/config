@@ -145,3 +145,4 @@ exec swayosd-server
 exec nm-applet --indicator
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus dropbox
 exec startup-reminders
+exec auto-update

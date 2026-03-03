@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# auto-update — Silent background system update on sway startup.
+# Runs yay -Syu (official repos + AUR) with a 12-hour cooldown. Sends mako
+# notifications on success (low urgency, auto-dismiss) or failure (critical, persistent).
+
+STATE_DIR="$HOME/.local/state/dotfiles"
+LOG_FILE="${STATE_DIR}/auto-update.log"
+LAST_FILE="${STATE_DIR}/auto-update-last"
+LOCK_FILE="/tmp/.auto-update-${UID}.lock"
+COOLDOWN=$((12 * 60 * 60))
+
+mkdir -p "$STATE_DIR"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Another auto-update is already running." >> "$LOG_FILE"
+  exit 0
+fi
+
+# Cooldown — skip if last successful update was <12h ago
+if [[ -f "$LAST_FILE" ]]; then
+  last="$(cat "$LAST_FILE")"
+  now="$(date +%s)"
+  if (( now - last < COOLDOWN )); then
+    echo "[$(date)] Skipping — last update was $(( (now - last) / 3600 ))h ago." >> "$LOG_FILE"
+    exit 0
+  fi
+fi
+
+# Wait for network (up to 60s)
+for _ in $(seq 1 12); do
+  if curl -sf --max-time 5 https://archlinux.org > /dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+
+if ! curl -sf --max-time 5 https://archlinux.org > /dev/null 2>&1; then
+  echo "[$(date)] No network after 60s — aborting." >> "$LOG_FILE"
+  exit 0
+fi
+
+# Run update
+echo "[$(date)] Starting yay -Syu..." >> "$LOG_FILE"
+if output="$(yay -Syu --noconfirm 2>&1)"; then
+  echo "$output" >> "$LOG_FILE"
+  upgraded="$(echo "$output" | grep -c "^upgrading " || true)"
+  if (( upgraded > 0 )); then
+    notify-send -u low "System Updated" "${upgraded} package(s) upgraded."
+  else
+    notify-send -u low "System Updated" "Already up to date."
+  fi
+  date +%s > "$LAST_FILE"
+  echo "[$(date)] Update complete — ${upgraded} package(s) upgraded." >> "$LOG_FILE"
+else
+  echo "$output" >> "$LOG_FILE"
+  echo "[$(date)] Update FAILED." >> "$LOG_FILE"
+  notify-send -u critical "Update Failed" "yay -Syu failed. See ${LOG_FILE}"
+fi

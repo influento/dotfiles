@@ -7,6 +7,12 @@ Deployed by OS installers (arch-workstation, debian-server) with the appropriate
 
 ---
 
+## Priority
+
+- [x] Test auto-update script (workstation/scripts/auto-update) — verify yay -Syu runs on sway start, cooldown works, notifications fire correctly
+
+---
+
 ## Phase 0: Scaffold
 
 - [x] Directory structure (common/ + workstation/)
