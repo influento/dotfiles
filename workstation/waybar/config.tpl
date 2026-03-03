@@ -90,7 +90,7 @@
   "custom/scaling": {
     "format": "󰍉",
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/scaling-toggle\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle scaling-popup\""
   },
   "tray": {
     "spacing": 8
@@ -98,7 +98,7 @@
   "clock": {
     "format": "  {:%a %b %d  %H:%M}",
     "tooltip-format": "{:%A, %B %d %Y}",
-    "on-click": "bash -c \"$HOME/.local/bin/calendar-toggle\"",
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar-popup\"",
     "tooltip": false
   }
 }

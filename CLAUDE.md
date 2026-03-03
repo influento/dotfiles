@@ -146,21 +146,25 @@ systems (ghostty depends on GTK4).
 **How it works:**
 - Widget scripts live in `workstation/scripts/` and are deployed to `~/.local/bin/`
 - CSS in widgets uses `@@TOKEN@@` placeholders (`.tpl` template) for theme consistency
-- Sway `for_window` rules control floating behavior and positioning
-- Toggle scripts use `flock` to prevent duplicate windows on rapid clicks
+- `widget-toggle` is a generic toggle script using `flock` to prevent duplicate windows
+- Each widget is a self-contained Python file with its own GTK4 setup, CSS, and logic
 
 **Existing widgets:**
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
 - `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
 
+**Rules:**
+- Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,
+  layer-shell, backdrop, CSS provider, key handler) lives inside the widget file itself
+- Never extract shared base classes or helper modules between widgets
+- Always use `widget-toggle <name>` for toggling, never create per-widget toggle scripts
+
 **Adding a new widget:**
-1. Create `workstation/scripts/<name>.tpl` with a Python GTK4 app
+1. Create `workstation/scripts/<name>.tpl` with a self-contained Python GTK4 app
 2. Use `@@TOKEN@@` placeholders in the CSS string for theme colors
 3. Set a unique `application_id` (e.g., `dev.dotfiles.<name>`)
-4. Add a toggle script in `workstation/scripts/<name>-toggle`
-5. Add a `for_window [app_id="dev.dotfiles.<name>"]` rule in sway config
-6. Add the generated file to `.gitignore`
-7. Wire it up in waybar config via `bash -c "$HOME/.local/bin/<name>-toggle"`
+4. Add the generated file to `.gitignore`
+5. Wire it up in waybar config via `bash -c "$HOME/.local/bin/widget-toggle <name>"`
 
 ## Current Status
 
