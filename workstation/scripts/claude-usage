@@ -3,11 +3,14 @@
 
 import json
 import sys
+import time
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-CACHE_PATH = Path.home() / ".claude" / "subscription_cache.json"
+SUBSCRIPTION_CACHE = Path.home() / ".claude" / "subscription_cache.json"
+USAGE_CACHE = Path.home() / ".claude" / "usage_cache.json"
+CACHE_TTL = 600  # 10 minutes
 
 
 def load_token():
@@ -18,7 +21,7 @@ def load_token():
     return creds["claudeAiOauth"]["accessToken"]
 
 
-def fetch_usage(token):
+def fetch_usage_api(token):
     """Call the Anthropic OAuth usage endpoint."""
     req = urllib.request.Request(
         "https://api.anthropic.com/api/oauth/usage",
@@ -31,10 +34,40 @@ def fetch_usage(token):
         return json.loads(resp.read())
 
 
+def load_usage_cache():
+    """Load cached usage data if still fresh."""
+    try:
+        with open(USAGE_CACHE) as f:
+            cache = json.load(f)
+        if time.time() - cache.get("_cached_at", 0) < CACHE_TTL:
+            return cache
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return None
+
+
+def save_usage_cache(data):
+    """Save usage data to cache with timestamp."""
+    data["_cached_at"] = time.time()
+    with open(USAGE_CACHE, "w") as f:
+        json.dump(data, f)
+
+
+def fetch_usage(token, force=False):
+    """Get usage data from cache or API."""
+    if not force:
+        cached = load_usage_cache()
+        if cached:
+            return cached
+    data = fetch_usage_api(token)
+    save_usage_cache(data)
+    return data
+
+
 def load_cached_charge_date():
     """Read next_charge_date from cache if it exists and is in the future."""
     try:
-        with open(CACHE_PATH) as f:
+        with open(SUBSCRIPTION_CACHE) as f:
             cache = json.load(f)
         charge_date = cache.get("next_charge_date")
         if charge_date and datetime.strptime(charge_date, "%Y-%m-%d").date() >= date.today():
@@ -101,14 +134,16 @@ def classify(five_hour, seven_day):
 
 def main():
     try:
+        force = "--refresh" in sys.argv
         token = load_token()
-        data = fetch_usage(token)
+        data = fetch_usage(token, force=force)
 
         if "--json" in sys.argv:
+            out = {k: v for k, v in data.items() if not k.startswith("_")}
             charge_date = load_cached_charge_date()
             if charge_date:
-                data["next_charge_date"] = charge_date
-            print(json.dumps(data))
+                out["next_charge_date"] = charge_date
+            print(json.dumps(out))
             return
 
         five = data["five_hour"]

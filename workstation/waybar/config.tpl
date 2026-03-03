@@ -51,48 +51,48 @@
   "cpu": {
     "format": "  {usage}%",
     "interval": 5,
-    "tooltip-format": "CPU: {usage}% ({avg_frequency} GHz)",
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "memory": {
     "format": "  {}%",
     "interval": 5,
-    "tooltip-format": "RAM: {used:0.1f} / {total:0.1f} GiB",
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "disk": {
     "format": "  {percentage_used}%",
     "interval": 30,
     "path": "/",
-    "tooltip-format": "Disk: {used} / {total} ({percentage_used}%)",
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "network": {
     "format-wifi": "  {signalStrength}%",
     "format-ethernet": "  {bandwidthTotalBytes}",
     "format-disconnected": "  off",
-    "tooltip-format": "{ifname}: {ipaddr}/{cidr}\n↑ {bandwidthUpBytes}  ↓ {bandwidthDownBytes}",
     "interval": 5,
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/nmgui-toggle\""
   },
   "pulseaudio": {
     "format": "  {volume}%",
     "format-muted": "  mute",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "tooltip-format": "{desc}: {volume}%",
+    "tooltip": false,
     "on-click-right": "bash -c \"$HOME/.local/bin/pavucontrol-toggle\"",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
   "sway/language": {
     "format": " {short}",
-    "tooltip-format": "{long}"
+    "tooltip": false
   },
   "custom/claude-usage": {
     "exec": "~/.local/bin/claude-usage",
     "return-type": "json",
-    "interval": 120,
-    "tooltip": true,
+    "interval": 600,
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage-popup\""
   },
   "custom/scaling": {
@@ -105,8 +105,7 @@
   },
   "clock": {
     "format": "  {:%a %b %d  %H:%M}",
-    "tooltip-format": "{:%A, %B %d %Y}",
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar-popup\"",
-    "tooltip": false
+    "tooltip": false,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar-popup\""
   }
 }

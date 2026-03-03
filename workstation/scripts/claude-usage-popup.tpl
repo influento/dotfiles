@@ -31,7 +31,20 @@ window {
   font-size: 14px;
   font-weight: bold;
   color: @@BLUE@@;
-  margin-bottom: 8px;
+}
+
+.refresh-button {
+  background: transparent;
+  border: none;
+  color: @@OVERLAY1@@;
+  font-size: 14px;
+  padding: 0 4px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.refresh-button:hover {
+  color: @@BLUE@@;
 }
 
 .usage-window-label {
@@ -147,12 +160,12 @@ from pathlib import Path
 CACHE_PATH = Path.home() / ".claude" / "subscription_cache.json"
 
 
-def fetch_data():
+def fetch_data(force=False):
     """Call claude-usage --json and return parsed data."""
-    result = subprocess.run(
-        [os.path.expanduser("~/.local/bin/claude-usage"), "--json"],
-        capture_output=True, text=True,
-    )
+    cmd = [os.path.expanduser("~/.local/bin/claude-usage"), "--json"]
+    if force:
+        cmd.append("--refresh")
+    result = subprocess.run(cmd, capture_output=True, text=True)
     return json.loads(result.stdout)
 
 
@@ -286,34 +299,15 @@ class ClaudeUsagePopup(Gtk.Application):
         overlay.set_child(backdrop)
 
         # Main container at top-center
-        container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        container.add_css_class("usage-container")
-        container.set_halign(Gtk.Align.CENTER)
-        container.set_valign(Gtk.Align.START)
-        container.set_margin_top(40)
+        self._container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self._container.add_css_class("usage-container")
+        self._container.set_halign(Gtk.Align.CENTER)
+        self._container.set_valign(Gtk.Align.START)
+        self._container.set_margin_top(40)
 
-        # Title
-        title = Gtk.Label(label="Claude Usage")
-        title.add_css_class("usage-title")
-        container.append(title)
+        self._build_content()
 
-        # Fetch data
-        try:
-            data = fetch_data()
-            if "error" in data:
-                raise RuntimeError(data["error"])
-            self._build_window_row(container, "5-hour", data["five_hour"])
-            self._build_window_row(container, "7-day", data["seven_day"])
-            sonnet = data.get("seven_day_sonnet")
-            if sonnet and sonnet.get("utilization") is not None:
-                self._build_window_row(container, "7-day sonnet", sonnet)
-            self._build_charge_section(container, data)
-        except Exception:
-            error_label = Gtk.Label(label="Failed to fetch usage data")
-            error_label.add_css_class("usage-error")
-            container.append(error_label)
-
-        overlay.add_overlay(container)
+        overlay.add_overlay(self._container)
 
         # Close on Escape or q
         controller = Gtk.EventControllerKey()
@@ -322,6 +316,44 @@ class ClaudeUsagePopup(Gtk.Application):
 
         win.set_child(overlay)
         win.present()
+
+    def _build_content(self, force=False):
+        """Build or rebuild all content in the container."""
+        # Clear existing children
+        while child := self._container.get_first_child():
+            self._container.remove(child)
+
+        # Title row with refresh button
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        title = Gtk.Label(label="Claude Usage")
+        title.add_css_class("usage-title")
+        title.set_hexpand(True)
+        title.set_halign(Gtk.Align.START)
+        title_row.append(title)
+
+        refresh_btn = Gtk.Button(label="󰑓")
+        refresh_btn.add_css_class("refresh-button")
+        refresh_btn.set_tooltip_text("Refresh usage data")
+        refresh_btn.connect("clicked", lambda _: self._build_content(force=True))
+        title_row.append(refresh_btn)
+
+        self._container.append(title_row)
+
+        # Fetch data
+        try:
+            data = fetch_data(force=force)
+            if "error" in data:
+                raise RuntimeError(data["error"])
+            self._build_window_row(self._container, "5-hour", data["five_hour"])
+            self._build_window_row(self._container, "7-day", data["seven_day"])
+            sonnet = data.get("seven_day_sonnet")
+            if sonnet and sonnet.get("utilization") is not None:
+                self._build_window_row(self._container, "7-day sonnet", sonnet)
+            self._build_charge_section(self._container, data)
+        except Exception:
+            error_label = Gtk.Label(label="Failed to fetch usage data")
+            error_label.add_css_class("usage-error")
+            self._container.append(error_label)
 
     def _build_window_row(self, container, name, window_data):
         """Build a labeled progress bar row for one usage window."""
