@@ -18,19 +18,6 @@ and idempotent so it can be safely re-run at any time.
 
 ## How It Works
 
-### Invocation
-
-Each OS installer clones this repository and executes it with the appropriate profile:
-
-```bash
-# From the OS installer (as root, targeting a specific user):
-git clone <DOTFILES_REPO_URL> /home/<username>/dev/infra/dotfiles
-bash /home/<username>/dev/infra/dotfiles/install.sh --profile server --user <username>
-
-# Or run manually as a regular user:
-bash ~/dev/infra/dotfiles/install.sh --profile workstation
-```
-
 ### Profiles
 
 | Profile | What gets deployed |
@@ -99,14 +86,6 @@ colors are stored as `.tpl` templates with `@@TOKEN@@` placeholders. At install 
 
 Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 
-```bash
-# Use default theme from theme.conf:
-bash install.sh --profile workstation
-
-# Override theme:
-bash install.sh --profile workstation --theme catppuccin-mocha
-```
-
 ### Adding a New Theme
 
 1. Copy `themes/catppuccin-mocha.sh` to `themes/<name>.sh`
@@ -133,6 +112,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
 | `workstation/theming/gtk-4.0/gtk.css.tpl` | `gtk.css` | `@@TOKEN@@` |
+| `workstation/waybar/config.tpl` | `config` | `@@TOKEN@@` |
 | `workstation/waybar/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
 | `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
@@ -166,20 +146,8 @@ systems (ghostty depends on GTK4).
 4. Add the generated file to `.gitignore`
 5. Wire it up in waybar config via `bash -c "$HOME/.local/bin/widget-toggle <name>"`
 
-## Current Status
+## What Needs Content
 
-**What works:**
-- `install.sh` — profile selection, oh-my-zsh installation, theme rendering, symlink deployment
-- `lib/helpers.sh` — idempotent link_config, backup existing, deploy_configs, obsidian plugin installer
-- `lib/log.sh` — colored logging
-- `lib/theme.sh` — template rendering engine with `@@TOKEN@@` replacement
-- `themes/catppuccin-mocha.sh` — full Catppuccin Mocha palette (31 colors)
-- 8 themed template files (zshrc, starship, lazygit, mako, swaylock, swayosd, swaybg, gtk-4.0)
-- Customized configs: zsh, starship, fastfetch, yazi, lazygit, mako, swaylock, swayosd,
-  swaybg, wlsunset, cliphist, btop, fastfetch, fontconfig, swayidle, sway, waybar,
-  ghostty, xdg-desktop-portal
-
-**What needs content (scaffolds with TODOs):**
 - `common/nvim/init.lua` — needs lazy.nvim, LSP, treesitter
 - `common/tmux/tmux.conf` — needs prefix, status bar, plugins
 - `common/git/.gitconfig` — needs aliases, defaults (identity via `~/.gitconfig.local`)
@@ -210,7 +178,7 @@ systems (ghostty depends on GTK4).
 | Tool | Config location | Purpose |
 |---|---|---|
 | **Sway** | `workstation/sway/config` | Wayland compositor: keybindings, monitors, workspaces, window rules |
-| **Waybar** | `workstation/waybar/config`, `style.css` | Status bar: modules (clock, workspaces, tray), CSS styling |
+| **Waybar** | `workstation/waybar/config.tpl`, `style.css.tpl` | Status bar: modules (clock, workspaces, tray), CSS styling (themed) |
 | **Ghostty** | `workstation/ghostty/config` | Terminal emulator: font, theme, window settings |
 | **swaylock** | `workstation/swaylock/config.tpl` | Screen locker: colors, indicator, behavior (themed) |
 | **swayidle** | `workstation/swayidle/config` | Idle manager: lock, screen off, suspend timers |
@@ -227,44 +195,6 @@ systems (ghostty depends on GTK4).
 | **auto-update** | `workstation/scripts/auto-update` | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
 | **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
 
-## Integration with OS Repos
-
-### How OS Repos Invoke Dotfiles
-
-Both OS repos have a `DOTFILES_REPO` variable in their `config.sh`:
-
-```bash
-# In the OS repo's config.sh:
-DOTFILES_REPO="https://github.com/<user>/dotfiles.git"
-DOTFILES_DEST="/home/${USERNAME}/dev/infra/dotfiles"
-```
-
-The OS installer's `profiles/base.sh` clones and runs:
-
-```bash
-if [[ -n "$DOTFILES_REPO" ]]; then
-  git clone "$DOTFILES_REPO" "$DOTFILES_DEST"
-  bash "${DOTFILES_DEST}/install.sh" --profile "$PROFILE" --user "$USERNAME"
-fi
-```
-
-### What Stays in OS Repos (NOT here)
-
-- Package installation (`pacman`/`apt-get`)
-- User creation and shell assignment (`useradd -s /usr/bin/zsh`)
-- Service enablement (`systemctl enable`)
-- System-wide env vars (`/etc/environment`)
-- Hardware config (GPU drivers, bootloader, initramfs)
-- Firewall rules, SSH server config
-- Docker installation and group membership
-
-### What Lives Here (NOT in OS repos)
-
-- Everything in `~/.config/`
-- `~/.zshrc`, `~/.gitconfig`
-- oh-my-zsh installation
-- Tool-specific configuration and customization
-
 ## Code Conventions
 
 - All scripts use `#!/usr/bin/env bash` shebang
@@ -275,45 +205,6 @@ fi
 - Functions use `snake_case`
 - Quote all variable expansions
 - Never add `Co-Authored-By` trailers to git commits
-
-## File Organization
-
-```
-dotfiles/
-├── install.sh                   # Entry point: --profile server|workstation [--theme]
-├── theme.conf                   # Default theme selection (THEME=catppuccin-mocha)
-├── themes/
-│   └── catppuccin-mocha.sh      # Palette: THEME_COLORS + THEME_META
-├── lib/
-│   ├── log.sh                   # Colored logging
-│   ├── helpers.sh               # Symlink helpers, oh-my-zsh installer
-│   └── theme.sh                 # Theme engine: load, render .tpl, validate
-├── common/                      # Shared configs (all profiles)
-│   ├── zsh/.zshrc.tpl           # Themed (generates .zshrc)
-│   ├── nvim/init.lua
-│   ├── tmux/tmux.conf
-│   ├── git/.gitconfig
-│   ├── starship/starship.toml.tpl  # Themed (generates starship.toml)
-│   ├── fontconfig/fonts.conf
-│   ├── lazygit/config.yml.tpl   # Themed (generates config.yml)
-│   ├── btop/btop.conf
-│   ├── fastfetch/config.jsonc
-│   ├── yazi/yazi.toml
-│   └── scripts/                 # Shared scripts → ~/.local/bin/
-├── workstation/                 # Workstation-only configs
-│   ├── sway/config
-│   ├── waybar/config, style.css
-│   ├── ghostty/config
-│   ├── mako/config.tpl          # Themed (generates config)
-│   ├── swaylock/config.tpl      # Themed (generates config)
-│   ├── swayosd/style.css.tpl    # Themed (generates style.css)
-│   ├── swaybg/wallpaper.sh.tpl  # Themed (generates wallpaper.sh)
-│   ├── obsidian/plugins.conf     # Plugin list → downloaded into vault
-│   ├── xdg-desktop-portal/portals.conf
-│   ├── theming/gtk-3.0/, qt6ct/, Kvantum/
-│   └── scripts/                 # Desktop scripts → ~/.local/bin/
-└── docs/
-```
 
 ## Commands
 
@@ -352,50 +243,3 @@ When modifying any config, follow this workflow:
 
 - **`docs/references.md`** — official doc links and config format notes for every tool.
   Consult before modifying configs, especially after package upgrades.
-
-## Changes Required in OS Repos
-
-When this dotfiles repo is moved to its own repository and pushed to GitHub, the following
-changes are needed in the OS installer repos:
-
-### arch-install (already done)
-- `config.sh`: `DOTFILES_REPO` and `DOTFILES_DEST` variables added
-- `profiles/base.sh`: `setup_zsh()` removed, `deploy_dotfiles()` added
-- `CLAUDE.md`: dotfiles integration documented
-- Set `DOTFILES_REPO="https://github.com/<user>/dotfiles.git"` in config.sh or test configs
-
-### debian-server (needs manual update)
-Apply the same pattern:
-
-1. **`config.sh`** — add these variables:
-   ```bash
-   DOTFILES_REPO="${DOTFILES_REPO:-}"
-   DOTFILES_DEST="${DOTFILES_DEST:-}"
-   ```
-
-2. **`profiles/base.sh`** — replace `setup_zsh()` with `deploy_dotfiles()`:
-   ```bash
-   run_base_profile() {
-     log_section "Base Profile Setup"
-     deploy_dotfiles
-     log_info "Base profile setup complete."
-   }
-
-   deploy_dotfiles() {
-     if [[ -z "${DOTFILES_REPO:-}" ]]; then
-       log_warn "DOTFILES_REPO not set — skipping dotfiles deployment."
-       return 0
-     fi
-     local dest="${DOTFILES_DEST:-/home/${USERNAME}/dev/infra/dotfiles}"
-     if [[ -d "$dest" ]]; then
-       sudo -u "$USERNAME" git -C "$dest" pull --ff-only || log_warn "Pull failed."
-     else
-       sudo -u "$USERNAME" git clone "$DOTFILES_REPO" "$dest"
-     fi
-     bash "${dest}/install.sh" --profile server --user "$USERNAME"
-   }
-   ```
-
-3. **`CLAUDE.md`** — add dotfiles integration section (same as arch-install's)
-
-4. **`tests/vm-server.conf`** — add `DOTFILES_REPO` once available
