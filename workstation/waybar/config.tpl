@@ -13,6 +13,7 @@
   "modules-right": [
     "group/connectivity",
     "group/system",
+    "custom/scaling",
     "tray"
   ],
   "sway/workspaces": {
@@ -85,6 +86,11 @@
   "sway/language": {
     "format": " {short}",
     "tooltip-format": "{long}"
+  },
+  "custom/scaling": {
+    "format": "󰍉",
+    "tooltip": false,
+    "on-click": "bash -c \"$HOME/.local/bin/scaling-toggle\""
   },
   "tray": {
     "spacing": 8

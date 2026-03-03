@@ -60,11 +60,18 @@ window#waybar {
 #disk,
 #network,
 #pulseaudio,
+#custom-scaling,
 #tray {
   padding: 0 10px;
   margin: 4px 2px;
   border-radius: 4px;
   color: @@TEXT@@;
+}
+
+#custom-scaling {
+  color: @@SAPPHIRE@@;
+  font-size: 15px;
+  padding: 0 6px;
 }
 
 #tray {

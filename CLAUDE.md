@@ -135,6 +135,7 @@ bash install.sh --profile workstation --theme catppuccin-mocha
 | `workstation/theming/gtk-4.0/gtk.css.tpl` | `gtk.css` | `@@TOKEN@@` |
 | `workstation/waybar/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
+| `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
 
 ## Custom GTK4 Widgets
 
@@ -150,6 +151,7 @@ systems (ghostty depends on GTK4).
 
 **Existing widgets:**
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
+- `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
 
 **Adding a new widget:**
 1. Create `workstation/scripts/<name>.tpl` with a Python GTK4 app
