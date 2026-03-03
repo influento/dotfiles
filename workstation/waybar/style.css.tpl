@@ -13,7 +13,7 @@ window#waybar {
 }
 
 #workspaces button {
-  padding: 0 8px;
+  padding: 0 10px;
   color: @@TEXT@@;
   background: transparent;
   border: none;
@@ -45,6 +45,14 @@ window#waybar {
   font-weight: bold;
 }
 
+#group-system,
+#group-connectivity {
+  background-color: @@SURFACE0@@;
+  border-radius: 8px;
+  padding: 0 4px;
+  margin: 4px 2px;
+}
+
 #clock,
 #language,
 #cpu,
@@ -56,8 +64,11 @@ window#waybar {
   padding: 0 10px;
   margin: 4px 2px;
   border-radius: 4px;
-  background-color: @@SURFACE0@@;
   color: @@TEXT@@;
+}
+
+#tray {
+  background-color: @@SURFACE0@@;
 }
 
 #clock {

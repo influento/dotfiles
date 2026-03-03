@@ -11,18 +11,37 @@
     "clock"
   ],
   "modules-right": [
-    "sway/language",
-    "pulseaudio",
-    "network",
-    "disk",
-    "cpu",
-    "memory",
+    "group/connectivity",
+    "group/system",
     "tray"
   ],
   "sway/workspaces": {
     "disable-scroll": true,
     "all-outputs": true,
-    "format": "{name}"
+    "format": "{icon}",
+    "format-icons": {
+      "1": "<span color=\"@@BLUE@@\"></span>",
+      "2": "<span color=\"@@PEACH@@\"></span>",
+      "3": "<span color=\"@@GREEN@@\"></span>",
+      "4": "<span color=\"@@MAUVE@@\"></span>",
+      "default": "<span color=\"@@OVERLAY1@@\"></span>"
+    }
+  },
+  "group/system": {
+    "orientation": "horizontal",
+    "modules": [
+      "cpu",
+      "memory",
+      "disk"
+    ]
+  },
+  "group/connectivity": {
+    "orientation": "horizontal",
+    "modules": [
+      "sway/language",
+      "pulseaudio",
+      "network"
+    ]
   },
   "sway/mode": {
     "format": "{}"
