@@ -5,7 +5,7 @@
 Profile-driven, idempotent dotfiles manager for user-level configuration. Part of a
 three-repo architecture:
 
-1. **arch-workstation** — Arch Linux workstation installer (system-level only)
+1. **arch-install** — Arch Linux workstation installer (system-level only)
 2. **debian-server** — Debian server installer (system-level only)
 3. **dotfiles** (this repo) — User-level configuration (shell, editor, tools, desktop)
 
