@@ -8,6 +8,7 @@
     "sway/mode"
   ],
   "modules-center": [
+    "custom/claude-usage",
     "clock"
   ],
   "modules-right": [
@@ -86,6 +87,13 @@
   "sway/language": {
     "format": " {short}",
     "tooltip-format": "{long}"
+  },
+  "custom/claude-usage": {
+    "exec": "~/.local/bin/claude-usage",
+    "return-type": "json",
+    "interval": 120,
+    "tooltip": true,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage-popup\""
   },
   "custom/scaling": {
     "format": "󰍉",

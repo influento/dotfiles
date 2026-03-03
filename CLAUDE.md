@@ -116,6 +116,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/waybar/style.css.tpl` | `style.css` | `@@TOKEN@@` |
 | `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
 | `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
+| `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@` |
 
 ## Custom GTK4 Widgets
 
@@ -132,6 +133,7 @@ systems (ghostty depends on GTK4).
 **Existing widgets:**
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
 - `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
+- `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
 
 **Rules:**
 - Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,

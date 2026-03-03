@@ -60,12 +60,34 @@ window#waybar {
 #disk,
 #network,
 #pulseaudio,
+#custom-claude-usage,
 #custom-scaling,
 #tray {
   padding: 0 10px;
   margin: 4px 2px;
   border-radius: 4px;
   color: @@TEXT@@;
+}
+
+#custom-claude-usage {
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+#custom-claude-usage.low {
+  color: @@GREEN@@;
+}
+
+#custom-claude-usage.medium {
+  color: @@YELLOW@@;
+}
+
+#custom-claude-usage.high {
+  color: @@RED@@;
+}
+
+#custom-claude-usage.error {
+  color: @@SURFACE2@@;
 }
 
 #custom-scaling {
