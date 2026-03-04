@@ -42,6 +42,13 @@ if ! curl -sf --max-time 5 https://archlinux.org > /dev/null 2>&1; then
   exit 0
 fi
 
+# Let system services (gpg-agent, keyboxd, etc.) settle after boot
+sleep 60
+
+# Restart gpg-agent/keyboxd to clear any stale locks
+gpgconf --kill all
+gpgconf --launch gpg-agent
+
 # Run update
 echo "[$(date)] Starting yay -Syu..." >> "$LOG_FILE"
 if output="$(yay -Syu --noconfirm 2>&1)"; then
