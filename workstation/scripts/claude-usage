@@ -132,55 +132,72 @@ def classify(five_hour, seven_day):
     return "low"
 
 
+def format_output(data):
+    """Format usage data as waybar JSON."""
+    five = data["five_hour"]
+    seven = data["seven_day"]
+    sonnet = data.get("seven_day_sonnet")
+    five_pct = round(five["utilization"])
+    seven_pct = round(seven["utilization"])
+    css_class = classify(five["utilization"], seven["utilization"])
+
+    tooltip_lines = [
+        f"5-hour:       {five_pct}%  resets {format_reset_absolute(five['resets_at'])} ({format_reset_relative(five['resets_at'])})",
+        f"7-day:        {seven_pct}%  resets {format_reset_absolute(seven['resets_at'])} ({format_reset_relative(seven['resets_at'])})",
+    ]
+    if sonnet and sonnet.get("utilization") is not None:
+        sonnet_pct = round(sonnet["utilization"])
+        tooltip_lines.append(
+            f"7-day sonnet: {sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
+        )
+
+    charge_date = load_cached_charge_date()
+    if charge_date:
+        tooltip_lines.append(
+            f"next charge:  {format_date_absolute(charge_date)} ({format_date_relative(charge_date)})"
+        )
+
+    return {
+        "text": f"5h {five_pct}% · 7d {seven_pct}%",
+        "tooltip": "\n".join(tooltip_lines),
+        "class": css_class,
+    }
+
+
 def main():
+    force = "--refresh" in sys.argv
+    is_json = "--json" in sys.argv
+
+    # Check cache first — never block waybar on an API call
+    cached = load_usage_cache()
+    if cached and not force:
+        if is_json:
+            out = {k: v for k, v in cached.items() if not k.startswith("_")}
+            charge_date = load_cached_charge_date()
+            if charge_date:
+                out["next_charge_date"] = charge_date
+            print(json.dumps(out))
+        else:
+            print(json.dumps(format_output(cached)))
+        return
+
+    # No fresh cache — print placeholder, then fetch to prime cache for next tick
+    if not is_json:
+        print(json.dumps({"text": "fetching…", "tooltip": "", "class": "error"}))
+        sys.stdout.flush()
+
     try:
-        force = "--refresh" in sys.argv
         token = load_token()
         data = fetch_usage(token, force=force)
-
-        if "--json" in sys.argv:
+        if is_json:
             out = {k: v for k, v in data.items() if not k.startswith("_")}
             charge_date = load_cached_charge_date()
             if charge_date:
                 out["next_charge_date"] = charge_date
             print(json.dumps(out))
-            return
-
-        five = data["five_hour"]
-        seven = data["seven_day"]
-        sonnet = data.get("seven_day_sonnet")
-        five_pct = round(five["utilization"])
-        seven_pct = round(seven["utilization"])
-        css_class = classify(five["utilization"], seven["utilization"])
-
-        tooltip_lines = [
-            f"5-hour:       {five_pct}%  resets {format_reset_absolute(five['resets_at'])} ({format_reset_relative(five['resets_at'])})",
-            f"7-day:        {seven_pct}%  resets {format_reset_absolute(seven['resets_at'])} ({format_reset_relative(seven['resets_at'])})",
-        ]
-        if sonnet and sonnet.get("utilization") is not None:
-            sonnet_pct = round(sonnet["utilization"])
-            tooltip_lines.append(
-                f"7-day sonnet: {sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
-            )
-
-        charge_date = load_cached_charge_date()
-        if charge_date:
-            tooltip_lines.append(
-                f"next charge:  {format_date_absolute(charge_date)} ({format_date_relative(charge_date)})"
-            )
-
-        output = {
-            "text": f"5h {five_pct}% · 7d {seven_pct}%",
-            "tooltip": "\n".join(tooltip_lines),
-            "class": css_class,
-        }
-        print(json.dumps(output))
-
     except Exception:
-        if "--json" in sys.argv:
+        if is_json:
             print(json.dumps({"error": "failed to fetch usage"}))
-        else:
-            print(json.dumps({"text": "—", "tooltip": "Failed to fetch usage", "class": "error"}))
 
 
 if __name__ == "__main__":
