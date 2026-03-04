@@ -137,6 +137,19 @@ window#waybar {
   color: @@SUBTEXT0@@;
 }
 
+#custom-bluetooth {
+  color: @@BLUE@@;
+  font-size: 15px;
+}
+
+#custom-bluetooth.off {
+  color: @@SUBTEXT0@@;
+}
+
+#custom-bluetooth.connected {
+  color: @@GREEN@@;
+}
+
 #tray > .passive {
   -gtk-icon-effect: dim;
 }

@@ -117,6 +117,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
 | `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
 | `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@` |
+| `workstation/scripts/bluetooth-popup.tpl` | `bluetooth-popup` | `@@TOKEN@@` |
 
 ## Custom GTK4 Widgets
 
@@ -134,6 +135,7 @@ systems (ghostty depends on GTK4).
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
 - `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
 - `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
+- `bluetooth-popup` — GTK4 Bluetooth device manager with scan, pair, connect/disconnect
 
 **Rules:**
 - Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,
@@ -193,6 +195,7 @@ systems (ghostty depends on GTK4).
 | **swaybg** | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/` | Wallpaper: launcher script, image storage (themed) |
 | **wlsunset** | `workstation/wlsunset/wlsunset.sh` | Night light: temperature, location-based schedule |
 | **SwayOSD** | `workstation/swayosd/style.css.tpl` | On-screen display: volume/brightness popup styling (themed) |
+| **bluetooth-widget** | `workstation/scripts/bluetooth-widget`, `bluetooth-popup.tpl` | Bluetooth: waybar module + GTK4 popup for device management (themed) |
 | **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (wofi) |
 | **Obsidian plugins** | `workstation/obsidian/plugins.conf` | Plugin installer: downloads from GitHub releases into vault |
 | **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |

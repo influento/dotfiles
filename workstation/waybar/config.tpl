@@ -42,6 +42,7 @@
     "modules": [
       "sway/language",
       "pulseaudio",
+      "custom/bluetooth",
       "network"
     ]
   },
@@ -83,6 +84,15 @@
     "on-click-right": "bash -c \"$HOME/.local/bin/pavucontrol-toggle\"",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+  },
+  "custom/bluetooth": {
+    "exec": "~/.local/bin/bluetooth-widget",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 10,
+    "tooltip": false,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle bluetooth-popup\"",
+    "on-click-right": "bash -c \"bluetoothctl show | grep -q 'Powered: yes' && bluetoothctl power off || bluetoothctl power on; pkill -RTMIN+10 waybar\""
   },
   "sway/language": {
     "format": " {short}",
