@@ -2,7 +2,7 @@
 
 * {
   font-family: "JetBrainsMono Nerd Font", sans-serif;
-  font-size: 12px;
+  font-size: 15px;
   min-height: 0;
 }
 
@@ -45,7 +45,6 @@ window#waybar {
   font-weight: bold;
 }
 
-#group-system,
 #group-connectivity {
   background-color: @@SURFACE0@@;
   border-radius: 8px;
@@ -55,23 +54,17 @@ window#waybar {
 
 #clock,
 #language,
-#cpu,
-#memory,
-#disk,
 #network,
 #pulseaudio,
+#custom-bluetooth,
 #custom-claude-usage,
 #custom-scaling,
 #tray {
-  padding: 0 10px;
+  padding: 0 8px;
   margin: 4px 2px;
   border-radius: 4px;
+  min-width: 30px;
   color: @@TEXT@@;
-}
-
-#custom-claude-usage {
-  font-size: 11px;
-  padding: 0 6px;
 }
 
 #custom-claude-usage.low {
@@ -92,8 +85,6 @@ window#waybar {
 
 #custom-scaling {
   color: @@SAPPHIRE@@;
-  font-size: 15px;
-  padding: 0 6px;
 }
 
 #tray {
@@ -107,18 +98,7 @@ window#waybar {
 
 #language {
   color: @@LAVENDER@@;
-}
-
-#cpu {
-  color: @@GREEN@@;
-}
-
-#memory {
-  color: @@YELLOW@@;
-}
-
-#disk {
-  color: @@PEACH@@;
+  font-weight: bold;
 }
 
 #network {
@@ -139,7 +119,6 @@ window#waybar {
 
 #custom-bluetooth {
   color: @@BLUE@@;
-  font-size: 15px;
 }
 
 #custom-bluetooth.off {

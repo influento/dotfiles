@@ -13,7 +13,6 @@
   ],
   "modules-right": [
     "group/connectivity",
-    "group/system",
     "custom/scaling",
     "tray"
   ],
@@ -29,14 +28,6 @@
       "default": "<span color=\"@@OVERLAY1@@\"></span>"
     }
   },
-  "group/system": {
-    "orientation": "horizontal",
-    "modules": [
-      "cpu",
-      "memory",
-      "disk"
-    ]
-  },
   "group/connectivity": {
     "orientation": "horizontal",
     "modules": [
@@ -48,25 +39,6 @@
   },
   "sway/mode": {
     "format": "{}"
-  },
-  "cpu": {
-    "format": "  {usage}%",
-    "interval": 5,
-    "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
-  },
-  "memory": {
-    "format": "  {}%",
-    "interval": 5,
-    "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
-  },
-  "disk": {
-    "format": "  {percentage_used}%",
-    "interval": 30,
-    "path": "/",
-    "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/btop-toggle\""
   },
   "network": {
     "format-wifi": "  {signalStrength}%",
@@ -106,7 +78,10 @@
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage-popup\""
   },
   "custom/scaling": {
-    "format": "󰍉",
+    "exec": "echo '{\"text\": \"󰹑 '$(swaymsg -t get_outputs | python3 -c \"import json,sys; o=next(x for x in json.load(sys.stdin) if x.get('active')); print(str(int(o['scale']*100))+'%')\" 2>/dev/null || echo '?')'\", \"class\": \"scaling\"}'",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 11,
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle scaling-popup\""
   },

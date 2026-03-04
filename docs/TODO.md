@@ -24,3 +24,4 @@
 - [ ] PipeWire / WirePlumber custom config
 - [ ] Additional themes (catppuccin-latte, gruvbox, etc.)
 - [ ] Theme more configs (sway, waybar, ghostty, starship) as they get content
+- [ ] Waybar dropdown widget — single icon that opens a GTK4 popup with a grid/list of utility launchers (btop, scaling, etc.) to declutter the bar

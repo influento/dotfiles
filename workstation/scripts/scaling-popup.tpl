@@ -94,6 +94,8 @@ def apply_scale(scale):
     conf = os.path.expanduser("~/.config/sway/scale.conf")
     with open(conf, "w") as f:
         f.write(f"output * scale {scale:.1f}\n")
+    subprocess.Popen(["pkill", "-RTMIN+11", "waybar"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 class ScalingPopup(Gtk.Application):

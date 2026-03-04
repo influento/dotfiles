@@ -225,6 +225,11 @@ systems (ghostty depends on GTK4).
 
 ## Editing Configs
 
+**IMPORTANT: Never use the Write tool to rewrite files containing Nerd Font icons** (e.g.,
+waybar config, sway config). The Write tool strips multi-byte UTF-8 icon characters
+(U+F0000–U+F9999). Always use the Edit tool for targeted changes, or `sed -i` for
+line-range deletions. This applies to any config with icon glyphs in format strings.
+
 When modifying any config, follow this workflow:
 
 1. **Check if the config is a template** — look for a `.tpl` file. If it exists, edit
