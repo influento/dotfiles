@@ -20,6 +20,9 @@ input type:touchpad {
   dwt enabled
 }
 
+# --- Output ---
+include ~/.config/sway/scale.conf
+
 # --- Appearance ---
 gaps inner 8
 gaps outer 4

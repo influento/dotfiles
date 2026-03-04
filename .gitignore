@@ -23,3 +23,6 @@ workstation/theming/gtk-4.0/gtk.css
 workstation/scripts/calendar-popup
 workstation/scripts/scaling-popup
 workstation/scripts/claude-usage-popup
+
+# Runtime config (written by scaling-popup widget)
+workstation/sway/scale.conf

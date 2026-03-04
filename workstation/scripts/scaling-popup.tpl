@@ -86,11 +86,14 @@ def get_current_scale():
 
 
 def apply_scale(scale):
-    """Apply scale to all outputs via swaymsg."""
+    """Apply scale to all outputs via swaymsg and persist to sway config."""
     subprocess.run(
         ["swaymsg", "output", "*", "scale", f"{scale:.1f}"],
         capture_output=True,
     )
+    conf = os.path.expanduser("~/.config/sway/scale.conf")
+    with open(conf, "w") as f:
+        f.write(f"output * scale {scale:.1f}\n")
 
 
 class ScalingPopup(Gtk.Application):
