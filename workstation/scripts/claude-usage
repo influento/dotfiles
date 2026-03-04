@@ -35,15 +35,14 @@ def fetch_usage_api(token):
 
 
 def load_usage_cache():
-    """Load cached usage data if still fresh."""
+    """Load cached usage data and freshness flag."""
     try:
         with open(USAGE_CACHE) as f:
             cache = json.load(f)
-        if time.time() - cache.get("_cached_at", 0) < CACHE_TTL:
-            return cache
+        fresh = time.time() - cache.get("_cached_at", 0) < CACHE_TTL
+        return cache, fresh
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    return None
+        return None, False
 
 
 def save_usage_cache(data):
@@ -53,12 +52,8 @@ def save_usage_cache(data):
         json.dump(data, f)
 
 
-def fetch_usage(token, force=False):
-    """Get usage data from cache or API."""
-    if not force:
-        cached = load_usage_cache()
-        if cached:
-            return cached
+def fetch_usage(token):
+    """Fetch usage data from API and save to cache."""
     data = fetch_usage_api(token)
     save_usage_cache(data)
     return data
@@ -167,10 +162,10 @@ def format_output(data):
 def main():
     force = "--refresh" in sys.argv
     is_json = "--json" in sys.argv
+    cached, fresh = load_usage_cache()
 
-    # Check cache first — never block waybar on an API call
-    cached = load_usage_cache()
-    if cached and not force:
+    # Fresh cache — render immediately, no API call
+    if fresh and not force:
         if is_json:
             out = {k: v for k, v in cached.items() if not k.startswith("_")}
             charge_date = load_cached_charge_date()
@@ -181,14 +176,17 @@ def main():
             print(json.dumps(format_output(cached)))
         return
 
-    # No fresh cache — print placeholder, then fetch to prime cache for next tick
+    # Stale or no cache — render what we have, then fetch to refresh cache
     if not is_json:
-        print(json.dumps({"text": "fetching…", "tooltip": "", "class": "error"}))
+        if cached:
+            print(json.dumps(format_output(cached)))
+        else:
+            print(json.dumps({"text": "fetching…", "tooltip": "", "class": "error"}))
         sys.stdout.flush()
 
     try:
         token = load_token()
-        data = fetch_usage(token, force=force)
+        data = fetch_usage(token)
         if is_json:
             out = {k: v for k, v in data.items() if not k.startswith("_")}
             charge_date = load_cached_charge_date()
