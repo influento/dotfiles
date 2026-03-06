@@ -24,6 +24,7 @@ workstation/scripts/calendar-popup
 workstation/scripts/scaling-popup
 workstation/scripts/claude-usage-popup
 workstation/scripts/bluetooth-popup
+workstation/scripts/power-popup
 
 # Runtime config (written by scaling-popup widget)
 workstation/sway/scale.conf

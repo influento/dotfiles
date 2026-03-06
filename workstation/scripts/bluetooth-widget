@@ -2,11 +2,19 @@
 set -euo pipefail
 
 # Waybar backing script for Bluetooth module.
-# Outputs JSON: { "text": "icon", "class": "off|on|connected" }
-# Exits silently (hides module) if bluetoothctl is missing or no BT hardware.
+# Outputs JSON: { "text": "icon", "class": "off|on|connected|error" }
+# Exits silently (hides module) if bluetoothctl is missing.
 
 command -v bluetoothctl &>/dev/null || exit 0
-bluetoothctl show &>/dev/null || exit 0
+
+if ! bluetoothctl show &>/dev/null; then
+  if [[ ! -d "/lib/modules/$(uname -r)" ]]; then
+    echo '{"text": "󰂲", "class": "error", "tooltip": "No controller — reboot needed (kernel updated)"}'
+  else
+    echo '{"text": "󰂲", "class": "error", "tooltip": "No bluetooth controller available"}'
+  fi
+  exit 0
+fi
 
 powered=$(bluetoothctl show | grep -c "Powered: yes" || true)
 

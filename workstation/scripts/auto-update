@@ -49,16 +49,22 @@ sleep 60
 gpgconf --kill all
 gpgconf --launch gpg-agent
 
+# Check for available updates
+pending="$(yay -Qu 2>/dev/null | wc -l || true)"
+if (( pending == 0 )); then
+  echo "[$(date)] No updates available." >> "$LOG_FILE"
+  date +%s > "$LAST_FILE"
+  exit 0
+fi
+
+notify-send -u low "Updating System" "${pending} package(s) available..."
+echo "[$(date)] Starting yay -Syu (${pending} pending)..." >> "$LOG_FILE"
+
 # Run update
-echo "[$(date)] Starting yay -Syu..." >> "$LOG_FILE"
 if output="$(yay -Syu --noconfirm 2>&1)"; then
   echo "$output" >> "$LOG_FILE"
   upgraded="$(echo "$output" | grep -c "^upgrading " || true)"
-  if (( upgraded > 0 )); then
-    notify-send -u low "System Updated" "${upgraded} package(s) upgraded."
-  else
-    notify-send -u low "System Updated" "Already up to date."
-  fi
+  notify-send -u low "System Updated" "${upgraded} package(s) upgraded."
   date +%s > "$LAST_FILE"
   echo "[$(date)] Update complete — ${upgraded} package(s) upgraded." >> "$LOG_FILE"
 else

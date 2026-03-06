@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Waybar backing script for stale-kernel indicator.
+# Shows a warning icon when the running kernel no longer has modules on disk
+# (i.e. kernel was upgraded but system hasn't rebooted).
+
+running="$(uname -r)"
+
+if [[ ! -d "/lib/modules/${running}" ]]; then
+  echo '{"text": "󰜗", "class": "active", "tooltip": "Reboot needed — running kernel '"${running}"' modules removed"}'
+else
+  echo '{"text": "", "class": "inactive"}'
+fi

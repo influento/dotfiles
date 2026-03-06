@@ -136,6 +136,25 @@ window {
   font-size: 12px;
   color: @@SURFACE2@@;
 }
+
+.bt-error-icon {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 24px;
+  color: @@RED@@;
+  margin-top: 4px;
+}
+
+.bt-error-msg {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  color: @@SUBTEXT0@@;
+}
+
+.bt-error-hint {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 10px;
+  color: @@OVERLAY0@@;
+}
 """
 
 ICON_MAP = {
@@ -165,6 +184,15 @@ def bt_run(*args, timeout=5, input_text=None):
         return result.stdout.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return ""
+
+
+def has_controller():
+    return "No default controller available" not in bt_run("show")
+
+
+def is_kernel_stale():
+    running = os.uname().release
+    return not os.path.isdir(f"/lib/modules/{running}")
 
 
 def is_powered():
@@ -284,13 +312,33 @@ class BluetoothPopup(Gtk.Application):
     def _build_ui(self):
         self._clear_container()
 
-        # Title row with power toggle
+        # Title row
         title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         title = Gtk.Label(label="Bluetooth")
         title.add_css_class("bt-title")
         title.set_hexpand(True)
         title.set_halign(Gtk.Align.START)
         title_row.append(title)
+
+        if not has_controller():
+            self._container.append(title_row)
+            error_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            error_box.set_halign(Gtk.Align.CENTER)
+            icon = Gtk.Label(label="󰂲")
+            icon.add_css_class("bt-error-icon")
+            error_box.append(icon)
+            msg = Gtk.Label(label="No controller available")
+            msg.add_css_class("bt-error-msg")
+            error_box.append(msg)
+            if is_kernel_stale():
+                hint_text = "Kernel updated — reboot to restore bluetooth"
+            else:
+                hint_text = "Check adapter or restart bluetooth service"
+            hint = Gtk.Label(label=hint_text)
+            hint.add_css_class("bt-error-hint")
+            error_box.append(hint)
+            self._container.append(error_box)
+            return
 
         powered = is_powered()
         power_btn = Gtk.Button(label="󰂯" if powered else "󰂲")

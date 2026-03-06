@@ -59,6 +59,8 @@ window#waybar {
 #custom-bluetooth,
 #custom-claude-usage,
 #custom-scaling,
+#custom-stale-kernel,
+#custom-power,
 #tray {
   padding: 0 8px;
   margin: 4px 2px;
@@ -117,6 +119,17 @@ window#waybar {
   color: @@SUBTEXT0@@;
 }
 
+#custom-stale-kernel.active {
+  color: @@PEACH@@;
+}
+
+#custom-stale-kernel.inactive {
+  font-size: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
 #custom-bluetooth {
   color: @@BLUE@@;
 }
@@ -127,6 +140,15 @@ window#waybar {
 
 #custom-bluetooth.connected {
   color: @@GREEN@@;
+}
+
+#custom-bluetooth.error {
+  color: @@RED@@;
+}
+
+#custom-power {
+  color: @@SUBTEXT0@@;
+  font-size: 18px;
 }
 
 #tray > .passive {

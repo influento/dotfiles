@@ -118,6 +118,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
 | `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@` |
 | `workstation/scripts/bluetooth-popup.tpl` | `bluetooth-popup` | `@@TOKEN@@` |
+| `workstation/scripts/power-popup.tpl` | `power-popup` | `@@TOKEN@@` |
 
 ## Custom GTK4 Widgets
 
@@ -136,6 +137,7 @@ systems (ghostty depends on GTK4).
 - `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
 - `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
 - `bluetooth-popup` — GTK4 Bluetooth device manager with scan, pair, connect/disconnect
+- `power-popup` — GTK4 power menu with lock, sleep, reboot, shut down actions
 
 **Rules:**
 - Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,
@@ -202,6 +204,7 @@ systems (ghostty depends on GTK4).
 | **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
 | **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | Qt theme engine: renders Qt widgets to match GTK theme |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/portals.conf` | Portal backend: routes desktop portals to wlr for Sway |
+| **power-popup** | `workstation/scripts/power-popup.tpl` | Power menu: GTK4 popup with lock, sleep, reboot, shut down (themed) |
 | **auto-update** | `workstation/scripts/auto-update` | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
 | **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
 
@@ -225,10 +228,13 @@ systems (ghostty depends on GTK4).
 
 ## Editing Configs
 
-**IMPORTANT: Never use the Write tool to rewrite files containing Nerd Font icons** (e.g.,
-waybar config, sway config). The Write tool strips multi-byte UTF-8 icon characters
-(U+F0000–U+F9999). Always use the Edit tool for targeted changes, or `sed -i` for
-line-range deletions. This applies to any config with icon glyphs in format strings.
+**IMPORTANT: Never use the Write tool for files that contain or will contain Nerd Font
+icons** (U+F0000–U+F9999). The Write tool silently strips multi-byte UTF-8 icon
+characters. This applies to both editing existing files AND creating new files.
+- **Editing existing files with icons**: Use the Edit tool for targeted changes
+- **Creating new files with icons**: Use Bash heredoc (`cat << 'EOF' > file`)
+- **Common icon locations**: waybar scripts, sway config, any script that outputs
+  waybar JSON (format strings with icon glyphs), widget templates with icon literals
 
 When modifying any config, follow this workflow:
 

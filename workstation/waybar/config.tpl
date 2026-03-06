@@ -12,9 +12,11 @@
     "clock"
   ],
   "modules-right": [
+    "custom/stale-kernel",
     "group/connectivity",
     "custom/scaling",
-    "tray"
+    "tray",
+    "custom/power"
   ],
   "sway/workspaces": {
     "disable-scroll": true,
@@ -85,6 +87,12 @@
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle scaling-popup\""
   },
+  "custom/stale-kernel": {
+    "exec": "~/.local/bin/stale-kernel",
+    "return-type": "json",
+    "interval": 60,
+    "tooltip": true
+  },
   "tray": {
     "spacing": 8
   },
@@ -92,5 +100,10 @@
     "format": "  {:%a %b %d  %H:%M}",
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar-popup\""
+  },
+  "custom/power": {
+    "format": "󰐥",
+    "tooltip": false,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle power-popup\""
   }
 }
