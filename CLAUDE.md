@@ -218,6 +218,10 @@ systems (ghostty depends on GTK4).
 - Functions use `snake_case`
 - Quote all variable expansions
 - Never add `Co-Authored-By` trailers to git commits
+- Before every commit/push, audit the staged diff for sensitive information leaks:
+  usernames, passwords, API keys, tokens, private IPs, email addresses, or any
+  data that should not appear in a public repository. Flag any findings to the user
+  before proceeding
 
 ## Commands
 
@@ -225,6 +229,21 @@ systems (ghostty depends on GTK4).
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
+
+## Codebase Size (baseline: 2026-03-06)
+
+~56,300 tokens total (~44,600 deduplicated, excluding generated files).
+
+| Area | Est. Tokens |
+|---|---|
+| `workstation/scripts/` (widgets) | ~27,200 |
+| `common/` | ~12,200 |
+| `workstation/` (non-scripts) | ~6,700 |
+| Root files (CLAUDE.md, install.sh, etc.) | ~5,400 |
+| `lib/` | ~3,200 |
+| `docs/` + `themes/` | ~1,600 |
+
+Widgets account for ~48% of the codebase. Binary files (wallpapers, 8.3 MB) excluded.
 
 ## Editing Configs
 
