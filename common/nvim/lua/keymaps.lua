@@ -23,10 +23,14 @@ map("v", ">", ">gv")
 map("v", "J", ":m '>+1<CR>gv=gv", { desc = "Move line down" })
 map("v", "K", ":m '<-2<CR>gv=gv", { desc = "Move line up" })
 
+-- Quit all
+map("n", "<leader>qq", "<cmd>qa<CR>", { desc = "Quit all" })
+map("n", "<leader>qw", "<cmd>wa | qa<CR>", { desc = "Save all and quit" })
+
 -- Terminal escape
 map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
 -- Diagnostic navigation
 map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
 map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
-map("n", "<leader>e", vim.diagnostic.open_float, { desc = "Show diagnostic" })
+map("n", "<leader>xd", vim.diagnostic.open_float, { desc = "Show diagnostic" })

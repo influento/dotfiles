@@ -4,9 +4,10 @@ return {
   event = { "BufReadPost", "BufNewFile" },
   opts = {
     ensure_installed = {
-      "bash", "c", "css", "diff", "html", "javascript", "json", "jsonc",
-      "lua", "luadoc", "markdown", "markdown_inline", "python", "query",
-      "regex", "rust", "toml", "tsx", "typescript", "vim", "vimdoc", "yaml",
+      "bash", "c", "c_sharp", "css", "diff", "go", "gomod", "gosum",
+      "html", "javascript", "json", "jsonc", "lua", "luadoc", "markdown",
+      "markdown_inline", "powershell", "python", "query", "regex", "rust",
+      "toml", "tsx", "typescript", "vim", "vimdoc", "yaml",
     },
     highlight = { enable = true },
     indent = { enable = true },
@@ -21,6 +22,6 @@ return {
     },
   },
   config = function(_, opts)
-    require("nvim-treesitter.configs").setup(opts)
+    require("nvim-treesitter").setup(opts)
   end,
 }

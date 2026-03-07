@@ -1,26 +1,16 @@
 return {
-  "nvim-telescope/telescope.nvim",
-  branch = "0.1.x",
-  dependencies = {
-    "nvim-lua/plenary.nvim",
-    { "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
-  },
+  "ibhagwan/fzf-lua",
+  dependencies = { "nvim-tree/nvim-web-devicons" },
   keys = {
-    { "<leader>ff", "<cmd>Telescope find_files<CR>", desc = "Find files" },
-    { "<leader>fg", "<cmd>Telescope live_grep<CR>", desc = "Live grep" },
-    { "<leader>fb", "<cmd>Telescope buffers<CR>", desc = "Buffers" },
-    { "<leader>fh", "<cmd>Telescope help_tags<CR>", desc = "Help tags" },
-    { "<leader>fr", "<cmd>Telescope oldfiles<CR>", desc = "Recent files" },
-    { "<leader>fd", "<cmd>Telescope diagnostics<CR>", desc = "Diagnostics" },
-    { "<leader>/", "<cmd>Telescope current_buffer_fuzzy_find<CR>", desc = "Search in buffer" },
+    { "<leader>ff", "<cmd>FzfLua files<CR>", desc = "Find files" },
+    { "<leader>fg", "<cmd>FzfLua live_grep<CR>", desc = "Live grep" },
+    { "<leader>fb", "<cmd>FzfLua buffers<CR>", desc = "Buffers" },
+    { "<leader>fh", "<cmd>FzfLua helptags<CR>", desc = "Help tags" },
+    { "<leader>fr", "<cmd>FzfLua oldfiles<CR>", desc = "Recent files" },
+    { "<leader>fd", "<cmd>FzfLua diagnostics_workspace<CR>", desc = "Diagnostics" },
+    { "<leader>/", "<cmd>FzfLua lgrep_curbuf<CR>", desc = "Search in buffer" },
   },
-  config = function()
-    local telescope = require("telescope")
-    telescope.setup({
-      defaults = {
-        file_ignore_patterns = { "node_modules", ".git/" },
-      },
-    })
-    telescope.load_extension("fzf")
-  end,
+  opts = {
+    file_ignore_patterns = { "node_modules", ".git/" },
+  },
 }

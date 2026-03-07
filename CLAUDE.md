@@ -20,15 +20,16 @@ and idempotent so it can be safely re-run at any time.
 
 ### Profiles
 
-| Profile | What gets deployed |
-|---|---|
-| `server` | Common configs only: zsh, neovim, tmux, git, starship |
+| Profile       | What gets deployed                                        |
+| ------------- | --------------------------------------------------------- |
+| `server`      | Common configs only: zsh, neovim, tmux, git, starship     |
 | `workstation` | Common + workstation: adds sway, waybar, ghostty, theming |
 
 ### Deployment Method
 
 Configs are deployed as **symlinks** from `~/.config/<tool>` → `<dotfiles>/<profile>/<tool>`.
 This means:
+
 - Changes to dotfiles are immediately reflected (no copy/sync needed)
 - `git diff` inside the dotfiles repo shows all config changes
 - Re-running `install.sh` is safe (idempotent — existing correct symlinks are skipped)
@@ -36,36 +37,36 @@ This means:
 
 ### Config Mapping
 
-| Source | Target | Profile |
-|---|---|---|
-| `common/zsh/.zshrc.tpl` | `~/.zshrc` (via generated `.zshrc`) | all |
-| `common/nvim/` | `~/.config/nvim/` | all |
-| `common/tmux/` | `~/.config/tmux/` | all |
-| `common/git/.gitconfig` | `~/.gitconfig` | all |
-| `common/starship/` | `~/.config/starship/` | all |
-| `common/fontconfig/` | `~/.config/fontconfig/` | all |
-| `common/lazygit/` | `~/.config/lazygit/` | all |
-| `common/btop/` | `~/.config/btop/` | all |
-| `common/fastfetch/` | `~/.config/fastfetch/` | all |
-| `common/yazi/` | `~/.config/yazi/` | all |
-| `common/scripts/*` | `~/.local/bin/*` | all |
-| `workstation/sway/` | `~/.config/sway/` | workstation |
-| `workstation/swaylock/` | `~/.config/swaylock/` | workstation |
-| `workstation/swayidle/` | `~/.config/swayidle/` | workstation |
-| `workstation/mako/` | `~/.config/mako/` | workstation |
-| `workstation/swaybg/` | `~/.config/swaybg/` | workstation |
-| `workstation/wlsunset/` | `~/.config/wlsunset/` | workstation |
-| `workstation/swayosd/` | `~/.config/swayosd/` | workstation |
-| `workstation/cliphist/` | `~/.config/cliphist/` | workstation |
-| `workstation/waybar/` | `~/.config/waybar/` | workstation |
-| `workstation/ghostty/` | `~/.config/ghostty/` | workstation |
-| `workstation/xdg-desktop-portal/` | `~/.config/xdg-desktop-portal/` | workstation |
-| `workstation/scripts/*` | `~/.local/bin/*` | workstation |
+| Source                              | Target                                    | Profile     |
+| ----------------------------------- | ----------------------------------------- | ----------- |
+| `common/zsh/.zshrc.tpl`             | `~/.zshrc` (via generated `.zshrc`)       | all         |
+| `common/nvim/`                      | `~/.config/nvim/`                         | all         |
+| `common/tmux/`                      | `~/.config/tmux/`                         | all         |
+| `common/git/.gitconfig`             | `~/.gitconfig`                            | all         |
+| `common/starship/`                  | `~/.config/starship/`                     | all         |
+| `common/fontconfig/`                | `~/.config/fontconfig/`                   | all         |
+| `common/lazygit/`                   | `~/.config/lazygit/`                      | all         |
+| `common/btop/`                      | `~/.config/btop/`                         | all         |
+| `common/fastfetch/`                 | `~/.config/fastfetch/`                    | all         |
+| `common/yazi/`                      | `~/.config/yazi/`                         | all         |
+| `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
+| `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
+| `workstation/swaylock/`             | `~/.config/swaylock/`                     | workstation |
+| `workstation/swayidle/`             | `~/.config/swayidle/`                     | workstation |
+| `workstation/mako/`                 | `~/.config/mako/`                         | workstation |
+| `workstation/swaybg/`               | `~/.config/swaybg/`                       | workstation |
+| `workstation/wlsunset/`             | `~/.config/wlsunset/`                     | workstation |
+| `workstation/swayosd/`              | `~/.config/swayosd/`                      | workstation |
+| `workstation/cliphist/`             | `~/.config/cliphist/`                     | workstation |
+| `workstation/waybar/`               | `~/.config/waybar/`                       | workstation |
+| `workstation/ghostty/`              | `~/.config/ghostty/`                      | workstation |
+| `workstation/xdg-desktop-portal/`   | `~/.config/xdg-desktop-portal/`           | workstation |
+| `workstation/scripts/*`             | `~/.local/bin/*`                          | workstation |
 | `workstation/obsidian/plugins.conf` | `~/Dropbox/data-vault/.obsidian/plugins/` | workstation |
-| `workstation/theming/gtk-3.0/` | `~/.config/gtk-3.0/` | workstation |
-| `workstation/theming/gtk-4.0/` | `~/.config/gtk-4.0/` | workstation |
-| `workstation/theming/qt6ct/` | `~/.config/qt6ct/` | workstation |
-| `workstation/theming/Kvantum/` | `~/.config/Kvantum/` | workstation |
+| `workstation/theming/gtk-3.0/`      | `~/.config/gtk-3.0/`                      | workstation |
+| `workstation/theming/gtk-4.0/`      | `~/.config/gtk-4.0/`                      | workstation |
+| `workstation/theming/qt6ct/`        | `~/.config/qt6ct/`                        | workstation |
+| `workstation/theming/Kvantum/`      | `~/.config/Kvantum/`                      | workstation |
 
 ## Theming System
 
@@ -77,10 +78,10 @@ colors are stored as `.tpl` templates with `@@TOKEN@@` placeholders. At install 
 
 ### Token Syntax
 
-| Token format | Rendered as | Use when |
-|---|---|---|
-| `@@COLOR_NAME@@` | `#hexvalue` (hash-prefixed) | CSS, YAML, most configs |
-| `@@COLOR_NAME_RAW@@` | `hexvalue` (bare hex) | swaylock and tools expecting no `#` |
+| Token format         | Rendered as                 | Use when                            |
+| -------------------- | --------------------------- | ----------------------------------- |
+| `@@COLOR_NAME@@`     | `#hexvalue` (hash-prefixed) | CSS, YAML, most configs             |
+| `@@COLOR_NAME_RAW@@` | `hexvalue` (bare hex)       | swaylock and tools expecting no `#` |
 
 ### Theme Selection
 
@@ -102,23 +103,23 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 
 ### Template Files
 
-| Template | Generated file | Token format |
-|---|---|---|
-| `common/zsh/.zshrc.tpl` | `.zshrc` | `@@TOKEN@@` |
-| `common/starship/starship.toml.tpl` | `starship.toml` | `@@TOKEN@@` |
-| `common/lazygit/config.yml.tpl` | `config.yml` | `@@TOKEN@@` |
-| `workstation/mako/config.tpl` | `config` | `@@TOKEN@@` |
-| `workstation/swaylock/config.tpl` | `config` | `@@TOKEN_RAW@@` |
-| `workstation/swayosd/style.css.tpl` | `style.css` | `@@TOKEN@@` |
-| `workstation/swaybg/wallpaper.sh.tpl` | `wallpaper.sh` | `@@TOKEN@@` |
-| `workstation/theming/gtk-4.0/gtk.css.tpl` | `gtk.css` | `@@TOKEN@@` |
-| `workstation/waybar/config.tpl` | `config` | `@@TOKEN@@` |
-| `workstation/waybar/style.css.tpl` | `style.css` | `@@TOKEN@@` |
-| `workstation/scripts/calendar-popup.tpl` | `calendar-popup` | `@@TOKEN@@` |
-| `workstation/scripts/scaling-popup.tpl` | `scaling-popup` | `@@TOKEN@@` |
-| `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@` |
-| `workstation/scripts/bluetooth-popup.tpl` | `bluetooth-popup` | `@@TOKEN@@` |
-| `workstation/scripts/power-popup.tpl` | `power-popup` | `@@TOKEN@@` |
+| Template                                     | Generated file       | Token format    |
+| -------------------------------------------- | -------------------- | --------------- |
+| `common/zsh/.zshrc.tpl`                      | `.zshrc`             | `@@TOKEN@@`     |
+| `common/starship/starship.toml.tpl`          | `starship.toml`      | `@@TOKEN@@`     |
+| `common/lazygit/config.yml.tpl`              | `config.yml`         | `@@TOKEN@@`     |
+| `workstation/mako/config.tpl`                | `config`             | `@@TOKEN@@`     |
+| `workstation/swaylock/config.tpl`            | `config`             | `@@TOKEN_RAW@@` |
+| `workstation/swayosd/style.css.tpl`          | `style.css`          | `@@TOKEN@@`     |
+| `workstation/swaybg/wallpaper.sh.tpl`        | `wallpaper.sh`       | `@@TOKEN@@`     |
+| `workstation/theming/gtk-4.0/gtk.css.tpl`    | `gtk.css`            | `@@TOKEN@@`     |
+| `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
+| `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
+| `workstation/scripts/calendar-popup.tpl`     | `calendar-popup`     | `@@TOKEN@@`     |
+| `workstation/scripts/scaling-popup.tpl`      | `scaling-popup`      | `@@TOKEN@@`     |
+| `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@`     |
+| `workstation/scripts/bluetooth-popup.tpl`    | `bluetooth-popup`    | `@@TOKEN@@`     |
+| `workstation/scripts/power-popup.tpl`        | `power-popup`        | `@@TOKEN@@`     |
 
 ## Custom GTK4 Widgets
 
@@ -127,12 +128,14 @@ installing extra packages — `python3` and `gtk4` are already present on workst
 systems (ghostty depends on GTK4).
 
 **How it works:**
+
 - Widget scripts live in `workstation/scripts/` and are deployed to `~/.local/bin/`
 - CSS in widgets uses `@@TOKEN@@` placeholders (`.tpl` template) for theme consistency
 - `widget-toggle` is a generic toggle script using `flock` to prevent duplicate windows
 - Each widget is a self-contained Python file with its own GTK4 setup, CSS, and logic
 
 **Existing widgets:**
+
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
 - `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
 - `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
@@ -140,6 +143,7 @@ systems (ghostty depends on GTK4).
 - `power-popup` — GTK4 power menu with lock, sleep, reboot, shut down actions
 
 **Rules:**
+
 - Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,
   layer-shell, backdrop, CSS provider, key handler) lives inside the widget file itself
 - Never extract shared base classes or helper modules between widgets
@@ -151,6 +155,7 @@ systems (ghostty depends on GTK4).
   container owns the border, background, and rounding
 
 **Adding a new widget:**
+
 1. Create `workstation/scripts/<name>.tpl` with a self-contained Python GTK4 app
 2. Use `@@TOKEN@@` placeholders in the CSS string for theme colors
 3. Set a unique `application_id` (e.g., `dev.dotfiles.<name>`)
@@ -169,44 +174,44 @@ systems (ghostty depends on GTK4).
 
 ### Common (all profiles)
 
-| Tool | Config location | Purpose |
-|---|---|---|
-| **zsh + oh-my-zsh** | `common/zsh/.zshrc.tpl` | Shell: plugins, aliases, environment, prompt theme (themed) |
-| **Neovim** | `common/nvim/init.lua` | Editor: keymaps, plugins (lazy.nvim), options |
-| **tmux** | `common/tmux/tmux.conf` | Terminal multiplexer: prefix key, panes, status bar |
-| **Git** | `common/git/.gitconfig` | Version control: user identity, aliases, defaults |
-| **Starship** | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed) |
-| **fontconfig** | `common/fontconfig/fonts.conf` | Font rendering: hinting, antialiasing, default families |
-| **LazyGit** | `common/lazygit/config.yml.tpl` | Terminal git UI: theme, pager, editor (themed) |
-| **btop** | `common/btop/btop.conf` | System monitor: theme, layout, vim keys |
-| **fastfetch** | `common/fastfetch/config.jsonc` | System info display: modules, layout |
-| **yazi** | `common/yazi/yazi.toml` | File manager: keymaps, appearance overrides |
-| **setup-github** | `common/scripts/setup-github` | First-login setup: SSH key, GitHub auth, git identity, remote switch |
-| **scripts (common)** | `common/scripts/` | Shared personal scripts → `~/.local/bin/` |
+| Tool                 | Config location                     | Purpose                                                              |
+| -------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| **zsh + oh-my-zsh**  | `common/zsh/.zshrc.tpl`             | Shell: plugins, aliases, environment, prompt theme (themed)          |
+| **Neovim**           | `common/nvim/init.lua`              | Editor: keymaps, plugins (lazy.nvim), options                        |
+| **tmux**             | `common/tmux/tmux.conf`             | Terminal multiplexer: prefix key, panes, status bar                  |
+| **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                    |
+| **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                  |
+| **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families              |
+| **LazyGit**          | `common/lazygit/config.yml.tpl`     | Terminal git UI: theme, pager, editor (themed)                       |
+| **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
+| **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
+| **yazi**             | `common/yazi/yazi.toml`             | File manager: keymaps, appearance overrides                          |
+| **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
+| **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Workstation only
 
-| Tool | Config location | Purpose |
-|---|---|---|
-| **Sway** | `workstation/sway/config` | Wayland compositor: keybindings, monitors, workspaces, window rules |
-| **Waybar** | `workstation/waybar/config.tpl`, `style.css.tpl` | Status bar: modules (clock, workspaces, tray), CSS styling (themed) |
-| **Ghostty** | `workstation/ghostty/config` | Terminal emulator: font, theme, window settings |
-| **swaylock** | `workstation/swaylock/config.tpl` | Screen locker: colors, indicator, behavior (themed) |
-| **swayidle** | `workstation/swayidle/config` | Idle manager: lock, screen off, suspend timers |
-| **mako** | `workstation/mako/config.tpl` | Notification daemon: appearance, urgency, timeouts (themed) |
-| **swaybg** | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/` | Wallpaper: launcher script, image storage (themed) |
-| **wlsunset** | `workstation/wlsunset/wlsunset.sh` | Night light: temperature, location-based schedule |
-| **SwayOSD** | `workstation/swayosd/style.css.tpl` | On-screen display: volume/brightness popup styling (themed) |
-| **bluetooth-widget** | `workstation/scripts/bluetooth-widget`, `bluetooth-popup.tpl` | Bluetooth: waybar module + GTK4 popup for device management (themed) |
-| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | Clipboard history: picker script (wofi) |
-| **Obsidian plugins** | `workstation/obsidian/plugins.conf` | Plugin installer: downloads from GitHub releases into vault |
-| **GTK theming** | `workstation/theming/gtk-3.0/settings.ini` | GTK3 apps: theme, icons, cursor, font |
-| **Qt theming** | `workstation/theming/qt6ct/qt6ct.conf` | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer) |
-| **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | Qt theme engine: renders Qt widgets to match GTK theme |
-| **XDG desktop portal** | `workstation/xdg-desktop-portal/portals.conf` | Portal backend: routes desktop portals to wlr for Sway |
-| **power-popup** | `workstation/scripts/power-popup.tpl` | Power menu: GTK4 popup with lock, sleep, reboot, shut down (themed) |
-| **auto-update** | `workstation/scripts/auto-update` | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
-| **scripts (workstation)** | `workstation/scripts/` | Desktop-specific scripts → `~/.local/bin/` |
+| Tool                      | Config location                                               | Purpose                                                                                              |
+| ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Sway**                  | `workstation/sway/config`                                     | Wayland compositor: keybindings, monitors, workspaces, window rules                                  |
+| **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
+| **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
+| **swaylock**              | `workstation/swaylock/config.tpl`                             | Screen locker: colors, indicator, behavior (themed)                                                  |
+| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers                                                       |
+| **mako**                  | `workstation/mako/config.tpl`                                 | Notification daemon: appearance, urgency, timeouts (themed)                                          |
+| **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`          | Wallpaper: launcher script, image storage (themed)                                                   |
+| **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                            | Night light: temperature, location-based schedule                                                    |
+| **SwayOSD**               | `workstation/swayosd/style.css.tpl`                           | On-screen display: volume/brightness popup styling (themed)                                          |
+| **bluetooth-widget**      | `workstation/scripts/bluetooth-widget`, `bluetooth-popup.tpl` | Bluetooth: waybar module + GTK4 popup for device management (themed)                                 |
+| **cliphist**              | `workstation/cliphist/cliphist-pick.sh`                       | Clipboard history: picker script (wofi)                                                              |
+| **Obsidian plugins**      | `workstation/obsidian/plugins.conf`                           | Plugin installer: downloads from GitHub releases into vault                                          |
+| **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                    | GTK3 apps: theme, icons, cursor, font                                                                |
+| **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer)                            |
+| **Kvantum**               | `workstation/theming/Kvantum/kvantum.kvconfig`                | Qt theme engine: renders Qt widgets to match GTK theme                                               |
+| **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
+| **power-popup**           | `workstation/scripts/power-popup.tpl`                         | Power menu: GTK4 popup with lock, sleep, reboot, shut down (themed)                                  |
+| **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
+| **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 
 ## Code Conventions
 
@@ -234,14 +239,14 @@ systems (ghostty depends on GTK4).
 
 ~56,300 tokens total (~44,600 deduplicated, excluding generated files).
 
-| Area | Est. Tokens |
-|---|---|
-| `workstation/scripts/` (widgets) | ~27,200 |
-| `common/` | ~12,200 |
-| `workstation/` (non-scripts) | ~6,700 |
-| Root files (CLAUDE.md, install.sh, etc.) | ~5,400 |
-| `lib/` | ~3,200 |
-| `docs/` + `themes/` | ~1,600 |
+| Area                                     | Est. Tokens |
+| ---------------------------------------- | ----------- |
+| `workstation/scripts/` (widgets)         | ~27,200     |
+| `common/`                                | ~12,200     |
+| `workstation/` (non-scripts)             | ~6,700      |
+| Root files (CLAUDE.md, install.sh, etc.) | ~5,400      |
+| `lib/`                                   | ~3,200      |
+| `docs/` + `themes/`                      | ~1,600      |
 
 Widgets account for ~48% of the codebase. Binary files (wallpapers, 8.3 MB) excluded.
 
@@ -250,6 +255,7 @@ Widgets account for ~48% of the codebase. Binary files (wallpapers, 8.3 MB) excl
 **IMPORTANT: Never use the Write tool for files that contain or will contain Nerd Font
 icons** (U+F0000–U+F9999). The Write tool silently strips multi-byte UTF-8 icon
 characters. This applies to both editing existing files AND creating new files.
+
 - **Editing existing files with icons**: Use the Edit tool for targeted changes
 - **Creating new files with icons**: Use Bash heredoc (`cat << 'EOF' > file`)
 - **Common icon locations**: waybar scripts, sway config, any script that outputs

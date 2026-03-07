@@ -4,35 +4,60 @@ return {
     opts = {},
   },
   {
+    "WhoIsSethDaniel/mason-tool-installer.nvim",
+    dependencies = { "williamboman/mason.nvim" },
+    opts = {
+      ensure_installed = {
+        "csharpier",
+        "prettier",
+        "ruff",
+        "shfmt",
+        "stylua",
+      },
+    },
+  },
+  {
     "williamboman/mason-lspconfig.nvim",
     dependencies = {
       "williamboman/mason.nvim",
       "neovim/nvim-lspconfig",
     },
-    opts = {
-      ensure_installed = { "lua_ls", "pyright", "ts_ls", "bashls" },
-    },
-    config = function(_, opts)
-      require("mason-lspconfig").setup(opts)
-
+    config = function()
       local lspconfig = require("lspconfig")
       local capabilities = require("blink.cmp").get_lsp_capabilities()
 
-      require("mason-lspconfig").setup_handlers({
-        function(server_name)
-          lspconfig[server_name].setup({ capabilities = capabilities })
-        end,
-        ["lua_ls"] = function()
-          lspconfig.lua_ls.setup({
-            capabilities = capabilities,
-            settings = {
-              Lua = {
-                workspace = { checkThirdParty = false },
-                telemetry = { enable = false },
+      require("mason-lspconfig").setup({
+        ensure_installed = {
+          "bashls",
+          "clangd",
+          "gopls",
+          "jsonls",
+          "lua_ls",
+          "marksman",
+          "omnisharp",
+          "powershell_es",
+          "pyright",
+          "rust_analyzer",
+          "taplo",
+          "ts_ls",
+          "yamlls",
+        },
+        handlers = {
+          function(server_name)
+            lspconfig[server_name].setup({ capabilities = capabilities })
+          end,
+          ["lua_ls"] = function()
+            lspconfig.lua_ls.setup({
+              capabilities = capabilities,
+              settings = {
+                Lua = {
+                  workspace = { checkThirdParty = false },
+                  telemetry = { enable = false },
+                },
               },
-            },
-          })
-        end,
+            })
+          end,
+        },
       })
 
       vim.api.nvim_create_autocmd("LspAttach", {
