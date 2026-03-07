@@ -142,9 +142,12 @@ def format_output(data):
     ]
     if sonnet and sonnet.get("utilization") is not None:
         sonnet_pct = round(sonnet["utilization"])
-        tooltip_lines.append(
-            f"7-day sonnet: {sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
-        )
+        if sonnet.get("resets_at"):
+            tooltip_lines.append(
+                f"7-day sonnet: {sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
+            )
+        else:
+            tooltip_lines.append(f"7-day sonnet: {sonnet_pct}%")
 
     charge_date = load_cached_charge_date()
     if charge_date:

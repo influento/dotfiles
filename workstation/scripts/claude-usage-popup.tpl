@@ -348,7 +348,7 @@ class ClaudeUsagePopup(Gtk.Application):
             self._build_window_row(self._container, "5-hour", data["five_hour"])
             self._build_window_row(self._container, "7-day", data["seven_day"])
             sonnet = data.get("seven_day_sonnet")
-            if sonnet and sonnet.get("utilization") is not None:
+            if sonnet and sonnet.get("utilization") is not None and sonnet.get("resets_at"):
                 self._build_window_row(self._container, "7-day sonnet", sonnet)
             self._build_charge_section(self._container, data)
         except Exception:
