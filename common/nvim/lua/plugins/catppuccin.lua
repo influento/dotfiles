@@ -6,8 +6,10 @@ return {
     flavour = "mocha",
     integrations = {
       gitsigns = true,
+      indent_blankline = { enabled = true },
       mason = true,
-      telescope = { enabled = true },
+      neotree = true,
+      snacks = true,
       treesitter = true,
       which_key = true,
       mini = { enabled = true },

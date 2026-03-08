@@ -37,12 +37,6 @@ opt.clipboard = "unnamedplus"
 -- Undo persistence
 opt.undofile = true
 
--- Compat shims for plugins lagging behind Neovim API changes
-local ts_lang = vim.treesitter.language
-if not ts_lang.ft_to_lang then
-  ts_lang.ft_to_lang = ts_lang.get_lang
-end
-
 -- Misc
 opt.updatetime = 250
 opt.timeoutlen = 300

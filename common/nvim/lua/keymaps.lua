@@ -31,6 +31,6 @@ map("n", "<leader>qw", "<cmd>wa | qa<CR>", { desc = "Save all and quit" })
 map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
 -- Diagnostic navigation
-map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
-map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, { desc = "Previous diagnostic" })
+map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, { desc = "Next diagnostic" })
 map("n", "<leader>xd", vim.diagnostic.open_float, { desc = "Show diagnostic" })

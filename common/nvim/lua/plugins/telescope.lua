@@ -10,7 +10,5 @@ return {
     { "<leader>fd", "<cmd>FzfLua diagnostics_workspace<CR>", desc = "Diagnostics" },
     { "<leader>/", "<cmd>FzfLua lgrep_curbuf<CR>", desc = "Search in buffer" },
   },
-  opts = {
-    file_ignore_patterns = { "node_modules", ".git/" },
-  },
+  opts = {},
 }

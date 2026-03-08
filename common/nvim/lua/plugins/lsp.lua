@@ -72,7 +72,6 @@ return {
           map("gy", vim.lsp.buf.type_definition, "Go to type definition")
           map("<leader>rn", vim.lsp.buf.rename, "Rename symbol")
           map("<leader>ca", vim.lsp.buf.code_action, "Code action")
-          map("K", vim.lsp.buf.hover, "Hover documentation")
           map("gD", vim.lsp.buf.declaration, "Go to declaration")
         end,
       })
