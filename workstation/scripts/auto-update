@@ -72,3 +72,13 @@ else
   echo "[$(date)] Update FAILED." >> "$LOG_FILE"
   notify-send -u critical "Update Failed" "yay -Syu failed. See ${LOG_FILE}"
 fi
+
+# Update global npm packages
+if npm_output="$(sudo npm update -g 2>&1)"; then
+  echo "$npm_output" >> "$LOG_FILE"
+  echo "[$(date)] npm global update complete." >> "$LOG_FILE"
+else
+  echo "$npm_output" >> "$LOG_FILE"
+  echo "[$(date)] npm global update FAILED." >> "$LOG_FILE"
+  notify-send -u critical "npm Update Failed" "npm update -g failed. See ${LOG_FILE}"
+fi
