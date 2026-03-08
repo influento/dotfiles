@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Switch to US layout before locking so password can always be typed
+swaymsg input type:keyboard xkb_switch_layout 0 2>/dev/null || true
+exec swaylock -f

@@ -137,29 +137,38 @@ def format_output(data):
     seven_pct = round(seven["utilization"])
     css_class = classify(five["utilization"], seven["utilization"])
 
-    tooltip_lines = [
-        f"5-hour:       {five_pct}%  resets {format_reset_absolute(five['resets_at'])} ({format_reset_relative(five['resets_at'])})",
-        f"7-day:        {seven_pct}%  resets {format_reset_absolute(seven['resets_at'])} ({format_reset_relative(seven['resets_at'])})",
-    ]
+    tooltip_lines = []
+    for label, pct, window in [("5-hour", five_pct, five), ("7-day", seven_pct, seven)]:
+        if window.get("resets_at"):
+            tooltip_lines.append(
+                f"{label + ':':<14}{pct}%  resets {format_reset_absolute(window['resets_at'])} ({format_reset_relative(window['resets_at'])})"
+            )
+        else:
+            tooltip_lines.append(f"{label + ':':<14}{pct}%")
+
     if sonnet and sonnet.get("utilization") is not None:
         sonnet_pct = round(sonnet["utilization"])
         if sonnet.get("resets_at"):
             tooltip_lines.append(
-                f"7-day sonnet: {sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
+                f"{'7-day sonnet:':<14}{sonnet_pct}%  resets {format_reset_absolute(sonnet['resets_at'])} ({format_reset_relative(sonnet['resets_at'])})"
             )
         else:
-            tooltip_lines.append(f"7-day sonnet: {sonnet_pct}%")
+            tooltip_lines.append(f"{'7-day sonnet:':<14}{sonnet_pct}%")
 
     charge_date = load_cached_charge_date()
     if charge_date:
         tooltip_lines.append(
-            f"next charge:  {format_date_absolute(charge_date)} ({format_date_relative(charge_date)})"
+            f"{'next charge:':<14}{format_date_absolute(charge_date)} ({format_date_relative(charge_date)})"
         )
 
-    five_reset = format_reset_relative(five["resets_at"])
+    if five.get("resets_at"):
+        five_reset = format_reset_relative(five["resets_at"]).replace(" ", ":")
+        text = f"5h - {five_pct}% ({five_reset}) · 7d - {seven_pct}%"
+    else:
+        text = f"5h - {five_pct}% · 7d - {seven_pct}%"
 
     return {
-        "text": f"5h - {five_pct}% ({five_reset.replace(' ', ':')}) · 7d - {seven_pct}%",
+        "text": text,
         "tooltip": "\n".join(tooltip_lines),
         "class": css_class,
     }

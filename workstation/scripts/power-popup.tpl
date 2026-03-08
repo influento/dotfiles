@@ -54,7 +54,7 @@ window {
 """
 
 ACTIONS = [
-    ("󰌾", "Lock",      "color-blue",  ["swaylock", "-f"]),
+    ("󰌾", "Lock",      "color-blue",  [os.path.expanduser("~/.local/bin/lock")]),
     ("󰤄", "Sleep",     "color-mauve", ["systemctl", "suspend"]),
     ("󰜉", "Reboot",    "color-peach", ["systemctl", "reboot"]),
     ("󰐥", "Shut Down", "color-red",   ["systemctl", "poweroff"]),

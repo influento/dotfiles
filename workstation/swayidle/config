@@ -8,8 +8,8 @@
 # Display is turned back on when activity resumes (resume event).
 # Lock is triggered before sleep to ensure screen is locked on wake.
 
-timeout 300 'swaylock -f'
+timeout 300 '~/.local/bin/lock'
 timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"'
 timeout 1800 'systemctl suspend'
-before-sleep 'swaylock -f'
-lock 'swaylock -f'
+before-sleep '~/.local/bin/lock'
+lock '~/.local/bin/lock'

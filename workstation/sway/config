@@ -41,7 +41,7 @@ bindsym $mod+Return exec $term
 bindsym $mod+d exec $menu
 bindsym $mod+Shift+q kill
 bindsym Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
-bindsym $mod+Escape exec swaylock -f
+bindsym $mod+Escape exec ~/.local/bin/lock
 
 # Screenshots
 bindsym $mod+p exec bash -c 'f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f" && (sleep 20 && rm -f "$f") &'
