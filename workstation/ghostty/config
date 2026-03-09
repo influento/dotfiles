@@ -30,6 +30,9 @@ confirm-close-surface = false
 # Shell integration (prompt jumping, command output selection)
 shell-integration = detect
 
+# Auto-start tmux (attach to existing session or create new one)
+command = tmux new-session -A -s main
+
 # Keybinds
 keybind = ctrl+v=paste_from_clipboard
 keybind = ctrl+c=copy_to_clipboard

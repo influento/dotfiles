@@ -10,6 +10,7 @@ set $menu wofi --show drun
 # --- Input ---
 input type:keyboard {
   xkb_layout us,ru
+  xkb_options grp:caps_toggle
   repeat_delay 300
   repeat_rate 30
 }
@@ -119,8 +120,7 @@ mode "resize" {
 
 bindsym $mod+r mode "resize"
 
-# --- Keybindings: Language ---
-bindsym Control+space input type:keyboard xkb_switch_layout next
+# Language switching handled by xkb_options grp:caps_toggle
 
 # --- Keybindings: Session ---
 bindsym $mod+Shift+c reload
