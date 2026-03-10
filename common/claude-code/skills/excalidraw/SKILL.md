@@ -5,7 +5,7 @@ description: Create and edit Excalidraw drawings in Obsidian. Use when the user 
 
 # Excalidraw Drawing Skill
 
-You create and edit Excalidraw drawings by reading and writing `.excalidraw.md` JSON files directly. The user views them in Obsidian with the Excalidraw plugin.
+You create and edit Excalidraw drawings by reading and writing `.excalidraw.md` JSON files directly. The user views them in Obsidian with the Excalidraw plugin or with `drawdesk` (a lightweight Tauri desktop app: `drawdesk path/to/file.excalidraw.md`).
 
 ## How It Works
 
