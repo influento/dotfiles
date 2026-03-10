@@ -49,6 +49,8 @@ This means:
 | `common/btop/`                      | `~/.config/btop/`                         | all         |
 | `common/fastfetch/`                 | `~/.config/fastfetch/`                    | all         |
 | `common/yazi/`                      | `~/.config/yazi/`                         | all         |
+| `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
+| `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
 | `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
 | `workstation/swaylock/`             | `~/.config/swaylock/`                     | workstation |
@@ -187,6 +189,7 @@ systems (ghostty depends on GTK4).
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **yazi**             | `common/yazi/yazi.toml`             | File manager: keymaps, appearance overrides                          |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
+| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills             |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Workstation only
@@ -211,6 +214,7 @@ systems (ghostty depends on GTK4).
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
 | **power-popup**           | `workstation/scripts/power-popup.tpl`                         | Power menu: GTK4 popup with lock, sleep, reboot, shut down (themed)                                  |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
+| **drawdesk**              | cloned to `~/.local/src/drawdesk`                             | Desktop Excalidraw editor: Tauri v2 app, built from GitHub on install                                |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 
 ## Code Conventions

@@ -1,0 +1,32 @@
+{
+  "effortLevel": "high",
+  "model": "opus",
+  "includeGitInstructions": true,
+  "respectGitignore": true,
+  "alwaysThinkingEnabled": false,
+  "showTurnDuration": true,
+  "cleanupPeriodDays": 30,
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Agent",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/credentials*)",
+      "Read(**/*secret*)",
+      "Read(~/.gnupg/*)",
+      "Read(~/.netrc)",
+      "Read(**/*.pem)",
+      "Read(**/*_rsa)",
+      "Read(**/*_ed25519)",
+      "Read(~/.config/gh/hosts.yml)"
+    ]
+  }
+}
