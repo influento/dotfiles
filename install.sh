@@ -117,6 +117,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, theming"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
+    log_info "  drawdesk: clone/update and build from GitHub"
   fi
   log_info "  oh-my-zsh: install if missing"
   exit 0
@@ -154,6 +155,7 @@ deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 if [[ "$PROFILE" == "workstation" ]]; then
   deploy_configs "${DOTFILES_DIR}/workstation" "$USER_HOME" "workstation"
   install_obsidian_plugins "$USER_HOME"
+  install_drawdesk "$USER_HOME"
 fi
 
 # --- Fix ownership if running as root ---
