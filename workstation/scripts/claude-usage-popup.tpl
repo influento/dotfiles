@@ -351,9 +351,11 @@ class ClaudeUsagePopup(Gtk.Application):
             if sonnet and sonnet.get("utilization") is not None and sonnet.get("resets_at"):
                 self._build_window_row(self._container, "7-day sonnet", sonnet)
             self._build_charge_section(self._container, data)
-        except Exception:
-            error_label = Gtk.Label(label="Failed to fetch usage data")
+        except Exception as e:
+            error_label = Gtk.Label(label=f"Failed to fetch usage data: {e}")
             error_label.add_css_class("usage-error")
+            error_label.set_wrap(True)
+            error_label.set_max_width_chars(40)
             self._container.append(error_label)
 
     def _build_window_row(self, container, name, window_data):
