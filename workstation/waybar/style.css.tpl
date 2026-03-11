@@ -22,8 +22,8 @@ window#waybar {
 }
 
 #workspaces button.focused {
-  background-color: @@BLUE@@;
-  color: @@BASE@@;
+  background-color: transparent;
+  color: @@BLUE@@;
 }
 
 #workspaces button.urgent {
@@ -32,7 +32,7 @@ window#waybar {
 }
 
 #workspaces button.visible {
-  background-color: @@SURFACE1@@;
+  background-color: transparent;
 }
 
 #workspaces button:hover {
@@ -45,12 +45,6 @@ window#waybar {
   font-weight: bold;
 }
 
-#group-connectivity {
-  background-color: @@SURFACE0@@;
-  border-radius: 8px;
-  padding: 0 4px;
-  margin: 4px 2px;
-}
 
 #clock,
 #language,
@@ -58,7 +52,7 @@ window#waybar {
 #pulseaudio,
 #custom-bluetooth,
 #custom-claude-usage,
-#custom-scaling,
+#custom-display,
 #custom-stale-kernel,
 #custom-power,
 #tray {
@@ -85,13 +79,10 @@ window#waybar {
   color: @@SURFACE2@@;
 }
 
-#custom-scaling {
+#custom-display {
   color: @@SAPPHIRE@@;
 }
 
-#tray {
-  background-color: @@SURFACE0@@;
-}
 
 #clock {
   color: @@BLUE@@;

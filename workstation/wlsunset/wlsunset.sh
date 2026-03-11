@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# wlsunset — Static blue light filter for Wayland
+# wlsunset — Blue light filter for Wayland
 # Sourced/executed from Sway config: exec ~/.config/wlsunset/wlsunset.sh
+# Temperature is persisted by display-popup widget
 set -euo pipefail
 
-# Fixed color temperature (4500K — subtle warmth, always on)
-exec wlsunset -T 4501 -t 4500
+temp_file="$HOME/.config/wlsunset/temperature"
+temp=4500
+if [[ -f "$temp_file" ]]; then
+  temp=$(cat "$temp_file")
+fi
+
+exec wlsunset -T $((temp + 1)) -t "$temp"

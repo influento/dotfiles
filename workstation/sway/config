@@ -25,16 +25,17 @@ input type:touchpad {
 include ~/.config/sway/scale.conf
 
 # --- Appearance ---
-gaps inner 8
-gaps outer 4
-default_border pixel 2
+gaps inner 0
+gaps outer 0
+smart_borders on
+default_border pixel 1
 default_floating_border pixel 2
 
 # Catppuccin Mocha border colors
 # class                 border  bg      text    indicator child_border
 client.focused          #89b4fa #89b4fa #1e1e2e #89b4fa   #89b4fa
 client.focused_inactive #45475a #45475a #cdd6f4 #45475a   #45475a
-client.unfocused        #313244 #313244 #cdd6f4 #313244   #313244
+client.unfocused        #1e1e2e #1e1e2e #cdd6f4 #1e1e2e   #1e1e2e
 client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8   #f38ba8
 
 # --- Keybindings: Applications ---

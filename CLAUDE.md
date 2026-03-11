@@ -118,7 +118,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
 | `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
 | `workstation/scripts/calendar-popup.tpl`     | `calendar-popup`     | `@@TOKEN@@`     |
-| `workstation/scripts/scaling-popup.tpl`      | `scaling-popup`      | `@@TOKEN@@`     |
+| `workstation/scripts/display-popup.tpl`      | `display-popup`      | `@@TOKEN@@`     |
 | `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@`     |
 | `workstation/scripts/bluetooth-popup.tpl`    | `bluetooth-popup`    | `@@TOKEN@@`     |
 | `workstation/scripts/power-popup.tpl`        | `power-popup`        | `@@TOKEN@@`     |
@@ -139,7 +139,7 @@ systems (ghostty depends on GTK4).
 **Existing widgets:**
 
 - `calendar-popup` — GTK4 calendar opened by clicking waybar clock
-- `scaling-popup` — GTK4 slider for adjusting display scale (100%–200%)
+- `display-popup` — GTK4 display settings: scale, brightness (laptop), night light temperature
 - `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
 - `bluetooth-popup` — GTK4 Bluetooth device manager with scan, pair, connect/disconnect
 - `power-popup` — GTK4 power menu with lock, sleep, reboot, shut down actions
