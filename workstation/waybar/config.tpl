@@ -4,20 +4,38 @@
   "height": 32,
   "spacing": 8,
   "modules-left": [
-    "sway/workspaces",
-    "sway/mode"
+    "group/workspaces"
   ],
   "modules-center": [
-    "custom/claude-usage",
-    "clock"
+    "group/center"
   ],
   "modules-right": [
     "custom/stale-kernel",
     "group/connectivity",
-    "custom/scaling",
-    "tray",
-    "custom/power"
+    "group/controls"
   ],
+  "group/workspaces": {
+    "orientation": "horizontal",
+    "modules": [
+      "sway/workspaces",
+      "sway/mode"
+    ]
+  },
+  "group/center": {
+    "orientation": "horizontal",
+    "modules": [
+      "custom/claude-usage",
+      "clock"
+    ]
+  },
+  "group/controls": {
+    "orientation": "horizontal",
+    "modules": [
+      "custom/display",
+      "tray",
+      "custom/power"
+    ]
+  },
   "sway/workspaces": {
     "disable-scroll": true,
     "all-outputs": true,
@@ -79,13 +97,11 @@
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage-popup\""
   },
-  "custom/scaling": {
-    "exec": "echo '{\"text\": \"󰹑 '$(swaymsg -t get_outputs | python3 -c \"import json,sys; o=next(x for x in json.load(sys.stdin) if x.get('active')); print(str(int(o['scale']*100))+'%')\" 2>/dev/null || echo '?')'\", \"class\": \"scaling\"}'",
-    "return-type": "json",
+  "custom/display": {
+    "format": "󰹑",
     "interval": "once",
-    "signal": 11,
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle scaling-popup\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle display-popup\""
   },
   "custom/stale-kernel": {
     "exec": "~/.local/bin/stale-kernel",
