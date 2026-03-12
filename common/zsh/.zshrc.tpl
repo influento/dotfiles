@@ -11,6 +11,10 @@ export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION
 # Starship handles the prompt
 ZSH_THEME=""
 
+# Auto-update silently (never prompt — it blocks tty login before sway starts)
+zstyle ':omz:update' mode auto
+zstyle ':omz:update' frequency 7
+
 # Plugin config (before sourcing omz)
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
