@@ -51,6 +51,7 @@ This means:
 | `common/yazi/`                      | `~/.config/yazi/`                         | all         |
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
+| `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
 | `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
 | `workstation/swaylock/`             | `~/.config/swaylock/`                     | workstation |
@@ -190,6 +191,7 @@ systems (ghostty depends on GTK4).
 | **yazi**             | `common/yazi/yazi.toml`             | File manager: keymaps, appearance overrides                          |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills             |
+| **npm packages**     | `common/npm/packages.conf`          | Global npm packages: install on deploy, update via auto-update       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Workstation only
