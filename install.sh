@@ -113,6 +113,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info ""
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
+  log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, lazygit, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, theming"
@@ -147,6 +148,9 @@ find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x 
 if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
 fi
+
+# Install global npm packages
+install_npm_packages
 
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"

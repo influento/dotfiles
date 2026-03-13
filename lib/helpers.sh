@@ -263,6 +263,44 @@ install_drawdesk() {
   log_info "drawdesk installed to ~/.local/bin/drawdesk"
 }
 
+# Install global npm packages from packages.conf if not already present.
+# Usage: install_npm_packages
+install_npm_packages() {
+  local packages_file="${DOTFILES_DIR}/common/npm/packages.conf"
+
+  if [[ ! -f "$packages_file" ]]; then
+    log_warn "No npm packages.conf found, skipping."
+    return 0
+  fi
+
+  if ! command -v npm &>/dev/null; then
+    log_warn "npm not found, skipping global package installation."
+    return 0
+  fi
+
+  log_section "Installing global npm packages"
+
+  local installed
+  installed="$(npm list -g --depth=0 --parseable 2>/dev/null | tail -n +2 | xargs -I{} basename {} || true)"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// /}" ]] && continue
+
+    local pkg="$line"
+    # Package name for checking: @scope/name → name
+    local pkg_short="${pkg##*/}"
+
+    if echo "$installed" | grep -qxF "$pkg_short"; then
+      log_info "npm package already installed: ${pkg}"
+    else
+      log_info "Installing npm package: ${pkg}..."
+      sudo npm install -g "$pkg"
+      log_info "npm package installed: ${pkg}"
+    fi
+  done < "$packages_file"
+}
+
 # Deploy all config files/directories from a source directory.
 # Maps each child of source_dir to the appropriate target location.
 # Usage: deploy_configs "/path/to/dotfiles/common" "/home/username" "common"
@@ -286,7 +324,7 @@ deploy_configs() {
 
     case "$name" in
       # Handled by dedicated functions, not symlinked
-      obsidian)
+      obsidian|npm)
         continue
         ;;
       # Files that go directly in $HOME (not .config)
