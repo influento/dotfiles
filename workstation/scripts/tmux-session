@@ -9,6 +9,7 @@ INFRA_DIR="$HOME/dev/infra"
 
 session_infra() {
   tmux new-session -d -s infra -n dotfiles -c "$INFRA_DIR/dotfiles"
+  tmux new-window -t infra -n gtk-widgets -c "$INFRA_DIR/gtk-widgets"
   tmux new-window -t infra -n arch-install -c "$INFRA_DIR/arch-install"
   tmux new-window -t infra -n debian-server -c "$INFRA_DIR/debian-server"
   tmux select-window -t infra:1
