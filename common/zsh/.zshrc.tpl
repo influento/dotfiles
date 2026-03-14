@@ -139,6 +139,9 @@ alias rm='rm -i'
 alias mv='mv -i'
 alias cp='cp -i'
 
+# Tmux
+alias ts='tmux-session'
+
 # Misc
 alias reload='source ~/.zshrc'
 alias path='echo $PATH | tr ":" "\n"'
