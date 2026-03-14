@@ -223,6 +223,29 @@ install_obsidian_plugins() {
   done < "$plugins_file"
 }
 
+# Clone (or update) and install gtk-widgets from GitHub.
+# Symlinks widget scripts into ~/.local/bin/ via the repo's own installer.
+# Usage: install_gtk_widgets "/home/username" "theme-name"
+install_gtk_widgets() {
+  local user_home="$1"
+  local theme="$2"
+  local repo_url="https://github.com/influento/gtk-widgets.git"
+  local install_dir
+  install_dir="$(cd "${DOTFILES_DIR}/.." && pwd)/gtk-widgets"
+
+  log_section "Installing gtk-widgets"
+
+  if [[ -d "$install_dir/.git" ]]; then
+    git -C "$install_dir" pull --ff-only --quiet 2>/dev/null || true
+  else
+    git clone --depth 1 "$repo_url" "$install_dir"
+  fi
+
+  log_info "Running gtk-widgets installer..."
+  (cd "$install_dir" && bash install.sh --theme "$theme")
+  log_info "gtk-widgets installed"
+}
+
 # Clone (or update) and build drawdesk from GitHub.
 # Installs binary to ~/.local/bin/ and .desktop file for file associations.
 # Usage: install_drawdesk "/home/username"

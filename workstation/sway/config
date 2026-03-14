@@ -125,7 +125,6 @@ bindsym $mod+r mode "resize"
 
 # --- Keybindings: Session ---
 bindsym $mod+Shift+c reload
-bindsym $mod+Shift+p exec bash -c "$HOME/.local/bin/widget-toggle power-popup"
 
 # --- Bar ---
 bar {

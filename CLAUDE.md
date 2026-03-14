@@ -3,11 +3,12 @@
 ## Project Overview
 
 Profile-driven, idempotent dotfiles manager for user-level configuration. Part of a
-three-repo architecture:
+four-repo architecture:
 
 1. **arch-install** — Arch Linux workstation installer (system-level only)
 2. **debian-server** — Debian server installer (system-level only)
 3. **dotfiles** (this repo) — User-level configuration (shell, editor, tools, desktop)
+4. **gtk-widgets** — Custom GTK4 widgets (Python + PyGObject)
 
 OS repositories are responsible only for system-level concerns: base installation,
 package manager operations, services, and required packages. They must not contain
@@ -118,52 +119,6 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/theming/gtk-4.0/gtk.css.tpl`    | `gtk.css`            | `@@TOKEN@@`     |
 | `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
 | `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
-| `workstation/scripts/calendar-popup.tpl`     | `calendar-popup`     | `@@TOKEN@@`     |
-| `workstation/scripts/display-popup.tpl`      | `display-popup`      | `@@TOKEN@@`     |
-| `workstation/scripts/claude-usage-popup.tpl` | `claude-usage-popup` | `@@TOKEN@@`     |
-| `workstation/scripts/bluetooth-popup.tpl`    | `bluetooth-popup`    | `@@TOKEN@@`     |
-| `workstation/scripts/power-popup.tpl`        | `power-popup`        | `@@TOKEN@@`     |
-
-## Custom GTK4 Widgets
-
-Custom UI popups and widgets are built with Python + PyGObject (GTK4). This avoids
-installing extra packages — `python3` and `gtk4` are already present on workstation
-systems (ghostty depends on GTK4).
-
-**How it works:**
-
-- Widget scripts live in `workstation/scripts/` and are deployed to `~/.local/bin/`
-- CSS in widgets uses `@@TOKEN@@` placeholders (`.tpl` template) for theme consistency
-- `widget-toggle` is a generic toggle script using `flock` to prevent duplicate windows
-- Each widget is a self-contained Python file with its own GTK4 setup, CSS, and logic
-
-**Existing widgets:**
-
-- `calendar-popup` — GTK4 calendar opened by clicking waybar clock
-- `display-popup` — GTK4 display settings: scale, brightness (laptop), night light temperature
-- `claude-usage-popup` — GTK4 usage display with progress bars for Claude subscription
-- `bluetooth-popup` — GTK4 Bluetooth device manager with scan, pair, connect/disconnect
-- `power-popup` — GTK4 power menu with lock, sleep, reboot, shut down actions
-
-**Rules:**
-
-- Each widget MUST be fully self-contained — all GTK4 boilerplate (LD_PRELOAD,
-  layer-shell, backdrop, CSS provider, key handler) lives inside the widget file itself
-- Never extract shared base classes or helper modules between widgets
-- Always use `widget-toggle <name>` for toggling, never create per-widget toggle scripts
-- Every widget container MUST have `border: 1px solid @@SURFACE1@@` and `border-radius: 8px`
-  — the border must be on the outermost container so it's flush with the widget edge (no
-  inner margins that create a gap between border and content)
-- Disable built-in borders and backgrounds on GTK widgets inside the container — the
-  container owns the border, background, and rounding
-
-**Adding a new widget:**
-
-1. Create `workstation/scripts/<name>.tpl` with a self-contained Python GTK4 app
-2. Use `@@TOKEN@@` placeholders in the CSS string for theme colors
-3. Set a unique `application_id` (e.g., `dev.dotfiles.<name>`)
-4. Add the generated file to `.gitignore`
-5. Wire it up in waybar config via `bash -c "$HOME/.local/bin/widget-toggle <name>"`
 
 ## What Needs Content
 
@@ -207,14 +162,12 @@ systems (ghostty depends on GTK4).
 | **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`          | Wallpaper: launcher script, image storage (themed)                                                   |
 | **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                            | Night light: temperature, location-based schedule                                                    |
 | **SwayOSD**               | `workstation/swayosd/style.css.tpl`                           | On-screen display: volume/brightness popup styling (themed)                                          |
-| **bluetooth-widget**      | `workstation/scripts/bluetooth-widget`, `bluetooth-popup.tpl` | Bluetooth: waybar module + GTK4 popup for device management (themed)                                 |
 | **cliphist**              | `workstation/cliphist/cliphist-pick.sh`                       | Clipboard history: picker script (wofi)                                                              |
 | **Obsidian plugins**      | `workstation/obsidian/plugins.conf`                           | Plugin installer: downloads from GitHub releases into vault                                          |
 | **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                    | GTK3 apps: theme, icons, cursor, font                                                                |
 | **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer)                            |
 | **Kvantum**               | `workstation/theming/Kvantum/kvantum.kvconfig`                | Qt theme engine: renders Qt widgets to match GTK theme                                               |
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
-| **power-popup**           | `workstation/scripts/power-popup.tpl`                         | Power menu: GTK4 popup with lock, sleep, reboot, shut down (themed)                                  |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
 | **drawdesk**              | cloned to `~/.local/src/drawdesk`                             | Desktop Excalidraw editor: Tauri v2 app, built from GitHub on install                                |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
@@ -241,20 +194,19 @@ systems (ghostty depends on GTK4).
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
 
-## Codebase Size (baseline: 2026-03-06)
+## Codebase Size (baseline: 2026-03-14)
 
-~56,300 tokens total (~44,600 deduplicated, excluding generated files).
+~38,300 tokens total (~33,700 deduplicated, excluding generated files).
 
 | Area                                     | Est. Tokens |
 | ---------------------------------------- | ----------- |
-| `workstation/scripts/` (widgets)         | ~27,200     |
-| `common/`                                | ~12,200     |
-| `workstation/` (non-scripts)             | ~6,700      |
-| Root files (CLAUDE.md, install.sh, etc.) | ~5,400      |
-| `lib/`                                   | ~3,200      |
-| `docs/` + `themes/`                      | ~1,600      |
+| `common/`                                | ~13,200     |
+| `workstation/`                           | ~8,900      |
+| Root files (CLAUDE.md, install.sh, etc.) | ~6,200      |
+| `lib/`                                   | ~3,900      |
+| `docs/` + `themes/`                      | ~1,500      |
 
-Widgets account for ~48% of the codebase. Binary files (wallpapers, 8.3 MB) excluded.
+Binary files (wallpapers, 8.3 MB) excluded.
 
 ## Editing Configs
 
@@ -265,7 +217,7 @@ characters. This applies to both editing existing files AND creating new files.
 - **Editing existing files with icons**: Use the Edit tool for targeted changes
 - **Creating new files with icons**: Use Bash heredoc (`cat << 'EOF' > file`)
 - **Common icon locations**: waybar scripts, sway config, any script that outputs
-  waybar JSON (format strings with icon glyphs), widget templates with icon literals
+  waybar JSON (format strings with icon glyphs)
 
 When modifying any config, follow this workflow:
 
