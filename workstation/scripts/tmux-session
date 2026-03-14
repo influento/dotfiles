@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tmux-session — predefined tmux session launcher
+# Usage: tmux-session <name>
+# Attaches to the session if it exists, creates it if it doesn't.
+
+INFRA_DIR="$HOME/dev/infra"
+
+session_infra() {
+  tmux new-session -d -s infra -n dotfiles -c "$INFRA_DIR/dotfiles"
+  tmux new-window -t infra -n arch-install -c "$INFRA_DIR/arch-install"
+  tmux new-window -t infra -n debian-server -c "$INFRA_DIR/debian-server"
+  tmux select-window -t infra:1
+}
+
+attach_or_switch() {
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux select-window -t "$1:1"
+    tmux switch-client -t "$1"
+  else
+    tmux attach -t "$1"
+  fi
+}
+
+start_session() {
+  local name="$1"
+
+  # Attach if session already exists
+  if tmux has-session -t "$name" 2>/dev/null; then
+    attach_or_switch "$name"
+    return
+  fi
+
+  # Create session
+  case "$name" in
+    infra) session_infra ;;
+    *)
+      echo "Unknown session: $name" >&2
+      echo "Available sessions: infra" >&2
+      exit 1
+      ;;
+  esac
+
+  attach_or_switch "$name"
+}
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: tmux-session <name>" >&2
+  echo "Available sessions: infra" >&2
+  exit 1
+fi
+
+start_session "$1"
