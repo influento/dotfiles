@@ -46,7 +46,7 @@ window#waybar {
 }
 
 
-#clock,
+#custom-calendar,
 #language,
 #network,
 #pulseaudio,
@@ -84,7 +84,7 @@ window#waybar {
 }
 
 
-#clock {
+#custom-calendar {
   color: @@BLUE@@;
   font-weight: bold;
 }

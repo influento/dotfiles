@@ -25,7 +25,7 @@
     "orientation": "horizontal",
     "modules": [
       "custom/claude-usage",
-      "clock"
+      "custom/calendar"
     ]
   },
   "group/controls": {
@@ -78,12 +78,12 @@
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
   "custom/bluetooth": {
-    "exec": "~/.local/bin/bluetooth-widget",
+    "exec": "bluetooth-status",
     "return-type": "json",
     "interval": 5,
     "signal": 10,
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle bluetooth-popup\"",
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle bluetooth\"",
     "on-click-right": "bash -c \"bluetoothctl show | grep -q 'Powered: yes' && bluetoothctl power off || bluetoothctl power on; pkill -RTMIN+10 waybar\""
   },
   "sway/language": {
@@ -91,17 +91,18 @@
     "tooltip": false
   },
   "custom/claude-usage": {
-    "exec": "~/.local/bin/claude-usage",
+    "exec": "claude-usage-status",
     "return-type": "json",
     "interval": 600,
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage-popup\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle claude-usage\""
   },
   "custom/display": {
-    "format": "󰹑",
+    "exec": "display-status",
+    "return-type": "json",
     "interval": "once",
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle display-popup\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle display\""
   },
   "custom/stale-kernel": {
     "exec": "~/.local/bin/stale-kernel",
@@ -112,14 +113,18 @@
   "tray": {
     "spacing": 8
   },
-  "clock": {
-    "format": "  {:%a %b %d  %H:%M}",
+  "custom/calendar": {
+    "exec": "calendar-status",
+    "return-type": "json",
+    "interval": 60,
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar-popup\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar\""
   },
   "custom/power": {
-    "format": "󰐥",
+    "exec": "power-status",
+    "return-type": "json",
+    "interval": "once",
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle power-popup\""
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle power\""
   }
 }
