@@ -51,6 +51,7 @@
   "group/connectivity": {
     "orientation": "horizontal",
     "modules": [
+      "custom/usb",
       "sway/language",
       "pulseaudio",
       "custom/bluetooth",
@@ -119,6 +120,13 @@
     "interval": 60,
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar\""
+  },
+  "custom/usb": {
+    "exec": "usb-status",
+    "return-type": "json",
+    "interval": 3,
+    "signal": 12,
+    "on-click": "widget-toggle usb"
   },
   "custom/power": {
     "exec": "power-status",
