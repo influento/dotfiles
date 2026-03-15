@@ -47,6 +47,7 @@ bindsym $mod+Escape exec ~/.local/bin/lock
 
 # Screenshots
 bindsym $mod+p exec bash -c 'f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f" && (sleep 20 && rm -f "$f") &'
+bindsym $mod+Shift+p exec bash -c 'f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && drawdesk --image "$f" && (sleep 20 && rm -f "$f") &'
 
 # --- Keybindings: Focus (vim-style) ---
 bindsym $mod+h focus left
