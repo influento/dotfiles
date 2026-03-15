@@ -51,6 +51,7 @@ window#waybar {
 #network,
 #pulseaudio,
 #custom-bluetooth,
+#custom-usb,
 #custom-claude-usage,
 #custom-display,
 #custom-stale-kernel,
@@ -118,6 +119,17 @@ window#waybar {
   font-size: 0;
   padding: 0;
   margin: 0;
+  min-width: 0;
+}
+
+#custom-usb {
+  color: @@PEACH@@;
+}
+
+#custom-usb.empty {
+  font-size: 0;
+  margin: 0;
+  padding: 0;
   min-width: 0;
 }
 
