@@ -80,7 +80,7 @@ bindkey '^H' backward-kill-word
 export EDITOR="nvim"
 export VISUAL="nvim"
 export LANG="en_US.UTF-8"
-export PATH="$HOME/.local/bin:$PATH"
+[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
 
 # --- Aliases ---
 
