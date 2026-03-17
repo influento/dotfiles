@@ -52,7 +52,6 @@ This means:
 | `workstation/yazi/`                 | `~/.config/yazi/`                         | workstation |
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
-| `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
 | `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
 | `workstation/swaylock/`             | `~/.config/swaylock/`                     | workstation |
@@ -66,6 +65,7 @@ This means:
 | `workstation/ghostty/`              | `~/.config/ghostty/`                      | workstation |
 | `workstation/xdg-desktop-portal/`   | `~/.config/xdg-desktop-portal/`           | workstation |
 | `workstation/scripts/*`             | `~/.local/bin/*`                          | workstation |
+| `workstation/npm/packages.conf`     | global npm packages (installed via npm)   | workstation |
 | `workstation/obsidian/plugins.conf` | `~/Dropbox/data-vault/.obsidian/plugins/` | workstation |
 | `workstation/theming/gtk-3.0/`      | `~/.config/gtk-3.0/`                      | workstation |
 | `workstation/theming/gtk-4.0/`      | `~/.config/gtk-4.0/`                      | workstation |
@@ -144,7 +144,6 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills             |
-| **npm packages**     | `common/npm/packages.conf`          | Global npm packages: install on deploy, update via auto-update       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Workstation only
@@ -169,6 +168,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Kvantum**               | `workstation/theming/Kvantum/kvantum.kvconfig`                | Qt theme engine: renders Qt widgets to match GTK theme                                               |
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) with 12h cooldown, mako notifications |
+| **npm packages**          | `workstation/npm/packages.conf`                               | Global npm packages: install on deploy, update via auto-update                                       |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 
 ## Code Conventions

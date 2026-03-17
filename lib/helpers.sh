@@ -249,7 +249,7 @@ install_gtk_widgets() {
 # Install global npm packages from packages.conf if not already present.
 # Usage: install_npm_packages
 install_npm_packages() {
-  local packages_file="${DOTFILES_DIR}/common/npm/packages.conf"
+  local packages_file="${DOTFILES_DIR}/workstation/npm/packages.conf"
 
   if [[ ! -f "$packages_file" ]]; then
     log_warn "No npm packages.conf found, skipping."

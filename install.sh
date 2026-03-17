@@ -113,10 +113,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info ""
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
-  log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, theming"
+    log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
   fi
@@ -149,15 +149,13 @@ if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
 fi
 
-# Install global npm packages
-install_npm_packages
-
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 
 # Deploy workstation configs (workstation profile only)
 if [[ "$PROFILE" == "workstation" ]]; then
   deploy_configs "${DOTFILES_DIR}/workstation" "$USER_HOME" "workstation"
+  install_npm_packages
   install_gtk_widgets "$USER_HOME" "$THEME"
   install_obsidian_plugins "$USER_HOME"
 fi
