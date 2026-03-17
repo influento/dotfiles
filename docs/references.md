@@ -9,12 +9,10 @@ Check these when upgrading tools or debugging config issues.
 |---|---|---|---|
 | **zsh + oh-my-zsh** | `common/zsh/.zshrc` | [oh-my-zsh wiki](https://github.com/ohmyzsh/ohmyzsh/wiki) | Plugins: git, sudo, extract, zsh-autosuggestions, zsh-syntax-highlighting |
 | **Starship** | `common/starship/starship.toml` | [starship.rs/config](https://starship.rs/config/) | TOML format, module reference has all options |
-| **Yazi** | `common/yazi/yazi.toml`, `keymap.toml`, `theme.toml` | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name` |
 | **Neovim** | `common/nvim/init.lua`, `lua/` | [neovim.io/doc](https://neovim.io/doc/user/) | lazy.nvim plugin manager, lua config |
 | **tmux** | `common/tmux/tmux.conf` | [tmux man page](https://man.openbsd.org/tmux.1) | — |
 | **Git** | `common/git/.gitconfig` | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
 | **fontconfig** | `common/fontconfig/fonts.conf` | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
-| **LazyGit** | `common/lazygit/config.yml.tpl` | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | Themed template, generates `config.yml` |
 | **btop** | `common/btop/btop.conf` | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format |
 | **fastfetch** | `common/fastfetch/config.jsonc` | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |
 | **fzf** | Configured in `.zshrc` | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
@@ -24,6 +22,8 @@ Check these when upgrading tools or debugging config issues.
 
 | Tool | Config file(s) | Docs | Notes |
 |---|---|---|---|
+| **LazyGit** | `workstation/lazygit/config.yml.tpl` | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | Themed template, generates `config.yml` |
+| **Yazi** | `workstation/yazi/yazi.toml`, `keymap.toml`, `theme.toml` | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name` |
 | **Sway** | `workstation/sway/config` | [swaywm.org](https://man.archlinux.org/man/sway.5) | i3-compatible syntax |
 | **Waybar** | `workstation/waybar/config`, `style.css` | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling |
 | **Ghostty** | `workstation/ghostty/config` | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format |

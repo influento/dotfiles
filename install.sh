@@ -114,9 +114,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  npm packages: install from common/npm/packages.conf"
-  log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, lazygit, btop, fastfetch"
+  log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, btop, fastfetch"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, theming"
+    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, theming"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
     log_info "  drawdesk: clone/update and build from GitHub"

@@ -46,10 +46,10 @@ This means:
 | `common/git/.gitconfig`             | `~/.gitconfig`                            | all         |
 | `common/starship/`                  | `~/.config/starship/`                     | all         |
 | `common/fontconfig/`                | `~/.config/fontconfig/`                   | all         |
-| `common/lazygit/`                   | `~/.config/lazygit/`                      | all         |
+| `workstation/lazygit/`              | `~/.config/lazygit/`                      | workstation |
 | `common/btop/`                      | `~/.config/btop/`                         | all         |
 | `common/fastfetch/`                 | `~/.config/fastfetch/`                    | all         |
-| `common/yazi/`                      | `~/.config/yazi/`                         | all         |
+| `workstation/yazi/`                 | `~/.config/yazi/`                         | workstation |
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
@@ -111,7 +111,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | -------------------------------------------- | -------------------- | --------------- |
 | `common/zsh/.zshrc.tpl`                      | `.zshrc`             | `@@TOKEN@@`     |
 | `common/starship/starship.toml.tpl`          | `starship.toml`      | `@@TOKEN@@`     |
-| `common/lazygit/config.yml.tpl`              | `config.yml`         | `@@TOKEN@@`     |
+| `workstation/lazygit/config.yml.tpl`         | `config.yml`         | `@@TOKEN@@`     |
 | `workstation/mako/config.tpl`                | `config`             | `@@TOKEN@@`     |
 | `workstation/swaylock/config.tpl`            | `config`             | `@@TOKEN_RAW@@` |
 | `workstation/swayosd/style.css.tpl`          | `style.css`          | `@@TOKEN@@`     |
@@ -140,10 +140,8 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                    |
 | **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                  |
 | **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families              |
-| **LazyGit**          | `common/lazygit/config.yml.tpl`     | Terminal git UI: theme, pager, editor (themed)                       |
 | **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
-| **yazi**             | `common/yazi/yazi.toml`             | File manager: keymaps, appearance overrides                          |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills             |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages: install on deploy, update via auto-update       |
@@ -153,6 +151,8 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 
 | Tool                      | Config location                                               | Purpose                                                                                              |
 | ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **LazyGit**               | `workstation/lazygit/config.yml.tpl`                          | Terminal git UI: theme, pager, editor (themed)                                                       |
+| **yazi**                  | `workstation/yazi/yazi.toml`                                  | File manager: keymaps, appearance overrides                                                          |
 | **Sway**                  | `workstation/sway/config`                                     | Wayland compositor: keybindings, monitors, workspaces, window rules                                  |
 | **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
 | **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
