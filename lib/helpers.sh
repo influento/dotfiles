@@ -246,46 +246,6 @@ install_gtk_widgets() {
   log_info "gtk-widgets installed"
 }
 
-# Clone (or update) and build drawdesk from GitHub.
-# Installs binary to ~/.local/bin/ and .desktop file for file associations.
-# Usage: install_drawdesk "/home/username"
-install_drawdesk() {
-  local user_home="$1"
-  local repo_url="https://github.com/influento/drawdesk.git"
-  local install_dir="${user_home}/.local/src/drawdesk"
-
-  log_section "Installing drawdesk"
-
-  # Check build dependencies
-  local missing=()
-  command -v node &>/dev/null || missing+=("node")
-  command -v npm &>/dev/null || missing+=("npm")
-  command -v cargo &>/dev/null || missing+=("cargo")
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    log_warn "Skipping drawdesk: missing ${missing[*]}"
-    return 0
-  fi
-
-  ensure_dir "${user_home}/.local/src"
-
-  if [[ -d "$install_dir/.git" ]]; then
-    local current_head new_head
-    current_head="$(git -C "$install_dir" rev-parse HEAD)"
-    git -C "$install_dir" pull --ff-only --quiet 2>/dev/null || true
-    new_head="$(git -C "$install_dir" rev-parse HEAD)"
-    if [[ "$current_head" == "$new_head" ]] && [[ -x "${user_home}/.local/bin/drawdesk" ]]; then
-      log_info "drawdesk is up to date"
-      return 0
-    fi
-  else
-    git clone --depth 1 "$repo_url" "$install_dir"
-  fi
-
-  log_info "Building drawdesk..."
-  (cd "$install_dir" && bash install.sh)
-  log_info "drawdesk installed to ~/.local/bin/drawdesk"
-}
-
 # Install global npm packages from packages.conf if not already present.
 # Usage: install_npm_packages
 install_npm_packages() {
