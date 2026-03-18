@@ -83,7 +83,7 @@ fi
 # --- Step 5: Upload SSH key to GitHub ---
 step "Upload SSH key to GitHub"
 
-key_title="$(hostname)"
+key_title="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo 'unknown')}"
 
 # Check if this key is already uploaded
 if gh ssh-key list 2>/dev/null | grep -qF "$key_title"; then
