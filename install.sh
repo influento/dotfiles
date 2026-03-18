@@ -169,6 +169,7 @@ if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.zshrc" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.gitconfig" 2>/dev/null || true
   chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.oh-my-zsh" 2>/dev/null || true
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.claude" 2>/dev/null || true
   # Fix ownership for Obsidian vault plugin files if they were created
   if [[ -d "${USER_HOME}/Dropbox/data-vault/.obsidian" ]]; then
     chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}/Dropbox/data-vault/.obsidian" 2>/dev/null || true
