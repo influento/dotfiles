@@ -1,0 +1,22 @@
+# ~/.zshrc-workstation — Workstation-only zsh configuration
+# Sourced from .zshrc on workstation profile only. Do not edit directly.
+
+# --- Workstation aliases ---
+alias lg='lazygit'
+
+# --- yazi — cd into directory on exit ---
+y() {
+  local tmp
+  tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+  yazi "$@" --cwd-file="$tmp"
+  if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+    builtin cd -- "$cwd" || return
+  fi
+  rm -f -- "$tmp"
+}
+
+# --- Auto-start Sway on tty1 ---
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
+  export ELECTRON_OZONE_PLATFORM_HINT=wayland
+  exec sway
+fi

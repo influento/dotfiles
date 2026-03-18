@@ -11,7 +11,7 @@ export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION
 # Starship handles the prompt
 ZSH_THEME=""
 
-# Auto-update silently (never prompt — it blocks tty login before sway starts)
+# Auto-update silently (never prompt — it blocks tty login)
 zstyle ':omz:update' mode auto
 zstyle ':omz:update' frequency 7
 
@@ -110,7 +110,6 @@ alias glg='git log --oneline --graph --decorate'
 alias gla='git log --oneline --graph --decorate --all'
 alias gst='git stash'
 alias gstp='git stash pop'
-alias lg='lazygit'
 
 # Quick navigation
 alias ..='cd ..'
@@ -168,17 +167,6 @@ export FZF_ALT_C_OPTS="--preview 'eza --tree --level=2 --color=always --icons {}
 # --- zoxide (smarter cd) ---
 eval "$(zoxide init zsh)"
 
-# --- yazi — cd into directory on exit ---
-y() {
-  local tmp
-  tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
-  yazi "$@" --cwd-file="$tmp"
-  if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
-    builtin cd -- "$cwd" || return
-  fi
-  rm -f -- "$tmp"
-}
-
 # --- Starship prompt ---
 eval "$(starship init zsh)"
 
@@ -187,8 +175,6 @@ if command -v gh &>/dev/null && ! gh auth status &>/dev/null 2>&1; then
   echo "→ Run setup-github to configure SSH + GitHub"
 fi
 
-# --- Auto-start Sway on tty1 ---
-if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
-  export ELECTRON_OZONE_PLATFORM_HINT=wayland
-  exec sway
-fi
+# --- Workstation extras (deployed only on workstation profile) ---
+# shellcheck disable=SC1091
+[[ -f "$HOME/.zshrc-workstation" ]] && source "$HOME/.zshrc-workstation"

@@ -41,6 +41,7 @@ This means:
 | Source                              | Target                                    | Profile     |
 | ----------------------------------- | ----------------------------------------- | ----------- |
 | `common/zsh/.zshrc.tpl`             | `~/.zshrc` (via generated `.zshrc`)       | all         |
+| `workstation/zsh/.zshrc-workstation`| `~/.zshrc-workstation`                    | workstation |
 | `common/nvim/`                      | `~/.config/nvim/`                         | all         |
 | `common/tmux/`                      | `~/.config/tmux/`                         | all         |
 | `common/git/.gitconfig`             | `~/.gitconfig`                            | all         |
