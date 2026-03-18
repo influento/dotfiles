@@ -1,11 +1,8 @@
 {
-  "effortLevel": "high",
   "model": "opus",
-  "includeGitInstructions": true,
   "respectGitignore": true,
-  "alwaysThinkingEnabled": false,
-  "showTurnDuration": true,
   "cleanupPeriodDays": 30,
+  "includeGitInstructions": true,
   "permissions": {
     "allow": [
       "Read",
@@ -28,5 +25,8 @@
       "Read(**/*_ed25519)",
       "Read(~/.config/gh/hosts.yml)"
     ]
-  }
+  },
+  "alwaysThinkingEnabled": false,
+  "effortLevel": "high",
+  "showTurnDuration": true
 }
