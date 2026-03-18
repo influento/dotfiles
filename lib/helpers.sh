@@ -312,7 +312,13 @@ deploy_configs() {
         ;;
       # Files that go directly in $HOME (not .config)
       zsh)
-        link_config "${item}.zshrc" "${user_home}/.zshrc"
+        # common/zsh: symlink .zshrc
+        # workstation/zsh: symlink .zshrc-workstation
+        if [[ "$config_type" == "common" ]]; then
+          link_config "${item}.zshrc" "${user_home}/.zshrc"
+        else
+          link_config "${item}.zshrc-workstation" "${user_home}/.zshrc-workstation"
+        fi
         ;;
       git)
         link_config "${item}.gitconfig" "${user_home}/.gitconfig"
