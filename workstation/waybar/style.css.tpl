@@ -50,6 +50,7 @@ window#waybar {
 #language,
 #network,
 #pulseaudio,
+#battery,
 #custom-bluetooth,
 #custom-usb,
 #custom-claude-usage,
@@ -120,6 +121,22 @@ window#waybar {
   padding: 0;
   margin: 0;
   min-width: 0;
+}
+
+#battery {
+  color: @@GREEN@@;
+}
+
+#battery.warning {
+  color: @@YELLOW@@;
+}
+
+#battery.critical {
+  color: @@RED@@;
+}
+
+#battery.charging {
+  color: @@GREEN@@;
 }
 
 #custom-usb {
