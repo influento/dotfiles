@@ -55,7 +55,8 @@
       "sway/language",
       "pulseaudio",
       "custom/bluetooth",
-      "network"
+      "network",
+      "battery"
     ]
   },
   "sway/mode": {
@@ -89,6 +90,17 @@
   },
   "sway/language": {
     "format": " {short}",
+    "tooltip": false
+  },
+  "battery": {
+    "states": {
+      "warning": 30,
+      "critical": 15
+    },
+    "format": "{icon} {capacity}%",
+    "format-charging": "󰂄 {capacity}%",
+    "format-plugged": "󰚥 {capacity}%",
+    "format-icons": ["󰂎", "󰁺", "󰁾", "󰂁", "󰁹"],
     "tooltip": false
   },
   "custom/claude-usage": {
