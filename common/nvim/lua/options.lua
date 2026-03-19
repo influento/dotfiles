@@ -31,8 +31,21 @@ opt.sidescrolloff = 8
 opt.splitright = true
 opt.splitbelow = true
 
--- System clipboard
+-- System clipboard (OSC 52 for SSH, system provider locally)
 opt.clipboard = "unnamedplus"
+if os.getenv("SSH_TTY") then
+  vim.g.clipboard = {
+    name = "OSC 52",
+    copy = {
+      ["+"] = require("vim.ui.clipboard.osc52").copy("+"),
+      ["*"] = require("vim.ui.clipboard.osc52").copy("*"),
+    },
+    paste = {
+      ["+"] = require("vim.ui.clipboard.osc52").paste("+"),
+      ["*"] = require("vim.ui.clipboard.osc52").paste("*"),
+    },
+  }
+end
 
 -- Undo persistence
 opt.undofile = true
