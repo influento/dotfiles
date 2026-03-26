@@ -1,0 +1,8 @@
+[Unit]
+Description=Unattended server maintenance (npm updates)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/server-auto-update

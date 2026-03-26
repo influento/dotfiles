@@ -114,11 +114,15 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, btop, fastfetch"
+  log_info "  npm packages: install from common/npm/packages.conf"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, theming"
     log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
+  fi
+  if [[ "$PROFILE" == "server" ]]; then
+    log_info "  systemd: server-auto-update timer + service (auto-enabled)"
   fi
   log_info "  oh-my-zsh: install if missing"
   exit 0
@@ -148,16 +152,48 @@ find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x 
 if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
 fi
+if [[ "$PROFILE" == "server" ]]; then
+  find "${DOTFILES_DIR}/server/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+fi
 
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
+install_npm_packages "${DOTFILES_DIR}/common/npm/packages.conf"
 
 # Deploy workstation configs (workstation profile only)
 if [[ "$PROFILE" == "workstation" ]]; then
   deploy_configs "${DOTFILES_DIR}/workstation" "$USER_HOME" "workstation"
-  install_npm_packages
+  install_npm_packages "${DOTFILES_DIR}/workstation/npm/packages.conf"
   install_gtk_widgets "$USER_HOME" "$THEME"
   install_obsidian_plugins "$USER_HOME"
+fi
+
+# Deploy server configs (server profile only)
+if [[ "$PROFILE" == "server" ]]; then
+  deploy_configs "${DOTFILES_DIR}/server" "$USER_HOME" "server"
+
+  # Deploy systemd user units and enable timer
+  systemd_src="${DOTFILES_DIR}/server/systemd/user"
+  if [[ -d "$systemd_src" ]]; then
+    log_section "Deploying systemd user units"
+    ensure_dir "${USER_HOME}/.config/systemd/user"
+    for unit in "${systemd_src}"/*; do
+      [[ -f "$unit" ]] || continue
+      link_config "$unit" "${USER_HOME}/.config/systemd/user/$(basename "$unit")"
+    done
+
+    # Enable and start the timer
+    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
+      sudo -Hu "$TARGET_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$TARGET_USER")" \
+        systemctl --user daemon-reload
+      sudo -Hu "$TARGET_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$TARGET_USER")" \
+        systemctl --user enable --now server-auto-update.timer
+    else
+      systemctl --user daemon-reload
+      systemctl --user enable --now server-auto-update.timer
+    fi
+    log_info "server-auto-update timer enabled"
+  fi
 fi
 
 # --- Fix ownership if running as root ---

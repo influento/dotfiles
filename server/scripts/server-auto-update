@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# server-auto-update — Unattended server maintenance.
+# Triggered by systemd timer (server) or can be run manually.
+# Updates global npm packages from common/npm/packages.conf.
+# Designed to be extended with additional maintenance tasks.
+
+STATE_DIR="$HOME/.local/state/dotfiles"
+LOG_FILE="${STATE_DIR}/server-auto-update.log"
+LOCK_FILE="/tmp/.server-auto-update-${UID}.lock"
+
+mkdir -p "$STATE_DIR"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "Another server-auto-update is already running." >> "$LOG_FILE"
+  exit 0
+fi
+
+# Wait for network (up to 60s)
+for _ in $(seq 1 12); do
+  if curl -sf --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+
+if ! curl -sf --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
+  echo "[$(date)] No network after 60s — aborting." >> "$LOG_FILE"
+  exit 0
+fi
+
+# --- npm packages ---
+DOTFILES_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
+NPM_PACKAGES_FILE="${DOTFILES_DIR}/common/npm/packages.conf"
+
+if command -v npm &>/dev/null && [[ -f "$NPM_PACKAGES_FILE" ]]; then
+  npm_pkgs=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// /}" ]] && continue
+    npm_pkgs+=("$line")
+  done < "$NPM_PACKAGES_FILE"
+
+  if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
+    echo "[$(date)] Updating npm packages: ${npm_pkgs[*]}..." >> "$LOG_FILE"
+    if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
+      echo "$npm_output" >> "$LOG_FILE"
+      echo "[$(date)] npm update complete." >> "$LOG_FILE"
+    else
+      echo "$npm_output" >> "$LOG_FILE"
+      echo "[$(date)] npm update FAILED." >> "$LOG_FILE"
+    fi
+  fi
+else
+  echo "[$(date)] npm not found or no packages.conf — skipping npm updates." >> "$LOG_FILE"
+fi
+
+echo "[$(date)] server-auto-update complete." >> "$LOG_FILE"

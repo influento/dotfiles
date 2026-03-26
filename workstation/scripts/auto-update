@@ -103,27 +103,31 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
   fi
 done
 
-# Update global npm packages from packages.conf
+# Update global npm packages from common + workstation packages.conf
 DOTFILES_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
-NPM_PACKAGES_FILE="${DOTFILES_DIR}/common/npm/packages.conf"
+NPM_PACKAGE_FILES=(
+  "${DOTFILES_DIR}/common/npm/packages.conf"
+  "${DOTFILES_DIR}/workstation/npm/packages.conf"
+)
 
-if [[ -f "$NPM_PACKAGES_FILE" ]]; then
-  npm_pkgs=()
+npm_pkgs=()
+for pkg_file in "${NPM_PACKAGE_FILES[@]}"; do
+  [[ -f "$pkg_file" ]] || continue
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// /}" ]] && continue
     npm_pkgs+=("$line")
-  done < "$NPM_PACKAGES_FILE"
+  done < "$pkg_file"
+done
 
-  if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
-    echo "[$(date)] Updating npm packages: ${npm_pkgs[*]}..." >> "$LOG_FILE"
-    if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
-      echo "$npm_output" >> "$LOG_FILE"
-      echo "[$(date)] npm update complete." >> "$LOG_FILE"
-    else
-      echo "$npm_output" >> "$LOG_FILE"
-      echo "[$(date)] npm update FAILED." >> "$LOG_FILE"
-      notify-send -u critical "npm Update Failed" "See ${LOG_FILE}"
-    fi
+if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
+  echo "[$(date)] Updating npm packages: ${npm_pkgs[*]}..." >> "$LOG_FILE"
+  if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
+    echo "$npm_output" >> "$LOG_FILE"
+    echo "[$(date)] npm update complete." >> "$LOG_FILE"
+  else
+    echo "$npm_output" >> "$LOG_FILE"
+    echo "[$(date)] npm update FAILED." >> "$LOG_FILE"
+    notify-send -u critical "npm Update Failed" "See ${LOG_FILE}"
   fi
 fi
