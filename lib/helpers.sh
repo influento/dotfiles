@@ -246,13 +246,11 @@ install_gtk_widgets() {
   log_info "gtk-widgets installed"
 }
 
-# Install global npm packages from packages.conf if not already present.
-# Usage: install_npm_packages
+# Install global npm packages from one or more packages.conf files if not already present.
+# Usage: install_npm_packages file1 [file2 ...]
 install_npm_packages() {
-  local packages_file="${DOTFILES_DIR}/workstation/npm/packages.conf"
-
-  if [[ ! -f "$packages_file" ]]; then
-    log_warn "No npm packages.conf found, skipping."
+  if [[ $# -eq 0 ]]; then
+    log_warn "install_npm_packages: no package files specified, skipping."
     return 0
   fi
 
@@ -266,22 +264,30 @@ install_npm_packages() {
   local installed
   installed="$(npm list -g --depth=0 --parseable 2>/dev/null | tail -n +2 | xargs -I{} basename {} || true)"
 
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "${line// /}" ]] && continue
-
-    local pkg="$line"
-    # Package name for checking: @scope/name → name
-    local pkg_short="${pkg##*/}"
-
-    if echo "$installed" | grep -qxF "$pkg_short"; then
-      log_info "npm package already installed: ${pkg}"
-    else
-      log_info "Installing npm package: ${pkg}..."
-      sudo npm install -g "$pkg"
-      log_info "npm package installed: ${pkg}"
+  local packages_file
+  for packages_file in "$@"; do
+    if [[ ! -f "$packages_file" ]]; then
+      log_warn "No npm packages.conf found at ${packages_file}, skipping."
+      continue
     fi
-  done < "$packages_file"
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ "$line" =~ ^[[:space:]]*# ]] && continue
+      [[ -z "${line// /}" ]] && continue
+
+      local pkg="$line"
+      # Package name for checking: @scope/name → name
+      local pkg_short="${pkg##*/}"
+
+      if echo "$installed" | grep -qxF "$pkg_short"; then
+        log_info "npm package already installed: ${pkg}"
+      else
+        log_info "Installing npm package: ${pkg}..."
+        sudo npm install -g "$pkg"
+        log_info "npm package installed: ${pkg}"
+      fi
+    done < "$packages_file"
+  done
 }
 
 # Deploy all config files/directories from a source directory.
@@ -290,7 +296,7 @@ install_npm_packages() {
 deploy_configs() {
   local source_dir="$1"
   local user_home="$2"
-  local config_type="$3"  # "common" or "workstation"
+  local config_type="$3"  # "common", "server", or "workstation"
 
   if [[ ! -d "$source_dir" ]]; then
     log_warn "Config directory not found: $source_dir"
@@ -307,7 +313,7 @@ deploy_configs() {
 
     case "$name" in
       # Handled by dedicated functions, not symlinked
-      obsidian|npm)
+      obsidian|npm|systemd)
         continue
         ;;
       # Files that go directly in $HOME (not .config)

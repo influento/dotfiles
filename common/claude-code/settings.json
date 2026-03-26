@@ -1,5 +1,4 @@
 {
-  "model": "opus",
   "respectGitignore": true,
   "cleanupPeriodDays": 30,
   "includeGitInstructions": true,
