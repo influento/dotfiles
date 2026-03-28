@@ -3,7 +3,7 @@ Description=Run server-auto-update every 12 hours
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=12h
+OnCalendar=*-*-* 06,18:00:00
 Persistent=true
 
 [Install]
