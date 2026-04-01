@@ -45,8 +45,18 @@ fi
 # Let system services (gpg-agent, keyboxd, etc.) settle after boot
 sleep 60
 
-# Restart gpg-agent/keyboxd to clear any stale locks
+# Restart gpg-agent/keyboxd and clean stale lock files.
+# keyboxd can leave pubring.db.lock behind after a crash or unclean shutdown,
+# which blocks all subsequent GPG operations indefinitely.
 gpgconf --kill all
+KEYBOXD_LOCK="$HOME/.gnupg/public-keys.d/pubring.db.lock"
+if [[ -f "$KEYBOXD_LOCK" ]]; then
+  lock_pid="$(lsof -t "$KEYBOXD_LOCK" 2>/dev/null || true)"
+  if [[ -z "$lock_pid" ]]; then
+    echo "[$(date)] Removing stale keyboxd lock (no process holding it)." >> "$LOG_FILE"
+    rm -f "$KEYBOXD_LOCK"
+  fi
+fi
 gpgconf --launch gpg-agent
 
 # Check for available updates
