@@ -63,55 +63,52 @@ gpgconf --launch gpg-agent
 pending="$(yay -Qu 2>/dev/null | wc -l || true)"
 if (( pending == 0 )); then
   echo "[$(date)] No updates available." >> "$LOG_FILE"
-  date +%s > "$LAST_FILE"
-  exit 0
-fi
+else
+  notify-send -u low "Updating System" "${pending} package(s) available..."
 
-notify-send -u low "Updating System" "${pending} package(s) available..."
+  # Run update with retry (3 attempts, 60s between retries)
+  MAX_ATTEMPTS=3
+  RETRY_DELAY=60
 
-# Run update with retry (3 attempts, 60s between retries)
-MAX_ATTEMPTS=3
-RETRY_DELAY=60
+  for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+    echo "[$(date)] Starting yay -Syu (attempt ${attempt}/${MAX_ATTEMPTS}, ${pending} pending)..." >> "$LOG_FILE"
 
-for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-  echo "[$(date)] Starting yay -Syu (attempt ${attempt}/${MAX_ATTEMPTS}, ${pending} pending)..." >> "$LOG_FILE"
+    if output="$(yay -Syu --noconfirm 2>&1)"; then
+      echo "$output" >> "$LOG_FILE"
+      upgraded="$(echo "$output" | grep -c "^upgrading " || true)"
+      notify-send -u low "System Updated" "${upgraded} package(s) upgraded."
+      echo "[$(date)] Update complete — ${upgraded} package(s) upgraded." >> "$LOG_FILE"
+      break
+    fi
 
-  if output="$(yay -Syu --noconfirm 2>&1)"; then
     echo "$output" >> "$LOG_FILE"
-    upgraded="$(echo "$output" | grep -c "^upgrading " || true)"
-    notify-send -u low "System Updated" "${upgraded} package(s) upgraded."
-    date +%s > "$LAST_FILE"
-    echo "[$(date)] Update complete — ${upgraded} package(s) upgraded." >> "$LOG_FILE"
-    break
-  fi
 
-  echo "$output" >> "$LOG_FILE"
+    # Extract error details: mirror 404s, file conflicts, or generic failure
+    error_detail=""
+    retrieval_fails="$(echo "$output" | grep -oP "failed retrieving file '\K[^']+(?=')" | sed 's/-[0-9].*//;s/\.pkg.*//' | sort -u | paste -sd', ' || true)"
+    conflict_fails="$(echo "$output" | grep -oP "^[^:]+(?=: /)" | grep -v "^error$" | sort -u | paste -sd', ' || true)"
+    if [[ -n "$retrieval_fails" ]]; then
+      error_detail="Failed to retrieve: ${retrieval_fails}"
+    elif [[ -n "$conflict_fails" ]]; then
+      error_detail="File conflict in: ${conflict_fails}"
+    else
+      error_detail="yay -Syu failed"
+    fi
 
-  # Extract error details: mirror 404s, file conflicts, or generic failure
-  error_detail=""
-  retrieval_fails="$(echo "$output" | grep -oP "failed retrieving file '\K[^']+(?=')" | sed 's/-[0-9].*//;s/\.pkg.*//' | sort -u | paste -sd', ' || true)"
-  conflict_fails="$(echo "$output" | grep -oP "^[^:]+(?=: /)" | grep -v "^error$" | sort -u | paste -sd', ' || true)"
-  if [[ -n "$retrieval_fails" ]]; then
-    error_detail="Failed to retrieve: ${retrieval_fails}"
-  elif [[ -n "$conflict_fails" ]]; then
-    error_detail="File conflict in: ${conflict_fails}"
-  else
-    error_detail="yay -Syu failed"
-  fi
-
-  if (( attempt < MAX_ATTEMPTS )); then
-    echo "[$(date)] Update FAILED (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in ${RETRY_DELAY}s..." >> "$LOG_FILE"
-    notify-send -u critical "Update Failed (${attempt}/${MAX_ATTEMPTS})" \
-      "${error_detail}. Retrying in ${RETRY_DELAY}s..."
-    sleep "$RETRY_DELAY"
-    # Re-check pending count in case mirrors synced
-    pending="$(yay -Qu 2>/dev/null | wc -l || true)"
-  else
-    echo "[$(date)] Update FAILED (attempt ${attempt}/${MAX_ATTEMPTS}). Giving up." >> "$LOG_FILE"
-    notify-send -u critical "Update Failed (${attempt}/${MAX_ATTEMPTS})" \
-      "${error_detail}. Check ${LOG_FILE}"
-  fi
-done
+    if (( attempt < MAX_ATTEMPTS )); then
+      echo "[$(date)] Update FAILED (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in ${RETRY_DELAY}s..." >> "$LOG_FILE"
+      notify-send -u critical "Update Failed (${attempt}/${MAX_ATTEMPTS})" \
+        "${error_detail}. Retrying in ${RETRY_DELAY}s..."
+      sleep "$RETRY_DELAY"
+      # Re-check pending count in case mirrors synced
+      pending="$(yay -Qu 2>/dev/null | wc -l || true)"
+    else
+      echo "[$(date)] Update FAILED (attempt ${attempt}/${MAX_ATTEMPTS}). Giving up." >> "$LOG_FILE"
+      notify-send -u critical "Update Failed (${attempt}/${MAX_ATTEMPTS})" \
+        "${error_detail}. Check ${LOG_FILE}"
+    fi
+  done
+fi
 
 # Update global npm packages from common + workstation packages.conf
 DOTFILES_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
@@ -135,9 +132,15 @@ if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
   if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
     echo "$npm_output" >> "$LOG_FILE"
     echo "[$(date)] npm update complete." >> "$LOG_FILE"
+    npm_changed="$(echo "$npm_output" | grep -oP 'changed \K\d+' || true)"
+    if [[ -n "$npm_changed" ]] && (( npm_changed > 0 )); then
+      notify-send -u low "npm Updated" "${npm_changed} package(s) updated."
+    fi
   else
     echo "$npm_output" >> "$LOG_FILE"
     echo "[$(date)] npm update FAILED." >> "$LOG_FILE"
     notify-send -u critical "npm Update Failed" "See ${LOG_FILE}"
   fi
 fi
+
+date +%s > "$LAST_FILE"
