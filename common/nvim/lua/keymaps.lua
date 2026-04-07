@@ -19,6 +19,12 @@ map("v", ">", ">gv")
 map("v", "J", ":m '>+1<CR>gv=gv", { desc = "Move line down" })
 map("v", "K", ":m '<-2<CR>gv=gv", { desc = "Move line up" })
 
+-- Reload config
+map("n", "<leader>rc", function()
+  vim.cmd("source " .. vim.fn.stdpath("config") .. "/init.lua")
+  vim.notify("Config reloaded")
+end, { desc = "Reload Neovim config" })
+
 -- Quit all
 map("n", "<leader>qq", "<cmd>qa<CR>", { desc = "Quit all" })
 map("n", "<leader>qw", "<cmd>wa | qa<CR>", { desc = "Save all and quit" })

@@ -23,7 +23,8 @@
       "Read(**/*_rsa)",
       "Read(**/*_ed25519)",
       "Read(~/.config/gh/hosts.yml)"
-    ]
+    ],
+    "defaultMode": "default"
   },
   "alwaysThinkingEnabled": false,
   "effortLevel": "high",
