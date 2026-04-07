@@ -10,7 +10,7 @@ return {
       c = { "clang_format" },
       cs = { "csharpier" },
       css = { "prettier" },
-      go = { "goimports" },
+      go = { lsp_format = "prefer" },
       html = { "prettier" },
       javascript = { "prettier" },
       javascriptreact = { "prettier" },
