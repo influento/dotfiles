@@ -20,6 +20,8 @@ workstation/swaylock/config
 workstation/swayosd/style.css
 workstation/swaybg/wallpaper.sh
 workstation/theming/gtk-4.0/gtk.css
+workstation/mpv/mpv.conf
+workstation/mpv/script-opts/osc.conf
 
 # Runtime config (written by widgets)
 workstation/sway/scale.conf

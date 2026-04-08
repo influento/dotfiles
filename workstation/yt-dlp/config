@@ -1,0 +1,30 @@
+# yt-dlp defaults
+
+# Quality: best video up to 1080p + best audio
+-f bv[height<=1080]+ba/b
+
+# Container
+--merge-output-format mp4
+
+# Output
+-o %(title)s [%(id)s].%(ext)s
+-P ~/videos
+
+# Metadata
+--embed-metadata
+--embed-thumbnail
+--embed-chapters
+--convert-thumbnails jpg
+
+# Subtitles
+--embed-subs
+--sub-langs en.*,-live_chat
+
+# SponsorBlock: mark as chapters (skippable, not removed)
+--sponsorblock-mark default
+
+# Performance
+--concurrent-fragments 4
+
+# Safety
+--no-overwrites
