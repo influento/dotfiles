@@ -75,6 +75,8 @@ This means:
 | `workstation/theming/gtk-4.0/`      | `~/.config/gtk-4.0/`                      | workstation |
 | `workstation/theming/qt6ct/`        | `~/.config/qt6ct/`                        | workstation |
 | `workstation/theming/Kvantum/`      | `~/.config/Kvantum/`                      | workstation |
+| `workstation/mpv/`                  | `~/.config/mpv/`                          | workstation |
+| `workstation/yt-dlp/`               | `~/.config/yt-dlp/`                       | workstation |
 
 ## Theming System
 
@@ -123,6 +125,8 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/theming/gtk-4.0/gtk.css.tpl`    | `gtk.css`            | `@@TOKEN@@`     |
 | `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
 | `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
+| `workstation/mpv/mpv.conf.tpl`               | `mpv.conf`           | `@@TOKEN@@`     |
+| `workstation/mpv/script-opts/osc.conf.tpl`   | `osc.conf`           | `@@TOKEN@@`     |
 
 ## What Needs Content
 
@@ -183,6 +187,8 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown, mako notifications |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
+| **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
+| **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
 
 ## Code Conventions
 

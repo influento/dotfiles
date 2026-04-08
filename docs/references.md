@@ -38,3 +38,5 @@ Check these when upgrading tools or debugging config issues.
 | **Qt6ct** | `workstation/theming/qt6ct/qt6ct.conf` | [qt6ct GitHub](https://github.com/trialuser02/qt6ct) | Requires `QT_QPA_PLATFORMTHEME=qt6ct` env var |
 | **Kvantum** | `workstation/theming/Kvantum/kvantum.kvconfig` | [Kvantum GitHub](https://github.com/tsujan/Kvantum) | Qt theme engine |
 | **XDG portal** | `workstation/xdg-desktop-portal/portals.conf` | [xdg-desktop-portal](https://flatpak.github.io/xdg-desktop-portal/) | Routes portals to wlr backend |
+| **mpv** | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/osc.conf.tpl` | [mpv.io/manual](https://mpv.io/manual/stable/) | Themed OSD/OSC, `input.conf` for keybindings, `script-opts/` for script config |
+| **yt-dlp** | `workstation/yt-dlp/config` | [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp#configuration) | One option per line, same syntax as CLI flags |
