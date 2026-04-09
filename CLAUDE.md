@@ -54,6 +54,7 @@ This means:
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
+| `influento/tmux-plugins` (release)  | `~/.local/bin/tmux-warp` (downloaded)     | all         |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
 | `server/scripts/*`                  | `~/.local/bin/*`                          | server      |
 | `server/systemd/user/`             | `~/.config/systemd/user/`                 | server      |
@@ -153,6 +154,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills             |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): install on deploy, update via auto-update |
+| **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Server only

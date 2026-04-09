@@ -115,6 +115,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, btop, fastfetch"
   log_info "  npm packages: install from common/npm/packages.conf"
+  log_info "  tmux plugins: download tmux-warp from GitHub Releases"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, theming"
     log_info "  npm packages: install from workstation/npm/packages.conf"
@@ -159,6 +160,7 @@ fi
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 install_npm_packages "${DOTFILES_DIR}/common/npm/packages.conf"
+install_tmux_plugins "$USER_HOME"
 
 # Deploy workstation configs (workstation profile only)
 if [[ "$PROFILE" == "workstation" ]]; then

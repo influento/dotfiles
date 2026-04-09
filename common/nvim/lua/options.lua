@@ -52,6 +52,6 @@ opt.undofile = true
 
 -- Misc
 opt.updatetime = 250
-opt.timeoutlen = 300
+opt.timeoutlen = 150
 opt.wrap = false
 opt.mouse = "a"
