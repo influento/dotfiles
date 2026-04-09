@@ -223,6 +223,63 @@ install_obsidian_plugins() {
   done < "$plugins_file"
 }
 
+# Download tmux plugin binaries from influento/tmux-plugins GitHub Releases.
+# Installs each binary into ~/.local/bin/.
+# Usage: install_tmux_plugins "/home/username"
+install_tmux_plugins() {
+  local user_home="$1"
+  local bin_dir="${user_home}/.local/bin"
+  local repo="influento/tmux-plugins"
+
+  local arch
+  case "$(uname -m)" in
+    x86_64)  arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+    *) log_warn "Unsupported architecture for tmux plugins: $(uname -m), skipping."; return 0 ;;
+  esac
+
+  ensure_dir "$bin_dir"
+
+  log_section "Installing tmux plugins"
+
+  local -a plugins=("tmux-warp")
+  local plugin
+  for plugin in "${plugins[@]}"; do
+    local target="${bin_dir}/${plugin}"
+
+    if [[ -x "$target" ]]; then
+      log_info "tmux plugin already installed: ${plugin}"
+      continue
+    fi
+
+    local url="https://github.com/${repo}/releases/latest/download/${plugin}-linux-${arch}"
+    log_info "Downloading ${plugin} for linux/${arch}..."
+
+    local dl_cmd="curl -fsSL"
+    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
+      sudo -u "$TARGET_USER" bash -c "${dl_cmd} '${url}' -o '${target}' && chmod +x '${target}'"
+    else
+      ${dl_cmd} "${url}" -o "${target}" && chmod +x "${target}"
+    fi
+
+    if [[ -x "$target" ]]; then
+      log_info "tmux plugin installed: ${plugin}"
+    else
+      log_warn "Failed to download tmux plugin: ${plugin}"
+      continue
+    fi
+
+    # Download shell wrapper if it exists
+    local wrapper_url="https://raw.githubusercontent.com/${repo}/main/${plugin}/${plugin}.sh"
+    local wrapper_target="${bin_dir}/${plugin}.sh"
+    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
+      sudo -u "$TARGET_USER" bash -c "${dl_cmd} '${wrapper_url}' -o '${wrapper_target}' && chmod +x '${wrapper_target}'" 2>/dev/null || true
+    else
+      ${dl_cmd} "${wrapper_url}" -o "${wrapper_target}" && chmod +x "${wrapper_target}" 2>/dev/null || true
+    fi
+  done
+}
+
 # Clone (or update) and install gtk-widgets from GitHub.
 # Symlinks widget scripts into ~/.local/bin/ via the repo's own installer.
 # Usage: install_gtk_widgets "/home/username" "theme-name"
