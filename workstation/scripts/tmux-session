@@ -8,7 +8,7 @@ set -euo pipefail
 INFRA_DIR="$HOME/dev/infra"
 
 session_infra() {
-  local dirs=(dotfiles gtk-widgets arch-install debian-server)
+  local dirs=(dotfiles gtk-widgets arch-install debian-server tmux-plugins)
 
   tmux new-session -d -s infra -n "${dirs[0]}" -c "$INFRA_DIR/${dirs[0]}"
 
