@@ -1,6 +1,9 @@
 {
   "respectGitignore": true,
   "cleanupPeriodDays": 30,
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
+  },
   "includeGitInstructions": true,
   "permissions": {
     "allow": [
@@ -24,9 +27,11 @@
       "Read(**/*_ed25519)",
       "Read(~/.config/gh/hosts.yml)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "auto"
   },
+  "model": "claude-opus-4-7",
   "alwaysThinkingEnabled": false,
-  "effortLevel": "high",
-  "showTurnDuration": true
+  "effortLevel": "xhigh",
+  "showTurnDuration": true,
+  "skipAutoPermissionPrompt": true
 }
