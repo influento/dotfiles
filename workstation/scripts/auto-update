@@ -45,6 +45,27 @@ fi
 # Let system services (gpg-agent, keyboxd, etc.) settle after boot
 sleep 60
 
+# Refresh Arch mirrorlist if older than 7 days. Mirrors rot (dead hosts, new
+# fast ones) on a days-to-weeks cadence — periodic refresh keeps the pool healthy.
+# Country list mirrors arch-install defaults: auto-detected country (UA) +
+# EU fallbacks (DE, NL, SE, FI, AT) for accessibility and redundancy.
+# Keep in sync with arch-install/config.sh (MIRROR_FALLBACK_COUNTRIES).
+MIRRORLIST=/etc/pacman.d/mirrorlist
+if [[ ! -f "$MIRRORLIST" ]] || [[ -n "$(find "$MIRRORLIST" -mtime +7 -print)" ]]; then
+  echo "[$(date)] Refreshing mirrorlist with reflector..." >> "$LOG_FILE"
+  if reflector_out="$(sudo reflector \
+    --country "UA,DE,NL,SE,FI,AT" \
+    --latest 20 \
+    --sort rate \
+    --protocol https \
+    --save "$MIRRORLIST" 2>&1)"; then
+    echo "$reflector_out" >> "$LOG_FILE"
+  else
+    echo "$reflector_out" >> "$LOG_FILE"
+    echo "[$(date)] reflector failed, keeping existing mirrorlist." >> "$LOG_FILE"
+  fi
+fi
+
 # Restart gpg-agent/keyboxd and clean stale lock files.
 # keyboxd can leave pubring.db.lock behind after a crash or unclean shutdown,
 # which blocks all subsequent GPG operations indefinitely.
@@ -129,7 +150,7 @@ done
 
 if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
   echo "[$(date)] Updating npm packages: ${npm_pkgs[*]}..." >> "$LOG_FILE"
-  if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
+  if npm_output="$(npm update -g "${npm_pkgs[@]}" 2>&1)"; then
     echo "$npm_output" >> "$LOG_FILE"
     echo "[$(date)] npm update complete." >> "$LOG_FILE"
     npm_changed="$(echo "$npm_output" | grep -oP 'changed \K\d+' || true)"
