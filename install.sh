@@ -118,7 +118,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
   log_info "  tmux plugins: download tmux-warp from GitHub Releases"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, theming"
+    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, mimeapps, theming"
     log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
