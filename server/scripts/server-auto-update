@@ -45,7 +45,7 @@ if command -v npm &>/dev/null && [[ -f "$NPM_PACKAGES_FILE" ]]; then
 
   if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
     echo "[$(date)] Updating npm packages: ${npm_pkgs[*]}..." >> "$LOG_FILE"
-    if npm_output="$(sudo npm update -g "${npm_pkgs[@]}" 2>&1)"; then
+    if npm_output="$(npm update -g "${npm_pkgs[@]}" 2>&1)"; then
       echo "$npm_output" >> "$LOG_FILE"
       echo "[$(date)] npm update complete." >> "$LOG_FILE"
     else

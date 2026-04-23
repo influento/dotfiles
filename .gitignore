@@ -1,5 +1,5 @@
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code local state (settings overrides, scheduled task locks, etc.)
+.claude/
 
 # OS / editor junk
 .DS_Store

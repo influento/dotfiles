@@ -318,6 +318,12 @@ install_npm_packages() {
 
   log_section "Installing global npm packages"
 
+  # Install globals under the user's home so npm never writes to pacman-owned
+  # /usr/lib/node_modules. This avoids "exists in filesystem" conflicts when
+  # pacman later upgrades node-gyp or its bundled deps. ~/.local/bin is already
+  # on PATH, so `-g` binaries resolve the same way as before.
+  npm config set prefix "$HOME/.local"
+
   local installed
   installed="$(npm list -g --depth=0 --parseable 2>/dev/null | tail -n +2 | xargs -I{} basename {} || true)"
 
@@ -340,11 +346,27 @@ install_npm_packages() {
         log_info "npm package already installed: ${pkg}"
       else
         log_info "Installing npm package: ${pkg}..."
-        sudo npm install -g "$pkg"
+        npm install -g "$pkg"
         log_info "npm package installed: ${pkg}"
       fi
     done < "$packages_file"
   done
+}
+
+# Install Claude Code via Anthropic's native installer if not already present.
+# The native installer puts claude in ~/.local/share/claude/versions/ and
+# self-updates in the background — no cron step needed. Re-runs are no-ops.
+install_claude_code() {
+  log_section "Installing Claude Code"
+
+  if command -v claude &>/dev/null; then
+    log_info "Claude Code already installed: $(claude --version 2>/dev/null | head -1)"
+    return 0
+  fi
+
+  log_info "Running Anthropic's native installer..."
+  curl -fsSL https://claude.ai/install.sh | bash
+  log_info "Claude Code installed"
 }
 
 # Deploy all config files/directories from a source directory.
