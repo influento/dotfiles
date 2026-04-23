@@ -78,6 +78,7 @@ This means:
 | `workstation/theming/Kvantum/`      | `~/.config/Kvantum/`                      | workstation |
 | `workstation/mpv/`                  | `~/.config/mpv/`                          | workstation |
 | `workstation/yt-dlp/`               | `~/.config/yt-dlp/`                       | workstation |
+| `workstation/mimeapps/mimeapps.list`| `~/.config/mimeapps.list`                 | workstation |
 
 ## Theming System
 
@@ -191,6 +192,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
 | **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
+| **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
 
 ## Code Conventions
 

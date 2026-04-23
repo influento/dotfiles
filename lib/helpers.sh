@@ -408,6 +408,10 @@ deploy_configs() {
       git)
         link_config "${item}.gitconfig" "${user_home}/.gitconfig"
         ;;
+      # XDG MIME associations: single file directly in ~/.config/
+      mimeapps)
+        link_config "${item}mimeapps.list" "${user_home}/.config/mimeapps.list"
+        ;;
       # Claude Code: skills dir + settings.json into ~/.claude/
       claude-code)
         ensure_dir "${user_home}/.claude"
