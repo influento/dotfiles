@@ -8,6 +8,7 @@ return {
       { "<leader>d", group = "debug" },
       { "<leader>g", group = "git" },
       { "<leader>m", group = "markdown" },
+      { "<leader>n", group = "dotnet" },
       { "<leader>x", group = "diagnostics" },
     },
   },

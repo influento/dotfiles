@@ -34,7 +34,6 @@ return {
           "jsonls",
           "lua_ls",
           "marksman",
-          "omnisharp",
           "powershell_es",
           "pyright",
           "rust_analyzer",
