@@ -32,17 +32,14 @@ set incsearch
 set scrolloff=8
 set sidescrolloff=8
 set cursorline
-set showmode
-set showcmd
 
 set clipboard+=unnamed,unnamedplus
 
 set nowrap
-set history=1000
 set visualbell
 
 set ideajoin                 " J uses IDE smart-join
-set idearefactormode=keep    " stay in current mode during IDE refactor
+set idearefactormode=select  " enter IDE rename template with name selected (visual)
 
 " ============================================================================
 " Emulated plugins
@@ -52,11 +49,9 @@ set surround                 " mirrors mini.surround
 set commentary               " gc / gcc commenting (matches Neovim 0.11 default)
 set NERDTree                 " mirrors neo-tree (used via <leader>e below)
 set highlightedyank          " brief highlight on yank
-set matchit
 set textobj-entire           " ae / ie (entire buffer)
 set argtextobj               " aa / ia (function argument)
 let g:argtextobj_pairs = "[:],(:),<:>"
-set ReplaceWithRegister      " gr motion / grr line
 set which-key                " visualize leader chord; requires Which-Key IDE plugin
 set notimeout                " keep which-key popup open until a key is pressed
 
@@ -73,18 +68,14 @@ nmap <leader>l <Action>(AceLineAction)
 " Which-Key group labels (mirrors which-key.lua spec)
 " ============================================================================
 
-let g:WhichKey_DefaultDelay = 0
-
 let g:WhichKeyDesc_find         = "<leader>f find"
 let g:WhichKeyDesc_find_files   = "<leader>ff find files"
 let g:WhichKeyDesc_find_grep    = "<leader>fg live grep"
-let g:WhichKeyDesc_find_buffers = "<leader>fb buffers"
 let g:WhichKeyDesc_find_recent  = "<leader>fr recent files"
 let g:WhichKeyDesc_find_help    = "<leader>fh help topics"
 let g:WhichKeyDesc_find_diag    = "<leader>fd diagnostics"
 
 let g:WhichKeyDesc_code         = "<leader>c code"
-let g:WhichKeyDesc_code_action  = "<leader>ca code action"
 let g:WhichKeyDesc_code_format  = "<leader>cf format buffer"
 
 let g:WhichKeyDesc_debug        = "<leader>d debug"
@@ -97,10 +88,6 @@ let g:WhichKeyDesc_debug_toggle = "<leader>dt toggle debug UI"
 let g:WhichKeyDesc_debug_eval   = "<leader>de evaluate expression"
 
 let g:WhichKeyDesc_git          = "<leader>g git"
-let g:WhichKeyDesc_git_stage    = "<leader>gs stage / rollback hunk"
-let g:WhichKeyDesc_git_reset    = "<leader>gr reset hunk"
-let g:WhichKeyDesc_git_preview  = "<leader>gp preview hunk"
-let g:WhichKeyDesc_git_blame    = "<leader>gb blame line"
 let g:WhichKeyDesc_git_view     = "<leader>gv VCS panel"
 
 let g:WhichKeyDesc_diagnostics  = "<leader>x diagnostics"
@@ -110,12 +97,18 @@ let g:WhichKeyDesc_quit         = "<leader>q quit"
 let g:WhichKeyDesc_quit_all     = "<leader>qq quit all"
 let g:WhichKeyDesc_quit_save    = "<leader>qw save all and quit"
 
-let g:WhichKeyDesc_rename       = "<leader>r rename / reload"
-let g:WhichKeyDesc_rename_sym   = "<leader>rn rename symbol"
+let g:WhichKeyDesc_rename       = "<leader>r reload"
 let g:WhichKeyDesc_rename_cfg   = "<leader>rc reload config"
 
 let g:WhichKeyDesc_explorer     = "<leader>e file explorer"
 let g:WhichKeyDesc_search_buf   = "<leader>/ search in buffer"
+
+let g:WhichKeyDesc_mark         = "<leader>m bookmark"
+let g:WhichKeyDesc_mark_toggle  = "<leader>mm set mnemonic bookmark"
+let g:WhichKeyDesc_mark_anon    = "<leader>ma toggle anonymous bookmark"
+let g:WhichKeyDesc_mark_pick    = "<leader>' jump to bookmark"
+let g:WhichKeyDesc_mark_next    = "]m next bookmark"
+let g:WhichKeyDesc_mark_prev    = "[m previous bookmark"
 
 let g:WhichKeyDesc_jump         = "<leader>j AceJump (start of match)"
 let g:WhichKeyDesc_jump_target  = "<leader>J AceJump (target mode)"
@@ -174,24 +167,38 @@ nnoremap <leader>qw :wa <Bar> qa<CR>
 " Reload IdeaVim config
 nnoremap <leader>rc :source ~/.ideavimrc<CR>
 
+" Bookmarks (IDE-managed, persistent across sessions).
+"   <leader>mm  set / reassign mnemonic bookmark (letter prompt)
+"   <leader>ma  toggle anonymous line bookmark (no letter, quick "hold this")
+"   <leader>'   open bookmark popup; type the mnemonic letter to jump
+" Remove a bookmark: <leader>' to open popup, hover the entry, press Delete.
+nnoremap <leader>mm :action ToggleBookmarkWithMnemonic<CR>
+nnoremap <leader>ma :action ToggleBookmark<CR>
+nnoremap <leader>'  :action ShowBookmarks<CR>
+nnoremap ]m :action GotoNextBookmark<CR>
+nnoremap [m :action GotoPreviousBookmark<CR>
+
 " ----------------------------------------------------------------------------
 " LSP-equivalent (IDE actions)
 " ----------------------------------------------------------------------------
 
-nnoremap gd :action GotoDeclaration<CR>
-nnoremap gr :action FindUsages<CR>
-nnoremap gI :action GotoImplementation<CR>
-nnoremap gy :action GotoTypeDeclaration<CR>
-nnoremap gD :action GotoSuperMethod<CR>
+" Goto family — gd/gD stay; gr* mirrors Neovim 0.11 built-in LSP defaults.
+nnoremap gd  :action GotoDeclaration<CR>
+nnoremap gD  :action GotoSuperMethod<CR>
+nnoremap grr :action ShowUsages<CR>
+nnoremap gri :action GotoImplementation<CR>
+nnoremap grt :action GotoTypeDeclaration<CR>
+nnoremap grn :action RenameElement<CR>
+nnoremap gra :action ShowIntentionActions<CR>
+vnoremap gra :action ShowIntentionActions<CR>
+
+" Cycle usages in-place (cursor jumps to next/prev usage in the editor)
+nnoremap ]g :action GotoNextElementUnderCaretUsage<CR>
+nnoremap [g :action GotoPrevElementUnderCaretUsage<CR>
 
 " Hover / docs (Neovim 0.11 default: K)
 nnoremap K :action QuickJavaDoc<CR>
 inoremap <C-k> <C-o>:action QuickJavaDoc<CR>
-
-" Rename / code action
-nnoremap <leader>rn :action RenameElement<CR>
-nnoremap <leader>ca :action ShowIntentionActions<CR>
-vnoremap <leader>ca :action ShowIntentionActions<CR>
 
 " Diagnostics
 nnoremap [d :action GotoPreviousError<CR>
@@ -208,7 +215,6 @@ vnoremap <leader>cf :action ReformatCode<CR>
 
 nnoremap <leader>ff :action GotoFile<CR>
 nnoremap <leader>fg :action FindInPath<CR>
-nnoremap <leader>fb :action RecentFiles<CR>
 nnoremap <leader>fr :action RecentFiles<CR>
 nnoremap <leader>fh :action HelpTopics<CR>
 nnoremap <leader>fd :action ActivateProblemsViewToolWindow<CR>
@@ -248,15 +254,9 @@ nnoremap <leader>8 :action GoToTab8<CR>
 nnoremap <leader>9 :action GoToTab9<CR>
 
 " ----------------------------------------------------------------------------
-" Git (mirrors gitsigns.lua)
+" Git: intentionally minimal — git workflow happens in the terminal or via the
+" JetBrains VCS tool window (<leader>gv above), not through IdeaVim mappings.
 " ----------------------------------------------------------------------------
-
-nnoremap ]h :action VcsShowNextChangeMarker<CR>
-nnoremap [h :action VcsShowPrevChangeMarker<CR>
-nnoremap <leader>gs :action ChangesView.Rollback<CR>
-nnoremap <leader>gr :action ChangesView.Rollback<CR>
-nnoremap <leader>gp :action VcsShowCurrentChangeMarker<CR>
-nnoremap <leader>gb :action Annotate<CR>
 
 " ----------------------------------------------------------------------------
 " Debug (mirrors dap.lua)
