@@ -81,6 +81,7 @@ export EDITOR="nvim"
 export VISUAL="nvim"
 export LANG="en_US.UTF-8"
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+[[ -d "$HOME/.dotnet/tools" && ":$PATH:" != *":$HOME/.dotnet/tools:"* ]] && export PATH="$HOME/.dotnet/tools:$PATH"
 
 # --- Aliases ---
 
