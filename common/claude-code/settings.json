@@ -33,5 +33,6 @@
   "alwaysThinkingEnabled": false,
   "effortLevel": "xhigh",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "editorMode": "vim"
 }
