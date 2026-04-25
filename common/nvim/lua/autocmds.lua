@@ -56,3 +56,18 @@ vim.api.nvim_create_autocmd("TextChanged", {
     end
   end,
 })
+
+-- <C-;> in insert mode: jump to end of line and append semicolon (statement terminator)
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("semicolon-eol", { clear = true }),
+  pattern = {
+    "c", "cpp", "cs", "java", "rust", "go", "kotlin", "swift", "dart",
+    "php", "perl", "javascript", "typescript", "javascriptreact",
+    "typescriptreact", "css", "scss",
+  },
+  callback = function(args)
+    vim.schedule(function()
+      vim.keymap.set("i", "<C-;>", "<End>;", { buffer = args.buf })
+    end)
+  end,
+})
