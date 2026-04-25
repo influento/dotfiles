@@ -43,6 +43,7 @@ This means:
 | `common/zsh/.zshrc.tpl`             | `~/.zshrc` (via generated `.zshrc`)       | all         |
 | `workstation/zsh/.zshrc-workstation`| `~/.zshrc-workstation`                    | workstation |
 | `common/nvim/`                      | `~/.config/nvim/`                         | all         |
+| `common/ideavim/.ideavimrc`         | `~/.ideavimrc`                            | all         |
 | `common/tmux/`                      | `~/.config/tmux/`                         | all         |
 | `common/git/.gitconfig`             | `~/.gitconfig`                            | all         |
 | `common/starship/`                  | `~/.config/starship/`                     | all         |
@@ -146,6 +147,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | -------------------- | ----------------------------------- | -------------------------------------------------------------------- |
 | **zsh + oh-my-zsh**  | `common/zsh/.zshrc.tpl`             | Shell: plugins, aliases, environment, prompt theme (themed)          |
 | **Neovim**           | `common/nvim/init.lua`              | Editor: keymaps, plugins (lazy.nvim), options                        |
+| **IdeaVim**          | `common/ideavim/.ideavimrc`         | JetBrains IDE Vim layer: mirrors nvim keymaps and options            |
 | **tmux**             | `common/tmux/tmux.conf`             | Terminal multiplexer: prefix key, panes, status bar                  |
 | **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                    |
 | **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                  |
