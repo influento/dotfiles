@@ -408,6 +408,9 @@ deploy_configs() {
       git)
         link_config "${item}.gitconfig" "${user_home}/.gitconfig"
         ;;
+      ideavim)
+        link_config "${item}.ideavimrc" "${user_home}/.ideavimrc"
+        ;;
       # XDG MIME associations: single file directly in ~/.config/
       mimeapps)
         link_config "${item}mimeapps.list" "${user_home}/.config/mimeapps.list"

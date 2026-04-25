@@ -1,0 +1,270 @@
+" IdeaVim configuration — mirrors common/nvim as closely as possible.
+" Reference: https://github.com/JetBrains/ideavim/blob/master/doc/set-commands.md
+"            https://github.com/JetBrains/ideavim/wiki/IdeaVim-Plugins
+"
+" IDE plugins required from JetBrains Marketplace:
+"   - IdeaVim    (the Vim engine itself)
+"   - Which-Key  (popup hints for leader chords)
+"
+" Most Vim `set` options are silently ignored by IdeaVim — IDE editor settings
+" (indent, signcolumn, splits, mouse, etc.) cover those. Only options listed
+" in the IdeaVim set-commands doc are kept here.
+
+" ============================================================================
+" Leader
+" ============================================================================
+
+let mapleader = " "
+let maplocalleader = " "
+
+" ============================================================================
+" Options (IdeaVim-supported subset of common/nvim/lua/options.lua)
+" ============================================================================
+
+set number
+set relativenumber
+
+set ignorecase
+set smartcase
+set hlsearch
+set incsearch
+
+set scrolloff=8
+set sidescrolloff=8
+set cursorline
+set showmode
+set showcmd
+
+set clipboard+=unnamed,unnamedplus
+
+set nowrap
+set history=1000
+set visualbell
+
+set ideajoin                 " J uses IDE smart-join
+set idearefactormode=keep    " stay in current mode during IDE refactor
+
+" ============================================================================
+" Emulated plugins
+" ============================================================================
+
+set surround                 " mirrors mini.surround
+set commentary               " gc / gcc commenting (matches Neovim 0.11 default)
+set NERDTree                 " mirrors neo-tree (used via <leader>e below)
+set highlightedyank          " brief highlight on yank
+set matchit
+set textobj-entire           " ae / ie (entire buffer)
+set argtextobj               " aa / ia (function argument)
+let g:argtextobj_pairs = "[:],(:),<:>"
+set ReplaceWithRegister      " gr motion / grr line
+set which-key                " visualize leader chord; requires Which-Key IDE plugin
+set notimeout                " keep which-key popup open until a key is pressed
+
+" Jump navigation: vim-sneak (in-tree IdeaVim emulation, no Marketplace plugin
+" needed). Binds s{c1}{c2} forward, S{c1}{c2} backward, ; / , to repeat.
+Plug 'justinmk/vim-sneak'
+
+" ============================================================================
+" Which-Key group labels (mirrors which-key.lua spec)
+" ============================================================================
+
+let g:WhichKey_DefaultDelay = 0
+
+let g:WhichKeyDesc_find         = "<leader>f find"
+let g:WhichKeyDesc_find_files   = "<leader>ff find files"
+let g:WhichKeyDesc_find_grep    = "<leader>fg live grep"
+let g:WhichKeyDesc_find_buffers = "<leader>fb buffers"
+let g:WhichKeyDesc_find_recent  = "<leader>fr recent files"
+let g:WhichKeyDesc_find_help    = "<leader>fh help topics"
+let g:WhichKeyDesc_find_diag    = "<leader>fd diagnostics"
+
+let g:WhichKeyDesc_code         = "<leader>c code"
+let g:WhichKeyDesc_code_action  = "<leader>ca code action"
+let g:WhichKeyDesc_code_format  = "<leader>cf format buffer"
+
+let g:WhichKeyDesc_debug        = "<leader>d debug"
+let g:WhichKeyDesc_debug_break  = "<leader>db toggle breakpoint"
+let g:WhichKeyDesc_debug_cont   = "<leader>dc continue"
+let g:WhichKeyDesc_debug_over   = "<leader>do step over"
+let g:WhichKeyDesc_debug_into   = "<leader>di step into"
+let g:WhichKeyDesc_debug_out    = "<leader>dO step out"
+let g:WhichKeyDesc_debug_toggle = "<leader>dt toggle debug UI"
+let g:WhichKeyDesc_debug_eval   = "<leader>de evaluate expression"
+
+let g:WhichKeyDesc_git          = "<leader>g git"
+let g:WhichKeyDesc_git_stage    = "<leader>gs stage / rollback hunk"
+let g:WhichKeyDesc_git_reset    = "<leader>gr reset hunk"
+let g:WhichKeyDesc_git_preview  = "<leader>gp preview hunk"
+let g:WhichKeyDesc_git_blame    = "<leader>gb blame line"
+let g:WhichKeyDesc_git_view     = "<leader>gv VCS panel"
+
+let g:WhichKeyDesc_diagnostics  = "<leader>x diagnostics"
+let g:WhichKeyDesc_diag_show    = "<leader>xd show diagnostic"
+
+let g:WhichKeyDesc_quit         = "<leader>q quit"
+let g:WhichKeyDesc_quit_all     = "<leader>qq quit all"
+let g:WhichKeyDesc_quit_save    = "<leader>qw save all and quit"
+
+let g:WhichKeyDesc_rename       = "<leader>r rename / reload"
+let g:WhichKeyDesc_rename_sym   = "<leader>rn rename symbol"
+let g:WhichKeyDesc_rename_cfg   = "<leader>rc reload config"
+
+let g:WhichKeyDesc_explorer     = "<leader>e file explorer"
+let g:WhichKeyDesc_search_buf   = "<leader>/ search in buffer"
+
+let g:WhichKeyDesc_tool         = "<leader>t tool windows"
+let g:WhichKeyDesc_tool_term    = "<leader>tt terminal"
+let g:WhichKeyDesc_tool_run     = "<leader>tr run"
+let g:WhichKeyDesc_tool_zen     = "<leader>tz hide all panels"
+
+let g:WhichKeyDesc_buf          = "<leader>b buffer / tab"
+let g:WhichKeyDesc_buf_close    = "<leader>bd close tab"
+let g:WhichKeyDesc_buf_only     = "<leader>bo close other tabs"
+let g:WhichKeyDesc_buf_undo     = "<leader>bu reopen closed tab"
+let g:WhichKeyDesc_buf_pin      = "<leader>bp pin tab"
+
+let g:WhichKeyDesc_tab1         = "<leader>1 go to tab 1"
+let g:WhichKeyDesc_tab2         = "<leader>2 go to tab 2"
+let g:WhichKeyDesc_tab3         = "<leader>3 go to tab 3"
+let g:WhichKeyDesc_tab4         = "<leader>4 go to tab 4"
+let g:WhichKeyDesc_tab5         = "<leader>5 go to tab 5"
+let g:WhichKeyDesc_tab6         = "<leader>6 go to tab 6"
+let g:WhichKeyDesc_tab7         = "<leader>7 go to tab 7"
+let g:WhichKeyDesc_tab8         = "<leader>8 go to tab 8"
+let g:WhichKeyDesc_tab9         = "<leader>9 go to tab 9"
+
+" ============================================================================
+" Keymaps (mirror lua/keymaps.lua + plugin keys)
+" ============================================================================
+
+" Clear search highlight on Esc
+nnoremap <Esc> :nohlsearch<CR>
+
+" Buffer navigation -> IDE tab navigation
+nnoremap <S-h> :action PreviousTab<CR>
+nnoremap <S-l> :action NextTab<CR>
+
+" Stay in visual mode when indenting
+vnoremap < <gv
+vnoremap > >gv
+
+" Move lines in visual mode
+vnoremap J :m '>+1<CR>gv=gv
+vnoremap K :m '<-2<CR>gv=gv
+
+" Window navigation (matches vim-tmux-navigator semantics inside the IDE)
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+" Quit
+nnoremap <leader>qq :qa<CR>
+nnoremap <leader>qw :wa <Bar> qa<CR>
+
+" Reload IdeaVim config
+nnoremap <leader>rc :source ~/.ideavimrc<CR>
+
+" ----------------------------------------------------------------------------
+" LSP-equivalent (IDE actions)
+" ----------------------------------------------------------------------------
+
+nnoremap gd :action GotoDeclaration<CR>
+nnoremap gr :action FindUsages<CR>
+nnoremap gI :action GotoImplementation<CR>
+nnoremap gy :action GotoTypeDeclaration<CR>
+nnoremap gD :action GotoSuperMethod<CR>
+
+" Hover / docs (Neovim 0.11 default: K)
+nnoremap K :action QuickJavaDoc<CR>
+inoremap <C-k> <C-o>:action QuickJavaDoc<CR>
+
+" Rename / code action
+nnoremap <leader>rn :action RenameElement<CR>
+nnoremap <leader>ca :action ShowIntentionActions<CR>
+vnoremap <leader>ca :action ShowIntentionActions<CR>
+
+" Diagnostics
+nnoremap [d :action GotoPreviousError<CR>
+nnoremap ]d :action GotoNextError<CR>
+nnoremap <leader>xd :action ShowErrorDescription<CR>
+
+" Format buffer
+nnoremap <leader>cf :action ReformatCode<CR>
+vnoremap <leader>cf :action ReformatCode<CR>
+
+" ----------------------------------------------------------------------------
+" Finder (mirrors fzf-lua keys)
+" ----------------------------------------------------------------------------
+
+nnoremap <leader>ff :action GotoFile<CR>
+nnoremap <leader>fg :action FindInPath<CR>
+nnoremap <leader>fb :action RecentFiles<CR>
+nnoremap <leader>fr :action RecentFiles<CR>
+nnoremap <leader>fh :action HelpTopics<CR>
+nnoremap <leader>fd :action ActivateProblemsViewToolWindow<CR>
+nnoremap <leader>/  :action Find<CR>
+
+" ----------------------------------------------------------------------------
+" Tool windows / panels
+" ----------------------------------------------------------------------------
+
+" Return to editor from any tool window: bound at the IDE keymap level
+" (Settings | Keymap | Focus Editor → Shift+Esc) so it works from inside the
+" terminal panel and other tool windows that don't honor IdeaVim mappings.
+
+nnoremap <leader>e  :action ActivateProjectToolWindow<CR>
+nnoremap <leader>tt :action ActivateTerminalToolWindow<CR>
+nnoremap <leader>tr :action ActivateRunToolWindow<CR>
+nnoremap <leader>tz :action HideAllWindows<CR>
+nnoremap <leader>gv :action ActivateVersionControlToolWindow<CR>
+
+" ----------------------------------------------------------------------------
+" Editor tabs
+" ----------------------------------------------------------------------------
+
+nnoremap <leader>bd :action CloseContent<CR>
+nnoremap <leader>bo :action CloseAllEditorsButActive<CR>
+nnoremap <leader>bu :action ReopenClosedTab<CR>
+nnoremap <leader>bp :action PinActiveEditorTab<CR>
+
+nnoremap <leader>1 :action GoToTab1<CR>
+nnoremap <leader>2 :action GoToTab2<CR>
+nnoremap <leader>3 :action GoToTab3<CR>
+nnoremap <leader>4 :action GoToTab4<CR>
+nnoremap <leader>5 :action GoToTab5<CR>
+nnoremap <leader>6 :action GoToTab6<CR>
+nnoremap <leader>7 :action GoToTab7<CR>
+nnoremap <leader>8 :action GoToTab8<CR>
+nnoremap <leader>9 :action GoToTab9<CR>
+
+" ----------------------------------------------------------------------------
+" Git (mirrors gitsigns.lua)
+" ----------------------------------------------------------------------------
+
+nnoremap ]h :action VcsShowNextChangeMarker<CR>
+nnoremap [h :action VcsShowPrevChangeMarker<CR>
+nnoremap <leader>gs :action ChangesView.Rollback<CR>
+nnoremap <leader>gr :action ChangesView.Rollback<CR>
+nnoremap <leader>gp :action VcsShowCurrentChangeMarker<CR>
+nnoremap <leader>gb :action Annotate<CR>
+
+" ----------------------------------------------------------------------------
+" Debug (mirrors dap.lua)
+" ----------------------------------------------------------------------------
+
+nnoremap <leader>db :action ToggleLineBreakpoint<CR>
+nnoremap <leader>dc :action Resume<CR>
+nnoremap <leader>do :action StepOver<CR>
+nnoremap <leader>di :action StepInto<CR>
+nnoremap <leader>dO :action StepOut<CR>
+nnoremap <leader>dt :action ActivateDebugToolWindow<CR>
+nnoremap <leader>de :action EvaluateExpression<CR>
+vnoremap <leader>de :action EvaluateExpression<CR>
+
+" ----------------------------------------------------------------------------
+" Insert-mode <C-;>: append semicolon at EOL (matches autocmds.lua)
+" ----------------------------------------------------------------------------
+" sethandler ensures IdeaVim wins if the IDE keymap binds Ctrl+; .
+sethandler <C-;> i:vim
+inoremap <C-;> <End>;
