@@ -4,6 +4,14 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHo
   command = "checktime",
 })
 
+-- Briefly highlight yanked text
+vim.api.nvim_create_autocmd("TextYankPost", {
+  group = vim.api.nvim_create_augroup("highlight-yank", { clear = true }),
+  callback = function()
+    vim.hl.on_yank({ timeout = 150 })
+  end,
+})
+
 -- Auto-save: format + organize imports on InsertLeave, plain write on TextChanged
 local auto_save_group = vim.api.nvim_create_augroup("auto-save", { clear = true })
 
