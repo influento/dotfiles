@@ -1,0 +1,209 @@
+/* IdeaVim cheatsheet — dark, dense, mono. Color hierarchy only. */
+
+:root {
+  --bg:           #0d1117;
+  --bg-card:      #11161e;
+  --rule:         #1d2330;
+  --rule-bright:  #2a3346;
+
+  --fg:           #c9d1d9;
+  --fg-dim:       #8b95a5;
+  --fg-mute:      #5a6878;
+
+  --green:        #7ee787;
+  --green-deep:   #4a8f53;
+  --amber:        #ffb86c;
+  --steel:        #79c0ff;
+
+  --mono:         "JetBrains Mono", "JetBrainsMono Nerd Font", "Fira Code", "Menlo", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 18px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+main.bricks {
+  column-width: 380px;
+  column-gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+/* Masthead */
+.masthead {
+  background: var(--bg-card);
+  border: 1px solid var(--rule-bright);
+  margin: 0 0 0.5rem;
+  padding: 0.7rem 0.85rem 0.8rem;
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+}
+.masthead h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--green);
+}
+.grammar {
+  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  color: var(--fg-dim);
+}
+.grammar code {
+  color: var(--amber);
+  font-weight: 500;
+}
+.examples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.9rem;
+  row-gap: 0.18rem;
+}
+.examples li { display: contents; }
+.examples li > code {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--steel);
+  white-space: nowrap;
+}
+.examples li > span {
+  font-size: 0.84rem;
+  color: var(--fg-dim);
+}
+
+/* Section cards — color comes from family class (.vim / .ide / .patterns) */
+section {
+  --accent: var(--fg-dim);
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem 0.6rem;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+}
+
+section h2 {
+  margin: 0 0 0.5rem;
+  padding: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+section h2 .hint {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--fg-mute);
+  font-style: italic;
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.18rem;
+}
+
+/* dt color follows the family accent so the whole card reads as one group */
+dt {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+dd {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--fg-dim);
+}
+
+dd .hint {
+  color: var(--fg-mute);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+dd code, section code {
+  background: transparent;
+  color: var(--fg);
+  padding: 0;
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+/* kbd */
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--bg);
+  color: var(--green);
+  padding: 0.05em 0.4em;
+  border-radius: 2px;
+  border: 1px solid var(--green-deep);
+}
+
+/* ── Family colors ─────────────────────────────────────────── */
+
+/* Vim core — green */
+section.vim {
+  --accent: var(--green);
+}
+
+/* IDE / leader — steel blue */
+section.ide {
+  --accent: var(--steel);
+}
+
+/* Killer patterns — amber */
+section.patterns {
+  --accent: var(--amber);
+  border-color: var(--rule);
+  border-left-width: 3px;
+}
+
+/* Adaptive */
+@media (min-width: 1800px) {
+  html, body { font-size: 16px; }
+  main.bricks { column-width: 360px; }
+}
+@media (min-width: 2400px) {
+  html, body { font-size: 17px; }
+  main.bricks { column-width: 400px; }
+}
+@media (max-width: 600px) {
+  main.bricks { column-width: auto; column-count: 1; padding: 0.4rem; }
+}
+
+/* Print */
+@media print {
+  html, body { background: white; color: black; font-size: 9.5pt; }
+  main.bricks { column-count: 3; column-width: auto; padding: 0.4rem; }
+  section, .masthead { background: white; border: 1px solid #aaa; }
+  section h2, .masthead h1, dt { color: black; }
+  dd { color: #333; }
+  dd code, section code, .grammar code { color: #7e2a16; }
+  .patterns { border-color: #444; }
+}

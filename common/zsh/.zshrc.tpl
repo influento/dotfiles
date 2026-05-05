@@ -142,6 +142,26 @@ alias cp='cp -i'
 # Tmux
 alias ts='tmux-session'
 
+# Cheatsheets — focus existing window or launch in chromium app mode.
+# Source: ~/dev/infra/dotfiles/workstation/cheatsheets/<name>/index.html
+_cheat() {
+  local name="$1" title="$2"
+  if command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_tree 2>/dev/null \
+      | grep -q "\"name\": \"$title\""; then
+    swaymsg "[title=\"$title\"] focus" >/dev/null
+  else
+    nohup chromium \
+      --app="file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/$name/index.html" \
+      --user-data-dir="/tmp/chromium-cheat-$name" \
+      --no-first-run --no-default-browser-check \
+      >/dev/null 2>&1 &
+    disown
+  fi
+}
+alias cheat-ideavim='_cheat ideavim "IdeaVim cheatsheet"'
+alias cheat-nvim='_cheat nvim "Neovim cheatsheet"'
+alias cheat-tmux='_cheat tmux "tmux cheatsheet"'
+
 # Misc
 alias reload='source ~/.zshrc'
 alias path='echo $PATH | tr ":" "\n"'

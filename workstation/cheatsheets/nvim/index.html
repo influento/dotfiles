@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neovim cheatsheet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="bricks">
+
+    <section class="masthead">
+      <h1>Neovim</h1>
+      <p class="grammar">
+        leader = <kbd>Space</kbd> ·
+        <code>[count] op [count] motion</code> ·
+        doubled op = whole line ·
+        auto-save on InsertLeave (formats) and TextChanged
+      </p>
+      <ul class="examples">
+        <li><code>2daw</code><span>delete two words</span></li>
+        <li><code>ci"</code><span>change inside quotes</span></li>
+        <li><code>d3j</code><span>delete three lines down</span></li>
+        <li><code>gUiw</code><span>uppercase inner word</span></li>
+        <li><code>dt;</code><span>delete until ;</span></li>
+        <li><code>df)</code><span>delete through )</span></li>
+        <li><code>ysiw"</code><span>wrap word in quotes <span class="hint">mini.surround</span></span></li>
+        <li><code>*cgn …Esc . .</code><span>rename via search + repeat</span></li>
+        <li><code>s{c}{c}</code><span>flash jump (2-char)</span></li>
+      </ul>
+    </section>
+
+    <section class="vim">
+      <h2>Modes</h2>
+      <dl>
+        <dt>i a</dt><dd>insert before / after cursor</dd>
+        <dt>I A</dt><dd>insert at first non-ws / EOL</dd>
+        <dt>o O</dt><dd>open new line below / above</dd>
+        <dt>s S</dt><dd>sub char / whole line</dd>
+        <dt>c{motion}</dt><dd>change over motion (insert)</dd>
+        <dt>v V</dt><dd>visual char / line</dd>
+        <dt>Ctrl+v</dt><dd>visual block (column select)</dd>
+        <dt>R</dt><dd>replace mode (overwrite)</dd>
+        <dt>Esc</dt><dd>back to normal</dd>
+        <dt>Esc Esc</dt><dd>exit terminal mode <span class="hint">custom</span></dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Visual mode</h2>
+      <dl>
+        <dt>gv</dt><dd>reselect last selection</dd>
+        <dt>o</dt><dd>swap cursor to other end</dd>
+        <dt>vap vip</dt><dd>select a / inner paragraph</dd>
+        <dt>vat vit</dt><dd>select around / in tag</dd>
+        <dt>&gt; &lt;</dt><dd>indent / outdent (stays in visual)</dd>
+        <dt>=</dt><dd>auto-indent selection</dd>
+        <dt>~ u U</dt><dd>toggle / lower / UPPER case</dd>
+        <dt>J K</dt><dd>move lines down / up <span class="hint">custom</span></dd>
+        <dt>:!{cmd}</dt><dd>filter selection through shell</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Visual block <span class="hint">Ctrl+v</span></h2>
+      <dl>
+        <dt>I{text} Esc</dt><dd>insert at start of every line</dd>
+        <dt>A{text} Esc</dt><dd>append at end of every line</dd>
+        <dt>c{text} Esc</dt><dd>change every line in block</dd>
+        <dt>d</dt><dd>delete the block</dd>
+        <dt>r{c}</dt><dd>fill block with char</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Motion · line</h2>
+      <dl>
+        <dt>h j k l</dt><dd>← ↓ ↑ →</dd>
+        <dt>w W</dt><dd>next word / WORD start</dd>
+        <dt>b B</dt><dd>prev word / WORD start</dd>
+        <dt>e E</dt><dd>next word / WORD end</dd>
+        <dt>ge gE</dt><dd>prev word / WORD end</dd>
+        <dt>0 ^</dt><dd>line start / first non-ws</dd>
+        <dt>$ g_</dt><dd>line end / last non-ws</dd>
+        <dt>f{c} F{c}</dt><dd>jump to char fwd / back</dd>
+        <dt>t{c} T{c}</dt><dd>till char fwd / back</dd>
+        <dt>; ,</dt><dd>repeat f/F/t/T fwd / back</dd>
+        <dt>%</dt><dd>matching bracket</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Motion · file &amp; screen</h2>
+      <dl>
+        <dt>gg G</dt><dd>file start / end</dd>
+        <dt>{n}G</dt><dd>line n</dd>
+        <dt>{ }</dt><dd>blank line up / down</dd>
+        <dt>H M L</dt><dd>top / mid / bot of screen</dd>
+        <dt>Ctrl+d Ctrl+u</dt><dd>half page down / up</dd>
+        <dt>Ctrl+f Ctrl+b</dt><dd>full page down / up</dd>
+        <dt>Ctrl+e Ctrl+y</dt><dd>scroll line, hold cursor</dd>
+        <dt>zz zt zb</dt><dd>cursor center / top / bot</dd>
+        <dt>[( ])</dt><dd>unmatched paren</dd>
+        <dt>[{ ]}</dt><dd>unmatched brace</dd>
+        <dt>[[ ]]</dt><dd>top-level <code>{</code></dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Jumps</h2>
+      <dl>
+        <dt>Ctrl+o</dt><dd>back (jump history)</dd>
+        <dt>Ctrl+i</dt><dd>forward</dd>
+        <dt>g; g,</dt><dd>change list back / fwd</dd>
+        <dt>'' ``</dt><dd>prev jump (line / col)</dd>
+        <dt>gi</dt><dd>resume last insert</dd>
+        <dt>gv</dt><dd>reselect last visual</dd>
+        <dt>gf</dt><dd>open file under cursor</dd>
+        <dt>:jumps :changes</dt><dd>list</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Search &amp; replace</h2>
+      <dl>
+        <dt>/p ?p</dt><dd>search fwd / back</dd>
+        <dt>n N</dt><dd>next / prev match</dd>
+        <dt>* #</dt><dd>word under cursor</dd>
+        <dt>Esc</dt><dd>clear highlight <span class="hint">custom</span></dd>
+        <dt>:%s/a/b/g</dt><dd>replace all in file</dd>
+        <dt>:%s/a/b/gc</dt><dd>replace all + confirm</dd>
+        <dt>:s/a/b/g</dt><dd>replace on current line</dd>
+        <dt>&amp;</dt><dd>repeat last :s</dd>
+        <dt>cgn</dt><dd>change next match (.repeat)</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Edit</h2>
+      <dl>
+        <dt>x X</dt><dd>del char fwd / back</dd>
+        <dt>dd D</dt><dd>del line / to EOL</dd>
+        <dt>cc C</dt><dd>change line / to EOL</dd>
+        <dt>s S</dt><dd>sub char / line</dd>
+        <dt>yy Y</dt><dd>yank line / to EOL</dd>
+        <dt>p P</dt><dd>paste after / before</dd>
+        <dt>r{c}</dt><dd>replace char</dd>
+        <dt>R</dt><dd>replace mode</dd>
+        <dt>~</dt><dd>toggle case under cursor</dd>
+        <dt>gu{m} gU{m}</dt><dd>lower / UPPER + motion</dd>
+        <dt>g~{m}</dt><dd>toggle case + motion</dd>
+        <dt>J</dt><dd>join line below</dd>
+        <dt>&gt;&gt; &lt;&lt;</dt><dd>indent / outdent line</dd>
+        <dt>== =G</dt><dd>reformat line / to EOF</dd>
+        <dt>u Ctrl+r</dt><dd>undo / redo</dd>
+        <dt>.</dt><dd>repeat last change</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Text objects <span class="hint">after d c y v</span></h2>
+      <dl>
+        <dt>iw aw</dt><dd>word</dd>
+        <dt>iW aW</dt><dd>WORD (whitespace-delimited)</dd>
+        <dt>i" a"</dt><dd>double quotes</dd>
+        <dt>i' a'</dt><dd>single quotes</dd>
+        <dt>i` a`</dt><dd>backticks</dd>
+        <dt>i( a(</dt><dd>parens</dd>
+        <dt>i[ a[</dt><dd>brackets</dd>
+        <dt>i{ a{</dt><dd>braces</dd>
+        <dt>it at</dt><dd>HTML/XML tag</dd>
+        <dt>ip ap</dt><dd>paragraph</dd>
+        <dt>is as</dt><dd>sentence</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Insert mode</h2>
+      <dl>
+        <dt>Ctrl+w</dt><dd>del word back</dd>
+        <dt>Ctrl+u</dt><dd>del to line start</dd>
+        <dt>Ctrl+h</dt><dd>backspace</dd>
+        <dt>Ctrl+t Ctrl+d</dt><dd>indent / outdent</dd>
+        <dt>Ctrl+o {cmd}</dt><dd>one normal-mode cmd</dd>
+        <dt>Ctrl+r {reg}</dt><dd>insert register contents</dd>
+        <dt>Ctrl+r +</dt><dd>paste system clipboard</dd>
+        <dt>Ctrl+;</dt><dd>append ; at EOL <span class="hint">custom, code FTs</span></dd>
+        <dt>Ctrl+n Ctrl+p</dt><dd>completion next / prev <span class="hint">blink.cmp</span></dd>
+        <dt>Ctrl+y</dt><dd>accept completion</dd>
+        <dt>Ctrl+e</dt><dd>cancel completion</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Surround <span class="hint">mini.surround</span></h2>
+      <dl>
+        <dt>sa{m}{c}</dt><dd>add surround over motion</dd>
+        <dt>sd{c}</dt><dd>delete surround</dd>
+        <dt>sr{a}{b}</dt><dd>replace surround a→b</dd>
+        <dt>sf sF</dt><dd>find surround right / left</dd>
+        <dt>sh</dt><dd>highlight surround</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Comment <span class="hint">built-in 0.10+</span></h2>
+      <dl>
+        <dt>gcc</dt><dd>toggle comment line</dd>
+        <dt>gc{m}</dt><dd>toggle comment over motion</dd>
+        <dt>gc</dt><dd>(visual) toggle comment</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Folds</h2>
+      <dl>
+        <dt>za</dt><dd>toggle fold under cursor</dd>
+        <dt>zo zc</dt><dd>open / close fold</dd>
+        <dt>zR zM</dt><dd>open / close ALL folds</dd>
+        <dt>zr zm</dt><dd>reduce / increase fold level</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Numbers &amp; counts</h2>
+      <dl>
+        <dt>Ctrl+a</dt><dd>increment number</dd>
+        <dt>Ctrl+x</dt><dd>decrement number</dd>
+        <dt>{n}Ctrl+a</dt><dd>increment by n</dd>
+        <dt>5j 3w 2dd</dt><dd>any motion takes a count</dd>
+        <dt>d3w 2daw</dt><dd>operator + count + motion</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Registers · marks · macros</h2>
+      <dl>
+        <dt>"{a-z}</dt><dd>named register</dd>
+        <dt>"0</dt><dd>last yank only</dd>
+        <dt>"+ "*</dt><dd>system clipboard <span class="hint">default via unnamedplus</span></dd>
+        <dt>:reg</dt><dd>list registers</dd>
+        <dt>m{a-z}</dt><dd>set mark · '{m} `{m} jump</dd>
+        <dt>m{A-Z}</dt><dd>global mark (across files)</dd>
+        <dt>:marks</dt><dd>list marks</dd>
+        <dt>q{a}…q</dt><dd>record macro</dd>
+        <dt>@{a} @@</dt><dd>replay / repeat last</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Splits &amp; navigation</h2>
+      <dl>
+        <dt>:vsp :sp</dt><dd>vertical / horizontal split</dd>
+        <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
+        <dt>Ctrl+w =</dt><dd>balance splits</dd>
+        <dt>Ctrl+w o</dt><dd>only this split</dd>
+        <dt>Ctrl+w &gt; &lt;</dt><dd>resize wider / narrower</dd>
+        <dt>Ctrl+w + -</dt><dd>resize taller / shorter</dd>
+        <dt>Ctrl+w r</dt><dd>rotate splits</dd>
+        <dt>Ctrl+w T</dt><dd>break split into new tab</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Buffers &amp; tabs</h2>
+      <dl>
+        <dt>Shift+h Shift+l</dt><dd>prev / next buffer</dd>
+        <dt>:bd :bw</dt><dd>delete / wipe buffer</dd>
+        <dt>:ls :buffers</dt><dd>list buffers</dd>
+        <dt>:b{n} :b {name}</dt><dd>switch by index / name</dd>
+        <dt>gt gT</dt><dd>next / prev tab</dd>
+        <dt>:tabnew :tabclose</dt><dd>new / close tab</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Find <span class="hint">fzf-lua</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;ff</dt><dd>find files</dd>
+        <dt>&lt;leader&gt;fg</dt><dd>live grep</dd>
+        <dt>&lt;leader&gt;fb</dt><dd>buffers</dd>
+        <dt>&lt;leader&gt;fr</dt><dd>recent files</dd>
+        <dt>&lt;leader&gt;fh</dt><dd>help tags</dd>
+        <dt>&lt;leader&gt;fd</dt><dd>workspace diagnostics</dd>
+        <dt>&lt;leader&gt;/</dt><dd>search in current buffer</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>File explorer <span class="hint">neo-tree</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;e</dt><dd>toggle / focus tree</dd>
+        <dt>a</dt><dd>add file (trailing / for dir)</dd>
+        <dt>d</dt><dd>delete</dd>
+        <dt>r</dt><dd>rename</dd>
+        <dt>c m</dt><dd>copy / move</dd>
+        <dt>y x p</dt><dd>copy / cut / paste node</dd>
+        <dt>H</dt><dd>toggle hidden</dd>
+        <dt>R</dt><dd>refresh</dd>
+        <dt>?</dt><dd>show all keys</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>LSP <span class="hint">on attach</span></h2>
+      <dl>
+        <dt>K</dt><dd>hover docs</dd>
+        <dt>gd gD</dt><dd>definition / declaration</dd>
+        <dt>gr</dt><dd>references</dd>
+        <dt>gI</dt><dd>implementation</dd>
+        <dt>gy</dt><dd>type definition</dd>
+        <dt>&lt;leader&gt;rn</dt><dd>rename symbol</dd>
+        <dt>&lt;leader&gt;ca</dt><dd>code action <span class="hint">n + v</span></dd>
+        <dt>&lt;leader&gt;cf</dt><dd>format buffer <span class="hint">conform</span></dd>
+        <dt>]d [d</dt><dd>next / prev diagnostic</dd>
+        <dt>&lt;leader&gt;xd</dt><dd>show diagnostic float</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Flash <span class="hint">jump</span></h2>
+      <dl>
+        <dt>s{c}{c}</dt><dd>jump to 2-char match</dd>
+        <dt>S</dt><dd>treesitter jump (select node)</dd>
+        <dt>f F t T</dt><dd>enhanced char-jump (multi-line)</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Git <span class="hint">gitsigns</span></h2>
+      <dl>
+        <dt>]h [h</dt><dd>next / prev hunk</dd>
+        <dt>&lt;leader&gt;gs</dt><dd>stage hunk</dd>
+        <dt>&lt;leader&gt;gr</dt><dd>reset hunk</dd>
+        <dt>&lt;leader&gt;gp</dt><dd>preview hunk</dd>
+        <dt>&lt;leader&gt;gb</dt><dd>blame line</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Debug <span class="hint">nvim-dap</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;db</dt><dd>toggle breakpoint</dd>
+        <dt>&lt;leader&gt;dc</dt><dd>continue</dd>
+        <dt>&lt;leader&gt;do</dt><dd>step over</dd>
+        <dt>&lt;leader&gt;di</dt><dd>step into</dd>
+        <dt>&lt;leader&gt;dO</dt><dd>step out</dd>
+        <dt>&lt;leader&gt;dt</dt><dd>toggle DAP UI</dd>
+        <dt>&lt;leader&gt;de</dt><dd>eval under cursor <span class="hint">n + v</span></dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>.NET <span class="hint">easy-dotnet, cs/fsharp</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;nr nR</dt><dd>run / run default</dd>
+        <dt>&lt;leader&gt;nw</dt><dd>watch</dd>
+        <dt>&lt;leader&gt;nb nB</dt><dd>build / build solution</dd>
+        <dt>&lt;leader&gt;nt nT</dt><dd>test runner / test current</dd>
+        <dt>&lt;leader&gt;ns</dt><dd>select solution</dd>
+        <dt>&lt;leader&gt;na nA</dt><dd>add / remove NuGet pkg</dd>
+        <dt>&lt;leader&gt;nn</dt><dd>dotnet new</dd>
+        <dt>&lt;leader&gt;nc nx</dt><dd>clean / reset cache</dd>
+        <dt>&lt;leader&gt;np</dt><dd>project view</dd>
+        <dt>&lt;leader&gt;no</dt><dd>outdated packages</dd>
+        <dt>&lt;leader&gt;nd</dt><dd>workspace diagnostics</dd>
+        <dt>&lt;leader&gt;n`</dt><dd>toggle managed terminal</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Markdown</h2>
+      <dl>
+        <dt>&lt;leader&gt;mp</dt><dd>toggle render-markdown <span class="hint">md ft only</span></dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Ex ranges</h2>
+      <dl>
+        <dt>:.,$d</dt><dd>delete cursor → EOF</dd>
+        <dt>:.,+5d</dt><dd>delete next 5 lines</dd>
+        <dt>:5,10y</dt><dd>yank lines 5–10</dd>
+        <dt>:'&lt;,'&gt;s/a/b/g</dt><dd>replace inside visual selection</dd>
+        <dt>:'a,'bs/a/b/g</dt><dd>replace between marks a → b</dd>
+        <dt>:g/pat/d</dt><dd>delete every line matching pat</dd>
+        <dt>:v/pat/d</dt><dd>keep only matching lines</dd>
+        <dt>:g/pat/{cmd}</dt><dd>run cmd on every match</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Ex &amp; quit</h2>
+      <dl>
+        <dt>:w :q :wq</dt><dd>save / quit / both</dd>
+        <dt>:e {file}</dt><dd>open file</dd>
+        <dt>:{n}</dt><dd>go to line n</dd>
+        <dt>:!{cmd}</dt><dd>run shell command</dd>
+        <dt>:r {file}</dt><dd>read file into buffer</dd>
+        <dt>q: q/</dt><dd>cmd / search history window</dd>
+        <dt>Ctrl+g</dt><dd>show file info</dd>
+        <dt>&lt;leader&gt;qq</dt><dd>quit all</dd>
+        <dt>&lt;leader&gt;qw</dt><dd>save all + quit</dd>
+        <dt>&lt;leader&gt;rc</dt><dd>reload init.lua</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Plugin / health</h2>
+      <dl>
+        <dt>:Lazy</dt><dd>plugin manager</dd>
+        <dt>:Lazy sync</dt><dd>install / update / clean</dd>
+        <dt>:Mason</dt><dd>LSP / tool installer</dd>
+        <dt>:checkhealth</dt><dd>diagnose nvim &amp; plugins</dd>
+        <dt>:TSUpdate</dt><dd>update treesitter parsers</dd>
+        <dt>:LspInfo</dt><dd>active LSP servers</dd>
+      </dl>
+    </section>
+
+    <section class="patterns">
+      <h2>Killer patterns</h2>
+      <dl>
+        <dt>ciw</dt><dd>change inner word</dd>
+        <dt>ci" ci( ci{</dt><dd>change inside quotes / parens</dd>
+        <dt>daw</dt><dd>delete a word (incl. ws)</dd>
+        <dt>gUiw</dt><dd>uppercase inner word</dd>
+        <dt>*cgn …Esc . .</dt><dd>power-rename via search + .</dd>
+        <dt>ggVG</dt><dd>select entire file</dd>
+        <dt>gg=G</dt><dd>auto-indent file</dd>
+        <dt>saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
+        <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
+      </dl>
+    </section>
+
+  </main>
+</body>
+</html>

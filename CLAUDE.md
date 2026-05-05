@@ -195,6 +195,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
 | **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
 | **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
+| **cheatsheets**           | `workstation/cheatsheets/`                                    | HTML/CSS keybinding cheatsheets (ideavim, nvim, tmux). Opened directly from the dotfiles repo via chromium app mode (`cheat-<tool>` aliases in `.zshrc.tpl`) — no symlink, no deploy step |
 
 ## Code Conventions
 
