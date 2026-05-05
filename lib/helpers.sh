@@ -433,6 +433,10 @@ deploy_configs() {
           link_config "$script" "${user_home}/.local/bin/${script_name}"
         done
         ;;
+      # Cheatsheets: opened directly from dotfiles repo via _cheat zsh func
+      cheatsheets)
+        continue
+        ;;
       # Theming has nested subdirectories
       theming)
         local subdir
