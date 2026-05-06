@@ -251,9 +251,11 @@
     </section>
 
     <section class="ide">
-      <h2>Splits &amp; navigation</h2>
+      <h2>Splits <span class="hint">tmux-style</span></h2>
       <dl>
-        <dt>:vsp :sp</dt><dd>vertical / horizontal split</dd>
+        <dt>&lt;leader&gt;-</dt><dd>split horizontal (top/bot)</dd>
+        <dt>&lt;leader&gt;|</dt><dd>split vertical (side/side)</dd>
+        <dt>&lt;leader&gt;wq</dt><dd>close current split</dd>
         <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
         <dt>Ctrl+w =</dt><dd>balance splits</dd>
         <dt>Ctrl+w o</dt><dd>only this split</dd>
@@ -265,14 +267,27 @@
     </section>
 
     <section class="ide">
-      <h2>Buffers &amp; tabs</h2>
+      <h2>Buffers</h2>
       <dl>
         <dt>Shift+h Shift+l</dt><dd>prev / next buffer</dd>
-        <dt>:bd :bw</dt><dd>delete / wipe buffer</dd>
+        <dt>&lt;leader&gt;bd</dt><dd>delete buffer</dd>
+        <dt>&lt;leader&gt;bo</dt><dd>delete other buffers</dd>
         <dt>:ls :buffers</dt><dd>list buffers</dd>
         <dt>:b{n} :b {name}</dt><dd>switch by index / name</dd>
-        <dt>gt gT</dt><dd>next / prev tab</dd>
-        <dt>:tabnew :tabclose</dt><dd>new / close tab</dd>
+        <dt>:e {file}</dt><dd>open file as new buffer</dd>
+        <dt>:enew</dt><dd>new empty buffer</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Marks <span class="hint">native + fzf-lua</span></h2>
+      <dl>
+        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
+        <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
+        <dt>'{m} `{m}</dt><dd>jump line / exact pos</dd>
+        <dt>]' [' </dt><dd>next / prev line with mark</dd>
+        <dt>&lt;leader&gt;'</dt><dd>marks picker (fzf-lua)</dd>
+        <dt>:delmarks {a}</dt><dd>delete mark</dd>
       </dl>
     </section>
 
@@ -308,10 +323,10 @@
       <h2>LSP <span class="hint">on attach</span></h2>
       <dl>
         <dt>K</dt><dd>hover docs</dd>
-        <dt>gd gD</dt><dd>definition / declaration</dd>
+        <dt>gd</dt><dd>definition</dd>
         <dt>gr</dt><dd>references</dd>
-        <dt>gI</dt><dd>implementation</dd>
-        <dt>gy</dt><dd>type definition</dd>
+        <dt>gi</dt><dd>implementation</dd>
+        <dt>gt</dt><dd>type definition</dd>
         <dt>&lt;leader&gt;rn</dt><dd>rename symbol</dd>
         <dt>&lt;leader&gt;ca</dt><dd>code action <span class="hint">n + v</span></dd>
         <dt>&lt;leader&gt;cf</dt><dd>format buffer <span class="hint">conform</span></dd>

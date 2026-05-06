@@ -10,6 +10,13 @@ map("n", "<Esc>", "<cmd>nohlsearch<CR>")
 -- Buffer navigation
 map("n", "<S-h>", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
 map("n", "<S-l>", "<cmd>bnext<CR>", { desc = "Next buffer" })
+map("n", "<leader>bd", "<cmd>bd<CR>", { desc = "Delete buffer" })
+map("n", "<leader>bo", "<cmd>%bd|e#|bd#<CR>", { desc = "Delete other buffers" })
+
+-- Splits (tmux-style)
+map("n", "<leader>-", "<cmd>split<CR>", { desc = "Split horizontal" })
+map("n", "<leader>|", "<cmd>vsplit<CR>", { desc = "Split vertical" })
+map("n", "<leader>wq", "<cmd>close<CR>", { desc = "Close split" })
 
 -- Stay in visual mode when indenting
 map("v", "<", "<gv")

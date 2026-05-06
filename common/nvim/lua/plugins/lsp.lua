@@ -67,12 +67,11 @@ return {
           end
           map("gd", vim.lsp.buf.definition, "Go to definition")
           map("gr", vim.lsp.buf.references, "Go to references")
-          map("gI", vim.lsp.buf.implementation, "Go to implementation")
-          map("gy", vim.lsp.buf.type_definition, "Go to type definition")
+          map("gi", vim.lsp.buf.implementation, "Go to implementation")
+          map("gt", vim.lsp.buf.type_definition, "Go to type definition")
           map("<leader>rn", vim.lsp.buf.rename, "Rename symbol")
           map("<leader>ca", vim.lsp.buf.code_action, "Code action")
           vim.keymap.set("v", "<leader>ca", vim.lsp.buf.code_action, { buffer = event.buf, desc = "Code action" })
-          map("gD", vim.lsp.buf.declaration, "Go to declaration")
         end,
       })
     end,

@@ -38,7 +38,6 @@
         <dt>i a</dt><dd>insert before / after cursor</dd>
         <dt>I A</dt><dd>insert at first non-ws / EOL</dd>
         <dt>o O</dt><dd>open new line below / above</dd>
-        <dt>s S</dt><dd>sub char / whole line</dd>
         <dt>c{motion}</dt><dd>change over motion (insert)</dd>
         <dt>v V</dt><dd>visual char / line</dd>
         <dt>Ctrl+v</dt><dd>visual block (column select)</dd>
@@ -114,7 +113,6 @@
         <dt>Ctrl+i</dt><dd>forward</dd>
         <dt>g; g,</dt><dd>change list back / fwd</dd>
         <dt>'' ``</dt><dd>prev jump (line / col)</dd>
-        <dt>gi</dt><dd>resume last insert</dd>
         <dt>gv</dt><dd>reselect last visual</dd>
         <dt>gf</dt><dd>open file under cursor</dd>
         <dt>:jumps :changes</dt><dd>list</dd>
@@ -142,7 +140,6 @@
         <dt>x X</dt><dd>del char fwd / back</dd>
         <dt>dd D</dt><dd>del line / to EOL</dd>
         <dt>cc C</dt><dd>change line / to EOL</dd>
-        <dt>s S</dt><dd>sub char / line</dd>
         <dt>yy Y</dt><dd>yank line / to EOL</dd>
         <dt>p P</dt><dd>paste after / before</dd>
         <dt>r{c}</dt><dd>replace char</dd>
@@ -150,7 +147,7 @@
         <dt>~</dt><dd>toggle case under cursor</dd>
         <dt>gu{m} gU{m}</dt><dd>lower / UPPER + motion</dd>
         <dt>g~{m}</dt><dd>toggle case + motion</dd>
-        <dt>J</dt><dd>join line below</dd>
+        <dt>J</dt><dd>join line below <span class="hint">IDE smart-join</span></dd>
         <dt>&gt;&gt; &lt;&lt;</dt><dd>indent / outdent line</dd>
         <dt>== =G</dt><dd>reformat line / to EOF</dd>
         <dt>u Ctrl+r</dt><dd>undo / redo</dd>
@@ -231,8 +228,8 @@
         <dt>"0</dt><dd>last yank only</dd>
         <dt>"+ "*</dt><dd>system clipboard</dd>
         <dt>:reg</dt><dd>list registers</dd>
-        <dt>m{a-z}</dt><dd>set mark · '{m} `{m} jump</dd>
-        <dt>m{A-Z}</dt><dd>global mark (across files)</dd>
+        <dt>m{a-z}</dt><dd>set vim mark · '{m} `{m} jump</dd>
+        <dt>m{A-Z}</dt><dd>global vim mark</dd>
         <dt>:marks</dt><dd>list marks</dd>
         <dt>q{a}…q</dt><dd>record macro</dd>
         <dt>@{a} @@</dt><dd>replay / repeat last</dd>
@@ -240,21 +237,20 @@
     </section>
 
     <section class="ide">
-      <h2>IDE · splits <span class="hint">JetBrains actions</span></h2>
+      <h2>Splits <span class="hint">tmux-style</span></h2>
       <dl>
-        <dt>:vsp :sp</dt><dd>vertical / horizontal split <span class="hint">vim</span></dd>
-        <dt>Ctrl+h/j/k/l</dt><dd>focus split (mapped)</dd>
-        <dt>Move Tab Right</dt><dd>create vertical split (action)</dd>
-        <dt>Move Tab Down</dt><dd>create horizontal split (action)</dd>
-        <dt>Unsplit</dt><dd>collapse current split (action)</dd>
-        <dt>Goto Next Splitter</dt><dd>cycle split focus (action)</dd>
+        <dt>&lt;leader&gt;-</dt><dd>split horizontal (top/bot)</dd>
+        <dt>&lt;leader&gt;|</dt><dd>split vertical (side/side)</dd>
+        <dt>&lt;leader&gt;wq</dt><dd>close current split</dd>
+        <dt>Ctrl+h/j/k/l</dt><dd>focus split</dd>
+        <dt>Ctrl+w =</dt><dd>balance splits <span class="hint">vim</span></dd>
+        <dt>Ctrl+w o</dt><dd>only this split <span class="hint">vim</span></dd>
       </dl>
     </section>
 
     <section class="ide">
-      <h2>Windows &amp; tabs</h2>
+      <h2>Tabs</h2>
       <dl>
-        <dt>Ctrl+h/j/k/l</dt><dd>move between splits</dd>
         <dt>Shift+h Shift+l</dt><dd>prev / next tab</dd>
         <dt>&lt;leader&gt;1..9</dt><dd>tab by index</dd>
         <dt>&lt;leader&gt;bd</dt><dd>close tab</dd>
@@ -269,10 +265,11 @@
       <h2>IDE · find</h2>
       <dl>
         <dt>&lt;leader&gt;ff</dt><dd>find file</dd>
-        <dt>&lt;leader&gt;fg</dt><dd>live grep</dd>
+        <dt>&lt;leader&gt;fg</dt><dd>find in path</dd>
         <dt>&lt;leader&gt;fr</dt><dd>recent files</dd>
-        <dt>&lt;leader&gt;fh</dt><dd>help topics</dd>
-        <dt>&lt;leader&gt;fd</dt><dd>diagnostics</dd>
+        <dt>&lt;leader&gt;fb</dt><dd>recently changed files</dd>
+        <dt>&lt;leader&gt;fa</dt><dd>find action (Ctrl+Shift+A)</dd>
+        <dt>&lt;leader&gt;fd</dt><dd>problems</dd>
         <dt>&lt;leader&gt;/</dt><dd>find in current file</dd>
       </dl>
     </section>
@@ -282,9 +279,10 @@
       <dl>
         <dt>&lt;leader&gt;e</dt><dd>project tree</dd>
         <dt>&lt;leader&gt;tt</dt><dd>terminal</dd>
-        <dt>&lt;leader&gt;tr</dt><dd>run window</dd>
         <dt>&lt;leader&gt;tz</dt><dd>zen (hide all)</dd>
         <dt>&lt;leader&gt;gv</dt><dd>git / VCS window</dd>
+        <dt>&lt;leader&gt;np</dt><dd>project view (.NET)</dd>
+        <dt>&lt;leader&gt;na</dt><dd>NuGet window</dd>
       </dl>
     </section>
 
@@ -292,16 +290,17 @@
       <h2>IDE · code intelligence</h2>
       <dl>
         <dt>K</dt><dd>hover docs</dd>
-        <dt>gd gD</dt><dd>declaration / super</dd>
-        <dt>grr</dt><dd>show usages</dd>
-        <dt>gri</dt><dd>go to implementation</dd>
-        <dt>grt</dt><dd>go to type definition</dd>
-        <dt>grn</dt><dd>rename</dd>
-        <dt>gra</dt><dd>code action / intentions</dd>
+        <dt>gd gD</dt><dd>declaration / super method</dd>
+        <dt>gr</dt><dd>show usages</dd>
+        <dt>gi</dt><dd>go to implementation</dd>
+        <dt>gt</dt><dd>go to type definition</dd>
+        <dt>&lt;leader&gt;rn</dt><dd>rename</dd>
+        <dt>&lt;leader&gt;ca</dt><dd>code action / intentions</dd>
         <dt>]g [g</dt><dd>next / prev usage</dd>
         <dt>]d [d</dt><dd>next / prev diagnostic</dd>
         <dt>&lt;leader&gt;xd</dt><dd>show error description</dd>
         <dt>&lt;leader&gt;cf</dt><dd>format buffer</dd>
+        <dt>&lt;leader&gt;mp</dt><dd>toggle markdown preview</dd>
       </dl>
     </section>
 
@@ -310,11 +309,35 @@
       <dl>
         <dt>&lt;leader&gt;mm</dt><dd>set mnemonic bookmark</dd>
         <dt>&lt;leader&gt;ma</dt><dd>anonymous bookmark</dd>
-        <dt>&lt;leader&gt;'</dt><dd>bookmark popup</dd>
+        <dt>&lt;leader&gt;'</dt><dd>bookmarks tool window</dd>
         <dt>]m [m</dt><dd>next / prev bookmark</dd>
-        <dt>&lt;leader&gt;j</dt><dd>AceJump (start of match)</dd>
-        <dt>&lt;leader&gt;J</dt><dd>AceJump (target mode)</dd>
+        <dt>s</dt><dd>AceJump (start of match)</dd>
+        <dt>S</dt><dd>AceJump (target mode)</dd>
         <dt>&lt;leader&gt;l</dt><dd>AceJump (line)</dd>
+        <dt>&lt;leader&gt;vv</dt><dd>re-arm IdeaVim (popup rescue)</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Git / hunks</h2>
+      <dl>
+        <dt>]h [h</dt><dd>next / prev change marker</dd>
+        <dt>&lt;leader&gt;gp</dt><dd>preview hunk</dd>
+        <dt>&lt;leader&gt;gb</dt><dd>annotate (blame)</dd>
+        <dt>&lt;leader&gt;gr</dt><dd>rollback changed lines</dd>
+        <dt>&lt;leader&gt;gv</dt><dd>VCS tool window</dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>.NET</h2>
+      <dl>
+        <dt>&lt;leader&gt;nr</dt><dd>run</dd>
+        <dt>&lt;leader&gt;nb nB</dt><dd>build / build solution</dd>
+        <dt>&lt;leader&gt;nt nT</dt><dd>unit tests window / run current</dd>
+        <dt>&lt;leader&gt;nc</dt><dd>clean solution</dd>
+        <dt>&lt;leader&gt;np</dt><dd>project tool window</dd>
+        <dt>&lt;leader&gt;na</dt><dd>NuGet tool window</dd>
       </dl>
     </section>
 
