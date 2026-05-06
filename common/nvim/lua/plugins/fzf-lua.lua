@@ -9,6 +9,7 @@ return {
     { "<leader>fr", "<cmd>FzfLua oldfiles<CR>", desc = "Recent files" },
     { "<leader>fd", "<cmd>FzfLua diagnostics_workspace<CR>", desc = "Diagnostics" },
     { "<leader>/", "<cmd>FzfLua lgrep_curbuf<CR>", desc = "Search in buffer" },
+    { "<leader>'", "<cmd>FzfLua marks<CR>", desc = "Marks" },
   },
   opts = {},
 }
