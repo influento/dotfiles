@@ -197,11 +197,11 @@
     <section class="vim">
       <h2>Surround <span class="hint">mini.surround</span></h2>
       <dl>
-        <dt>sa{m}{c}</dt><dd>add surround over motion</dd>
-        <dt>sd{c}</dt><dd>delete surround</dd>
-        <dt>sr{a}{b}</dt><dd>replace surround a→b</dd>
-        <dt>sf sF</dt><dd>find surround right / left</dd>
-        <dt>sh</dt><dd>highlight surround</dd>
+        <dt>&lt;leader&gt;sa{m}{c}</dt><dd>add surround over motion</dd>
+        <dt>&lt;leader&gt;sd{c}</dt><dd>delete surround</dd>
+        <dt>&lt;leader&gt;sr{a}{b}</dt><dd>replace surround a→b</dd>
+        <dt>&lt;leader&gt;sf &lt;leader&gt;sF</dt><dd>find surround right / left</dd>
+        <dt>&lt;leader&gt;sh</dt><dd>highlight surround</dd>
       </dl>
     </section>
 
@@ -236,17 +236,27 @@
     </section>
 
     <section class="vim">
-      <h2>Registers · marks · macros</h2>
+      <h2>Registers &amp; macros</h2>
       <dl>
         <dt>"{a-z}</dt><dd>named register</dd>
         <dt>"0</dt><dd>last yank only</dd>
         <dt>"+ "*</dt><dd>system clipboard <span class="hint">default via unnamedplus</span></dd>
         <dt>:reg</dt><dd>list registers</dd>
-        <dt>m{a-z}</dt><dd>set mark · '{m} `{m} jump</dd>
-        <dt>m{A-Z}</dt><dd>global mark (across files)</dd>
-        <dt>:marks</dt><dd>list marks</dd>
         <dt>q{a}…q</dt><dd>record macro</dd>
         <dt>@{a} @@</dt><dd>replay / repeat last</dd>
+      </dl>
+    </section>
+
+    <section class="vim">
+      <h2>Marks</h2>
+      <dl>
+        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
+        <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
+        <dt>gm{c}</dt><dd>jump to mark <span class="hint">remap of `</span></dd>
+        <dt>'{c}</dt><dd>jump to mark line</dd>
+        <dt>]m [m</dt><dd>next / prev mark <span class="hint">alias of ]' [' </span></dd>
+        <dt>&lt;leader&gt;'</dt><dd>marks picker (fzf-lua)</dd>
+        <dt>Ctrl+x</dt><dd>delete mark <span class="hint">in picker</span></dd>
       </dl>
     </section>
 
@@ -279,17 +289,6 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Marks <span class="hint">native + fzf-lua</span></h2>
-      <dl>
-        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
-        <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
-        <dt>'{m} `{m}</dt><dd>jump line / exact pos</dd>
-        <dt>]' [' </dt><dd>next / prev line with mark</dd>
-        <dt>&lt;leader&gt;'</dt><dd>marks picker (fzf-lua)</dd>
-        <dt>:delmarks {a}</dt><dd>delete mark</dd>
-      </dl>
-    </section>
 
     <section class="ide">
       <h2>Find <span class="hint">fzf-lua</span></h2>
@@ -300,6 +299,7 @@
         <dt>&lt;leader&gt;fr</dt><dd>recent files</dd>
         <dt>&lt;leader&gt;fh</dt><dd>help tags</dd>
         <dt>&lt;leader&gt;fd</dt><dd>workspace diagnostics</dd>
+        <dt>&lt;leader&gt;fa</dt><dd>find action (ex commands)</dd>
         <dt>&lt;leader&gt;/</dt><dd>search in current buffer</dd>
       </dl>
     </section>
@@ -331,6 +331,7 @@
         <dt>&lt;leader&gt;ca</dt><dd>code action <span class="hint">n + v</span></dd>
         <dt>&lt;leader&gt;cf</dt><dd>format buffer <span class="hint">conform</span></dd>
         <dt>]d [d</dt><dd>next / prev diagnostic</dd>
+        <dt>]g [g</dt><dd>next / prev usage of symbol <span class="hint">documentHighlight</span></dd>
         <dt>&lt;leader&gt;xd</dt><dd>show diagnostic float</dd>
       </dl>
     </section>
@@ -345,13 +346,14 @@
     </section>
 
     <section class="ide">
-      <h2>Git <span class="hint">gitsigns</span></h2>
+      <h2>Git <span class="hint">gitsigns + lazygit</span></h2>
       <dl>
         <dt>]h [h</dt><dd>next / prev hunk</dd>
         <dt>&lt;leader&gt;gs</dt><dd>stage hunk</dd>
         <dt>&lt;leader&gt;gr</dt><dd>reset hunk</dd>
         <dt>&lt;leader&gt;gp</dt><dd>preview hunk</dd>
         <dt>&lt;leader&gt;gb</dt><dd>blame line</dd>
+        <dt>&lt;leader&gt;gv</dt><dd>lazygit (full UI)</dd>
       </dl>
     </section>
 
@@ -445,7 +447,7 @@
         <dt>*cgn …Esc . .</dt><dd>power-rename via search + .</dd>
         <dt>ggVG</dt><dd>select entire file</dd>
         <dt>gg=G</dt><dd>auto-indent file</dd>
-        <dt>saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
+        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
         <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
       </dl>
     </section>

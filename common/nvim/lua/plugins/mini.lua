@@ -4,7 +4,18 @@ return {
   event = "VeryLazy",
   config = function()
     require("mini.pairs").setup()
-    require("mini.surround").setup()
+    require("mini.surround").setup({
+      -- Keep bare `s` free for flash.nvim.
+      mappings = {
+        add            = "<leader>sa",
+        delete         = "<leader>sd",
+        find           = "<leader>sf",
+        find_left      = "<leader>sF",
+        highlight      = "<leader>sh",
+        replace        = "<leader>sr",
+        update_n_lines = "<leader>sn",
+      },
+    })
     require("mini.statusline").setup()
     require("mini.pick").setup({
       window = {

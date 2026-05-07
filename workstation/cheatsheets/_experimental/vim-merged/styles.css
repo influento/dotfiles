@@ -1,0 +1,338 @@
+/* Vim merged cheatsheet — Common / Neovim / IdeaVim tri-switcher.
+   Extends the canonical ideavim styles.css with tri-mode toggle UI. */
+
+:root {
+  --bg:           #0d1117;
+  --bg-card:      #11161e;
+  --bg-elevated:  #161c26;
+  --rule:         #1d2330;
+  --rule-bright:  #2a3346;
+
+  --fg:           #c9d1d9;
+  --fg-dim:       #8b95a5;
+  --fg-mute:      #5a6878;
+
+  --green:        #7ee787;
+  --green-deep:   #4a8f53;
+  --amber:        #ffb86c;
+  --steel:        #79c0ff;
+  --violet:       #c4a7e7;
+
+  --mono:         "JetBrains Mono", "JetBrainsMono Nerd Font", "Fira Code", "Menlo", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 18px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top bar ───────────────────────────────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(13, 17, 23, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--rule-bright);
+}
+
+.topbar .title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+
+.topbar .title .scope-label {
+  color: var(--fg-mute);
+  font-weight: 400;
+  margin-left: 0.4rem;
+}
+
+.scope-switch {
+  display: inline-flex;
+  border: 1px solid var(--rule-bright);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: auto;
+}
+
+.scope-switch button {
+  appearance: none;
+  background: var(--bg-card);
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  border: 0;
+  border-right: 1px solid var(--rule-bright);
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: background 120ms, color 120ms;
+}
+.scope-switch button:last-child { border-right: 0; }
+.scope-switch button:hover { color: var(--fg); background: var(--bg-elevated); }
+
+.scope-switch button[aria-pressed="true"] { color: var(--bg); font-weight: 700; }
+.scope-switch button[data-scope="common"][aria-pressed="true"]  { background: var(--green); }
+.scope-switch button[data-scope="nvim"][aria-pressed="true"]    { background: var(--steel); }
+.scope-switch button[data-scope="ideavim"][aria-pressed="true"] { background: var(--amber); }
+
+/* ── Layout ────────────────────────────────────────────────── */
+
+main.bricks {
+  column-width: 380px;
+  column-gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+/* Masthead */
+.masthead {
+  background: var(--bg-card);
+  border: 1px solid var(--rule-bright);
+  margin: 0 0 0.5rem;
+  padding: 0.7rem 0.85rem 0.8rem;
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+}
+.masthead h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+.masthead h1 .scope-name { transition: color 200ms; }
+body[data-scope="common"]  .masthead h1 .scope-name { color: var(--green); }
+body[data-scope="nvim"]    .masthead h1 .scope-name { color: var(--steel); }
+body[data-scope="ideavim"] .masthead h1 .scope-name { color: var(--amber); }
+
+.grammar {
+  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  color: var(--fg-dim);
+}
+.grammar code {
+  color: var(--amber);
+  font-weight: 500;
+}
+.examples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.9rem;
+  row-gap: 0.18rem;
+}
+.examples li { display: contents; }
+.examples li > code {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--steel);
+  white-space: nowrap;
+}
+.examples li > span {
+  font-size: 0.84rem;
+  color: var(--fg-dim);
+}
+
+/* ── Section cards ─────────────────────────────────────────── */
+
+section {
+  --accent: var(--fg-dim);
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem 0.6rem;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+}
+
+section h2 {
+  margin: 0 0 0.5rem;
+  padding: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+section h2 .hint {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--fg-mute);
+  font-style: italic;
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.18rem;
+}
+
+dt {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+dd {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--fg-dim);
+}
+
+dd .hint {
+  color: var(--fg-mute);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+dd code, section code {
+  background: transparent;
+  color: var(--fg);
+  padding: 0;
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--bg);
+  color: var(--green);
+  padding: 0.05em 0.4em;
+  border-radius: 2px;
+  border: 1px solid var(--green-deep);
+}
+
+/* ── Family colors ─────────────────────────────────────────── */
+
+section.vim      { --accent: var(--green); }
+section.ide      { --accent: var(--steel); }
+section.patterns {
+  --accent: var(--amber);
+  border-color: var(--rule);
+  border-left-width: 3px;
+}
+
+/* ── Scope badges ──────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.05em 0.45em;
+  border-radius: 2px;
+  text-transform: uppercase;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+.badge-nvim    { background: rgba(121, 192, 255, 0.16); color: var(--steel); }
+.badge-ideavim { background: rgba(255, 184, 108, 0.16); color: var(--amber); }
+
+/* h2 badges sit beside the hint */
+section h2 .badge { font-size: 0.6rem; }
+
+/* row-level: split a dt into key + tiny badge cluster */
+dt .badge { margin-left: 0.4em; }
+
+/* ── Scope filtering ───────────────────────────────────────── */
+
+/* Three non-overlapping views.
+   - common  : shows untagged elements only (the shared bedrock).
+   - nvim    : shows ONLY [data-show="nvim"] elements.
+   - ideavim : shows ONLY [data-show="ideavim"] elements.
+   So each mode is small and focused — no duplication, no scrolling past
+   stuff already memorized. */
+
+/* Hide tool-specific by default; common scope keeps untagged items. */
+[data-show] { display: none; }
+
+/* In nvim/ideavim mode, hide common (untagged) sections entirely.
+   Masthead (always shown) is exempt via :not(.masthead). */
+body[data-scope="nvim"]    section:not([data-show]):not(.masthead),
+body[data-scope="ideavim"] section:not([data-show]):not(.masthead) { display: none; }
+
+/* Tagged sections show all their inner rows by default — the section is
+   already gated by [data-show], so its contents come along for free. We
+   only hide rows that are explicitly tagged for a *different* scope. */
+body[data-scope="nvim"]    dt[data-show="ideavim"],
+body[data-scope="nvim"]    dd[data-show="ideavim"],
+body[data-scope="ideavim"] dt[data-show="nvim"],
+body[data-scope="ideavim"] dd[data-show="nvim"] { display: none; }
+
+/* Reveal matching tagged sections + rows + inline hints. */
+body[data-scope="nvim"]    section[data-show="nvim"],
+body[data-scope="ideavim"] section[data-show="ideavim"] { display: inline-block; width: 100%; }
+
+body[data-scope="nvim"]    dt[data-show="nvim"],
+body[data-scope="nvim"]    dd[data-show="nvim"],
+body[data-scope="ideavim"] dt[data-show="ideavim"],
+body[data-scope="ideavim"] dd[data-show="ideavim"] { display: block; }
+
+body[data-scope="nvim"]    span[data-show="nvim"],
+body[data-scope="ideavim"] span[data-show="ideavim"] { display: inline; }
+
+/* In common mode, untagged dt/dd inside tagged (hidden) sections don't
+   matter — the parent section is already display:none. */
+
+/* Common mode: badges are noise (only one scope's content shown anyway). */
+body[data-scope="common"] .badge { display: none; }
+
+/* ── Adaptive ──────────────────────────────────────────────── */
+
+@media (min-width: 1800px) {
+  html, body { font-size: 16px; }
+  main.bricks { column-width: 360px; }
+}
+@media (min-width: 2400px) {
+  html, body { font-size: 17px; }
+  main.bricks { column-width: 400px; }
+}
+@media (max-width: 600px) {
+  main.bricks { column-width: auto; column-count: 1; padding: 0.4rem; }
+  .topbar { flex-wrap: wrap; }
+  .scope-switch { margin-left: 0; }
+}
+
+/* ── Print ─────────────────────────────────────────────────── */
+@media print {
+  html, body { background: white; color: black; font-size: 9.5pt; }
+  .topbar { display: none; }
+  main.bricks { column-count: 3; column-width: auto; padding: 0.4rem; }
+  section, .masthead { background: white; border: 1px solid #aaa; }
+  section h2, .masthead h1, dt { color: black; }
+  dd { color: #333; }
+  dd code, section code, .grammar code { color: #7e2a16; }
+  .patterns { border-color: #444; }
+  .badge { border: 1px solid #888; color: #333; background: white; }
+}

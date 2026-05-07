@@ -2,7 +2,11 @@ return {
   "folke/snacks.nvim",
   priority = 1000,
   lazy = false,
+  keys = {
+    { "<leader>gv", function() Snacks.lazygit() end, desc = "Lazygit" },
+  },
   opts = {
+    lazygit = {},
     dashboard = {
       preset = {
         header = "  " .. (vim.uv.os_gethostname or vim.loop.os_gethostname)():upper() .. "  ",

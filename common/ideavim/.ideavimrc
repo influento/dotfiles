@@ -32,6 +32,7 @@ set visualbell
 
 set ideajoin
 set idearefactormode=select  " enter IDE rename template with name selected (visual)
+set ideamarks                " sync uppercase global marks (A-Z) into IDE bookmarks tool window
 
 " ============================================================================
 " Emulated plugins
@@ -44,6 +45,12 @@ set highlightedyank
 set textobj-entire
 set argtextobj
 let g:argtextobj_pairs = "[:],(:),<:>"
+
+" Surround under <leader>s* — keeps bare `s` free for AceJump.
+nmap <leader>sa ys
+nmap <leader>sd ds
+nmap <leader>sr cs
+xmap <leader>sa S
 
 " AceJump: nmap-only — uppercase action variants leave you in VISUAL when
 " bound mode-agnostically.
@@ -66,6 +73,92 @@ vnoremap > >gv
 vnoremap J :m '>+1<CR>gv=gv
 vnoremap K :m '<-2<CR>gv=gv
 
+" gm{c} jumps to mark — ` is hard to reach.
+nnoremap gm `
+
+" Lowercase marks routed to uppercase: every mark goes through BookmarksManager
+" (one unified bookmark layer instead of two parallel vim/IDE stores).
+nnoremap ma mA
+nnoremap mb mB
+nnoremap mc mC
+nnoremap md mD
+nnoremap me mE
+nnoremap mf mF
+nnoremap mg mG
+nnoremap mh mH
+nnoremap mi mI
+nnoremap mj mJ
+nnoremap mk mK
+nnoremap ml mL
+nnoremap mm mM
+nnoremap mn mN
+nnoremap mo mO
+nnoremap mp mP
+nnoremap mq mQ
+nnoremap mr mR
+nnoremap ms mS
+nnoremap mt mT
+nnoremap mu mU
+nnoremap mv mV
+nnoremap mw mW
+nnoremap mx mX
+nnoremap my mY
+nnoremap mz mZ
+" gm{c} routes lowercase to uppercase target.
+nnoremap gma `A
+nnoremap gmb `B
+nnoremap gmc `C
+nnoremap gmd `D
+nnoremap gme `E
+nnoremap gmf `F
+nnoremap gmg `G
+nnoremap gmh `H
+nnoremap gmi `I
+nnoremap gmj `J
+nnoremap gmk `K
+nnoremap gml `L
+nnoremap gmm `M
+nnoremap gmn `N
+nnoremap gmo `O
+nnoremap gmp `P
+nnoremap gmq `Q
+nnoremap gmr `R
+nnoremap gms `S
+nnoremap gmt `T
+nnoremap gmu `U
+nnoremap gmv `V
+nnoremap gmw `W
+nnoremap gmx `X
+nnoremap gmy `Y
+nnoremap gmz `Z
+" '{c} line-only jump.
+nnoremap 'a 'A
+nnoremap 'b 'B
+nnoremap 'c 'C
+nnoremap 'd 'D
+nnoremap 'e 'E
+nnoremap 'f 'F
+nnoremap 'g 'G
+nnoremap 'h 'H
+nnoremap 'i 'I
+nnoremap 'j 'J
+nnoremap 'k 'K
+nnoremap 'l 'L
+nnoremap 'm 'M
+nnoremap 'n 'N
+nnoremap 'o 'O
+nnoremap 'p 'P
+nnoremap 'q 'Q
+nnoremap 'r 'R
+nnoremap 's 'S
+nnoremap 't 'T
+nnoremap 'u 'U
+nnoremap 'v 'V
+nnoremap 'w 'W
+nnoremap 'x 'X
+nnoremap 'y 'Y
+nnoremap 'z 'Z
+
 nnoremap <C-h> <C-w>h
 nnoremap <C-j> <C-w>j
 nnoremap <C-k> <C-w>k
@@ -81,8 +174,6 @@ nnoremap <leader>qw :wa <Bar> qa<CR>
 
 nnoremap <leader>rc :source ~/.ideavimrc<CR>
 
-" Bookmarks: richer than nvim. nvim's <leader>' opens :FzfLua marks instead.
-nnoremap <leader>mm :action ToggleBookmarkWithMnemonic<CR>
 nnoremap <leader>ma :action ToggleBookmark<CR>
 nnoremap <leader>'  :action ActivateBookmarksToolWindow<CR>
 nnoremap ]m :action GotoNextBookmark<CR>
