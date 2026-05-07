@@ -63,8 +63,11 @@
       </ul>
     </section>
 
-    <!-- ── Modes ─────────────────────────────────────────── -->
-    <section class="vim">
+    <!-- ══════════════════════════════════════════════════════
+         GROUP A · MOVE — modes, motion, jumps, search
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim g-move">
       <h2>Modes</h2>
       <dl>
         <dt>i a</dt><dd>insert before / after cursor</dd>
@@ -78,35 +81,7 @@
       </dl>
     </section>
 
-    <!-- ── Visual ────────────────────────────────────────── -->
-    <section class="vim">
-      <h2>Visual mode</h2>
-      <dl>
-        <dt>gv</dt><dd>reselect last selection</dd>
-        <dt>o</dt><dd>swap cursor to other end</dd>
-        <dt>vap vip</dt><dd>select a / inner paragraph</dd>
-        <dt>vat vit</dt><dd>select around / in tag</dd>
-        <dt>&gt; &lt;</dt><dd>indent / outdent (stays in visual)</dd>
-        <dt>=</dt><dd>auto-indent selection</dd>
-        <dt>~ u U</dt><dd>toggle / lower / UPPER case</dd>
-        <dt>J K</dt><dd>move lines down / up <span class="hint">custom</span></dd>
-        <dt>:!{cmd}</dt><dd>filter selection through shell</dd>
-      </dl>
-    </section>
-
-    <section class="vim">
-      <h2>Visual block <span class="hint">Ctrl+v</span></h2>
-      <dl>
-        <dt>I{text} Esc</dt><dd>insert at start of every line</dd>
-        <dt>A{text} Esc</dt><dd>append at end of every line</dd>
-        <dt>c{text} Esc</dt><dd>change every line in block</dd>
-        <dt>d</dt><dd>delete the block</dd>
-        <dt>r{c}</dt><dd>fill block with char</dd>
-      </dl>
-    </section>
-
-    <!-- ── Motion ────────────────────────────────────────── -->
-    <section class="vim">
+    <section class="vim g-move">
       <h2>Motion · line</h2>
       <dl>
         <dt>h j k l</dt><dd>← ↓ ↑ →</dd>
@@ -123,7 +98,7 @@
       </dl>
     </section>
 
-    <section class="vim">
+    <section class="vim g-move">
       <h2>Motion · file &amp; screen</h2>
       <dl>
         <dt>gg G</dt><dd>file start / end</dd>
@@ -140,7 +115,7 @@
       </dl>
     </section>
 
-    <section class="vim">
+    <section class="vim g-move">
       <h2>Jumps</h2>
       <dl>
         <dt>Ctrl+o</dt><dd>back (jump history)</dd>
@@ -153,8 +128,7 @@
       </dl>
     </section>
 
-    <!-- ── Search ────────────────────────────────────────── -->
-    <section class="vim">
+    <section class="vim g-move">
       <h2>Search &amp; replace</h2>
       <dl>
         <dt>/p ?p</dt><dd>search fwd / back</dd>
@@ -169,8 +143,54 @@
       </dl>
     </section>
 
-    <!-- ── Edit ──────────────────────────────────────────── -->
-    <section class="vim">
+    <!-- ══════════════════════════════════════════════════════
+         GROUP B · EDIT — visual, text objects, edit, insert
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim g-edit">
+      <h2>Visual mode</h2>
+      <dl>
+        <dt>gv</dt><dd>reselect last selection</dd>
+        <dt>o</dt><dd>swap cursor to other end</dd>
+        <dt>vap vip</dt><dd>select a / inner paragraph</dd>
+        <dt>vat vit</dt><dd>select around / in tag</dd>
+        <dt>&gt; &lt;</dt><dd>indent / outdent (stays in visual)</dd>
+        <dt>=</dt><dd>auto-indent selection</dd>
+        <dt>~ u U</dt><dd>toggle / lower / UPPER case</dd>
+        <dt>J K</dt><dd>move lines down / up <span class="hint">custom</span></dd>
+        <dt>:!{cmd}</dt><dd>filter selection through shell</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-edit">
+      <h2>Visual block <span class="hint">Ctrl+v</span></h2>
+      <dl>
+        <dt>I{text} Esc</dt><dd>insert at start of every line</dd>
+        <dt>A{text} Esc</dt><dd>append at end of every line</dd>
+        <dt>c{text} Esc</dt><dd>change every line in block</dd>
+        <dt>d</dt><dd>delete the block</dd>
+        <dt>r{c}</dt><dd>fill block with char</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-edit">
+      <h2>Text objects <span class="hint">after d c y v</span></h2>
+      <dl>
+        <dt>iw aw</dt><dd>word</dd>
+        <dt>iW aW</dt><dd>WORD (whitespace-delimited)</dd>
+        <dt>i" a"</dt><dd>double quotes</dd>
+        <dt>i' a'</dt><dd>single quotes</dd>
+        <dt>i` a`</dt><dd>backticks</dd>
+        <dt>i( a(</dt><dd>parens</dd>
+        <dt>i[ a[</dt><dd>brackets</dd>
+        <dt>i{ a{</dt><dd>braces</dd>
+        <dt>it at</dt><dd>HTML/XML tag</dd>
+        <dt>ip ap</dt><dd>paragraph</dd>
+        <dt>is as</dt><dd>sentence</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-edit">
       <h2>Edit</h2>
       <dl>
         <dt>x X</dt><dd>del char fwd / back</dd>
@@ -191,26 +211,7 @@
       </dl>
     </section>
 
-    <!-- ── Text objects ──────────────────────────────────── -->
-    <section class="vim">
-      <h2>Text objects <span class="hint">after d c y v</span></h2>
-      <dl>
-        <dt>iw aw</dt><dd>word</dd>
-        <dt>iW aW</dt><dd>WORD (whitespace-delimited)</dd>
-        <dt>i" a"</dt><dd>double quotes</dd>
-        <dt>i' a'</dt><dd>single quotes</dd>
-        <dt>i` a`</dt><dd>backticks</dd>
-        <dt>i( a(</dt><dd>parens</dd>
-        <dt>i[ a[</dt><dd>brackets</dd>
-        <dt>i{ a{</dt><dd>braces</dd>
-        <dt>it at</dt><dd>HTML/XML tag</dd>
-        <dt>ip ap</dt><dd>paragraph</dd>
-        <dt>is as</dt><dd>sentence</dd>
-      </dl>
-    </section>
-
-    <!-- ── Insert mode ───────────────────────────────────── -->
-    <section class="vim">
+    <section class="vim g-edit">
       <h2>Insert mode</h2>
       <dl>
         <dt>Ctrl+w</dt><dd>del word back</dd>
@@ -224,8 +225,73 @@
       </dl>
     </section>
 
-    <!-- ── Tool-specific extras / overrides ──────────────── -->
-    <section class="vim" data-show="nvim">
+    <!-- ══════════════════════════════════════════════════════
+         GROUP C · AUGMENT — surround, folds, counts, registers, marks
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim g-augment">
+      <h2>Surround &amp; comment</h2>
+      <dl>
+        <dt>&lt;leader&gt;sa{m}{c}</dt><dd>add surround over motion</dd>
+        <dt>&lt;leader&gt;sd{c}</dt><dd>delete surround</dd>
+        <dt>&lt;leader&gt;sr{a}{b}</dt><dd>replace surround a→b</dd>
+        <dt>&lt;leader&gt;sa{c}</dt><dd>surround visual selection</dd>
+        <dt data-show="nvim">&lt;leader&gt;sf &lt;leader&gt;sF</dt><dd data-show="nvim">find surround right / left</dd>
+        <dt data-show="nvim">&lt;leader&gt;sh</dt><dd data-show="nvim">highlight surround</dd>
+        <dt>gc{m} gcc</dt><dd>toggle comment</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-augment">
+      <h2>Folds</h2>
+      <dl>
+        <dt>za</dt><dd>toggle fold under cursor</dd>
+        <dt>zo zc</dt><dd>open / close fold</dd>
+        <dt>zR zM</dt><dd>open / close ALL folds</dd>
+        <dt>zr zm</dt><dd>reduce / increase fold level</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-augment">
+      <h2>Numbers &amp; counts</h2>
+      <dl>
+        <dt>Ctrl+a</dt><dd>increment number</dd>
+        <dt>Ctrl+x</dt><dd>decrement number</dd>
+        <dt>{n}Ctrl+a</dt><dd>increment by n</dd>
+        <dt>5j 3w 2dd</dt><dd>any motion takes a count</dd>
+        <dt>d3w 2daw</dt><dd>operator + count + motion</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-augment">
+      <h2>Registers &amp; macros</h2>
+      <dl>
+        <dt>"{a-z}</dt><dd>named register</dd>
+        <dt>"0</dt><dd>last yank only</dd>
+        <dt>"+ "*</dt><dd>system clipboard</dd>
+        <dt>:reg</dt><dd>list registers</dd>
+        <dt>q{a}…q</dt><dd>record macro</dd>
+        <dt>@{a} @@</dt><dd>replay / repeat last</dd>
+      </dl>
+    </section>
+
+    <section class="vim g-augment">
+      <h2>Marks</h2>
+      <dl>
+        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
+        <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
+        <dt>gm{c}</dt><dd>jump to mark <span class="hint">remap of `</span></dd>
+        <dt>'{c}</dt><dd>jump to mark line</dd>
+        <dt>]m [m</dt><dd>next / prev mark</dd>
+        <dt>&lt;leader&gt;'</dt><dd>marks picker</dd>
+      </dl>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════
+         Extras — scope-only deltas
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim g-extras" data-show="nvim">
       <h2>Neovim · extras <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>s S</dt><dd>sub char / whole line <span class="hint">core vim</span></dd>
@@ -239,81 +305,17 @@
         <dt>Ctrl+w r</dt><dd>rotate splits</dd>
         <dt>Ctrl+w T</dt><dd>break split into new tab</dd>
         <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
-        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
         <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
         <dt>Ctrl+x</dt><dd>delete mark <span class="hint">in fzf-lua picker</span></dd>
       </dl>
     </section>
 
-    <section class="vim" data-show="ideavim">
+    <section class="vim g-extras" data-show="ideavim">
       <h2>IdeaVim · extras <span class="badge badge-ideavim">ideavim</span></h2>
       <dl>
-        <dt>J</dt><dd>join line below <span class="hint">IDE smart-join</span></dd>
         <dt>Ctrl+k</dt><dd>hover docs <span class="hint">custom, insert mode</span></dd>
         <dt>ie ae</dt><dd>entire buffer <span class="hint">text obj</span></dd>
         <dt>ia aa</dt><dd>function argument <span class="hint">text obj</span></dd>
-        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">vim-surround</span></dd>
-      </dl>
-    </section>
-
-    <!-- ── Surround &amp; comment (aligned: <leader>s* on both) ── -->
-    <section class="vim">
-      <h2>Surround &amp; comment</h2>
-      <dl>
-        <dt>&lt;leader&gt;sa{m}{c}</dt><dd>add surround over motion</dd>
-        <dt>&lt;leader&gt;sd{c}</dt><dd>delete surround</dd>
-        <dt>&lt;leader&gt;sr{a}{b}</dt><dd>replace surround a→b</dd>
-        <dt>&lt;leader&gt;sa{c}</dt><dd>surround visual selection</dd>
-        <dt data-show="nvim">&lt;leader&gt;sf &lt;leader&gt;sF</dt><dd data-show="nvim">find surround right / left</dd>
-        <dt data-show="nvim">&lt;leader&gt;sh</dt><dd data-show="nvim">highlight surround</dd>
-        <dt>gc{m} gcc</dt><dd>toggle comment</dd>
-      </dl>
-    </section>
-
-    <!-- ── Folds ─────────────────────────────────────────── -->
-    <section class="vim">
-      <h2>Folds</h2>
-      <dl>
-        <dt>za</dt><dd>toggle fold under cursor</dd>
-        <dt>zo zc</dt><dd>open / close fold</dd>
-        <dt>zR zM</dt><dd>open / close ALL folds</dd>
-        <dt>zr zm</dt><dd>reduce / increase fold level</dd>
-      </dl>
-    </section>
-
-    <section class="vim">
-      <h2>Numbers &amp; counts</h2>
-      <dl>
-        <dt>Ctrl+a</dt><dd>increment number</dd>
-        <dt>Ctrl+x</dt><dd>decrement number</dd>
-        <dt>{n}Ctrl+a</dt><dd>increment by n</dd>
-        <dt>5j 3w 2dd</dt><dd>any motion takes a count</dd>
-        <dt>d3w 2daw</dt><dd>operator + count + motion</dd>
-      </dl>
-    </section>
-
-    <!-- ── Registers / marks / macros ─────────────────────── -->
-    <section class="vim">
-      <h2>Registers &amp; macros</h2>
-      <dl>
-        <dt>"{a-z}</dt><dd>named register</dd>
-        <dt>"0</dt><dd>last yank only</dd>
-        <dt>"+ "*</dt><dd>system clipboard</dd>
-        <dt>:reg</dt><dd>list registers</dd>
-        <dt>q{a}…q</dt><dd>record macro</dd>
-        <dt>@{a} @@</dt><dd>replay / repeat last</dd>
-      </dl>
-    </section>
-
-    <section class="vim">
-      <h2>Marks</h2>
-      <dl>
-        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
-        <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
-        <dt>gm{c}</dt><dd>jump to mark <span class="hint">remap of `</span></dd>
-        <dt>'{c}</dt><dd>jump to mark line</dd>
-        <dt>]m [m</dt><dd>next / prev mark</dd>
-        <dt>&lt;leader&gt;'</dt><dd>marks picker</dd>
       </dl>
     </section>
 
@@ -567,8 +569,11 @@
       </dl>
     </section>
 
-    <!-- ── Ex ranges ─────────────────────────────────────── -->
-    <section class="vim">
+    <!-- ══════════════════════════════════════════════════════
+         GROUP D · CMDLINE — ex ranges, ex & quit, killer patterns
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim g-cmd">
       <h2>Ex ranges</h2>
       <dl>
         <dt>:.,$d</dt><dd>delete cursor → EOF</dd>
@@ -582,7 +587,7 @@
       </dl>
     </section>
 
-    <section class="vim">
+    <section class="vim g-cmd">
       <h2>Ex &amp; quit</h2>
       <dl>
         <dt>:w :q :wq</dt><dd>save / quit / both</dd>
