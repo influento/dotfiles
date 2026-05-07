@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vim cheatsheet</title>
+  <title>Tools cheatsheet</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -12,17 +12,18 @@
 <body data-scope="common">
 
   <header class="topbar">
-    <span class="title">Vim cheatsheet <span class="scope-label" id="scope-label">· common motions</span></span>
+    <span class="title">Cheatsheet <span class="scope-label" id="scope-label">· common motions</span></span>
     <div class="scope-switch" role="group" aria-label="Cheatsheet scope">
       <button type="button" data-scope="common"  aria-pressed="true">Common</button>
       <button type="button" data-scope="nvim"    aria-pressed="false">Neovim</button>
       <button type="button" data-scope="ideavim" aria-pressed="false">IdeaVim</button>
+      <button type="button" data-scope="tmux"    aria-pressed="false">Tmux</button>
     </div>
   </header>
 
   <main class="bricks">
 
-    <section class="masthead">
+    <section class="masthead" data-family="vim">
       <h1><span class="scope-name" id="scope-name">Common vim motions</span></h1>
       <p class="grammar">
         leader = <kbd>Space</kbd> ·
@@ -39,6 +40,26 @@
         <li><code>*cgn …Esc . .</code><span>rename via search + repeat</span></li>
         <li><code>ggVG</code><span>select entire file</span></li>
         <li><code>ddp</code><span>swap line with next</span></li>
+      </ul>
+    </section>
+
+    <section class="masthead" data-family="tmux">
+      <h1>Tmux</h1>
+      <p class="grammar">
+        prefix <code>p</code> = <kbd>Ctrl+Space</kbd> ·
+        <code>p X</code> means prefix then <kbd>X</kbd> ·
+        mouse on · base-index 1 · vi copy-mode
+      </p>
+      <ul class="examples">
+        <li><code>p |</code><span>vertical split</span></li>
+        <li><code>p -</code><span>horizontal split</span></li>
+        <li><code>Ctrl+h/j/k/l</code><span>move pane (no prefix)</span></li>
+        <li><code>p s</code><span>tmux-warp jump (flash-style)</span></li>
+        <li><code>p f</code><span>fzf session switcher</span></li>
+        <li><code>p [</code><span>enter copy-mode</span></li>
+        <li><code>v … y</code><span>(in copy) select + yank</span></li>
+        <li><code>p z</code><span>zoom current pane</span></li>
+        <li><code>p :</code><span>command prompt</span></li>
       </ul>
     </section>
 
@@ -577,7 +598,7 @@
       </dl>
     </section>
 
-    <!-- ── Killer patterns ───────────────────────────────── -->
+    <!-- ── Killer patterns (vim) ─────────────────────────── -->
     <section class="patterns">
       <h2>Killer patterns</h2>
       <dl>
@@ -591,16 +612,220 @@
       </dl>
     </section>
 
+    <!-- ══════════════════════════════════════════════════════
+         Tmux sections (data-show="tmux")
+         ══════════════════════════════════════════════════════ -->
+
+    <section class="vim" data-show="tmux">
+      <h2>Sessions <span class="hint">cli</span></h2>
+      <dl>
+        <dt>tmux</dt><dd>start / attach default</dd>
+        <dt>tmux new -s {n}</dt><dd>new named session</dd>
+        <dt>tmux a -t {n}</dt><dd>attach by name</dd>
+        <dt>tmux ls</dt><dd>list sessions</dd>
+        <dt>tmux kill-session -t {n}</dt><dd>kill named</dd>
+        <dt>tmux kill-server</dt><dd>kill all sessions</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Sessions <span class="hint">in tmux</span></h2>
+      <dl>
+        <dt>p S</dt><dd>new session <span class="hint">custom</span></dd>
+        <dt>p f</dt><dd>fzf switch session <span class="hint">custom</span></dd>
+        <dt>p X</dt><dd>kill session (confirm) <span class="hint">custom</span></dd>
+        <dt>p s</dt><dd>tmux-warp jump <span class="hint">overrides default</span></dd>
+        <dt>p $</dt><dd>rename session</dd>
+        <dt>p d</dt><dd>detach</dd>
+        <dt>p D</dt><dd>choose client to detach</dd>
+        <dt>p (  )</dt><dd>prev / next session</dd>
+        <dt>p L</dt><dd>last session</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Windows</h2>
+      <dl>
+        <dt>p c</dt><dd>new window in cwd <span class="hint">custom</span></dd>
+        <dt>p ,</dt><dd>rename window</dd>
+        <dt>p &amp;</dt><dd>kill window (confirm)</dd>
+        <dt>p n p</dt><dd>next / prev window</dd>
+        <dt>p l</dt><dd>last window</dd>
+        <dt>p {0..9}</dt><dd>select window by index</dd>
+        <dt>p w</dt><dd>list windows (picker)</dd>
+        <dt>p .</dt><dd>move window to index</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Panes · split &amp; close</h2>
+      <dl>
+        <dt>p |</dt><dd>vertical split, keep cwd <span class="hint">custom</span></dd>
+        <dt>p -</dt><dd>horizontal split, keep cwd <span class="hint">custom</span></dd>
+        <dt>p x</dt><dd>kill pane (confirm)</dd>
+        <dt>p z</dt><dd>toggle zoom (full-screen)</dd>
+        <dt>p !</dt><dd>break pane into new window</dd>
+        <dt>p @</dt><dd>join target pane into here <span class="hint">join-pane</span></dd>
+        <dt>p Space</dt><dd>cycle layout preset</dd>
+        <dt>p q</dt><dd>show pane numbers (then digit to focus)</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Panes · navigate</h2>
+      <dl>
+        <dt>Ctrl+h/j/k/l</dt><dd>focus pane (vim-aware, no prefix)</dd>
+        <dt>p o</dt><dd>cycle to next pane</dd>
+        <dt>p ;</dt><dd>last active pane</dd>
+        <dt>p {</dt><dd>swap with prev pane</dd>
+        <dt>p }</dt><dd>swap with next pane</dd>
+        <dt>p Ctrl+o</dt><dd>rotate panes</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Panes · resize <span class="hint">repeatable</span></h2>
+      <dl>
+        <dt>p H</dt><dd>shrink left 5 <span class="hint">custom</span></dd>
+        <dt>p J</dt><dd>grow down 5 <span class="hint">custom</span></dd>
+        <dt>p K</dt><dd>grow up 5 <span class="hint">custom</span></dd>
+        <dt>p L</dt><dd>grow right 5 <span class="hint">custom</span></dd>
+        <dt>p Alt+1..5</dt><dd>preset layouts</dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="tmux">
+      <h2>Copy mode <span class="hint">vi keys, p [</span></h2>
+      <dl>
+        <dt>p [</dt><dd>enter copy mode</dd>
+        <dt>p ]</dt><dd>paste latest buffer</dd>
+        <dt>q Esc</dt><dd>exit copy mode</dd>
+        <dt>h j k l</dt><dd>move</dd>
+        <dt>w b e</dt><dd>word motions</dd>
+        <dt>0 $</dt><dd>line start / end</dd>
+        <dt>g G</dt><dd>top / bottom of buffer</dd>
+        <dt>/ ?</dt><dd>search fwd / back</dd>
+        <dt>n N</dt><dd>next / prev match</dd>
+        <dt>v</dt><dd>begin selection <span class="hint">custom</span></dd>
+        <dt>V</dt><dd>line selection</dd>
+        <dt>Ctrl+v</dt><dd>rectangle toggle</dd>
+        <dt>y</dt><dd>copy selection &amp; cancel <span class="hint">custom</span></dd>
+        <dt>Enter</dt><dd>copy selection &amp; cancel (default)</dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="tmux">
+      <h2>Buffers <span class="hint">paste history</span></h2>
+      <dl>
+        <dt>p =</dt><dd>choose buffer to paste</dd>
+        <dt>p ]</dt><dd>paste most recent</dd>
+        <dt>:list-buffers</dt><dd>list</dd>
+        <dt>:show-buffer</dt><dd>show contents</dd>
+        <dt>:save-buffer {f}</dt><dd>write buffer to file</dd>
+        <dt>:delete-buffer</dt><dd>delete top buffer</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Misc bindings</h2>
+      <dl>
+        <dt>p :</dt><dd>command prompt</dd>
+        <dt>p ?</dt><dd>list all key bindings</dd>
+        <dt>p t</dt><dd>show clock</dd>
+        <dt>p r</dt><dd>reload tmux.conf <span class="hint">custom</span></dd>
+        <dt>p ~</dt><dd>show recent messages</dd>
+        <dt>p C-z</dt><dd>suspend client</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>Plugins <span class="hint">tpm</span></h2>
+      <dl>
+        <dt>p I</dt><dd>install plugins</dd>
+        <dt>p U</dt><dd>update plugins</dd>
+        <dt>p Alt+u</dt><dd>uninstall removed plugins</dd>
+        <dt>vim-tmux-navigator</dt><dd>Ctrl+h/j/k/l across vim &amp; tmux</dd>
+        <dt>tmux-yank</dt><dd>copy-mode yanks → system clipboard</dd>
+        <dt>tmux-resurrect</dt><dd>p Ctrl+s save · p Ctrl+r restore</dd>
+        <dt>tmux-continuum</dt><dd>auto-save every 15 min · auto-restore on start</dd>
+      </dl>
+    </section>
+
+    <section class="ide" data-show="tmux">
+      <h2>tmux-warp <span class="hint">p s</span></h2>
+      <dl>
+        <dt>p s</dt><dd>open warp prompt</dd>
+        <dt>{c}</dt><dd>1-char mode: jump to char</dd>
+        <dt>{c}{c}</dt><dd>2-char mode: jump to bigram</dd>
+        <dt>label</dt><dd>type the highlighted letter to land</dd>
+        <dt>Esc</dt><dd>cancel</dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="tmux">
+      <h2>Command line <span class="hint">: prompt or shell</span></h2>
+      <dl>
+        <dt>:new-window -c {dir}</dt><dd>new window in directory</dd>
+        <dt>:split-window -h</dt><dd>vertical split</dd>
+        <dt>:split-window -v</dt><dd>horizontal split</dd>
+        <dt>:rename-window {n}</dt><dd>rename current window</dd>
+        <dt>:rename-session {n}</dt><dd>rename current session</dd>
+        <dt>:swap-window -t {i}</dt><dd>move current to index</dd>
+        <dt>:move-window -r</dt><dd>renumber windows</dd>
+        <dt>:kill-pane :kill-window</dt><dd>kill targets</dd>
+        <dt>:source-file ~/.config/tmux/tmux.conf</dt><dd>reload</dd>
+        <dt>:set-option {opt} {val}</dt><dd>set option (g/w)</dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="tmux">
+      <h2>Targets &amp; selectors</h2>
+      <dl>
+        <dt>-t {session}</dt><dd>name or index</dd>
+        <dt>-t {s}:{w}</dt><dd>session : window</dd>
+        <dt>-t {s}:{w}.{p}</dt><dd>… . pane</dd>
+        <dt>-t :{w}</dt><dd>window in current session</dd>
+        <dt>-t .{p}</dt><dd>pane in current window</dd>
+        <dt>{last} {next} {prev}</dt><dd>relative window targets</dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="tmux">
+      <h2>Status bar &amp; layout</h2>
+      <dl>
+        <dt>p :setw synchronize-panes</dt><dd>broadcast input to all panes</dd>
+        <dt>p :setw monitor-activity on</dt><dd>flag active windows</dd>
+        <dt>p :set status off</dt><dd>hide status bar</dd>
+        <dt>position</dt><dd>top (configured)</dd>
+        <dt>style</dt><dd>Catppuccin Mocha (configured)</dd>
+      </dl>
+    </section>
+
+    <section class="patterns" data-show="tmux">
+      <h2>Killer patterns</h2>
+      <dl>
+        <dt>p | then p -</dt><dd>three-pane: editor + two splits</dd>
+        <dt>p z</dt><dd>zoom to focus, again to restore</dd>
+        <dt>p [ /pat Enter y</dt><dd>scrollback search → copy match</dd>
+        <dt>p s {c}{c}</dt><dd>warp jump, no aim required</dd>
+        <dt>p f</dt><dd>fzf any session by name</dd>
+        <dt>p :setw synchronize-panes</dt><dd>type once, run on every pane</dd>
+        <dt>p ! then p @</dt><dd>break pane out, then merge back later</dd>
+        <dt>p Ctrl+s / p Ctrl+r</dt><dd>save / restore session layout</dd>
+      </dl>
+    </section>
+
   </main>
 
   <script>
     (function () {
-      const KEY = "vim-cheat-scope";
-      const valid = new Set(["common", "nvim", "ideavim"]);
+      const KEY = "tools-cheat-scope";
+      const valid = new Set(["common", "nvim", "ideavim", "tmux"]);
       const labels = {
         common:  { name: "Common vim motions", suffix: "· shared bedrock" },
         nvim:    { name: "Neovim only",        suffix: "· nvim-specific deltas" },
         ideavim: { name: "IdeaVim only",       suffix: "· ideavim-specific deltas" },
+        tmux:    { name: "Tmux",               suffix: "· terminal multiplexer" },
       };
 
       const body  = document.body;
@@ -611,7 +836,7 @@
       function apply(scope) {
         if (!valid.has(scope)) scope = "common";
         body.dataset.scope = scope;
-        name.textContent  = labels[scope].name;
+        if (name) name.textContent = labels[scope].name;
         label.textContent = labels[scope].suffix;
         btns.forEach(b => b.setAttribute("aria-pressed", b.dataset.scope === scope ? "true" : "false"));
         try { localStorage.setItem(KEY, scope); } catch (e) { /* ignore */ }
@@ -619,13 +844,13 @@
 
       btns.forEach(b => b.addEventListener("click", () => apply(b.dataset.scope)));
 
-      // keyboard: 1/2/3 to switch
       document.addEventListener("keydown", (e) => {
         if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
-        if (e.key === "1") apply("common");
+        if      (e.key === "1") apply("common");
         else if (e.key === "2") apply("nvim");
         else if (e.key === "3") apply("ideavim");
+        else if (e.key === "4") apply("tmux");
       });
 
       let saved = "common";
