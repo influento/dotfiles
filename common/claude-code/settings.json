@@ -6,14 +6,7 @@
   },
   "includeGitInstructions": true,
   "permissions": {
-    "allow": [
-      "Read",
-      "Glob",
-      "Grep",
-      "Agent",
-      "WebSearch",
-      "WebFetch"
-    ],
+    "allow": ["Read", "Glob", "Grep", "Agent", "WebSearch", "WebFetch"],
     "deny": [
       "Read(~/.ssh/*)",
       "Read(**/.env)",
@@ -32,7 +25,7 @@
   "model": "claude-opus-4-7",
   "alwaysThinkingEnabled": false,
   "effortLevel": "xhigh",
+  "editorMode": "vim",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true,
-  "editorMode": "vim"
+  "skipAutoPermissionPrompt": true
 }
