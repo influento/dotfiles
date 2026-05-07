@@ -190,12 +190,12 @@
     </section>
 
     <section class="vim">
-      <h2>Surround &amp; comment</h2>
+      <h2>Surround &amp; comment <span class="hint">vim-surround</span></h2>
       <dl>
-        <dt>ds{c}</dt><dd>delete surround</dd>
-        <dt>cs{a}{b}</dt><dd>change surround</dd>
-        <dt>ys{m}{c}</dt><dd>add surround</dd>
-        <dt>S{c}</dt><dd>surround visual selection</dd>
+        <dt>&lt;leader&gt;sa{m}{c}</dt><dd>add surround over motion</dd>
+        <dt>&lt;leader&gt;sd{c}</dt><dd>delete surround</dd>
+        <dt>&lt;leader&gt;sr{a}{b}</dt><dd>replace surround a→b</dd>
+        <dt>&lt;leader&gt;sa{c}</dt><dd>surround visual selection</dd>
         <dt>gc{m} gcc</dt><dd>toggle comment</dd>
       </dl>
     </section>
@@ -222,15 +222,12 @@
     </section>
 
     <section class="vim">
-      <h2>Registers · marks · macros</h2>
+      <h2>Registers &amp; macros</h2>
       <dl>
         <dt>"{a-z}</dt><dd>named register</dd>
         <dt>"0</dt><dd>last yank only</dd>
         <dt>"+ "*</dt><dd>system clipboard</dd>
         <dt>:reg</dt><dd>list registers</dd>
-        <dt>m{a-z}</dt><dd>set vim mark · '{m} `{m} jump</dd>
-        <dt>m{A-Z}</dt><dd>global vim mark</dd>
-        <dt>:marks</dt><dd>list marks</dd>
         <dt>q{a}…q</dt><dd>record macro</dd>
         <dt>@{a} @@</dt><dd>replay / repeat last</dd>
       </dl>
@@ -305,12 +302,21 @@
     </section>
 
     <section class="ide">
-      <h2>Bookmarks &amp; jump</h2>
+      <h2>Marks &amp; bookmarks <span class="hint">ideamarks</span></h2>
       <dl>
-        <dt>&lt;leader&gt;mm</dt><dd>set mnemonic bookmark</dd>
+        <dt>m{c}</dt><dd>set bookmark <span class="hint">case-insensitive, IDE-backed</span></dd>
         <dt>&lt;leader&gt;ma</dt><dd>anonymous bookmark</dd>
-        <dt>&lt;leader&gt;'</dt><dd>bookmarks tool window</dd>
+        <dt>gm{c}</dt><dd>jump to bookmark <span class="hint">remap of `</span></dd>
+        <dt>'{c}</dt><dd>jump to bookmark line</dd>
         <dt>]m [m</dt><dd>next / prev bookmark</dd>
+        <dt>&lt;leader&gt;'</dt><dd>bookmarks tool window</dd>
+        <dt>Ctrl+d</dt><dd>delete <span class="hint">in picker, IDE keymap</span></dd>
+      </dl>
+    </section>
+
+    <section class="ide">
+      <h2>Jump &amp; rescue</h2>
+      <dl>
         <dt>s</dt><dd>AceJump (start of match)</dd>
         <dt>S</dt><dd>AceJump (target mode)</dd>
         <dt>&lt;leader&gt;l</dt><dd>AceJump (line)</dd>
@@ -394,7 +400,7 @@
         <dt>*cgn …Esc . .</dt><dd>power-rename via search + .</dd>
         <dt>ggVG</dt><dd>select entire file</dd>
         <dt>gg=G</dt><dd>auto-indent file</dd>
-        <dt>ysiw"</dt><dd>wrap word in quotes</dd>
+        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes</dd>
       </dl>
     </section>
 

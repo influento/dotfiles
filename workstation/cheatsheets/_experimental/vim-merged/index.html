@@ -3,22 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neovim cheatsheet</title>
+  <title>Vim cheatsheet</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-scope="common">
+
+  <header class="topbar">
+    <span class="title">Vim cheatsheet <span class="scope-label" id="scope-label">· common motions</span></span>
+    <div class="scope-switch" role="group" aria-label="Cheatsheet scope">
+      <button type="button" data-scope="common"  aria-pressed="true">Common</button>
+      <button type="button" data-scope="nvim"    aria-pressed="false">Neovim</button>
+      <button type="button" data-scope="ideavim" aria-pressed="false">IdeaVim</button>
+    </div>
+  </header>
+
   <main class="bricks">
 
     <section class="masthead">
-      <h1>Neovim</h1>
+      <h1><span class="scope-name" id="scope-name">Common vim motions</span></h1>
       <p class="grammar">
         leader = <kbd>Space</kbd> ·
         <code>[count] op [count] motion</code> ·
-        doubled op = whole line ·
-        auto-save on InsertLeave (formats) and TextChanged
+        doubled op = whole line
       </p>
       <ul class="examples">
         <li><code>2daw</code><span>delete two words</span></li>
@@ -27,28 +36,28 @@
         <li><code>gUiw</code><span>uppercase inner word</span></li>
         <li><code>dt;</code><span>delete until ;</span></li>
         <li><code>df)</code><span>delete through )</span></li>
-        <li><code>ysiw"</code><span>wrap word in quotes <span class="hint">mini.surround</span></span></li>
         <li><code>*cgn …Esc . .</code><span>rename via search + repeat</span></li>
-        <li><code>s{c}{c}</code><span>flash jump (2-char)</span></li>
+        <li><code>ggVG</code><span>select entire file</span></li>
+        <li><code>ddp</code><span>swap line with next</span></li>
       </ul>
     </section>
 
+    <!-- ── Modes ─────────────────────────────────────────── -->
     <section class="vim">
       <h2>Modes</h2>
       <dl>
         <dt>i a</dt><dd>insert before / after cursor</dd>
         <dt>I A</dt><dd>insert at first non-ws / EOL</dd>
         <dt>o O</dt><dd>open new line below / above</dd>
-        <dt>s S</dt><dd>sub char / whole line</dd>
         <dt>c{motion}</dt><dd>change over motion (insert)</dd>
         <dt>v V</dt><dd>visual char / line</dd>
         <dt>Ctrl+v</dt><dd>visual block (column select)</dd>
         <dt>R</dt><dd>replace mode (overwrite)</dd>
         <dt>Esc</dt><dd>back to normal</dd>
-        <dt>Esc Esc</dt><dd>exit terminal mode <span class="hint">custom</span></dd>
       </dl>
     </section>
 
+    <!-- ── Visual ────────────────────────────────────────── -->
     <section class="vim">
       <h2>Visual mode</h2>
       <dl>
@@ -75,6 +84,7 @@
       </dl>
     </section>
 
+    <!-- ── Motion ────────────────────────────────────────── -->
     <section class="vim">
       <h2>Motion · line</h2>
       <dl>
@@ -116,20 +126,20 @@
         <dt>Ctrl+i</dt><dd>forward</dd>
         <dt>g; g,</dt><dd>change list back / fwd</dd>
         <dt>'' ``</dt><dd>prev jump (line / col)</dd>
-        <dt>gi</dt><dd>resume last insert</dd>
         <dt>gv</dt><dd>reselect last visual</dd>
         <dt>gf</dt><dd>open file under cursor</dd>
         <dt>:jumps :changes</dt><dd>list</dd>
       </dl>
     </section>
 
+    <!-- ── Search ────────────────────────────────────────── -->
     <section class="vim">
       <h2>Search &amp; replace</h2>
       <dl>
         <dt>/p ?p</dt><dd>search fwd / back</dd>
         <dt>n N</dt><dd>next / prev match</dd>
         <dt>* #</dt><dd>word under cursor</dd>
-        <dt>Esc</dt><dd>clear highlight <span class="hint">custom</span></dd>
+        <dt>Esc</dt><dd>clear highlight</dd>
         <dt>:%s/a/b/g</dt><dd>replace all in file</dd>
         <dt>:%s/a/b/gc</dt><dd>replace all + confirm</dd>
         <dt>:s/a/b/g</dt><dd>replace on current line</dd>
@@ -138,13 +148,13 @@
       </dl>
     </section>
 
+    <!-- ── Edit ──────────────────────────────────────────── -->
     <section class="vim">
       <h2>Edit</h2>
       <dl>
         <dt>x X</dt><dd>del char fwd / back</dd>
         <dt>dd D</dt><dd>del line / to EOL</dd>
         <dt>cc C</dt><dd>change line / to EOL</dd>
-        <dt>s S</dt><dd>sub char / line</dd>
         <dt>yy Y</dt><dd>yank line / to EOL</dd>
         <dt>p P</dt><dd>paste after / before</dd>
         <dt>r{c}</dt><dd>replace char</dd>
@@ -160,6 +170,7 @@
       </dl>
     </section>
 
+    <!-- ── Text objects ──────────────────────────────────── -->
     <section class="vim">
       <h2>Text objects <span class="hint">after d c y v</span></h2>
       <dl>
@@ -177,6 +188,7 @@
       </dl>
     </section>
 
+    <!-- ── Insert mode ───────────────────────────────────── -->
     <section class="vim">
       <h2>Insert mode</h2>
       <dl>
@@ -187,33 +199,57 @@
         <dt>Ctrl+o {cmd}</dt><dd>one normal-mode cmd</dd>
         <dt>Ctrl+r {reg}</dt><dd>insert register contents</dd>
         <dt>Ctrl+r +</dt><dd>paste system clipboard</dd>
-        <dt>Ctrl+;</dt><dd>append ; at EOL <span class="hint">custom, code FTs</span></dd>
-        <dt>Ctrl+n Ctrl+p</dt><dd>completion next / prev <span class="hint">blink.cmp</span></dd>
-        <dt>Ctrl+y</dt><dd>accept completion</dd>
-        <dt>Ctrl+e</dt><dd>cancel completion</dd>
+        <dt>Ctrl+;</dt><dd>append ; at EOL <span class="hint">custom</span></dd>
       </dl>
     </section>
 
+    <!-- ── Tool-specific extras / overrides ──────────────── -->
+    <section class="vim" data-show="nvim">
+      <h2>Neovim · extras <span class="badge badge-nvim">nvim</span></h2>
+      <dl>
+        <dt>s S</dt><dd>sub char / whole line <span class="hint">core vim</span></dd>
+        <dt>Esc Esc</dt><dd>exit terminal mode <span class="hint">custom</span></dd>
+        <dt>gi</dt><dd>resume last insert</dd>
+        <dt>Ctrl+n Ctrl+p</dt><dd>completion next / prev <span class="hint">blink.cmp</span></dd>
+        <dt>Ctrl+y</dt><dd>accept completion</dd>
+        <dt>Ctrl+e</dt><dd>cancel completion</dd>
+        <dt>Ctrl+w &gt; &lt;</dt><dd>resize split wider / narrower</dd>
+        <dt>Ctrl+w + -</dt><dd>resize split taller / shorter</dd>
+        <dt>Ctrl+w r</dt><dd>rotate splits</dd>
+        <dt>Ctrl+w T</dt><dd>break split into new tab</dd>
+        <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
+        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
+        <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
+        <dt>Ctrl+x</dt><dd>delete mark <span class="hint">in fzf-lua picker</span></dd>
+      </dl>
+    </section>
+
+    <section class="vim" data-show="ideavim">
+      <h2>IdeaVim · extras <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>J</dt><dd>join line below <span class="hint">IDE smart-join</span></dd>
+        <dt>Ctrl+k</dt><dd>hover docs <span class="hint">custom, insert mode</span></dd>
+        <dt>ie ae</dt><dd>entire buffer <span class="hint">text obj</span></dd>
+        <dt>ia aa</dt><dd>function argument <span class="hint">text obj</span></dd>
+        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">vim-surround</span></dd>
+      </dl>
+    </section>
+
+    <!-- ── Surround &amp; comment (aligned: <leader>s* on both) ── -->
     <section class="vim">
-      <h2>Surround <span class="hint">mini.surround</span></h2>
+      <h2>Surround &amp; comment</h2>
       <dl>
         <dt>&lt;leader&gt;sa{m}{c}</dt><dd>add surround over motion</dd>
         <dt>&lt;leader&gt;sd{c}</dt><dd>delete surround</dd>
         <dt>&lt;leader&gt;sr{a}{b}</dt><dd>replace surround a→b</dd>
-        <dt>&lt;leader&gt;sf &lt;leader&gt;sF</dt><dd>find surround right / left</dd>
-        <dt>&lt;leader&gt;sh</dt><dd>highlight surround</dd>
+        <dt>&lt;leader&gt;sa{c}</dt><dd>surround visual selection</dd>
+        <dt data-show="nvim">&lt;leader&gt;sf &lt;leader&gt;sF</dt><dd data-show="nvim">find surround right / left</dd>
+        <dt data-show="nvim">&lt;leader&gt;sh</dt><dd data-show="nvim">highlight surround</dd>
+        <dt>gc{m} gcc</dt><dd>toggle comment</dd>
       </dl>
     </section>
 
-    <section class="vim">
-      <h2>Comment <span class="hint">built-in 0.10+</span></h2>
-      <dl>
-        <dt>gcc</dt><dd>toggle comment line</dd>
-        <dt>gc{m}</dt><dd>toggle comment over motion</dd>
-        <dt>gc</dt><dd>(visual) toggle comment</dd>
-      </dl>
-    </section>
-
+    <!-- ── Folds ─────────────────────────────────────────── -->
     <section class="vim">
       <h2>Folds</h2>
       <dl>
@@ -235,12 +271,13 @@
       </dl>
     </section>
 
+    <!-- ── Registers / marks / macros ─────────────────────── -->
     <section class="vim">
       <h2>Registers &amp; macros</h2>
       <dl>
         <dt>"{a-z}</dt><dd>named register</dd>
         <dt>"0</dt><dd>last yank only</dd>
-        <dt>"+ "*</dt><dd>system clipboard <span class="hint">default via unnamedplus</span></dd>
+        <dt>"+ "*</dt><dd>system clipboard</dd>
         <dt>:reg</dt><dd>list registers</dd>
         <dt>q{a}…q</dt><dd>record macro</dd>
         <dt>@{a} @@</dt><dd>replay / repeat last</dd>
@@ -254,30 +291,27 @@
         <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
         <dt>gm{c}</dt><dd>jump to mark <span class="hint">remap of `</span></dd>
         <dt>'{c}</dt><dd>jump to mark line</dd>
-        <dt>]m [m</dt><dd>next / prev mark <span class="hint">alias of ]' [' </span></dd>
-        <dt>&lt;leader&gt;'</dt><dd>marks picker (fzf-lua)</dd>
-        <dt>Ctrl+x</dt><dd>delete mark <span class="hint">in picker</span></dd>
+        <dt>]m [m</dt><dd>next / prev mark</dd>
+        <dt>&lt;leader&gt;'</dt><dd>marks picker</dd>
       </dl>
     </section>
 
+    <!-- ── Splits (shared core) ──────────────────────────── -->
     <section class="ide">
       <h2>Splits <span class="hint">tmux-style</span></h2>
       <dl>
         <dt>&lt;leader&gt;-</dt><dd>split horizontal (top/bot)</dd>
         <dt>&lt;leader&gt;|</dt><dd>split vertical (side/side)</dd>
         <dt>&lt;leader&gt;wq</dt><dd>close current split</dd>
-        <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
+        <dt>Ctrl+h/j/k/l</dt><dd>focus split</dd>
         <dt>Ctrl+w =</dt><dd>balance splits</dd>
         <dt>Ctrl+w o</dt><dd>only this split</dd>
-        <dt>Ctrl+w &gt; &lt;</dt><dd>resize wider / narrower</dd>
-        <dt>Ctrl+w + -</dt><dd>resize taller / shorter</dd>
-        <dt>Ctrl+w r</dt><dd>rotate splits</dd>
-        <dt>Ctrl+w T</dt><dd>break split into new tab</dd>
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Buffers</h2>
+    <!-- ── Buffers (nvim) / Tabs (ideavim) ────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Buffers <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>Shift+h Shift+l</dt><dd>prev / next buffer</dd>
         <dt>&lt;leader&gt;bd</dt><dd>delete buffer</dd>
@@ -289,9 +323,22 @@
       </dl>
     </section>
 
+    <section class="ide" data-show="ideavim">
+      <h2>Tabs <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>Shift+h Shift+l</dt><dd>prev / next tab</dd>
+        <dt>&lt;leader&gt;1..9</dt><dd>tab by index</dd>
+        <dt>&lt;leader&gt;bd</dt><dd>close tab</dd>
+        <dt>&lt;leader&gt;bo</dt><dd>close other tabs</dd>
+        <dt>&lt;leader&gt;bu</dt><dd>reopen closed tab</dd>
+        <dt>&lt;leader&gt;bp</dt><dd>pin tab</dd>
+        <dt>Shift+Esc</dt><dd>focus editor</dd>
+      </dl>
+    </section>
 
-    <section class="ide">
-      <h2>Find <span class="hint">fzf-lua</span></h2>
+    <!-- ── Find ──────────────────────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Find <span class="hint">fzf-lua</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>&lt;leader&gt;ff</dt><dd>find files</dd>
         <dt>&lt;leader&gt;fg</dt><dd>live grep</dd>
@@ -304,8 +351,22 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>File explorer <span class="hint">neo-tree</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>IDE · find <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;ff</dt><dd>find file</dd>
+        <dt>&lt;leader&gt;fg</dt><dd>find in path</dd>
+        <dt>&lt;leader&gt;fr</dt><dd>recent files</dd>
+        <dt>&lt;leader&gt;fb</dt><dd>recently changed files</dd>
+        <dt>&lt;leader&gt;fa</dt><dd>find action (Ctrl+Shift+A)</dd>
+        <dt>&lt;leader&gt;fd</dt><dd>problems</dd>
+        <dt>&lt;leader&gt;/</dt><dd>find in current file</dd>
+      </dl>
+    </section>
+
+    <!-- ── File explorer (nvim) / IDE tool windows (ideavim) -->
+    <section class="ide" data-show="nvim">
+      <h2>File explorer <span class="hint">neo-tree</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>&lt;leader&gt;e</dt><dd>toggle / focus tree</dd>
         <dt>a</dt><dd>add file (trailing / for dir)</dd>
@@ -319,8 +380,21 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>LSP <span class="hint">on attach</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>IDE · tool windows <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;e</dt><dd>project tree</dd>
+        <dt>&lt;leader&gt;tt</dt><dd>terminal</dd>
+        <dt>&lt;leader&gt;tz</dt><dd>zen (hide all)</dd>
+        <dt>&lt;leader&gt;gv</dt><dd>git / VCS window</dd>
+        <dt>&lt;leader&gt;np</dt><dd>project view (.NET)</dd>
+        <dt>&lt;leader&gt;na</dt><dd>NuGet window</dd>
+      </dl>
+    </section>
+
+    <!-- ── Code intel / LSP ──────────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>LSP <span class="hint">on attach</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>K</dt><dd>hover docs</dd>
         <dt>gd</dt><dd>definition</dd>
@@ -331,13 +405,32 @@
         <dt>&lt;leader&gt;ca</dt><dd>code action <span class="hint">n + v</span></dd>
         <dt>&lt;leader&gt;cf</dt><dd>format buffer <span class="hint">conform</span></dd>
         <dt>]d [d</dt><dd>next / prev diagnostic</dd>
-        <dt>]g [g</dt><dd>next / prev usage of symbol <span class="hint">documentHighlight</span></dd>
+        <dt>]g [g</dt><dd>next / prev usage of symbol</dd>
         <dt>&lt;leader&gt;xd</dt><dd>show diagnostic float</dd>
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Flash <span class="hint">jump</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>IDE · code intelligence <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>K</dt><dd>hover docs</dd>
+        <dt>gd gD</dt><dd>declaration / super method</dd>
+        <dt>gr</dt><dd>show usages</dd>
+        <dt>gi</dt><dd>go to implementation</dd>
+        <dt>gt</dt><dd>go to type definition</dd>
+        <dt>&lt;leader&gt;rn</dt><dd>rename</dd>
+        <dt>&lt;leader&gt;ca</dt><dd>code action / intentions</dd>
+        <dt>]g [g</dt><dd>next / prev usage</dd>
+        <dt>]d [d</dt><dd>next / prev diagnostic</dd>
+        <dt>&lt;leader&gt;xd</dt><dd>show error description</dd>
+        <dt>&lt;leader&gt;cf</dt><dd>format buffer</dd>
+        <dt>&lt;leader&gt;mp</dt><dd>toggle markdown preview</dd>
+      </dl>
+    </section>
+
+    <!-- ── Jump (flash / acejump) ─────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Flash <span class="hint">jump</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>s{c}{c}</dt><dd>jump to 2-char match</dd>
         <dt>S</dt><dd>treesitter jump (select node)</dd>
@@ -345,8 +438,22 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Git <span class="hint">gitsigns + lazygit</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>Jump &amp; rescue <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;ma</dt><dd>anonymous bookmark <span class="hint">no vim-mark equivalent</span></dd>
+        <dt>Ctrl+d</dt><dd>delete bookmark <span class="hint">in picker, IDE keymap</span></dd>
+        <dt>s</dt><dd>AceJump (start of match)</dd>
+        <dt>S</dt><dd>AceJump (target mode)</dd>
+        <dt>&lt;leader&gt;l</dt><dd>AceJump (line)</dd>
+        <dt>&lt;leader&gt;vv</dt><dd>re-arm IdeaVim (popup rescue)</dd>
+      </dl>
+    </section>
+
+
+    <!-- ── Git ───────────────────────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Git <span class="hint">gitsigns + lazygit</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>]h [h</dt><dd>next / prev hunk</dd>
         <dt>&lt;leader&gt;gs</dt><dd>stage hunk</dd>
@@ -357,8 +464,20 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Debug <span class="hint">nvim-dap</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>Git / hunks <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>]h [h</dt><dd>next / prev change marker</dd>
+        <dt>&lt;leader&gt;gp</dt><dd>preview hunk</dd>
+        <dt>&lt;leader&gt;gb</dt><dd>annotate (blame)</dd>
+        <dt>&lt;leader&gt;gr</dt><dd>rollback changed lines</dd>
+        <dt>&lt;leader&gt;gv</dt><dd>VCS tool window</dd>
+      </dl>
+    </section>
+
+    <!-- ── Debug ─────────────────────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Debug <span class="hint">nvim-dap</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>&lt;leader&gt;db</dt><dd>toggle breakpoint</dd>
         <dt>&lt;leader&gt;dc</dt><dd>continue</dd>
@@ -370,8 +489,22 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>.NET <span class="hint">easy-dotnet, cs/fsharp</span></h2>
+    <section class="ide" data-show="ideavim">
+      <h2>Debug <span class="badge badge-ideavim">ideavim</span></h2>
+      <dl>
+        <dt>&lt;leader&gt;db</dt><dd>toggle breakpoint</dd>
+        <dt>&lt;leader&gt;dc</dt><dd>continue / resume</dd>
+        <dt>&lt;leader&gt;do</dt><dd>step over</dd>
+        <dt>&lt;leader&gt;di</dt><dd>step into</dd>
+        <dt>&lt;leader&gt;dO</dt><dd>step out</dd>
+        <dt>&lt;leader&gt;dt</dt><dd>debug tool window</dd>
+        <dt>&lt;leader&gt;de</dt><dd>evaluate expression</dd>
+      </dl>
+    </section>
+
+    <!-- ── .NET ──────────────────────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>.NET <span class="hint">easy-dotnet</span> <span class="badge badge-nvim">nvim</span></h2>
       <dl>
         <dt>&lt;leader&gt;nr nR</dt><dd>run / run default</dd>
         <dt>&lt;leader&gt;nw</dt><dd>watch</dd>
@@ -388,13 +521,32 @@
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Markdown</h2>
+    <section class="ide" data-show="ideavim">
+      <h2>.NET <span class="badge badge-ideavim">ideavim</span></h2>
       <dl>
-        <dt>&lt;leader&gt;mp</dt><dd>toggle render-markdown <span class="hint">md ft only</span></dd>
+        <dt>&lt;leader&gt;nr</dt><dd>run</dd>
+        <dt>&lt;leader&gt;nb nB</dt><dd>build / build solution</dd>
+        <dt>&lt;leader&gt;nt nT</dt><dd>unit tests window / run current</dd>
+        <dt>&lt;leader&gt;nc</dt><dd>clean solution</dd>
+        <dt>&lt;leader&gt;np</dt><dd>project tool window</dd>
+        <dt>&lt;leader&gt;na</dt><dd>NuGet tool window</dd>
       </dl>
     </section>
 
+    <!-- ── Plugin / health (nvim) ────────────────────────── -->
+    <section class="ide" data-show="nvim">
+      <h2>Plugin / health <span class="badge badge-nvim">nvim</span></h2>
+      <dl>
+        <dt>:Lazy</dt><dd>plugin manager</dd>
+        <dt>:Lazy sync</dt><dd>install / update / clean</dd>
+        <dt>:Mason</dt><dd>LSP / tool installer</dd>
+        <dt>:checkhealth</dt><dd>diagnose nvim &amp; plugins</dd>
+        <dt>:TSUpdate</dt><dd>update treesitter parsers</dd>
+        <dt>:LspInfo</dt><dd>active LSP servers</dd>
+      </dl>
+    </section>
+
+    <!-- ── Ex ranges ─────────────────────────────────────── -->
     <section class="vim">
       <h2>Ex ranges</h2>
       <dl>
@@ -421,22 +573,11 @@
         <dt>Ctrl+g</dt><dd>show file info</dd>
         <dt>&lt;leader&gt;qq</dt><dd>quit all</dd>
         <dt>&lt;leader&gt;qw</dt><dd>save all + quit</dd>
-        <dt>&lt;leader&gt;rc</dt><dd>reload init.lua</dd>
+        <dt>&lt;leader&gt;rc</dt><dd>reload vim config</dd>
       </dl>
     </section>
 
-    <section class="ide">
-      <h2>Plugin / health</h2>
-      <dl>
-        <dt>:Lazy</dt><dd>plugin manager</dd>
-        <dt>:Lazy sync</dt><dd>install / update / clean</dd>
-        <dt>:Mason</dt><dd>LSP / tool installer</dd>
-        <dt>:checkhealth</dt><dd>diagnose nvim &amp; plugins</dd>
-        <dt>:TSUpdate</dt><dd>update treesitter parsers</dd>
-        <dt>:LspInfo</dt><dd>active LSP servers</dd>
-      </dl>
-    </section>
-
+    <!-- ── Killer patterns ───────────────────────────────── -->
     <section class="patterns">
       <h2>Killer patterns</h2>
       <dl>
@@ -447,11 +588,51 @@
         <dt>*cgn …Esc . .</dt><dd>power-rename via search + .</dd>
         <dt>ggVG</dt><dd>select entire file</dd>
         <dt>gg=G</dt><dd>auto-indent file</dd>
-        <dt>&lt;leader&gt;saiw"</dt><dd>wrap word in quotes <span class="hint">mini.surround</span></dd>
-        <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
       </dl>
     </section>
 
   </main>
+
+  <script>
+    (function () {
+      const KEY = "vim-cheat-scope";
+      const valid = new Set(["common", "nvim", "ideavim"]);
+      const labels = {
+        common:  { name: "Common vim motions", suffix: "· shared bedrock" },
+        nvim:    { name: "Neovim only",        suffix: "· nvim-specific deltas" },
+        ideavim: { name: "IdeaVim only",       suffix: "· ideavim-specific deltas" },
+      };
+
+      const body  = document.body;
+      const name  = document.getElementById("scope-name");
+      const label = document.getElementById("scope-label");
+      const btns  = document.querySelectorAll(".scope-switch button");
+
+      function apply(scope) {
+        if (!valid.has(scope)) scope = "common";
+        body.dataset.scope = scope;
+        name.textContent  = labels[scope].name;
+        label.textContent = labels[scope].suffix;
+        btns.forEach(b => b.setAttribute("aria-pressed", b.dataset.scope === scope ? "true" : "false"));
+        try { localStorage.setItem(KEY, scope); } catch (e) { /* ignore */ }
+      }
+
+      btns.forEach(b => b.addEventListener("click", () => apply(b.dataset.scope)));
+
+      // keyboard: 1/2/3 to switch
+      document.addEventListener("keydown", (e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === "1") apply("common");
+        else if (e.key === "2") apply("nvim");
+        else if (e.key === "3") apply("ideavim");
+      });
+
+      let saved = "common";
+      try { saved = localStorage.getItem(KEY) || "common"; } catch (e) { /* ignore */ }
+      apply(saved);
+    })();
+  </script>
+
 </body>
 </html>
