@@ -39,6 +39,18 @@ Sections without a `data-show` attribute are vim-family (visible in Common). Too
 
 Row-level overrides inside a vim-family section use `data-show` on `<dt>`/`<dd>`/`<span>`. Mastheads use `data-family="vim"` or `data-family="tmux"` so the right one shows per scope.
 
+## Section ordering
+
+Vim-core sections are grouped by **what you're doing** so a glance matches a goal:
+
+- **A · move** — Modes, Motion · line, Motion · file & screen, Jumps, Search & replace
+- **B · edit** — Visual, Visual block, Text objects, Edit, Insert
+- **C · augment** — Surround & comment, Folds, Registers & macros, Marks
+- **Extras** — `data-show="nvim"` / `data-show="ideavim"` deltas, tail of vim-core
+- **D · cmdline** — Ex ranges, Session (custom)
+
+Each group carries a `g-*` class (see Design conventions) for color cueing.
+
 ## Launcher
 
 `cheat` zsh alias in `common/zsh/.zshrc.tpl`:
@@ -57,6 +69,8 @@ Bindings come from:
 
 When updating: read the live config, mirror only what's bound, never invent. If a binding is added/removed, update the matching `<dl>` row.
 
+The sheet is curated — it shows bindings actually used in this workflow, not every vim default. Don't add textbook entries (e.g. `H`/`L` jumps, `Ctrl+f`/`Ctrl+b` full-page, scroll-line `Ctrl+e`/`Ctrl+y`, `R` replace mode, niche window-resize prefixes) just because they exist in vim. If a row is shadowed by a remap or a plugin, drop it or note the override.
+
 ## Design conventions
 
 - **Layout**: CSS multi-column (`column-width` on `main.bricks`) — sections flow as bricks, no row-equalization
@@ -67,6 +81,13 @@ When updating: read the live config, mirror only what's bound, never invent. If 
   - `.ide` (plugin / leader / IDE actions) — steel `#79c0ff`
   - `.patterns` (highlight card) — amber `#ffb86c`
   - `[data-scope="tmux"]` masthead/button accent — violet `#c4a7e7`
+- **Group accents** (override family on vim-core sections so the eye can bucket
+  them at a glance — see Section ordering below):
+  - `.g-move` — green (motion, jumps, search)
+  - `.g-edit` — amber (visual, text objects, edit, insert)
+  - `.g-augment` — violet (surround, folds, registers, marks)
+  - `.g-cmd` — steel (cmdline, custom session)
+  - `.g-extras` — green (scope-only deltas)
 - **Density**: ~18px base, 380px column width
 
 ## Adaptive
