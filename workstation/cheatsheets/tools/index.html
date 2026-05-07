@@ -31,6 +31,8 @@
         doubled op = whole line
       </p>
       <ul class="examples">
+        <li><code>ciw</code><span>change inner word</span></li>
+        <li><code>daw</code><span>delete a word (incl. ws)</span></li>
         <li><code>2daw</code><span>delete two words</span></li>
         <li><code>ci"</code><span>change inside quotes</span></li>
         <li><code>d3j</code><span>delete three lines down</span></li>
@@ -39,6 +41,7 @@
         <li><code>df)</code><span>delete through )</span></li>
         <li><code>*cgn …Esc . .</code><span>rename via search + repeat</span></li>
         <li><code>ggVG</code><span>select entire file</span></li>
+        <li><code>gg=G</code><span>auto-indent file</span></li>
         <li><code>ddp</code><span>swap line with next</span></li>
       </ul>
     </section>
@@ -104,14 +107,8 @@
         <dt>gg G</dt><dd>file start / end</dd>
         <dt>{n}G</dt><dd>line n</dd>
         <dt>{ }</dt><dd>blank line up / down</dd>
-        <dt>H M L</dt><dd>top / mid / bot of screen</dd>
         <dt>Ctrl+d Ctrl+u</dt><dd>half page down / up</dd>
-        <dt>Ctrl+f Ctrl+b</dt><dd>full page down / up</dd>
-        <dt>Ctrl+e Ctrl+y</dt><dd>scroll line, hold cursor</dd>
-        <dt>zz zt zb</dt><dd>cursor center / top / bot</dd>
-        <dt>[( ])</dt><dd>unmatched paren</dd>
-        <dt>[{ ]}</dt><dd>unmatched brace</dd>
-        <dt>[[ ]]</dt><dd>top-level <code>{</code></dd>
+        <dt>zz</dt><dd>center cursor on screen</dd>
       </dl>
     </section>
 
@@ -121,10 +118,8 @@
         <dt>Ctrl+o</dt><dd>back (jump history)</dd>
         <dt>Ctrl+i</dt><dd>forward</dd>
         <dt>g; g,</dt><dd>change list back / fwd</dd>
-        <dt>'' ``</dt><dd>prev jump (line / col)</dd>
         <dt>gv</dt><dd>reselect last visual</dd>
         <dt>gf</dt><dd>open file under cursor</dd>
-        <dt>:jumps :changes</dt><dd>list</dd>
       </dl>
     </section>
 
@@ -138,8 +133,6 @@
         <dt>:%s/a/b/g</dt><dd>replace all in file</dd>
         <dt>:%s/a/b/gc</dt><dd>replace all + confirm</dd>
         <dt>:s/a/b/g</dt><dd>replace on current line</dd>
-        <dt>&amp;</dt><dd>repeat last :s</dd>
-        <dt>cgn</dt><dd>change next match (.repeat)</dd>
       </dl>
     </section>
 
@@ -150,15 +143,11 @@
     <section class="vim g-edit">
       <h2>Visual mode</h2>
       <dl>
-        <dt>gv</dt><dd>reselect last selection</dd>
         <dt>o</dt><dd>swap cursor to other end</dd>
-        <dt>vap vip</dt><dd>select a / inner paragraph</dd>
-        <dt>vat vit</dt><dd>select around / in tag</dd>
         <dt>&gt; &lt;</dt><dd>indent / outdent (stays in visual)</dd>
         <dt>=</dt><dd>auto-indent selection</dd>
         <dt>~ u U</dt><dd>toggle / lower / UPPER case</dd>
         <dt>J K</dt><dd>move lines down / up <span class="hint">custom</span></dd>
-        <dt>:!{cmd}</dt><dd>filter selection through shell</dd>
       </dl>
     </section>
 
@@ -177,7 +166,6 @@
       <h2>Text objects <span class="hint">after d c y v</span></h2>
       <dl>
         <dt>iw aw</dt><dd>word</dd>
-        <dt>iW aW</dt><dd>WORD (whitespace-delimited)</dd>
         <dt>i" a"</dt><dd>double quotes</dd>
         <dt>i' a'</dt><dd>single quotes</dd>
         <dt>i` a`</dt><dd>backticks</dd>
@@ -199,15 +187,12 @@
         <dt>yy Y</dt><dd>yank line / to EOL</dd>
         <dt>p P</dt><dd>paste after / before</dd>
         <dt>r{c}</dt><dd>replace char</dd>
-        <dt>R</dt><dd>replace mode</dd>
-        <dt>~</dt><dd>toggle case under cursor</dd>
         <dt>gu{m} gU{m}</dt><dd>lower / UPPER + motion</dd>
-        <dt>g~{m}</dt><dd>toggle case + motion</dd>
         <dt>J</dt><dd>join line below</dd>
         <dt>&gt;&gt; &lt;&lt;</dt><dd>indent / outdent line</dd>
-        <dt>== =G</dt><dd>reformat line / to EOF</dd>
         <dt>u Ctrl+r</dt><dd>undo / redo</dd>
         <dt>.</dt><dd>repeat last change</dd>
+        <dt>gi</dt><dd>resume last insert at exit point</dd>
       </dl>
     </section>
 
@@ -216,10 +201,7 @@
       <dl>
         <dt>Ctrl+w</dt><dd>del word back</dd>
         <dt>Ctrl+u</dt><dd>del to line start</dd>
-        <dt>Ctrl+h</dt><dd>backspace</dd>
-        <dt>Ctrl+t Ctrl+d</dt><dd>indent / outdent</dd>
         <dt>Ctrl+o {cmd}</dt><dd>one normal-mode cmd</dd>
-        <dt>Ctrl+r {reg}</dt><dd>insert register contents</dd>
         <dt>Ctrl+r +</dt><dd>paste system clipboard</dd>
         <dt>Ctrl+;</dt><dd>append ; at EOL <span class="hint">custom</span></dd>
       </dl>
@@ -249,17 +231,6 @@
         <dt>zo zc</dt><dd>open / close fold</dd>
         <dt>zR zM</dt><dd>open / close ALL folds</dd>
         <dt>zr zm</dt><dd>reduce / increase fold level</dd>
-      </dl>
-    </section>
-
-    <section class="vim g-augment">
-      <h2>Numbers &amp; counts</h2>
-      <dl>
-        <dt>Ctrl+a</dt><dd>increment number</dd>
-        <dt>Ctrl+x</dt><dd>decrement number</dd>
-        <dt>{n}Ctrl+a</dt><dd>increment by n</dd>
-        <dt>5j 3w 2dd</dt><dd>any motion takes a count</dd>
-        <dt>d3w 2daw</dt><dd>operator + count + motion</dd>
       </dl>
     </section>
 
@@ -294,18 +265,9 @@
     <section class="vim g-extras" data-show="nvim">
       <h2>Neovim · extras <span class="badge badge-nvim">nvim</span></h2>
       <dl>
-        <dt>s S</dt><dd>sub char / whole line <span class="hint">core vim</span></dd>
-        <dt>Esc Esc</dt><dd>exit terminal mode <span class="hint">custom</span></dd>
-        <dt>gi</dt><dd>resume last insert</dd>
         <dt>Ctrl+n Ctrl+p</dt><dd>completion next / prev <span class="hint">blink.cmp</span></dd>
         <dt>Ctrl+y</dt><dd>accept completion</dd>
         <dt>Ctrl+e</dt><dd>cancel completion</dd>
-        <dt>Ctrl+w &gt; &lt;</dt><dd>resize split wider / narrower</dd>
-        <dt>Ctrl+w + -</dt><dd>resize split taller / shorter</dd>
-        <dt>Ctrl+w r</dt><dd>rotate splits</dd>
-        <dt>Ctrl+w T</dt><dd>break split into new tab</dd>
-        <dt>Ctrl+h/j/k/l</dt><dd>focus split <span class="hint">tmux-aware</span></dd>
-        <dt>s{c}{c}</dt><dd>flash 2-char jump</dd>
         <dt>Ctrl+x</dt><dd>delete mark <span class="hint">in fzf-lua picker</span></dd>
       </dl>
     </section>
@@ -570,7 +532,7 @@
     </section>
 
     <!-- ══════════════════════════════════════════════════════
-         GROUP D · CMDLINE — ex ranges, ex & quit, killer patterns
+         GROUP D · CMDLINE — ex ranges, custom session
          ══════════════════════════════════════════════════════ -->
 
     <section class="vim g-cmd">
@@ -588,32 +550,11 @@
     </section>
 
     <section class="vim g-cmd">
-      <h2>Ex &amp; quit</h2>
+      <h2>Session <span class="hint">custom</span></h2>
       <dl>
-        <dt>:w :q :wq</dt><dd>save / quit / both</dd>
-        <dt>:e {file}</dt><dd>open file</dd>
-        <dt>:{n}</dt><dd>go to line n</dd>
-        <dt>:!{cmd}</dt><dd>run shell command</dd>
-        <dt>:r {file}</dt><dd>read file into buffer</dd>
-        <dt>q: q/</dt><dd>cmd / search history window</dd>
-        <dt>Ctrl+g</dt><dd>show file info</dd>
         <dt>&lt;leader&gt;qq</dt><dd>quit all</dd>
         <dt>&lt;leader&gt;qw</dt><dd>save all + quit</dd>
-        <dt>&lt;leader&gt;rc</dt><dd>reload vim config</dd>
-      </dl>
-    </section>
-
-    <!-- ── Killer patterns (vim) ─────────────────────────── -->
-    <section class="patterns">
-      <h2>Killer patterns</h2>
-      <dl>
-        <dt>ciw</dt><dd>change inner word</dd>
-        <dt>ci" ci( ci{</dt><dd>change inside quotes / parens</dd>
-        <dt>daw</dt><dd>delete a word (incl. ws)</dd>
-        <dt>gUiw</dt><dd>uppercase inner word</dd>
-        <dt>*cgn …Esc . .</dt><dd>power-rename via search + .</dd>
-        <dt>ggVG</dt><dd>select entire file</dd>
-        <dt>gg=G</dt><dd>auto-indent file</dd>
+        <dt>&lt;leader&gt;rc</dt><dd>reload config</dd>
       </dl>
     </section>
 
