@@ -249,6 +249,24 @@ section.patterns {
   border-left-width: 3px;
 }
 
+/* Group accents — finer-grained than family.
+   Override family accent for the four vim-core groups so the eye can
+   bucket sections at a glance: A=move (green), B=edit (amber),
+   C=augment (violet), D=cmd (steel). Extras inherit family green. */
+section.g-move    { --accent: var(--green); }
+section.g-edit    { --accent: var(--amber); }
+section.g-augment { --accent: var(--violet); }
+section.g-cmd     { --accent: var(--steel); }
+section.g-extras  { --accent: var(--green); }
+
+/* Slightly thicker left border for group sections so the band reads
+   as a category marker, not just a section divider. */
+section.g-move,
+section.g-edit,
+section.g-augment,
+section.g-cmd,
+section.g-extras { border-left-width: 4px; }
+
 /* ── Scope badges ──────────────────────────────────────────── */
 
 .badge {
