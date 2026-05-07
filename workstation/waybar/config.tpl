@@ -42,9 +42,10 @@
     "format": "{icon}",
     "format-icons": {
       "1": "<span color=\"@@BLUE@@\"></span>",
-      "2": "<span color=\"@@PEACH@@\"></span>",
-      "3": "<span color=\"@@GREEN@@\"></span>",
+      "2": "<span color=\"@@PEACH@@\"></span>",
+      "3": "<span color=\"@@GREEN@@\"></span>",
       "4": "<span color=\"@@MAUVE@@\"></span>",
+      "5": "<span color=\"@@YELLOW@@\">󰓔</span>",
       "default": "<span color=\"@@OVERLAY1@@\"></span>"
     }
   },
