@@ -1,5 +1,4 @@
-/* Vim merged cheatsheet — Common / Neovim / IdeaVim tri-switcher.
-   Extends the canonical ideavim styles.css with tri-mode toggle UI. */
+/* Tools cheatsheet — Common / Neovim / IdeaVim / Tmux scope switcher. */
 
 :root {
   --bg:           #0d1117;
@@ -91,6 +90,7 @@ html, body {
 .scope-switch button[data-scope="common"][aria-pressed="true"]  { background: var(--green); }
 .scope-switch button[data-scope="nvim"][aria-pressed="true"]    { background: var(--steel); }
 .scope-switch button[data-scope="ideavim"][aria-pressed="true"] { background: var(--amber); }
+.scope-switch button[data-scope="tmux"][aria-pressed="true"]    { background: var(--violet); }
 
 /* ── Layout ────────────────────────────────────────────────── */
 
@@ -121,6 +121,12 @@ main.bricks {
 body[data-scope="common"]  .masthead h1 .scope-name { color: var(--green); }
 body[data-scope="nvim"]    .masthead h1 .scope-name { color: var(--steel); }
 body[data-scope="ideavim"] .masthead h1 .scope-name { color: var(--amber); }
+body[data-scope="tmux"]    .masthead[data-family="tmux"] h1 { color: var(--violet); }
+
+/* Show only the matching masthead per scope. */
+.masthead[data-family="tmux"]                               { display: none; }
+body[data-scope="tmux"] .masthead[data-family="tmux"]       { display: inline-block; }
+body[data-scope="tmux"] .masthead[data-family="vim"]        { display: none; }
 
 .grammar {
   margin: 0 0 0.6rem;
@@ -277,10 +283,11 @@ dt .badge { margin-left: 0.4em; }
 /* Hide tool-specific by default; common scope keeps untagged items. */
 [data-show] { display: none; }
 
-/* In nvim/ideavim mode, hide common (untagged) sections entirely.
-   Masthead (always shown) is exempt via :not(.masthead). */
+/* In nvim/ideavim/tmux mode, hide common (untagged) sections entirely.
+   Masthead (always shown via data-family rules) is exempt via :not(.masthead). */
 body[data-scope="nvim"]    section:not([data-show]):not(.masthead),
-body[data-scope="ideavim"] section:not([data-show]):not(.masthead) { display: none; }
+body[data-scope="ideavim"] section:not([data-show]):not(.masthead),
+body[data-scope="tmux"]    section:not([data-show]):not(.masthead) { display: none; }
 
 /* Tagged sections show all their inner rows by default — the section is
    already gated by [data-show], so its contents come along for free. We
@@ -292,7 +299,8 @@ body[data-scope="ideavim"] dd[data-show="nvim"] { display: none; }
 
 /* Reveal matching tagged sections + rows + inline hints. */
 body[data-scope="nvim"]    section[data-show="nvim"],
-body[data-scope="ideavim"] section[data-show="ideavim"] { display: inline-block; width: 100%; }
+body[data-scope="ideavim"] section[data-show="ideavim"],
+body[data-scope="tmux"]    section[data-show="tmux"] { display: inline-block; width: 100%; }
 
 body[data-scope="nvim"]    dt[data-show="nvim"],
 body[data-scope="nvim"]    dd[data-show="nvim"],

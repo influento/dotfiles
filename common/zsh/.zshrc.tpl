@@ -158,9 +158,7 @@ _cheat() {
     disown
   fi
 }
-alias cheat-ideavim='_cheat ideavim "IdeaVim cheatsheet"'
-alias cheat-nvim='_cheat nvim "Neovim cheatsheet"'
-alias cheat-tmux='_cheat tmux "tmux cheatsheet"'
+alias cheat='_cheat tools "Tools cheatsheet"'
 
 # Misc
 alias reload='source ~/.zshrc'
