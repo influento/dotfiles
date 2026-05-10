@@ -47,6 +47,7 @@ window#waybar {
 
 
 #custom-calendar,
+#custom-timer,
 #language,
 #network,
 #pulseaudio,
@@ -141,6 +142,10 @@ window#waybar {
 
 #custom-usb {
   color: @@PEACH@@;
+}
+
+#custom-timer {
+  color: @@PINK@@;
 }
 
 #custom-usb.empty {
