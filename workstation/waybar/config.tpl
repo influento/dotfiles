@@ -53,6 +53,7 @@
     "orientation": "horizontal",
     "modules": [
       "custom/usb",
+      "custom/timer",
       "sway/language",
       "pulseaudio",
       "custom/bluetooth",
@@ -133,6 +134,13 @@
     "interval": 60,
     "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle calendar\""
+  },
+  "custom/timer": {
+    "exec": "timer-status",
+    "return-type": "json",
+    "interval": 1,
+    "tooltip": false,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle timer\""
   },
   "custom/usb": {
     "exec": "usb-status",
