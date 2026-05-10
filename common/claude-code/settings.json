@@ -6,7 +6,14 @@
   },
   "includeGitInstructions": true,
   "permissions": {
-    "allow": ["Read", "Glob", "Grep", "Agent", "WebSearch", "WebFetch"],
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Agent",
+      "WebSearch",
+      "WebFetch"
+    ],
     "deny": [
       "Read(~/.ssh/*)",
       "Read(**/.env)",
@@ -27,5 +34,10 @@
   "effortLevel": "xhigh",
   "editorMode": "vim",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true,
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  }
 }
