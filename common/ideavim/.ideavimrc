@@ -25,7 +25,7 @@ set scrolloff=8
 set sidescrolloff=8
 set cursorline
 
-set clipboard+=unnamed,unnamedplus
+set clipboard+=unnamed,unnamedplus,ideaput
 
 set nowrap
 set visualbell
@@ -51,6 +51,19 @@ nmap <leader>sa ys
 nmap <leader>sd ds
 nmap <leader>sr cs
 xmap <leader>sa S
+
+" Black hole deletes — clipboard is shared, so default d/c/dd are "cut".
+" Use x and <leader>d when you want a true delete that does not touch clipboard.
+nnoremap x "_x
+xnoremap x "_x
+nnoremap <leader>d "_d
+xnoremap <leader>d "_d
+nnoremap <leader>D "_D
+
+" Visual-mode paste must not clobber the clipboard with the overwritten selection.
+" IdeaVim doesn't reliably implement visual `P`'s skip-register behavior, so do it
+" explicitly: delete selection to black hole, then paste-before from unchanged register.
+xnoremap p "_dP
 
 " AceJump: nmap-only — uppercase action variants leave you in VISUAL when
 " bound mode-agnostically.
