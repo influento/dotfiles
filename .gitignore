@@ -28,3 +28,7 @@ workstation/sway/scale.conf
 workstation/wlsunset/temperature
 workstation/scripts/__pycache__/
 common/tmux/plugins/
+
+# skill-creator eval artifacts (workspace dirs are siblings of the skill)
+common/claude-code/skills/**/*-workspace/
+common/claude-code/skills/**/__pycache__/
