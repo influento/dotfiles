@@ -118,6 +118,7 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 alias -- -='cd -'
 alias dots='cd ~/dev/infra/dotfiles'
+alias cpwd='pwd | wl-copy'
 
 # Docker
 alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
