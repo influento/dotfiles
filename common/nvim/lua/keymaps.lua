@@ -16,6 +16,16 @@ map("n", "<leader>-", "<cmd>split<CR>", { desc = "Split horizontal" })
 map("n", "<leader>|", "<cmd>vsplit<CR>", { desc = "Split vertical" })
 map("n", "<leader>wq", "<cmd>close<CR>", { desc = "Close split" })
 
+-- Black hole deletes — clipboard is shared, so default d/c/dd are "cut".
+-- Use x and <leader>d when you want a true delete that does not touch clipboard.
+map({ "n", "x" }, "x", '"_x')
+map({ "n", "x" }, "<leader>d", '"_d', { desc = "Delete (no yank)" })
+map("n", "<leader>D", '"_D', { desc = "Delete to EOL (no yank)" })
+
+-- Visual-mode paste must not clobber the clipboard with the overwritten selection.
+-- Use the explicit form so it works in older Vim/IdeaVim too (parity across editors).
+map("x", "p", '"_dP', { desc = "Paste without yanking selection" })
+
 -- Stay in visual mode when indenting
 map("v", "<", "<gv")
 map("v", ">", ">gv")

@@ -181,11 +181,13 @@
     <section class="vim g-edit">
       <h2>Edit</h2>
       <dl>
-        <dt>x X</dt><dd>del char fwd / back</dd>
-        <dt>dd D</dt><dd>del line / to EOL</dd>
-        <dt>cc C</dt><dd>change line / to EOL</dd>
+        <dt>x X</dt><dd>del char <span class="hint">black hole, no clipboard</span></dd>
+        <dt>dd D</dt><dd>cut line / to EOL <span class="hint">→ clipboard</span></dd>
+        <dt>cc C</dt><dd>change line / to EOL <span class="hint">→ clipboard</span></dd>
+        <dt>&lt;leader&gt;d{m} &lt;leader&gt;D</dt><dd>delete (no yank) <span class="hint">black hole</span></dd>
         <dt>yy Y</dt><dd>yank line / to EOL</dd>
-        <dt>p P</dt><dd>paste after / before</dd>
+        <dt>p P</dt><dd>paste after / before <span class="hint">shared clipboard</span></dd>
+        <dt>vi{c} p</dt><dd>replace inside {c} with clipboard</dd>
         <dt>r{c}</dt><dd>replace char</dd>
         <dt>gu{m} gU{m}</dt><dd>lower / UPPER + motion</dd>
         <dt>J</dt><dd>join line below</dd>
