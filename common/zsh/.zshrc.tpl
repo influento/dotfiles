@@ -23,6 +23,7 @@ plugins=(
   git
   sudo                      # ESC ESC to prepend sudo to last/current command
   extract                   # `extract archive.tar.gz` — handles any archive format
+  vi-mode                   # vim keybindings on the command line (ESC for normal mode)
   zsh-autosuggestions
   zsh-syntax-highlighting   # must be last
 )
@@ -61,8 +62,9 @@ zstyle ':completion:*' squeeze-slashes true                    # /a//b → /a/b
 zstyle ':completion:*:*:kill:*' menu yes select                # nice kill menu
 zstyle ':completion:*:kill:*' force-list always
 
-# --- Key bindings (emacs mode) ---
-bindkey -e
+# --- Key bindings (vi mode) ---
+# vi-mode plugin runs `bindkey -v`; KEYTIMEOUT makes ESC switch modes instantly
+KEYTIMEOUT=1
 
 # Edit current command in $EDITOR with Ctrl-X Ctrl-E
 autoload -z edit-command-line

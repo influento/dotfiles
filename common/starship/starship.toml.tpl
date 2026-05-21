@@ -95,3 +95,4 @@ show_notifications = false
 [character]
 success_symbol = "[❯](bold @@GREEN@@)"
 error_symbol = "[❯](bold @@RED@@)"
+vimcmd_symbol = "[❮](bold @@YELLOW@@)"
