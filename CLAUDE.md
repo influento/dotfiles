@@ -155,7 +155,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
-| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills. Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
+| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (vendored under `skills/`; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
