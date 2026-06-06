@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # auto-update — Silent background system update on sway startup.
-# Runs yay -Syu (official repos + AUR) with a 12-hour cooldown. Sends mako
+# Runs yay -Syu (official repos + AUR) with a 12-hour cooldown. Recovers from
+# stale-keyring signature failures by repairing the keyring before retrying.
+# Sends mako
 # notifications on success (low urgency, auto-dismiss) or failure (critical, persistent).
 
 STATE_DIR="$HOME/.local/state/dotfiles"
@@ -80,6 +82,22 @@ if [[ -f "$KEYBOXD_LOCK" ]]; then
 fi
 gpgconf --launch gpg-agent
 
+# Repair a stale/broken keyring. Called reactively when an upgrade fails with a
+# signature/trust error: after a long power-off the installed keyring can be too
+# old to verify newly-signed packages — including, in the worst case, the new
+# archlinux-keyring package itself. Syncing the keyring on its own, then
+# repopulating the trust db from it, recovers the common and pathological cases.
+# Done only on failure so routine runs pay no cost and we avoid a standalone -Sy.
+repair_keyring() {
+  echo "[$(date)] Signature/trust error detected — repairing keyring..." >> "$LOG_FILE"
+  notify-send -u low "Repairing Keyring" "Updating archlinux-keyring and trust db..."
+  local repair_out
+  repair_out="$(sudo pacman -Sy --needed --noconfirm archlinux-keyring 2>&1 || true)"
+  echo "$repair_out" >> "$LOG_FILE"
+  repair_out="$(sudo pacman-key --populate archlinux 2>&1 || true)"
+  echo "$repair_out" >> "$LOG_FILE"
+}
+
 # Check for available updates
 pending="$(yay -Qu 2>/dev/null | wc -l || true)"
 if (( pending == 0 )); then
@@ -104,11 +122,18 @@ else
 
     echo "$output" >> "$LOG_FILE"
 
-    # Extract error details: mirror 404s, file conflicts, or generic failure
+    # Extract error details: signature/trust, mirror 404s, file conflicts, generic
     error_detail=""
+    signature_fail=""
+    if echo "$output" | grep -qiE "signature .* unknown trust|invalid or corrupted package|marginal trust|key .* could not be looked up|unknown public key"; then
+      signature_fail=1
+      error_detail="Signature/trust failure"
+    fi
     retrieval_fails="$(echo "$output" | grep -oP "failed retrieving file '\K[^']+(?=')" | sed 's/-[0-9].*//;s/\.pkg.*//' | sort -u | paste -sd', ' || true)"
     conflict_fails="$(echo "$output" | grep -oP "^[^:]+(?=: /)" | grep -v "^error$" | sort -u | paste -sd', ' || true)"
-    if [[ -n "$retrieval_fails" ]]; then
+    if [[ -n "$signature_fail" ]]; then
+      : # error_detail already set above
+    elif [[ -n "$retrieval_fails" ]]; then
       error_detail="Failed to retrieve: ${retrieval_fails}"
     elif [[ -n "$conflict_fails" ]]; then
       error_detail="File conflict in: ${conflict_fails}"
@@ -117,6 +142,10 @@ else
     fi
 
     if (( attempt < MAX_ATTEMPTS )); then
+      # Repair the keyring before retrying if this was a signature/trust failure
+      if [[ -n "$signature_fail" ]]; then
+        repair_keyring
+      fi
       echo "[$(date)] Update FAILED (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in ${RETRY_DELAY}s..." >> "$LOG_FILE"
       notify-send -u critical "Update Failed (${attempt}/${MAX_ATTEMPTS})" \
         "${error_detail}. Retrying in ${RETRY_DELAY}s..."
