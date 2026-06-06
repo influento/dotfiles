@@ -29,7 +29,6 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-opus-4-7",
   "language": "English",
   "alwaysThinkingEnabled": false,
   "effortLevel": "xhigh",
