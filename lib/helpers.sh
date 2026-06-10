@@ -82,17 +82,7 @@ install_omz() {
 
   log_info "Installing oh-my-zsh..."
 
-  # Run as the target user if we're root, otherwise run directly
-  if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-    sudo -Hu "$TARGET_USER" bash -c '
-      set -euo pipefail
-      export RUNZSH=no
-      export CHSH=no
-      sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-    '
-  else
-    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-  fi
+  RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
   # Remove the default .zshrc that oh-my-zsh creates — we deploy our own
   rm -f "${user_home}/.zshrc"
@@ -131,12 +121,7 @@ install_zsh_plugins() {
 
     log_info "Installing zsh plugin: ${plugin_name}..."
 
-    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-      sudo -Hu "$TARGET_USER" git clone --depth 1 \
-        "https://github.com/${repo}.git" "$dest"
-    else
-      git clone --depth 1 "https://github.com/${repo}.git" "$dest"
-    fi
+    git clone --depth 1 "https://github.com/${repo}.git" "$dest"
 
     log_info "zsh plugin installed: ${plugin_name}"
   done
@@ -196,18 +181,9 @@ install_obsidian_plugins() {
       local base_url="https://github.com/${repo}/releases/latest/download"
       local dl_cmd="curl -fsSL"
 
-      if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-        sudo -u "$TARGET_USER" bash -c "
-          set -euo pipefail
-          ${dl_cmd} '${base_url}/main.js' -o '${plugin_dir}/main.js'
-          ${dl_cmd} '${base_url}/manifest.json' -o '${plugin_dir}/manifest.json'
-          ${dl_cmd} '${base_url}/styles.css' -o '${plugin_dir}/styles.css' 2>/dev/null || true
-        "
-      else
-        ${dl_cmd} "${base_url}/main.js" -o "${plugin_dir}/main.js"
-        ${dl_cmd} "${base_url}/manifest.json" -o "${plugin_dir}/manifest.json"
-        ${dl_cmd} "${base_url}/styles.css" -o "${plugin_dir}/styles.css" 2>/dev/null || true
-      fi
+      ${dl_cmd} "${base_url}/main.js" -o "${plugin_dir}/main.js"
+      ${dl_cmd} "${base_url}/manifest.json" -o "${plugin_dir}/manifest.json"
+      ${dl_cmd} "${base_url}/styles.css" -o "${plugin_dir}/styles.css" 2>/dev/null || true
 
       if [[ ! -f "${plugin_dir}/manifest.json" ]]; then
         log_warn "Failed to download plugin: ${plugin_id}"
@@ -277,11 +253,7 @@ install_tmux_plugins() {
     log_info "Downloading ${plugin} for linux/${arch}..."
 
     local dl_cmd="curl -fsSL"
-    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-      sudo -u "$TARGET_USER" bash -c "${dl_cmd} '${url}' -o '${target}' && chmod +x '${target}'"
-    else
-      ${dl_cmd} "${url}" -o "${target}" && chmod +x "${target}"
-    fi
+    ${dl_cmd} "${url}" -o "${target}" && chmod +x "${target}"
 
     if [[ -x "$target" ]]; then
       log_info "tmux plugin installed: ${plugin}"
@@ -293,11 +265,7 @@ install_tmux_plugins() {
     # Download shell wrapper if it exists
     local wrapper_url="https://raw.githubusercontent.com/${repo}/main/${plugin}/${plugin}.sh"
     local wrapper_target="${bin_dir}/${plugin}.sh"
-    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-      sudo -u "$TARGET_USER" bash -c "${dl_cmd} '${wrapper_url}' -o '${wrapper_target}' && chmod +x '${wrapper_target}'" 2>/dev/null || true
-    else
-      ${dl_cmd} "${wrapper_url}" -o "${wrapper_target}" && chmod +x "${wrapper_target}" 2>/dev/null || true
-    fi
+    ${dl_cmd} "${wrapper_url}" -o "${wrapper_target}" && chmod +x "${wrapper_target}" 2>/dev/null || true
   done
 }
 
