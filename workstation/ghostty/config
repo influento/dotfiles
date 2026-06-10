@@ -34,5 +34,5 @@ shell-integration = detect
 command = tmux new-session -A -s main
 
 # Keybinds
+# Copy is handled by copy-on-select; ctrl+c stays plain SIGINT
 keybind = ctrl+v=paste_from_clipboard
-keybind = performable:ctrl+c=copy_to_clipboard
