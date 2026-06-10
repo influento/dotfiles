@@ -36,7 +36,7 @@ Deploy user-level configuration (dotfiles) with profile-based selection.
 
 Options:
   --profile PROFILE   Required. server | workstation
-  --user USERNAME     Target user (default: current user)
+  --user USERNAME     Target user; must match the invoking user (default: current user)
   --theme THEME       Color theme (default: from theme.conf or catppuccin-mocha)
   --dry-run           Show what would be done without making changes
   --help              Show this help message
@@ -74,16 +74,19 @@ case "$PROFILE" in
   *) die "Invalid profile: $PROFILE. Must be 'server' or 'workstation'." ;;
 esac
 
+if [[ $EUID -eq 0 ]]; then
+  die "Do not run as root. Run as the target user: sudo -u USERNAME bash install.sh ..."
+fi
+
 if [[ -z "$TARGET_USER" ]]; then
   die "Could not determine target user. Pass --user USERNAME."
 fi
 
-# Resolve user home directory
-if [[ $EUID -eq 0 ]]; then
-  USER_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)" || die "User not found: $TARGET_USER"
-else
-  USER_HOME="$HOME"
+if [[ "$TARGET_USER" != "$(id -un)" ]]; then
+  die "--user ${TARGET_USER} does not match invoking user $(id -un). Run as the target user."
 fi
+
+USER_HOME="$HOME"
 
 if [[ ! -d "$USER_HOME" ]]; then
   die "Home directory not found: $USER_HOME"
@@ -97,8 +100,6 @@ if [[ -z "$THEME" ]]; then
   fi
   THEME="${THEME:-catppuccin-mocha}"
 fi
-
-export TARGET_USER
 
 # --- Summary ---
 
@@ -187,38 +188,14 @@ if [[ "$PROFILE" == "server" ]]; then
     done
 
     # Enable and start the timer
-    if [[ $EUID -eq 0 && -n "${TARGET_USER:-}" ]]; then
-      sudo -Hu "$TARGET_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$TARGET_USER")" \
-        systemctl --user daemon-reload
-      sudo -Hu "$TARGET_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$TARGET_USER")" \
-        systemctl --user enable --now server-auto-update.timer
-    else
-      systemctl --user daemon-reload
-      systemctl --user enable --now server-auto-update.timer
-    fi
+    systemctl --user daemon-reload
+    systemctl --user enable --now server-auto-update.timer
     log_info "server-auto-update timer enabled"
   fi
 fi
 
 # Remove ~/.local/bin symlinks left behind by deleted or renamed repo scripts
 prune_dead_bin_links "$USER_HOME"
-
-# --- Fix ownership if running as root ---
-
-if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
-  log_info "Fixing ownership for $TARGET_USER..."
-  chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.config" 2>/dev/null || true
-  chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.local" 2>/dev/null || true
-  chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.zshrc" 2>/dev/null || true
-  chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.zshrc-workstation" 2>/dev/null || true
-  chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.gitconfig" 2>/dev/null || true
-  chown -h "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.oh-my-zsh" 2>/dev/null || true
-  chown -R "${TARGET_USER}:${TARGET_USER}" "$USER_HOME/.claude" 2>/dev/null || true
-  # Fix ownership for Obsidian vault plugin files if they were created
-  if [[ -d "${USER_HOME}/Dropbox/data-vault/.obsidian" ]]; then
-    chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}/Dropbox/data-vault/.obsidian" 2>/dev/null || true
-  fi
-fi
 
 log_section "Done"
 log_info "Dotfiles deployed for $TARGET_USER ($PROFILE profile)."
