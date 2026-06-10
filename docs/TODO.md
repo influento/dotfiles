@@ -2,11 +2,11 @@
 
 ## Common Configs
 
-- [ ] Zsh: .zshrc with oh-my-zsh plugins, aliases, environment vars, starship eval
-- [ ] Neovim: init.lua with lazy.nvim, LSP, treesitter, keymaps
-- [ ] tmux: prefix key, mouse, truecolor, status bar, tpm plugins
-- [ ] Git: .gitconfig with user identity, aliases, pull strategy, difftool
-- [ ] Starship: starship.toml with prompt segments and theme
+- [x] Zsh: .zshrc with oh-my-zsh plugins, aliases, environment vars, starship eval
+- [x] Neovim: init.lua with lazy.nvim, LSP, treesitter, keymaps
+- [x] tmux: prefix key, mouse, truecolor, status bar, tpm plugins
+- [x] Git: .gitconfig with user identity, aliases, pull strategy, difftool
+- [x] Starship: starship.toml with prompt segments and theme
 
 ## Workstation Configs
 

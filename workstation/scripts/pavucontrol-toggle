@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Toggle pavucontrol. Uses flock to prevent duplicates.
 
-LOCKFILE="/tmp/.pavucontrol-toggle.lock"
+LOCKFILE="/tmp/.pavucontrol-toggle-${UID}.lock"
 
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then

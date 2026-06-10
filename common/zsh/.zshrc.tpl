@@ -155,7 +155,7 @@ _cheat() {
   else
     nohup chromium \
       --app="file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/$name/index.html" \
-      --user-data-dir="/tmp/chromium-cheat-$name" \
+      --user-data-dir="${XDG_RUNTIME_DIR:-/tmp}/chromium-cheat-$name" \
       --no-first-run --no-default-browser-check \
       >/dev/null 2>&1 &
     disown
