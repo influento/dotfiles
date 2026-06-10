@@ -221,11 +221,13 @@ install_obsidian_plugins() {
 }
 
 # Download tmux plugin binaries from influento/tmux-plugins GitHub Releases.
-# Installs each binary into ~/.local/bin/.
+# Installs each binary into ~/.local/bin/ and stamps the installed release in
+# ~/.local/state/dotfiles/ so cutting a new release triggers a reinstall.
 # Usage: install_tmux_plugins "/home/username"
 install_tmux_plugins() {
   local user_home="$1"
   local bin_dir="${user_home}/.local/bin"
+  local state_dir="${user_home}/.local/state/dotfiles"
   local repo="influento/tmux-plugins"
 
   local arch
@@ -236,36 +238,48 @@ install_tmux_plugins() {
   esac
 
   ensure_dir "$bin_dir"
+  ensure_dir "$state_dir"
 
   log_section "Installing tmux plugins"
+
+  # Resolve the current release tag from the /releases/latest redirect
+  local tag
+  if ! tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest")"; then
+    log_warn "Could not resolve latest tmux plugins release, keeping installed versions."
+    return 0
+  fi
+  tag="${tag##*/}"
 
   local -a plugins=("tmux-warp")
   local plugin
   for plugin in "${plugins[@]}"; do
     local target="${bin_dir}/${plugin}"
+    local stamp_file="${state_dir}/${plugin}-version"
 
-    if [[ -x "$target" ]]; then
-      log_info "tmux plugin already installed: ${plugin}"
+    if [[ -x "$target" && -f "$stamp_file" && "$(cat "$stamp_file")" == "$tag" ]]; then
+      log_info "tmux plugin already installed: ${plugin} (${tag})"
       continue
     fi
 
-    local url="https://github.com/${repo}/releases/latest/download/${plugin}-linux-${arch}"
-    log_info "Downloading ${plugin} for linux/${arch}..."
+    log_info "Downloading ${plugin} ${tag} for linux/${arch}..."
 
-    local dl_cmd="curl -fsSL"
-    ${dl_cmd} "${url}" -o "${target}" && chmod +x "${target}"
-
-    if [[ -x "$target" ]]; then
-      log_info "tmux plugin installed: ${plugin}"
-    else
+    local url="https://github.com/${repo}/releases/download/${tag}/${plugin}-linux-${arch}"
+    local tmp_file
+    tmp_file="$(mktemp "${bin_dir}/.${plugin}.XXXXXX")"
+    if ! curl -fsSL "$url" -o "$tmp_file"; then
+      rm -f "$tmp_file"
       log_warn "Failed to download tmux plugin: ${plugin}"
       continue
     fi
+    chmod 755 "$tmp_file"
+    mv "$tmp_file" "$target"
+    printf '%s\n' "$tag" > "$stamp_file"
+    log_info "tmux plugin installed: ${plugin} (${tag})"
 
-    # Download shell wrapper if it exists
-    local wrapper_url="https://raw.githubusercontent.com/${repo}/main/${plugin}/${plugin}.sh"
+    # Download the matching shell wrapper if it exists
+    local wrapper_url="https://raw.githubusercontent.com/${repo}/${tag}/${plugin}/${plugin}.sh"
     local wrapper_target="${bin_dir}/${plugin}.sh"
-    ${dl_cmd} "${wrapper_url}" -o "${wrapper_target}" && chmod +x "${wrapper_target}" 2>/dev/null || true
+    curl -fsSL "$wrapper_url" -o "$wrapper_target" 2>/dev/null && chmod +x "$wrapper_target" || true
   done
 }
 
