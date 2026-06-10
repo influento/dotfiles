@@ -38,6 +38,5 @@
   },
   "editorMode": "vim",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "skipAutoPermissionPrompt": true
 }

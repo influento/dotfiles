@@ -15,6 +15,27 @@ y() {
   rm -f -- "$tmp"
 }
 
+# --- Cheatsheets — focus existing window or launch in chromium app mode ---
+_cheat() {
+  local name="$1" title="$2"
+  # Repo root via the ~/.zshrc-workstation symlink (→ <dotfiles>/workstation/zsh/…)
+  local dotfiles_dir
+  dotfiles_dir="$(readlink -f "$HOME/.zshrc-workstation")"
+  dotfiles_dir="${dotfiles_dir%/workstation/zsh/*}"
+  if command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_tree 2>/dev/null \
+      | grep -q "\"name\": \"$title\""; then
+    swaymsg "[title=\"$title\"] focus" >/dev/null
+  else
+    nohup chromium \
+      --app="file://${dotfiles_dir}/workstation/cheatsheets/$name/index.html" \
+      --user-data-dir="${XDG_RUNTIME_DIR:-/tmp}/chromium-cheat-$name" \
+      --no-first-run --no-default-browser-check \
+      >/dev/null 2>&1 &
+    disown
+  fi
+}
+alias cheat='_cheat tools "Tools cheatsheet"'
+
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
   export ELECTRON_OZONE_PLATFORM_HINT=wayland

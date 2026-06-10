@@ -49,6 +49,27 @@ ensure_dir() {
   fi
 }
 
+# Remove symlinks in ~/.local/bin that point into this dotfiles repo but whose
+# targets no longer exist (scripts deleted or renamed in the repo).
+# Usage: prune_dead_bin_links "/home/username"
+prune_dead_bin_links() {
+  local user_home="$1"
+  local bin_dir="${user_home}/.local/bin"
+
+  [[ -d "$bin_dir" ]] || return 0
+
+  local link target
+  for link in "$bin_dir"/*; do
+    [[ -L "$link" ]] || continue
+    target="$(readlink "$link")"
+    [[ "$target" == "${DOTFILES_DIR}"/* ]] || continue
+    if [[ ! -e "$link" ]]; then
+      log_warn "Pruning dead symlink: ${link} → ${target}"
+      rm -f "$link"
+    fi
+  done
+}
+
 # Install oh-my-zsh for a user if not already present.
 # Usage: install_omz "/home/username"
 install_omz() {
@@ -430,6 +451,7 @@ deploy_configs() {
           local script_name
           script_name="$(basename "$script")"
           [[ "$script_name" == ".gitkeep" ]] && continue
+          [[ "$script_name" == *.tpl ]] && continue
           link_config "$script" "${user_home}/.local/bin/${script_name}"
         done
         ;;

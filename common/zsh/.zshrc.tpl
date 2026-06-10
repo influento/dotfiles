@@ -145,24 +145,6 @@ alias cp='cp -i'
 # Tmux
 alias ts='tmux-session'
 
-# Cheatsheets — focus existing window or launch in chromium app mode.
-# Source: ~/dev/infra/dotfiles/workstation/cheatsheets/<name>/index.html
-_cheat() {
-  local name="$1" title="$2"
-  if command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_tree 2>/dev/null \
-      | grep -q "\"name\": \"$title\""; then
-    swaymsg "[title=\"$title\"] focus" >/dev/null
-  else
-    nohup chromium \
-      --app="file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/$name/index.html" \
-      --user-data-dir="${XDG_RUNTIME_DIR:-/tmp}/chromium-cheat-$name" \
-      --no-first-run --no-default-browser-check \
-      >/dev/null 2>&1 &
-    disown
-  fi
-}
-alias cheat='_cheat tools "Tools cheatsheet"'
-
 # Misc
 alias reload='source ~/.zshrc'
 alias path='echo $PATH | tr ":" "\n"'
@@ -193,7 +175,8 @@ eval "$(zoxide init zsh)"
 eval "$(starship init zsh)"
 
 # --- First-login hint ---
-if command -v gh &>/dev/null && ! gh auth status &>/dev/null 2>&1; then
+# `gh auth token` reads stored credentials only — no network call on shell startup
+if command -v gh &>/dev/null && ! gh auth token &>/dev/null; then
   echo "→ Run setup-github to configure SSH + GitHub"
 fi
 

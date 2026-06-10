@@ -200,6 +200,9 @@ if [[ "$PROFILE" == "server" ]]; then
   fi
 fi
 
+# Remove ~/.local/bin symlinks left behind by deleted or renamed repo scripts
+prune_dead_bin_links "$USER_HOME"
+
 # --- Fix ownership if running as root ---
 
 if [[ $EUID -eq 0 && "$TARGET_USER" != "root" ]]; then
