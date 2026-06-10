@@ -21,7 +21,14 @@ if ! flock -n 9; then
   exit 0
 fi
 
-# Cooldown — skip if last successful update was <12h ago
+# Keep the log bounded — trim to the most recent 500 lines once it passes 1000
+if [[ -f "$LOG_FILE" ]] && (( $(wc -l < "$LOG_FILE") > 1000 )); then
+  tail -n 500 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
+fi
+
+# Cooldown — skip if the last run was <12h ago. The stamp is written on every
+# completed run, success or failure: failures already notified the user, so we
+# wait for the next window instead of retrying on every sway start.
 if [[ -f "$LAST_FILE" ]]; then
   last="$(cat "$LAST_FILE")"
   now="$(date +%s)"
@@ -193,4 +200,5 @@ if [[ ${#npm_pkgs[@]} -gt 0 ]]; then
   fi
 fi
 
+# Stamp the run regardless of outcome — see the cooldown note at the top
 date +%s > "$LAST_FILE"

@@ -53,11 +53,11 @@ Each group carries a `g-*` class (see Design conventions) for color cueing.
 
 ## Launcher
 
-`cheat` zsh alias in `common/zsh/.zshrc.tpl`:
+`cheat` zsh alias in `workstation/zsh/.zshrc-workstation`:
 
 - First call launches chromium in `--app=` mode, detached (no browser chrome, just title bar + page)
 - Subsequent calls focus the existing window via `swaymsg [title="Tools cheatsheet"] focus`
-- Isolated `--user-data-dir` (`/tmp/chromium-cheat-tools`)
+- Isolated `--user-data-dir` (`$XDG_RUNTIME_DIR/chromium-cheat-tools`)
 
 ## Source of truth
 

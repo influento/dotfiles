@@ -22,6 +22,8 @@ workstation/swaybg/wallpaper.sh
 workstation/theming/gtk-4.0/gtk.css
 workstation/mpv/mpv.conf
 workstation/mpv/script-opts/osc.conf
+common/tmux/tmux.conf
+workstation/sway/config
 
 # Runtime config (written by widgets)
 workstation/sway/scale.conf

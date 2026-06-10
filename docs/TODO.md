@@ -23,4 +23,4 @@
 
 - [ ] PipeWire / WirePlumber custom config
 - [ ] Additional themes (catppuccin-latte, gruvbox, etc.)
-- [ ] Theme more configs (sway, waybar, ghostty, starship) as they get content
+- [ ] Theme remaining configs (ghostty, nvim, btop, yazi)

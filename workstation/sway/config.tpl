@@ -31,12 +31,12 @@ smart_borders on
 default_border pixel 1
 default_floating_border pixel 2
 
-# Catppuccin Mocha border colors
+# Theme border colors (rendered from palette)
 # class                 border  bg      text    indicator child_border
-client.focused          #89b4fa #89b4fa #1e1e2e #89b4fa   #89b4fa
-client.focused_inactive #45475a #45475a #cdd6f4 #45475a   #45475a
-client.unfocused        #1e1e2e #1e1e2e #cdd6f4 #1e1e2e   #1e1e2e
-client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8   #f38ba8
+client.focused          @@BLUE@@ @@BLUE@@ @@BASE@@ @@BLUE@@   @@BLUE@@
+client.focused_inactive @@SURFACE1@@ @@SURFACE1@@ @@TEXT@@ @@SURFACE1@@   @@SURFACE1@@
+client.unfocused        @@BASE@@ @@BASE@@ @@TEXT@@ @@BASE@@   @@BASE@@
+client.urgent           @@RED@@ @@RED@@ @@BASE@@ @@RED@@   @@RED@@
 
 # --- Keybindings: Applications ---
 bindsym $mod+Return exec $term

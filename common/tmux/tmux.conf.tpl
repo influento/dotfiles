@@ -62,30 +62,32 @@ bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 # --- tmux-warp (flash.nvim-style jump) ---
 bind s run-shell -b '~/.local/bin/tmux-warp.sh'
 
-# --- Status bar (Catppuccin Mocha) ---
+# --- Status bar (themed) ---
 set -g status-position top
 set -g status-interval 5
-set -g status-style "bg=#1e1e2e,fg=#cdd6f4"
-set -g status-left "#[bg=#89b4fa,fg=#1e1e2e,bold] #S #[default] "
+set -g status-style "bg=@@BASE@@,fg=@@TEXT@@"
+set -g status-left "#[bg=@@BLUE@@,fg=@@BASE@@,bold] #S #[default] "
 set -g status-left-length 30
-set -g status-right "#[fg=#a6adc8] %H:%M "
+set -g status-right "#[fg=@@SUBTEXT0@@] %H:%M "
 set -g status-right-length 30
 
 # Active window
-setw -g window-status-current-format "#[bg=#313244,fg=#cdd6f4,bold] #I:#W "
+setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #I:#W "
 # Inactive window
-setw -g window-status-format "#[fg=#6c7086] #I:#W "
+setw -g window-status-format "#[fg=@@OVERLAY0@@] #I:#W "
 
 # Pane borders
-set -g pane-border-style "fg=#313244"
-set -g pane-active-border-style "fg=#89b4fa"
+set -g pane-border-style "fg=@@SURFACE0@@"
+set -g pane-active-border-style "fg=@@BLUE@@"
 
 # Message style
-set -g message-style "bg=#313244,fg=#cdd6f4"
+set -g message-style "bg=@@SURFACE0@@,fg=@@TEXT@@"
 
 # --- TPM (auto-bootstrap) ---
-if "test ! -d ~/.tmux/plugins/tpm" \
-  "run 'git clone --depth 1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm && ~/.tmux/plugins/tpm/bin/install_plugins'"
+# Plugins live outside the repo; TMUX_PLUGIN_MANAGER_PATH must be set before tpm runs
+set-environment -g TMUX_PLUGIN_MANAGER_PATH "$HOME/.local/share/tmux/plugins/"
+if "test ! -d ~/.local/share/tmux/plugins/tpm" \
+  "run 'git clone --depth 1 https://github.com/tmux-plugins/tpm ~/.local/share/tmux/plugins/tpm && ~/.local/share/tmux/plugins/tpm/bin/install_plugins'"
 
 set -g @plugin 'tmux-plugins/tpm'
 set -g @plugin 'christoomey/vim-tmux-navigator'
@@ -98,4 +100,4 @@ set -g @plugin 'tmux-plugins/tmux-continuum'
 set -g @resurrect-capture-pane-contents 'on'
 set -g @continuum-restore 'on'
 
-run '~/.tmux/plugins/tpm/tpm'
+run '~/.local/share/tmux/plugins/tpm/tpm'

@@ -21,6 +21,22 @@ load_theme() {
     die "Theme '${theme_name}' defines no colors (THEME_COLORS is empty)."
   fi
 
+  # Validate the palette: colors must be bare 6-digit hex (no '#') and meta
+  # values sed-safe — both are spliced raw into the sed program by build_sed_script.
+  local key value
+  for key in "${!THEME_COLORS[@]}"; do
+    value="${THEME_COLORS[$key]}"
+    if [[ ! "$value" =~ ^[0-9a-fA-F]{6}$ ]]; then
+      die "Theme '${theme_name}': ${key} must be a bare 6-digit hex value, got '${value}'"
+    fi
+  done
+  for key in "${!THEME_META[@]}"; do
+    value="${THEME_META[$key]}"
+    if [[ ! "$value" =~ ^[[:alnum:][:space:]._-]+$ ]]; then
+      die "Theme '${theme_name}': ${key} contains unsafe characters: '${value}'"
+    fi
+  done
+
   log_info "Loaded theme: ${THEME_META[DISPLAY_NAME]:-$theme_name} (${#THEME_COLORS[@]} colors)"
 }
 

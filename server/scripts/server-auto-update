@@ -18,6 +18,11 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# Keep the log bounded — trim to the most recent 500 lines once it passes 1000
+if [[ -f "$LOG_FILE" ]] && (( $(wc -l < "$LOG_FILE") > 1000 )); then
+  tail -n 500 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
+fi
+
 # Wait for network (up to 60s)
 for _ in $(seq 1 12); do
   if curl -sf --max-time 5 https://deb.debian.org > /dev/null 2>&1; then

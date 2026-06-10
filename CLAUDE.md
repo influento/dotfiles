@@ -120,12 +120,14 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | -------------------------------------------- | -------------------- | --------------- |
 | `common/zsh/.zshrc.tpl`                      | `.zshrc`             | `@@TOKEN@@`     |
 | `common/starship/starship.toml.tpl`          | `starship.toml`      | `@@TOKEN@@`     |
+| `common/tmux/tmux.conf.tpl`                  | `tmux.conf`          | `@@TOKEN@@`     |
 | `workstation/lazygit/config.yml.tpl`         | `config.yml`         | `@@TOKEN@@`     |
 | `workstation/mako/config.tpl`                | `config`             | `@@TOKEN@@`     |
 | `workstation/swaylock/config.tpl`            | `config`             | `@@TOKEN_RAW@@` |
 | `workstation/swayosd/style.css.tpl`          | `style.css`          | `@@TOKEN@@`     |
 | `workstation/swaybg/wallpaper.sh.tpl`        | `wallpaper.sh`       | `@@TOKEN@@`     |
 | `workstation/theming/gtk-4.0/gtk.css.tpl`    | `gtk.css`            | `@@TOKEN@@`     |
+| `workstation/sway/config.tpl`                | `config`             | `@@TOKEN@@`     |
 | `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
 | `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
 | `workstation/mpv/mpv.conf.tpl`               | `mpv.conf`           | `@@TOKEN@@`     |
@@ -140,7 +142,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **zsh + oh-my-zsh**  | `common/zsh/.zshrc.tpl`             | Shell: plugins, aliases, environment, prompt theme (themed)          |
 | **Neovim**           | `common/nvim/init.lua`              | Editor: keymaps, plugins (lazy.nvim), options                        |
 | **IdeaVim**          | `common/ideavim/.ideavimrc`         | JetBrains IDE Vim layer: mirrors nvim keymaps and options            |
-| **tmux**             | `common/tmux/tmux.conf`             | Terminal multiplexer: prefix key, panes, status bar                  |
+| **tmux**             | `common/tmux/tmux.conf.tpl`         | Terminal multiplexer: prefix key, panes, status bar (themed)         |
 | **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                    |
 | **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                  |
 | **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families              |
@@ -166,7 +168,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | **LazyGit**               | `workstation/lazygit/config.yml.tpl`                          | Terminal git UI: theme, pager, editor (themed)                                                       |
 | **yazi**                  | `workstation/yazi/yazi.toml`                                  | File manager: keymaps, appearance overrides                                                          |
-| **Sway**                  | `workstation/sway/config`                                     | Wayland compositor: keybindings, monitors, workspaces, window rules                                  |
+| **Sway**                  | `workstation/sway/config.tpl`                                 | Wayland compositor: keybindings, monitors, workspaces, window rules (themed)                         |
 | **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
 | **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
 | **swaylock**              | `workstation/swaylock/config.tpl`                             | Screen locker: colors, indicator, behavior (themed)                                                  |
@@ -187,7 +189,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
 | **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
 | **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
-| **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet (Common / Neovim / IdeaVim / Tmux, switch with keys 1–4). Opened via chromium app mode with the `cheat` alias in `.zshrc.tpl` — no symlink, no deploy step |
+| **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet (Common / Neovim / IdeaVim / Tmux, switch with keys 1–4). Opened via chromium app mode with the `cheat` alias in `.zshrc-workstation` — no symlink, no deploy step |
 
 ## Code Conventions
 
