@@ -80,7 +80,7 @@ fi
 
 # Resolve user home directory
 if [[ $EUID -eq 0 ]]; then
-  USER_HOME=$(eval echo "~${TARGET_USER}")
+  USER_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)" || die "User not found: $TARGET_USER"
 else
   USER_HOME="$HOME"
 fi

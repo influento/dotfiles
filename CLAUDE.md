@@ -131,14 +131,6 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | `workstation/mpv/mpv.conf.tpl`               | `mpv.conf`           | `@@TOKEN@@`     |
 | `workstation/mpv/script-opts/osc.conf.tpl`   | `osc.conf`           | `@@TOKEN@@`     |
 
-## What Needs Content
-
-- `common/nvim/init.lua` — needs lazy.nvim, LSP, treesitter
-- `common/tmux/tmux.conf` — needs prefix, status bar, plugins
-- `common/git/.gitconfig` — needs aliases, defaults (identity via `~/.gitconfig.local`)
-- `workstation/theming/gtk-3.0/settings.ini` — needs theme, icons, font
-- `workstation/theming/qt6ct/qt6ct.conf` — needs Kvantum style, icons
-
 ## What Each Tool Does
 
 ### Common (all profiles)

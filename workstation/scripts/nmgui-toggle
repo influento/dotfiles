@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Toggle nm-connection-editor. Uses flock to prevent duplicates.
 
-LOCKFILE="/tmp/.nmgui-toggle.lock"
+LOCKFILE="/tmp/.nmgui-toggle-${UID}.lock"
 
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then

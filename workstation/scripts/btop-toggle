@@ -4,7 +4,7 @@ set -euo pipefail
 # Toggle btop in a ghostty window.
 # Lock is held the entire time btop runs — no race windows possible.
 
-LOCKFILE="/tmp/.btop-toggle.lock"
+LOCKFILE="/tmp/.btop-toggle-${UID}.lock"
 
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then

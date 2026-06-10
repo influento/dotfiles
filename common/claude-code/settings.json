@@ -15,12 +15,12 @@
       "WebFetch"
     ],
     "deny": [
-      "Read(~/.ssh/*)",
+      "Read(~/.ssh/**)",
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Read(**/credentials*)",
       "Read(**/*secret*)",
-      "Read(~/.gnupg/*)",
+      "Read(~/.gnupg/**)",
       "Read(~/.netrc)",
       "Read(**/*.pem)",
       "Read(**/*_rsa)",

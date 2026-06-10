@@ -88,9 +88,9 @@ validate_rendered() {
 
   while IFS= read -r -d '' tpl; do
     local output="${tpl%.tpl}"
-    if [[ -f "$output" ]] && grep -qE '@@[A-Z_]+@@' "$output"; then
+    if [[ -f "$output" ]] && grep -qE '@@[A-Z0-9_]+@@' "$output"; then
       local tokens
-      tokens="$(grep -oE '@@[A-Z_]+@@' "$output" | sort -u | tr '\n' ' ')"
+      tokens="$(grep -oE '@@[A-Z0-9_]+@@' "$output" | sort -u | tr '\n' ' ')"
       log_warn "Unreplaced tokens in ${output}: ${tokens}"
     fi
   done < <(find "$search_dir" -name '*.tpl' -print0)
