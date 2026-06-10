@@ -55,7 +55,7 @@ This means:
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
-| `influento/tmux-plugins` (release)  | `~/.local/bin/tmux-warp` (downloaded)     | all         |
+| `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded) | all |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
 | `server/scripts/*`                  | `~/.local/bin/*`                          | server      |
 | `server/systemd/user/`             | `~/.config/systemd/user/`                 | server      |
