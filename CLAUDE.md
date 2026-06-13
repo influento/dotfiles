@@ -76,7 +76,6 @@ This means:
 | `workstation/theming/gtk-3.0/`      | `~/.config/gtk-3.0/`                      | workstation |
 | `workstation/theming/gtk-4.0/`      | `~/.config/gtk-4.0/`                      | workstation |
 | `workstation/theming/qt6ct/`        | `~/.config/qt6ct/`                        | workstation |
-| `workstation/theming/Kvantum/`      | `~/.config/Kvantum/`                      | workstation |
 | `workstation/mpv/`                  | `~/.config/mpv/`                          | workstation |
 | `workstation/yt-dlp/`               | `~/.config/yt-dlp/`                       | workstation |
 | `workstation/mimeapps/mimeapps.list`| `~/.config/mimeapps.list`                 | workstation |
@@ -180,8 +179,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **cliphist**              | `workstation/cliphist/cliphist-pick.sh`                       | Clipboard history: picker script (wofi)                                                              |
 | **Obsidian plugins**      | `workstation/obsidian/plugins.conf`                           | Plugin installer: downloads from GitHub releases into vault                                          |
 | **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                    | GTK3 apps: theme, icons, cursor, font                                                                |
-| **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Kvantum style, icons (requires qt6ct env var from OS installer)                            |
-| **Kvantum**               | `workstation/theming/Kvantum/kvantum.kvconfig`                | Qt theme engine: renders Qt widgets to match GTK theme                                               |
+| **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (requires qt6ct env var from OS installer)         |
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown, mako notifications |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
