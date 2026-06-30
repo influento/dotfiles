@@ -36,6 +36,31 @@ _cheat() {
 }
 alias cheat='_cheat tools "Tools cheatsheet"'
 
+# --- Open a PDF in the browser ---
+# Usage: `pdf <file.pdf>` opens that file; `pdf` with no arg fuzzy-picks one
+# under $HOME via fd+fzf. Opens in chromium app mode (clean window), detached.
+pdf() {
+  local file="$1"
+  if [[ -z "$file" ]]; then
+    file="$(fd -e pdf --type f . "$HOME" 2>/dev/null \
+      | fzf --prompt='Open PDF: ' --height=40% --reverse)" || return
+  fi
+  [[ -n "$file" ]] || return
+  if [[ ! -f "$file" ]]; then
+    echo "pdf: no such file: $file" >&2
+    return 1
+  fi
+  # Resolve to an absolute path and a proper file:// URI.
+  local abs uri
+  abs="$(readlink -f -- "$file")"
+  uri="file://$abs"
+  nohup chromium \
+    --app="$uri" \
+    --no-first-run --no-default-browser-check \
+    >/dev/null 2>&1 &
+  disown
+}
+
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
   export ELECTRON_OZONE_PLATFORM_HINT=wayland
