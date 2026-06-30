@@ -60,7 +60,9 @@ bind -T copy-mode-vi v send-keys -X begin-selection
 bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 
 # --- tmux-warp (flash.nvim-style jump) ---
-bind s run-shell -b '~/.local/bin/tmux-warp.sh'
+# NOTE: must run in the foreground (no -b). Backgrounding detaches warp's
+# command-prompt + label overlay from the client, so labels never paint.
+bind s run-shell '~/.local/bin/tmux-warp.sh'
 
 # --- Status bar (themed) ---
 set -g status-position top
