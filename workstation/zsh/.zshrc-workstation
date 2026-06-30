@@ -65,6 +65,29 @@ pdf() {
   disown
 }
 
+# --- Open a Word document in LibreOffice ---
+# Usage: `doc <file>` opens it in LibreOffice Writer; `doc` with no arg
+# fuzzy-picks a .doc/.docx under the current dir first, then the rest of $HOME
+# (deduped, $PWD-prioritized via --tiebreak=index). Handles both .doc and
+# .docx. Browsers can't render Word docs, so this routes to LibreOffice (the
+# registered default), detached.
+doc() {
+  local file="$1"
+  if [[ -z "$file" ]]; then
+    file="$({ fd -e doc -e docx --type f . "$PWD" 2>/dev/null; \
+              fd -e doc -e docx --type f . "$HOME" 2>/dev/null; } \
+      | awk '!seen[$0]++' \
+      | fzf --prompt='Open DOC: ' --height=40% --reverse --tiebreak=index)" || return
+  fi
+  [[ -n "$file" ]] || return
+  if [[ ! -f "$file" ]]; then
+    echo "doc: no such file: $file" >&2
+    return 1
+  fi
+  nohup libreoffice "$file" >/dev/null 2>&1 &
+  disown
+}
+
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
   export ELECTRON_OZONE_PLATFORM_HINT=wayland
