@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# docx-py — run a Claude `docx` skill Python script with its dependencies,
+# without polluting system Python.
+#
+# The docx skill ships a multi-file Python package (scripts/office/...) whose
+# only third-party deps are lxml + defusedxml. Rather than edit the vendored
+# upstream scripts, this wrapper invokes them through `uv run`, which builds a
+# cached ephemeral environment with those deps. The scripts stay byte-identical
+# to upstream.
+#
+# Usage (drop-in for the `python scripts/...` commands in docx/SKILL.md):
+#   docx-py scripts/office/unpack.py document.docx unpacked/
+#   docx-py scripts/comment.py unpacked/ 0 "Comment text"
+#   docx-py scripts/accept_changes.py input.docx output.docx
+#
+# Requires: uv on PATH.
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "docx-py: uv not found on PATH" >&2
+  exit 1
+fi
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: docx-py <script.py> [args...]" >&2
+  exit 2
+fi
+
+exec uv run --with lxml --with defusedxml "$@"
