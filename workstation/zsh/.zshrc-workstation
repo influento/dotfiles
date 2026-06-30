@@ -37,13 +37,17 @@ _cheat() {
 alias cheat='_cheat tools "Tools cheatsheet"'
 
 # --- Open a PDF in the browser ---
-# Usage: `pdf <file.pdf>` opens that file; `pdf` with no arg fuzzy-picks one
-# under $HOME via fd+fzf. Opens in chromium app mode (clean window), detached.
+# Usage: `pdf <file.pdf>` opens that file; `pdf` with no arg fuzzy-picks one.
+# The no-arg picker lists PDFs under the current dir FIRST, then the rest of
+# $HOME (deduped); `--tiebreak=index` keeps that order so local PDFs sort on
+# top until you type a query. Opens in chromium app mode (clean window).
 pdf() {
   local file="$1"
   if [[ -z "$file" ]]; then
-    file="$(fd -e pdf --type f . "$HOME" 2>/dev/null \
-      | fzf --prompt='Open PDF: ' --height=40% --reverse)" || return
+    file="$({ fd -e pdf --type f . "$PWD" 2>/dev/null; \
+              fd -e pdf --type f . "$HOME" 2>/dev/null; } \
+      | awk '!seen[$0]++' \
+      | fzf --prompt='Open PDF: ' --height=40% --reverse --tiebreak=index)" || return
   fi
   [[ -n "$file" ]] || return
   if [[ ! -f "$file" ]]; then
