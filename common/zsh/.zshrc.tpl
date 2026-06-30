@@ -84,6 +84,9 @@ export VISUAL="nvim"
 export LANG="en_US.UTF-8"
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
 [[ -d "$HOME/.dotnet/tools" && ":$PATH:" != *":$HOME/.dotnet/tools:"* ]] && export PATH="$HOME/.dotnet/tools:$PATH"
+# Let `require()` find globally-installed npm libs (prefix ~/.local), e.g. the
+# `docx` lib used by the Claude docx skill. CLI bins resolve via PATH already.
+[[ -d "$HOME/.local/lib/node_modules" ]] && export NODE_PATH="$HOME/.local/lib/node_modules${NODE_PATH:+:$NODE_PATH}"
 
 # --- Aliases ---
 
