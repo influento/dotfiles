@@ -36,11 +36,27 @@ _cheat() {
 }
 alias cheat='_cheat tools "Tools cheatsheet"'
 
+# --- Pick a Chromium-family browser ---
+# Prefers real Google Chrome when installed, then falls back to Chromium.
+# Echoes the binary name; returns non-zero if none is found. Both accept the
+# same `--app=` flag, so callers just substitute the resolved name.
+_chrome_bin() {
+  local b
+  for b in google-chrome-stable google-chrome chromium chromium-browser; do
+    if command -v "$b" >/dev/null 2>&1; then
+      echo "$b"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # --- Open a PDF in the browser ---
 # Usage: `pdf <file.pdf>` opens that file; `pdf` with no arg fuzzy-picks one.
 # The no-arg picker lists PDFs under the current dir FIRST, then the rest of
 # $HOME (deduped); `--tiebreak=index` keeps that order so local PDFs sort on
-# top until you type a query. Opens in chromium app mode (clean window).
+# top until you type a query. Opens in browser app mode (clean window),
+# preferring Chrome over Chromium.
 pdf() {
   local file="$1"
   if [[ -z "$file" ]]; then
@@ -54,11 +70,16 @@ pdf() {
     echo "pdf: no such file: $file" >&2
     return 1
   fi
+  local browser
+  browser="$(_chrome_bin)" || {
+    echo "pdf: no chrome/chromium browser found" >&2
+    return 1
+  }
   # Resolve to an absolute path and a proper file:// URI.
   local abs uri
   abs="$(readlink -f -- "$file")"
   uri="file://$abs"
-  nohup chromium \
+  nohup "$browser" \
     --app="$uri" \
     --no-first-run --no-default-browser-check \
     >/dev/null 2>&1 &
