@@ -182,6 +182,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (requires qt6ct env var from OS installer)         |
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown, mako notifications |
+| **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances (own --workdir + .desktop launcher) that appear in wofi; create/list/remove, auto-runs update-desktop-database |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |

@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tg — Create isolated Telegram Desktop instances that show up in wofi.
+#
+# Each instance gets its own --workdir (separate account/data) and its own
+# .desktop launcher under ~/.local/share/applications, so it appears alongside
+# the default "Telegram" entry in wofi (wofi --show drun).
+#
+# The default (main) Telegram is left untouched — this only ever adds/removes
+# extra launchers under a "telegram-<slug>" namespace.
+#
+# Usage:
+#   tg <name>            Create (or refresh) an instance
+#   tg --list            List instances created by this script
+#   tg --remove <slug>   Remove an instance (keeps chat data)
+#   tg --remove <slug> --purge   Remove and delete chat data
+#   tg --help
+
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+info()  { echo -e "${GREEN}[✓]${RESET} $1"; }
+warn()  { echo -e "${YELLOW}[!]${RESET} $1"; }
+step()  { echo -e "\n${BLUE}${BOLD}→ $1${RESET}"; }
+error() { echo -e "${RED}[✗]${RESET} $1"; }
+
+APP_DIR="$HOME/.local/share/applications"
+DATA_BASE="$HOME/.local/share"
+PREFIX="telegram-"
+
+# --- Locate the Telegram binary (portable across workstations) ---
+# telegram-desktop is the upstream name; some Arch setups expose it as Telegram.
+find_telegram_bin() {
+  local bin
+  for bin in telegram-desktop Telegram; do
+    if command -v "$bin" &>/dev/null; then
+      echo "$bin"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# --- Turn a display name into a filesystem/desktop-id slug ---
+# "Work Account" → "work-account"
+slugify() {
+  echo "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-\+//' -e 's/-\+$//'
+}
+
+usage() {
+  cat <<'EOF'
+tg — Create isolated Telegram Desktop instances for wofi
+
+Usage:
+  tg <name>                     Create/refresh an instance
+  tg --list                     List instances created here
+  tg --remove <slug>            Remove instance (keeps chat data)
+  tg --remove <slug> --purge    Remove and delete chat data
+  tg --help
+
+Examples:
+  tg "Work"          → "Telegram (Work)" in wofi, workdir telegram-work
+  tg "Side Project"  → "Telegram (Side Project)", workdir telegram-side-project
+
+Notes:
+  • The default (main) Telegram entry is never touched.
+  • Each instance has a fully separate account/data directory.
+  • wofi's app list is refreshed automatically (update-desktop-database).
+EOF
+}
+
+refresh_desktop_db() {
+  if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "$APP_DIR" 2>/dev/null || true
+    info "Refreshed application database (wofi will pick up the change)"
+  else
+    warn "update-desktop-database not found — wofi may need a restart to show the new entry"
+  fi
+}
+
+cmd_list() {
+  step "Telegram instances"
+  local found=0
+  local f slug name
+  shopt -s nullglob
+  for f in "$APP_DIR/${PREFIX}"*.desktop; do
+    slug="$(basename "$f" .desktop)"
+    slug="${slug#"$PREFIX"}"
+    name="$(sed -n 's/^Name=//p' "$f" | head -1)"
+    printf '  %-24s %s\n' "$slug" "${name:-?}"
+    found=1
+  done
+  shopt -u nullglob
+  if [[ "$found" -eq 0 ]]; then
+    echo "  (none — create one with: tg \"Work\")"
+  fi
+}
+
+cmd_remove() {
+  local slug="$1"
+  local purge="$2"
+  slug="$(slugify "$slug")"
+
+  if [[ -z "$slug" ]]; then
+    error "Empty slug"
+    exit 1
+  fi
+
+  local desktop_file="$APP_DIR/${PREFIX}${slug}.desktop"
+  local workdir="$DATA_BASE/${PREFIX}${slug}"
+
+  step "Removing instance: ${PREFIX}${slug}"
+
+  if [[ ! -e "$desktop_file" ]]; then
+    error "No such instance: $slug"
+    echo "  Expected: $desktop_file"
+    echo "  Run 'tg --list' to see existing instances."
+    exit 1
+  fi
+
+  rm -f "$desktop_file"
+  info "Removed launcher: $desktop_file"
+
+  if [[ "$purge" == "purge" ]]; then
+    if [[ -d "$workdir" ]]; then
+      rm -rf "$workdir"
+      info "Purged chat data: $workdir"
+    fi
+  else
+    if [[ -d "$workdir" ]]; then
+      warn "Kept chat data: $workdir (re-add with the same name to reuse it, or pass --purge to delete)"
+    fi
+  fi
+
+  refresh_desktop_db
+}
+
+cmd_create() {
+  local name="$1"
+  local slug
+  slug="$(slugify "$name")"
+
+  if [[ -z "$slug" ]]; then
+    error "Name '$name' produced an empty slug (needs at least one letter or digit)"
+    exit 1
+  fi
+
+  local bin
+  if ! bin="$(find_telegram_bin)"; then
+    error "Telegram Desktop not found (looked for: telegram-desktop, Telegram)"
+    exit 1
+  fi
+
+  local id="${PREFIX}${slug}"
+  local desktop_file="$APP_DIR/${id}.desktop"
+  local workdir="$DATA_BASE/${id}"
+
+  step "Creating instance: $id"
+
+  mkdir -p "$APP_DIR"
+
+  local action="Created"
+  [[ -e "$desktop_file" ]] && action="Updated"
+
+  # Exec uses $HOME expanded at write time so the entry is self-contained.
+  cat > "$desktop_file" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Telegram ($name)
+Comment=Isolated Telegram instance ($slug)
+Exec=sh -c '${bin} -workdir "${workdir}"'
+Icon=telegram
+Terminal=false
+StartupWMClass=TelegramDesktop
+Categories=Network;InstantMessaging;
+EOF
+
+  info "$action launcher: $desktop_file"
+  echo "         Name:    Telegram ($name)"
+  echo "         Binary:  $bin"
+  echo "         Workdir: $workdir"
+
+  refresh_desktop_db
+
+  echo ""
+  echo -e "${GREEN}${BOLD}Done.${RESET} Search 'Telegram ($name)' in wofi (${BOLD}\$mod+d${RESET}) to launch it."
+}
+
+# --- Argument parsing ---
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+case "$1" in
+  -h|--help)
+    usage
+    ;;
+  --list|-l)
+    cmd_list
+    ;;
+  --remove|-r)
+    if [[ $# -lt 2 ]]; then
+      error "--remove requires a slug (see: tg --list)"
+      exit 1
+    fi
+    purge="keep"
+    [[ "${3:-}" == "--purge" ]] && purge="purge"
+    cmd_remove "$2" "$purge"
+    ;;
+  -*)
+    error "Unknown option: $1"
+    usage
+    exit 1
+    ;;
+  *)
+    cmd_create "$1"
+    ;;
+esac
