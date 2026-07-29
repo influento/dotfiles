@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Toggle suspend inhibition for the current login session.
+#
+# swayidle suspends the machine after 60 min of idle (see
+# workstation/swayidle/config). This holds a logind sleep inhibitor so that
+# swayidle's `systemctl suspend` is refused while active.
+#
+# Lock/display-off timeouts are untouched: the screen still locks at 15 min
+# and displays still power off at 30 min. Only suspend is blocked.
+#
+# State lives in a transient systemd --user unit, so it survives closing the
+# terminal but is gone after a reboot.
+
+UNIT="nosleep"
+REASON="nosleep: suspend inhibited by user"
+
+usage() {
+  cat <<'EOF'
+Usage: nosleep <on|off|status|toggle>
+
+  on      Block auto-suspend (screen lock and display-off still apply)
+  off     Allow auto-suspend again
+  status  Report whether suspend is currently inhibited
+  toggle  Flip between on and off
+EOF
+}
+
+is_active() {
+  systemctl --user is-active --quiet "$UNIT"
+}
+
+notify() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -u low "$1" "$2" || true
+}
+
+nosleep_on() {
+  if is_active; then
+    echo "nosleep: already on"
+    return 0
+  fi
+  systemd-run --user --quiet --unit="$UNIT" \
+    --description="Inhibit automatic suspend" \
+    systemd-inhibit --what=sleep --why="$REASON" \
+    sleep infinity
+  echo "nosleep: on — auto-suspend blocked"
+  notify "No Sleep" "Auto-suspend blocked. Screen still locks and displays still power off."
+}
+
+nosleep_off() {
+  if ! is_active; then
+    echo "nosleep: already off"
+    return 0
+  fi
+  systemctl --user stop "$UNIT"
+  echo "nosleep: off — auto-suspend allowed"
+  notify "No Sleep" "Auto-suspend re-enabled."
+}
+
+nosleep_status() {
+  if is_active; then
+    echo "nosleep: on — auto-suspend blocked"
+  else
+    echo "nosleep: off — auto-suspend allowed"
+  fi
+}
+
+main() {
+  case "${1:-status}" in
+    on) nosleep_on ;;
+    off) nosleep_off ;;
+    status) nosleep_status ;;
+    toggle)
+      if is_active; then nosleep_off; else nosleep_on; fi
+      ;;
+    -h | --help | help) usage ;;
+    *)
+      echo "nosleep: unknown command '${1}'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
