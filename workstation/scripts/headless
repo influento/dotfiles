@@ -90,6 +90,11 @@ Environment / ~/.config/headless.conf:
   HEADLESS_SCALE        Virtual output scale (default: 2)
   HEADLESS_VIEWER       VNC client to use, in preference order
                         (default: wlvncc remote-viewer vncviewer)
+  HEADLESS_VIEWER_ARGS  Extra arguments passed to the viewer, e.g. to run
+                        windowed instead of fullscreen
+
+With remote-viewer, ctrl+alt releases the keyboard grab — without it $mod+1
+switches the remote workspace rather than the local one.
 
 `connect` detects the local screen and overrides both, so these normally
 only matter when running `headless on` directly on this machine.
@@ -367,7 +372,19 @@ run_viewer() {
       wlvncc "${VNC_ADDR}" "${VNC_PORT}"
       ;;
     remote-viewer)
-      remote-viewer "vnc://${VNC_ADDR}:${VNC_PORT}"
+      # Fullscreen with auto-resize off is what makes the sizing pay off: the
+      # virtual output already matches this screen, so a windowed presentation
+      # would resample the framebuffer and throw the sharpness away again.
+      # auto-resize is off because wayvnc cannot resize a Sway output anyway.
+      #
+      # release-cursor gives the keyboard back. gtk-vnc uses the Wayland
+      # keyboard-shortcuts-inhibit protocol, which Sway honours, so without an
+      # escape key $mod+1 switches the *remote* workspace and the local
+      # compositor never sees it. ctrl+alt toggles the grab.
+      # shellcheck disable=SC2086
+      remote-viewer -f --auto-resize=never \
+        --hotkeys=release-cursor=ctrl+alt \
+        ${HEADLESS_VIEWER_ARGS:-} "vnc://${VNC_ADDR}:${VNC_PORT}"
       ;;
     vncviewer)
       # RemoteResize defaults to on and makes the viewer ask wayvnc to resize
