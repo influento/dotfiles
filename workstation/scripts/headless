@@ -42,10 +42,33 @@ RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 STATE_FILE="${RUNTIME_DIR}/headless.workspaces"
 FOCUS_FILE="${RUNTIME_DIR}/headless.focus"
 
-# Mode of the virtual output. Match the screen you connect from — the panel on
-# this machine is a 3840x1600 ultrawide, which suits no laptop. Override with
-# HEADLESS_MODE=<WxH> in the environment.
-HEADLESS_MODE="${HEADLESS_MODE:-1920x1200}"
+# Geometry of the virtual output: it should match the screen being connected
+# from, not the panel attached here (a 3840x1600 ultrawide, which suits no
+# laptop). Scale matters as much as mode on a HiDPI client — mode sets the
+# framebuffer wayvnc streams, scale sets the logical layout inside it. Getting
+# scale wrong gives either half-size UI or a blurry upscaled image.
+#
+# Precedence: environment > config file > built-in default. Per-machine values
+# belong in the config file, which is outside the repo so nothing
+# machine-specific is tracked:
+#
+#   ~/.config/headless.conf
+#     HEADLESS_MODE=1920x1080
+#     HEADLESS_SCALE=1
+#
+# `headless connect` overrides both by detecting the local screen, so these
+# defaults only apply when starting headless mode directly on this machine.
+_env_mode="${HEADLESS_MODE:-}"
+_env_scale="${HEADLESS_SCALE:-}"
+
+CONFIG_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/headless.conf"
+if [[ -r "${CONFIG_FILE}" ]]; then
+  # shellcheck source=/dev/null
+  source "${CONFIG_FILE}"
+fi
+
+HEADLESS_MODE="${_env_mode:-${HEADLESS_MODE:-2880x1800}}"
+HEADLESS_SCALE="${_env_scale:-${HEADLESS_SCALE:-2}}"
 
 usage() {
   cat <<'EOF'
@@ -62,8 +85,12 @@ Usage: headless <command>
   dpms <on|off>         Power the physical outputs only, never the virtual
                         one (used by swayidle)
 
-Environment:
-  HEADLESS_MODE         Virtual output mode (default: 1920x1200)
+Environment / ~/.config/headless.conf:
+  HEADLESS_MODE         Virtual output mode  (default: 2880x1800)
+  HEADLESS_SCALE        Virtual output scale (default: 2)
+
+`connect` detects the local screen and overrides both, so these normally
+only matter when running `headless on` directly on this machine.
 EOF
 }
 
@@ -180,9 +207,9 @@ headless_on() {
   virtual="$(current_headless_output)"
   [[ -n "${virtual}" ]] || die "could not create a headless output"
 
-  # scale.conf applies `output * scale 1.3` for the ultrawide, which would be
-  # inherited here and misrender the remote view, so pin scale explicitly.
-  swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale 1"
+  # Scale is always set explicitly: scale.conf applies `output * scale 1.3` for
+  # the ultrawide, and inheriting that would misrender the remote view.
+  swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale ${HEADLESS_SCALE}"
 
   systemd-run --user --quiet --unit="${UNIT}" \
     --description="wayvnc serving ${virtual} (headless mode)" \
@@ -196,7 +223,7 @@ headless_on() {
     swaymsg -q "output \"${output}\" disable" || true
   done
 
-  echo "headless: on — ${virtual} at ${HEADLESS_MODE}, wayvnc on ${VNC_ADDR}:${VNC_PORT}"
+  echo "headless: on — ${virtual} at ${HEADLESS_MODE} scale ${HEADLESS_SCALE}, wayvnc on ${VNC_ADDR}:${VNC_PORT}"
   echo "headless: physical outputs disabled: ${physical[*]}"
   notify "Headless Mode" "Monitor disabled. Session served on ${VNC_ADDR}:${VNC_PORT} (SSH tunnel only)."
 }
@@ -263,12 +290,64 @@ headless_dpms() {
   done < <(physical_outputs)
 }
 
+# Mode and scale of this machine's active output, so the remote virtual output
+# can be sized to the screen actually being looked at. Both ends run the same
+# Sway setup, which is what makes this possible. Prints "<WxH> <scale>", or
+# nothing when not running under Sway — callers fall back to the defaults.
+local_geometry() {
+  swaymsg -t get_outputs -r 2>/dev/null | python3 -c '
+import json, sys
+try:
+    outputs = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for output in outputs:
+    if not output.get("active"):
+        continue
+    mode = output.get("current_mode") or {}
+    width, height = mode.get("width"), mode.get("height")
+    if not width or not height:
+        continue
+    scale = float(output.get("scale") or 1)
+    scale = int(scale) if scale.is_integer() else round(scale, 2)
+    print(f"{width}x{height} {scale}")
+    break
+' 2>/dev/null || true
+}
+
+# Bring the far side up sized to this screen, unless it is already serving.
+ensure_remote_headless() {
+  local host="$1"
+  if ssh "${host}" 'headless status' 2>/dev/null | grep -q 'on —'; then
+    echo "headless: ${host} already serving"
+    return 0
+  fi
+
+  local geometry mode scale
+  geometry="$(local_geometry)"
+  if [[ -n "${geometry}" ]]; then
+    mode="${geometry%% *}"
+    scale="${geometry##* }"
+    echo "headless: starting ${host} at ${mode} scale ${scale} (detected locally)"
+    # SC2029: expanding locally is the point — these are this screen's values,
+    # sent to the far side.
+    # shellcheck disable=SC2029
+    ssh "${host}" "HEADLESS_MODE=${mode} HEADLESS_SCALE=${scale} headless on" \
+      || die "could not start headless mode on ${host}"
+  else
+    echo "headless: local screen not detected, using remote defaults"
+    ssh "${host}" 'headless on' || die "could not start headless mode on ${host}"
+  fi
+}
+
 # Run from the remote machine. The tunnel uses a control socket so the viewer
 # exiting always tears it down, rather than leaking a background ssh.
 headless_connect() {
   local host="${1:-}"
   [[ -n "${host}" ]] || die "connect needs a host (e.g. headless connect desktop)"
   command -v vncviewer >/dev/null 2>&1 || die "vncviewer not found — install tigervnc"
+
+  ensure_remote_headless "${host}"
 
   local control="${RUNTIME_DIR}/headless-tunnel-${host}.sock"
   ssh -f -N -M -S "${control}" -L "${VNC_PORT}:${VNC_ADDR}:${VNC_PORT}" "${host}" \

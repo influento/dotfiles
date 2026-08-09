@@ -210,14 +210,21 @@ Four constraints drove the design. Do not "simplify" past them:
 2. **Never assume `HEADLESS-1`.** Sway increments the suffix on every
    `create_output` for the compositor's lifetime, so the second toggle yields
    `HEADLESS-2`. Resolve the name via the `HEADLESS-` prefix at call time.
-3. **Pin the virtual output's scale.** `sway/scale.conf` sets
+3. **Always set the virtual output's scale explicitly.** `sway/scale.conf` sets
    `output * scale 1.3` for the ultrawide; inherited, it misrenders the remote
-   view. `headless` sets `scale 1` explicitly.
+   view. Mode and scale are both required on a HiDPI client: mode sets the
+   framebuffer wayvnc streams, scale sets the logical layout inside it. Wrong
+   scale gives half-size UI or a blurry upscale.
 4. **Idle handling must skip virtual outputs.** `swayidle/config` calls
    `headless dpms off` rather than `output * power off` for exactly this reason,
    and `headless on` invokes `nosleep on`, since the 60-minute
    `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
    no Wake-on-LAN).
+
+Geometry resolution order is environment > `~/.config/headless.conf` (untracked,
+per-machine) > built-in default. `headless connect` overrides all of them by
+detecting the connecting machine's own output and passing it to the far side,
+which works because both machines run this same Sway config.
 
 `output <name> disable` is used rather than `power off` because it both drops
 the monitor to standby and makes Sway migrate the workspaces to the virtual
