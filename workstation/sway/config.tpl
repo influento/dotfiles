@@ -107,6 +107,27 @@ bindsym $mod+Shift+7 move container to workspace number 7
 bindsym $mod+Shift+8 move container to workspace number 8
 bindsym $mod+Shift+9 move container to workspace number 9
 
+# --- Keybindings: Local escape while a remote session holds the keyboard ---
+# Remote desktop clients ask for the Wayland keyboard-shortcuts-inhibit
+# protocol, which Sway honours: while such a window is focused, $mod+1 is
+# delivered to the remote session and the local compositor never sees it. That
+# is wanted — it is how the remote gets driven — but it leaves no way back.
+# --inhibited marks bindings that fire regardless, so these stay local.
+# $mod+N still goes to the remote; $mod+Ctrl+N always stays here.
+bindsym --inhibited $mod+Ctrl+1 workspace number 1
+bindsym --inhibited $mod+Ctrl+2 workspace number 2
+bindsym --inhibited $mod+Ctrl+3 workspace number 3
+bindsym --inhibited $mod+Ctrl+4 workspace number 4
+bindsym --inhibited $mod+Ctrl+5 workspace number 5
+bindsym --inhibited $mod+Ctrl+6 workspace number 6
+bindsym --inhibited $mod+Ctrl+7 workspace number 7
+bindsym --inhibited $mod+Ctrl+8 workspace number 8
+bindsym --inhibited $mod+Ctrl+9 workspace number 9
+
+# Close the focused window even when it is holding the keyboard, so a
+# misbehaving or unresponsive remote viewer can always be dismissed.
+bindsym --inhibited $mod+Ctrl+q kill
+
 # --- Keybindings: Resize mode ---
 mode "resize" {
   bindsym h resize shrink width 10px

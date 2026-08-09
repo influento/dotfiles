@@ -221,6 +221,13 @@ Four constraints drove the design. Do not "simplify" past them:
    `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
    no Wake-on-LAN).
 
+Remote viewers hold a Wayland keyboard-shortcuts inhibitor, which Sway honours,
+so while the viewer is focused `$mod+1` drives the *remote* session and the
+local compositor never sees it. That is the desired behaviour, but it needs an
+escape: `sway/config.tpl` binds `$mod+Ctrl+1`–`9` and `$mod+Ctrl+q` with
+`--inhibited`, which fires regardless of any inhibitor. `Shift+F11` (passed to
+remote-viewer via `--hotkeys`) leaves fullscreen.
+
 The viewer matters as much as the geometry. tigervnc's `vncviewer` is X11-only,
 so under Sway it runs through XWayland and a scaled output renders it at 1x then
 upscales — halving the effective resolution of a HiDPI stream. `connect` prefers
