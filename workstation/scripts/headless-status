@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Waybar backing script for the headless-mode indicator.
+# Shows an icon while the session is being served over VNC with the physical
+# outputs disabled, so the state is visible on the remote screen. Hidden
+# entirely during normal desktop use (see .inactive in waybar/style.css.tpl).
+
+if systemctl --user is-active --quiet wayvnc; then
+  echo '{"text": "󰢹", "class": "active", "tooltip": "Headless mode — monitor disabled, session served on 127.0.0.1:5900"}'
+else
+  echo '{"text": "", "class": "inactive"}'
+fi

@@ -45,6 +45,9 @@ bindsym $mod+Shift+q kill
 bindsym Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
 bindsym $mod+Escape exec ~/.local/bin/lock
 
+# Headless mode: disable the monitor and serve the session over VNC instead
+bindsym $mod+Shift+o exec ~/.local/bin/headless toggle
+
 # Screenshots
 bindsym $mod+p exec bash -c 'mkdir -p ~/pictures && f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f" && (sleep 20 && rm -f "$f") &'
 bindsym $mod+Shift+p exec bash -c 'mkdir -p ~/pictures && f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && drawdesk --image "$f" && (sleep 20 && rm -f "$f") &'
@@ -150,6 +153,13 @@ exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus drop
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus PATH=$HOME/.local/share/JetBrains/Toolbox/bin:$PATH jetbrains-toolbox
 exec startup-reminders
 exec auto-update
+
+# Lock immediately at session start. Required by the tty1 autologin drop-in
+# (see docs/arch-install-staging.md): autologin exists so Sway comes up
+# unattended after a reboot and can be reached remotely, not to remove
+# authentication. The session starts locked and is unlocked with the password
+# either at the keyboard or over VNC. Never enable autologin without this.
+exec ~/.local/bin/lock
 
 # Machine-specific overrides (not tracked by dotfiles)
 include ~/.local/share/sway/*.conf

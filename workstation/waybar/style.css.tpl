@@ -56,6 +56,7 @@ window#waybar {
 #custom-usb,
 #custom-claude-usage,
 #custom-display,
+#custom-headless,
 #custom-stale-kernel,
 #custom-power,
 #tray {
@@ -118,6 +119,17 @@ window#waybar {
 }
 
 #custom-stale-kernel.inactive {
+  font-size: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+#custom-headless.active {
+  color: @@YELLOW@@;
+}
+
+#custom-headless.inactive {
   font-size: 0;
   padding: 0;
   margin: 0;

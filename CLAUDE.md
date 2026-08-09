@@ -41,6 +41,7 @@ This means:
 | Source                              | Target                                    | Profile     |
 | ----------------------------------- | ----------------------------------------- | ----------- |
 | `common/zsh/.zshrc.tpl`             | `~/.zshrc` (via generated `.zshrc`)       | all         |
+| `common/zsh/.zshenv`                | `~/.zshenv` (PATH for non-interactive shells, e.g. `ssh host <cmd>`) | all |
 | `workstation/zsh/.zshrc-workstation`| `~/.zshrc-workstation`                    | workstation |
 | `common/nvim/`                      | `~/.config/nvim/`                         | all         |
 | `common/ideavim/.ideavimrc`         | `~/.ideavimrc`                            | all         |
@@ -171,7 +172,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
 | **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
 | **swaylock**              | `workstation/swaylock/config.tpl`                             | Screen locker: colors, indicator, behavior (themed)                                                  |
-| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers                                                       |
+| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers. Screen-off goes via `headless dpms` so it never powers off a virtual output |
 | **mako**                  | `workstation/mako/config.tpl`                                 | Notification daemon: appearance, urgency, timeouts (themed)                                          |
 | **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`          | Wallpaper: launcher script, image storage (themed)                                                   |
 | **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                            | Night light: temperature, location-based schedule                                                    |
@@ -184,12 +185,47 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown, mako notifications |
 | **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances (own --workdir + .desktop launcher) that appear in wofi; create/list/remove, auto-runs update-desktop-database |
 | **nosleep**               | `workstation/scripts/nosleep`                                 | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient systemd --user unit holding a logind block inhibitor; lock (15m) and display-off (30m) still apply, only the 60m suspend is blocked; clears on reboot |
+| **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: disables the physical outputs and serves the live Sway session over wayvnc on a virtual output instead (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator). `connect <host>` opens it from the laptop over an SSH tunnel; `app <host> <cmd>` forwards a single app over waypipe (works even with no session running). Resolves `SWAYSOCK` itself so it can be driven over SSH; clears on reboot. See "Headless Mode" below |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
 | **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
 | **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
 | **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet (Common / Neovim / IdeaVim / Tmux, switch with keys 1–4). Opened via chromium app mode with the `cheat` alias in `.zshrc-workstation` — no symlink, no deploy step |
+
+## Headless Mode
+
+`headless on` turns the workstation into a remotely-served box with the monitor
+off — a backup profile for power outages, where the 38" ultrawide is the largest
+consumer in the setup. `headless off` restores the normal desktop. State is
+transient (systemd `--user` unit + `$XDG_RUNTIME_DIR`), so a reboot always comes
+back as a normal desktop.
+
+Four constraints drove the design. Do not "simplify" past them:
+
+1. **Never capture a physical output.** A disabled or DPMS-off output stops
+   being composited, so `wlr-screencopy` has no frames and the VNC stream
+   freezes with no way to wake it remotely. wayvnc is always pointed at a
+   virtual output, which is composited regardless of monitor state.
+2. **Never assume `HEADLESS-1`.** Sway increments the suffix on every
+   `create_output` for the compositor's lifetime, so the second toggle yields
+   `HEADLESS-2`. Resolve the name via the `HEADLESS-` prefix at call time.
+3. **Pin the virtual output's scale.** `sway/scale.conf` sets
+   `output * scale 1.3` for the ultrawide; inherited, it misrenders the remote
+   view. `headless` sets `scale 1` explicitly.
+4. **Idle handling must skip virtual outputs.** `swayidle/config` calls
+   `headless dpms off` rather than `output * power off` for exactly this reason,
+   and `headless on` invokes `nosleep on`, since the 60-minute
+   `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
+   no Wake-on-LAN).
+
+`output <name> disable` is used rather than `power off` because it both drops
+the monitor to standby and makes Sway migrate the workspaces to the virtual
+output automatically. The workspace-to-output layout is recorded on the way in
+and restored on the way out.
+
+Requires `wayvnc`/`waypipe`/`tigervnc` and tty1 autologin — all system-level,
+see `docs/arch-install-staging.md`.
 
 ## Code Conventions
 
