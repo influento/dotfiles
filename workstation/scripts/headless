@@ -88,6 +88,8 @@ Usage: headless <command>
 Environment / ~/.config/headless.conf:
   HEADLESS_MODE         Virtual output mode  (default: 2880x1800)
   HEADLESS_SCALE        Virtual output scale (default: 2)
+  HEADLESS_VIEWER       VNC client to use, in preference order
+                        (default: wlvncc remote-viewer vncviewer)
 
 `connect` detects the local screen and overrides both, so these normally
 only matter when running `headless on` directly on this machine.
@@ -342,10 +344,54 @@ ensure_remote_headless() {
 
 # Run from the remote machine. The tunnel uses a control socket so the viewer
 # exiting always tears it down, rather than leaking a background ssh.
+# Pick a viewer, preferring Wayland-native ones. tigervnc's vncviewer is X11
+# only, so under Sway it runs through XWayland: on a scaled output the
+# compositor renders it at 1x and upscales, throwing away half the detail of a
+# HiDPI stream. wlvncc is purpose-built for wayvnc; remote-viewer (virt-viewer)
+# is GTK and Wayland-native. Override with HEADLESS_VIEWER=<name>.
+pick_viewer() {
+  local candidate
+  for candidate in ${HEADLESS_VIEWER:-wlvncc remote-viewer vncviewer}; do
+    if command -v "${candidate}" >/dev/null 2>&1; then
+      echo "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_viewer() {
+  local viewer="$1"
+  case "${viewer}" in
+    wlvncc)
+      wlvncc "${VNC_ADDR}" "${VNC_PORT}"
+      ;;
+    remote-viewer)
+      remote-viewer "vnc://${VNC_ADDR}:${VNC_PORT}"
+      ;;
+    vncviewer)
+      # RemoteResize defaults to on and makes the viewer ask wayvnc to resize
+      # the Sway output, which it cannot do — the request fails with
+      # "SetDesktopSize failed". Harmless, but there is no reason to send it.
+      vncviewer -RemoteResize=0 "${VNC_ADDR}:${VNC_PORT}"
+      ;;
+    *)
+      "${viewer}" "${VNC_ADDR}:${VNC_PORT}"
+      ;;
+  esac
+}
+
 headless_connect() {
   local host="${1:-}"
   [[ -n "${host}" ]] || die "connect needs a host (e.g. headless connect desktop)"
-  command -v vncviewer >/dev/null 2>&1 || die "vncviewer not found — install tigervnc"
+
+  local viewer
+  viewer="$(pick_viewer)" \
+    || die "no VNC viewer found — install wlvncc (AUR) or virt-viewer, or tigervnc"
+  if [[ "${viewer}" == "vncviewer" ]]; then
+    echo "headless: using vncviewer (X11/XWayland) — expect a soft image on a" \
+         "HiDPI screen; install wlvncc or virt-viewer for a sharp one" >&2
+  fi
 
   ensure_remote_headless "${host}"
 
@@ -355,7 +401,8 @@ headless_connect() {
   # shellcheck disable=SC2064
   trap "ssh -q -S '${control}' -O exit '${host}' >/dev/null 2>&1 || true" EXIT
 
-  vncviewer "${VNC_ADDR}:${VNC_PORT}"
+  echo "headless: connecting with ${viewer}"
+  run_viewer "${viewer}"
 }
 
 # waypipe needs no headless output, no VNC and no running compositor on the

@@ -221,6 +221,14 @@ Four constraints drove the design. Do not "simplify" past them:
    `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
    no Wake-on-LAN).
 
+The viewer matters as much as the geometry. tigervnc's `vncviewer` is X11-only,
+so under Sway it runs through XWayland and a scaled output renders it at 1x then
+upscales — halving the effective resolution of a HiDPI stream. `connect` prefers
+`wlvncc` (AUR, purpose-built for wayvnc), then `remote-viewer` (virt-viewer,
+GTK/Wayland-native), and only falls back to `vncviewer` with a warning and
+`RemoteResize=0` (which otherwise logs `SetDesktopSize failed`, since wayvnc
+cannot resize a Sway output on request). Override with `HEADLESS_VIEWER`.
+
 Geometry resolution order is environment > `~/.config/headless.conf` (untracked,
 per-machine) > built-in default. `headless connect` overrides all of them by
 detecting the connecting machine's own output and passing it to the far side,
