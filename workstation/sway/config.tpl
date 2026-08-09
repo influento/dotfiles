@@ -124,6 +124,19 @@ bindsym --inhibited $mod+Ctrl+7 workspace number 7
 bindsym --inhibited $mod+Ctrl+8 workspace number 8
 bindsym --inhibited $mod+Ctrl+9 workspace number 9
 
+# Move the focused window — typically the remote viewer itself — between local
+# workspaces while it still holds the keyboard. Mirrors $mod+Shift+N, which is
+# swallowed by the remote session.
+bindsym --inhibited $mod+Ctrl+Shift+1 move container to workspace number 1
+bindsym --inhibited $mod+Ctrl+Shift+2 move container to workspace number 2
+bindsym --inhibited $mod+Ctrl+Shift+3 move container to workspace number 3
+bindsym --inhibited $mod+Ctrl+Shift+4 move container to workspace number 4
+bindsym --inhibited $mod+Ctrl+Shift+5 move container to workspace number 5
+bindsym --inhibited $mod+Ctrl+Shift+6 move container to workspace number 6
+bindsym --inhibited $mod+Ctrl+Shift+7 move container to workspace number 7
+bindsym --inhibited $mod+Ctrl+Shift+8 move container to workspace number 8
+bindsym --inhibited $mod+Ctrl+Shift+9 move container to workspace number 9
+
 # Close the focused window even when it is holding the keyboard, so a
 # misbehaving or unresponsive remote viewer can always be dismissed.
 bindsym --inhibited $mod+Ctrl+q kill
