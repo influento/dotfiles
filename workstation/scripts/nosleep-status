@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Waybar backing script for the nosleep indicator.
+#
+# Unlike the headless indicator, this one stays visible in both states. The
+# point of it is noticing when suspend inhibition is *off* — a session left
+# running for remote access dies quietly at the 60 min suspend, and on WiFi
+# there is no Wake-on-LAN to recover it. A widget that vanishes when disabled
+# would hide exactly the case worth seeing.
+
+if systemctl --user is-active --quiet nosleep; then
+  echo '{"text": "󰅶", "class": "active", "tooltip": "Suspend inhibited — machine stays awake (click to allow suspend)"}'
+else
+  echo '{"text": "󰒲", "class": "inactive", "tooltip": "Auto-suspend active — machine sleeps after 60 min idle (click to inhibit)"}'
+fi

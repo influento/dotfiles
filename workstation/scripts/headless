@@ -41,6 +41,9 @@ VNC_PORT="5900"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 STATE_FILE="${RUNTIME_DIR}/headless.workspaces"
 FOCUS_FILE="${RUNTIME_DIR}/headless.focus"
+# Marks that headless mode is the one holding the suspend inhibitor, so a
+# nosleep the user enabled by hand is not released when headless mode ends.
+NOSLEEP_OWNED_FILE="${RUNTIME_DIR}/headless.nosleep-owned"
 
 # Geometry of the virtual output: it should match the screen being connected
 # from, not the panel attached here (a 3840x1600 ultrawide, which suits no
@@ -230,7 +233,14 @@ headless_on() {
     "${VNC_ADDR}" "${VNC_PORT}"
 
   # swayidle still suspends at 60 min, which would drop every remote session.
-  nosleep on >/dev/null
+  # Only claim the inhibitor if it is not already held, so that turning
+  # headless mode off later does not undo a nosleep the user set by hand.
+  if systemctl --user is-active --quiet nosleep; then
+    rm -f "${NOSLEEP_OWNED_FILE}"
+  else
+    nosleep on >/dev/null
+    : >"${NOSLEEP_OWNED_FILE}"
+  fi
 
   local output
   for output in "${physical[@]}"; do
@@ -263,7 +273,11 @@ headless_off() {
   if is_active; then
     systemctl --user stop "${UNIT}"
   fi
-  nosleep off >/dev/null || true
+  # Release the inhibitor only if headless mode was the one that took it.
+  if [[ -e "${NOSLEEP_OWNED_FILE}" ]]; then
+    nosleep off >/dev/null || true
+    rm -f "${NOSLEEP_OWNED_FILE}"
+  fi
 
   # Unplug every one, so an earlier interrupted run cannot strand any.
   local virtual

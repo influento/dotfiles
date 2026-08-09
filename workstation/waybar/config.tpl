@@ -11,6 +11,7 @@
   ],
   "modules-right": [
     "custom/headless",
+    "custom/nosleep",
     "custom/stale-kernel",
     "group/connectivity",
     "group/controls"
@@ -132,6 +133,14 @@
     "interval": 5,
     "tooltip": true,
     "on-click": "~/.local/bin/headless off"
+  },
+  "custom/nosleep": {
+    "exec": "~/.local/bin/nosleep-status",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "~/.local/bin/nosleep toggle"
   },
   "tray": {
     "spacing": 8
