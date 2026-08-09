@@ -9,14 +9,24 @@ the `arch-install` repo, not here.
 dotfiles deploy is safe without them, but the feature does nothing until they
 are installed.
 
-| Package   | Repo    | Needed for                                              |
-| --------- | ------- | ------------------------------------------------------- |
-| `wayvnc`  | `extra` | Serving the Sway session over VNC (`headless on`)       |
-| `waypipe` | `extra` | Forwarding single remote apps (`headless app`)          |
-| `tigervnc`| `extra` | The `vncviewer` client used by `headless connect`       |
+| Package       | Repo    | Needed for                                                        |
+| ------------- | ------- | ----------------------------------------------------------------- |
+| `wayvnc`      | `extra` | Serving the Sway session over VNC (`headless on`)                 |
+| `waypipe`     | `extra` | Forwarding single remote apps (`headless app`)                    |
+| `virt-viewer` | `extra` | `remote-viewer`, the Wayland-native client `headless connect` uses |
+| `tigervnc`    | `extra` | `vncviewer`, the X11 fallback client only                         |
+| `wlvncc-git`  | AUR     | Optional. Best-quality client, written for wayvnc                 |
 
-`tigervnc` is already installed on the desktop, but is listed because the
-laptop needs it too — `headless connect` runs on the machine you connect *from*.
+Both machines carry the same package set, so install all of these on each:
+`headless connect` runs on the machine you connect *from*, `headless on` on the
+machine being served, and either box can play either role.
+
+The client choice matters. `tigervnc`'s `vncviewer` links only X11, so under
+Sway it goes through XWayland and a scaled output is rendered at 1x then
+upscaled — a HiDPI stream loses half its resolution. `virt-viewer` is GTK and
+Wayland-native, which is why `headless connect` prefers it; `wlvncc` is better
+still but only in the AUR. Keep `tigervnc` as the fallback unless you are sure
+one of the others is always present.
 
 ## Autologin on tty1
 
