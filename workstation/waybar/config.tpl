@@ -139,7 +139,7 @@
     "return-type": "json",
     "interval": 30,
     "signal": 8,
-    "tooltip": true,
+    "tooltip": false,
     "on-click": "~/.local/bin/nosleep toggle"
   },
   "tray": {
