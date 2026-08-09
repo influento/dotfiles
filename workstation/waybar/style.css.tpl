@@ -57,6 +57,7 @@ window#waybar {
 #custom-claude-usage,
 #custom-display,
 #custom-headless,
+#custom-nosleep,
 #custom-stale-kernel,
 #custom-power,
 #tray {
@@ -134,6 +135,16 @@ window#waybar {
   padding: 0;
   margin: 0;
   min-width: 0;
+}
+
+/* Stays visible in both states: the case worth noticing is suspend being
+   allowed while a remote session is meant to stay reachable. */
+#custom-nosleep.active {
+  color: @@TEAL@@;
+}
+
+#custom-nosleep.inactive {
+  color: @@OVERLAY1@@;
 }
 
 #battery {

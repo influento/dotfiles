@@ -184,7 +184,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
 | **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown, mako notifications |
 | **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances (own --workdir + .desktop launcher) that appear in wofi; create/list/remove, auto-runs update-desktop-database |
-| **nosleep**               | `workstation/scripts/nosleep`                                 | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient systemd --user unit holding a logind block inhibitor; lock (15m) and display-off (30m) still apply, only the 60m suspend is blocked; clears on reboot |
+| **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`               | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient systemd --user unit holding a logind block inhibitor; lock (15m) and display-off (30m) still apply, only the 60m suspend is blocked; clears on reboot. Waybar indicator shows both states (visible when off too, since that is the case worth noticing) and toggles on click; state changes signal waybar (RTMIN+8) for instant feedback |
 | **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: disables the physical outputs and serves the live Sway session over wayvnc on a virtual output instead (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator). `connect <host>` opens it from the laptop over an SSH tunnel; `app <host> <cmd>` forwards a single app over waypipe (works even with no session running). Resolves `SWAYSOCK` itself so it can be driven over SSH; clears on reboot. See "Headless Mode" below |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
@@ -219,7 +219,10 @@ Four constraints drove the design. Do not "simplify" past them:
    `headless dpms off` rather than `output * power off` for exactly this reason,
    and `headless on` invokes `nosleep on`, since the 60-minute
    `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
-   no Wake-on-LAN).
+   no Wake-on-LAN). It claims that inhibitor only when it is not already held
+   and releases it only when it claimed it — tracked by
+   `$XDG_RUNTIME_DIR/headless.nosleep-owned` — so ending headless mode never
+   silently undoes a nosleep the user set by hand.
 
 Remote viewers hold a Wayland keyboard-shortcuts inhibitor, which Sway honours,
 so while the viewer is focused `$mod+1` drives the *remote* session and the
