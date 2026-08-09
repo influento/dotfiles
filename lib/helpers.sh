@@ -404,6 +404,9 @@ deploy_configs() {
         # workstation/zsh: symlink .zshrc-workstation
         if [[ "$config_type" == "common" ]]; then
           link_config "${item}.zshrc" "${user_home}/.zshrc"
+          # .zshenv is read by non-interactive shells too (ssh commands),
+          # which is what puts ~/.local/bin on PATH for remote invocations.
+          link_config "${item}.zshenv" "${user_home}/.zshenv"
         else
           link_config "${item}.zshrc-workstation" "${user_home}/.zshrc-workstation"
         fi

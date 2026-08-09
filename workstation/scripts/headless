@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# headless — switch this machine between normal desktop and headless remote mode.
+#
+# Backup mode for power outages. The physical monitor is by far the largest
+# consumer in the setup, so headless mode disables every physical output and
+# serves the live Sway session over VNC to a virtual output instead, sized for
+# whatever screen you connect from.
+#
+#   on      Create a headless output, start wayvnc on loopback, inhibit
+#           suspend, then disable the physical outputs. Sway migrates the
+#           workspaces to the headless output automatically.
+#   off     Reverse all of that, restoring the workspace-to-output layout
+#           recorded on the way in.
+#   status  Report the current mode.
+#   toggle  Flip between on and off.
+#
+# Capturing a virtual output rather than the physical one is deliberate: a
+# disabled or powered-off output stops being composited, so wlr-screencopy has
+# no frames to hand wayvnc and the stream would freeze. The headless output is
+# always composited, which makes remote access independent of the monitor.
+#
+# wayvnc binds to loopback only. Reach it by tunnelling over the SSH daemon
+# that already runs on this machine, never by exposing the port:
+#
+#   headless connect <host>        full desktop, from the remote machine
+#   headless app <host> <cmd>...   single app over waypipe, no session needed
+#
+# State lives in a transient systemd --user unit plus $XDG_RUNTIME_DIR, so it
+# is gone after a reboot: a rebooted machine always comes back a normal desktop.
+
+UNIT="wayvnc"
+# Sway increments the suffix on every create_output for the lifetime of the
+# compositor, so the second toggle yields HEADLESS-2 and so on. Never assume
+# HEADLESS-1 — always resolve the current name.
+HEADLESS_PREFIX="HEADLESS-"
+VNC_ADDR="127.0.0.1"
+VNC_PORT="5900"
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+STATE_FILE="${RUNTIME_DIR}/headless.workspaces"
+FOCUS_FILE="${RUNTIME_DIR}/headless.focus"
+
+# Mode of the virtual output. Match the screen you connect from — the panel on
+# this machine is a 3840x1600 ultrawide, which suits no laptop. Override with
+# HEADLESS_MODE=<WxH> in the environment.
+HEADLESS_MODE="${HEADLESS_MODE:-1920x1200}"
+
+usage() {
+  cat <<'EOF'
+Usage: headless <command>
+
+  on                    Disable physical outputs, serve the session over VNC
+  off                   Restore the physical outputs and stop serving
+  status                Report whether headless mode is active
+  toggle                Flip between on and off
+
+  connect <host>        Tunnel over SSH and open the remote desktop (VNC)
+  app <host> <cmd>...   Run one remote app locally over waypipe
+
+  dpms <on|off>         Power the physical outputs only, never the virtual
+                        one (used by swayidle)
+
+Environment:
+  HEADLESS_MODE         Virtual output mode (default: 1920x1200)
+EOF
+}
+
+die() {
+  echo "headless: $1" >&2
+  exit 1
+}
+
+notify() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -u low "$1" "$2" || true
+}
+
+# Sway's IPC socket is not in the environment over SSH, so find it explicitly.
+# This is what lets the mode be switched from the remote machine as well.
+ensure_swaysock() {
+  if [[ -n "${SWAYSOCK:-}" && -S "${SWAYSOCK}" ]]; then
+    return 0
+  fi
+  local sock
+  sock="$(find "${RUNTIME_DIR}" -maxdepth 1 -type s -name 'sway-ipc.*.sock' 2>/dev/null | head -n1)"
+  [[ -n "${sock}" ]] || die "no sway IPC socket found — is sway running?"
+  export SWAYSOCK="${sock}"
+}
+
+output_names() {
+  swaymsg -t get_outputs -r | python3 -c '
+import json, sys
+for output in json.load(sys.stdin):
+    print(output["name"])
+'
+}
+
+# Every output that is not the virtual one, whether currently enabled or not:
+# a disabled output still appears in get_outputs, which is how "off" finds it.
+physical_outputs() {
+  output_names | grep -v "^${HEADLESS_PREFIX}" || true
+}
+
+headless_outputs() {
+  output_names | grep "^${HEADLESS_PREFIX}" || true
+}
+
+# Only ever one is created, so the first match is the one being served.
+current_headless_output() {
+  headless_outputs | head -n1
+}
+
+have_headless_output() {
+  [[ -n "$(current_headless_output)" ]]
+}
+
+is_active() {
+  systemctl --user is-active --quiet "${UNIT}"
+}
+
+save_layout() {
+  swaymsg -t get_workspaces -r | python3 -c '
+import json, sys
+seen = set()
+for workspace in json.load(sys.stdin):
+    pair = (workspace["name"], workspace["output"])
+    if pair in seen:
+        continue
+    seen.add(pair)
+    print(workspace["name"], workspace["output"])
+' >"${STATE_FILE}"
+
+  swaymsg -t get_workspaces -r | python3 -c '
+import json, sys
+for workspace in json.load(sys.stdin):
+    if workspace.get("focused"):
+        print(workspace["name"])
+        break
+' >"${FOCUS_FILE}"
+}
+
+# Sway moves whichever workspace is focused, so this walks the recorded pairs
+# and restores focus afterwards rather than leaving the user somewhere random.
+restore_layout() {
+  [[ -f "${STATE_FILE}" ]] || return 0
+  local workspace output
+  while read -r workspace output; do
+    [[ -n "${workspace}" && -n "${output}" ]] || continue
+    swaymsg -q "workspace \"${workspace}\"" || true
+    swaymsg -q "move workspace to output \"${output}\"" || true
+  done <"${STATE_FILE}"
+
+  if [[ -s "${FOCUS_FILE}" ]]; then
+    swaymsg -q "workspace \"$(cat "${FOCUS_FILE}")\"" || true
+  fi
+  rm -f "${STATE_FILE}" "${FOCUS_FILE}"
+}
+
+headless_on() {
+  ensure_swaysock
+  command -v wayvnc >/dev/null 2>&1 || die "wayvnc is not installed"
+
+  if is_active; then
+    echo "headless: already on"
+    return 0
+  fi
+
+  local physical=()
+  mapfile -t physical < <(physical_outputs)
+  [[ ${#physical[@]} -gt 0 ]] || die "no physical output found — nothing to disable"
+
+  save_layout
+
+  if ! have_headless_output; then
+    swaymsg -q create_output
+  fi
+  local virtual
+  virtual="$(current_headless_output)"
+  [[ -n "${virtual}" ]] || die "could not create a headless output"
+
+  # scale.conf applies `output * scale 1.3` for the ultrawide, which would be
+  # inherited here and misrender the remote view, so pin scale explicitly.
+  swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale 1"
+
+  systemd-run --user --quiet --unit="${UNIT}" \
+    --description="wayvnc serving ${virtual} (headless mode)" \
+    wayvnc --output="${virtual}" "${VNC_ADDR}" "${VNC_PORT}"
+
+  # swayidle still suspends at 60 min, which would drop every remote session.
+  nosleep on >/dev/null
+
+  local output
+  for output in "${physical[@]}"; do
+    swaymsg -q "output \"${output}\" disable" || true
+  done
+
+  echo "headless: on — ${virtual} at ${HEADLESS_MODE}, wayvnc on ${VNC_ADDR}:${VNC_PORT}"
+  echo "headless: physical outputs disabled: ${physical[*]}"
+  notify "Headless Mode" "Monitor disabled. Session served on ${VNC_ADDR}:${VNC_PORT} (SSH tunnel only)."
+}
+
+headless_off() {
+  ensure_swaysock
+
+  if ! is_active && ! have_headless_output; then
+    echo "headless: already off"
+    return 0
+  fi
+
+  local physical=()
+  mapfile -t physical < <(physical_outputs)
+
+  local output
+  for output in "${physical[@]}"; do
+    swaymsg -q "output \"${output}\" enable" || true
+  done
+
+  restore_layout
+
+  if is_active; then
+    systemctl --user stop "${UNIT}"
+  fi
+  nosleep off >/dev/null || true
+
+  # Unplug every one, so an earlier interrupted run cannot strand any.
+  local virtual
+  while read -r virtual; do
+    [[ -n "${virtual}" ]] || continue
+    swaymsg -q "output ${virtual} unplug" || true
+  done < <(headless_outputs)
+
+  echo "headless: off — physical outputs restored: ${physical[*]}"
+  notify "Headless Mode" "Monitor restored. Remote session stopped."
+}
+
+headless_status() {
+  if is_active; then
+    ensure_swaysock
+    echo "headless: on — wayvnc serving $(current_headless_output) on ${VNC_ADDR}:${VNC_PORT}"
+  else
+    echo "headless: off — normal desktop"
+  fi
+}
+
+# swayidle's idle timeout must never power off the virtual output: wlroots
+# stops compositing a powered-off output, which freezes the VNC stream with no
+# way to wake it remotely. A bare `output * power off` would do exactly that,
+# so idle handling goes through here to skip HEADLESS-*.
+headless_dpms() {
+  ensure_swaysock
+  local action="${1:-}"
+  case "${action}" in
+    on | off) ;;
+    *) die "dpms needs 'on' or 'off'" ;;
+  esac
+
+  local output
+  while read -r output; do
+    [[ -n "${output}" ]] || continue
+    swaymsg -q "output \"${output}\" power ${action}" || true
+  done < <(physical_outputs)
+}
+
+# Run from the remote machine. The tunnel uses a control socket so the viewer
+# exiting always tears it down, rather than leaking a background ssh.
+headless_connect() {
+  local host="${1:-}"
+  [[ -n "${host}" ]] || die "connect needs a host (e.g. headless connect desktop)"
+  command -v vncviewer >/dev/null 2>&1 || die "vncviewer not found — install tigervnc"
+
+  local control="${RUNTIME_DIR}/headless-tunnel-${host}.sock"
+  ssh -f -N -M -S "${control}" -L "${VNC_PORT}:${VNC_ADDR}:${VNC_PORT}" "${host}" \
+    || die "could not open SSH tunnel to ${host}"
+  # shellcheck disable=SC2064
+  trap "ssh -q -S '${control}' -O exit '${host}' >/dev/null 2>&1 || true" EXIT
+
+  vncviewer "${VNC_ADDR}:${VNC_PORT}"
+}
+
+# waypipe needs no headless output, no VNC and no running compositor on the
+# far side — only sshd. This is the path that still works after a reboot.
+headless_app() {
+  local host="${1:-}"
+  shift || true
+  [[ -n "${host}" && $# -gt 0 ]] || die "app needs a host and a command (e.g. headless app desktop nvim)"
+  command -v waypipe >/dev/null 2>&1 || die "waypipe is not installed"
+
+  waypipe ssh "${host}" "$@"
+}
+
+main() {
+  case "${1:-status}" in
+    on) headless_on ;;
+    off) headless_off ;;
+    status) headless_status ;;
+    toggle)
+      if is_active; then headless_off; else headless_on; fi
+      ;;
+    connect)
+      shift
+      headless_connect "$@"
+      ;;
+    app)
+      shift
+      headless_app "$@"
+      ;;
+    dpms)
+      shift
+      headless_dpms "$@"
+      ;;
+    -h | --help | help) usage ;;
+    *)
+      echo "headless: unknown command '${1}'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

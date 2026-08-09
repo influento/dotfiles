@@ -7,9 +7,14 @@
 #
 # Display is turned back on when activity resumes (resume event).
 # Lock is triggered before sleep to ensure screen is locked on wake.
+#
+# Display power goes through `headless dpms` rather than `output * power off`:
+# the wildcard would also power off the virtual output used by headless mode,
+# and wlroots stops compositing a powered-off output, which freezes the VNC
+# stream with no way to wake it from the remote side.
 
 timeout 900 '~/.local/bin/lock'
-timeout 1800 'swaymsg "output * power off"' resume 'swaymsg "output * power on"'
+timeout 1800 '~/.local/bin/headless dpms off' resume '~/.local/bin/headless dpms on'
 timeout 3600 'systemctl suspend'
 before-sleep '~/.local/bin/lock'
 lock '~/.local/bin/lock'

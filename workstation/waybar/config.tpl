@@ -10,6 +10,7 @@
     "group/center"
   ],
   "modules-right": [
+    "custom/headless",
     "custom/stale-kernel",
     "group/connectivity",
     "group/controls"
@@ -124,6 +125,13 @@
     "return-type": "json",
     "interval": 60,
     "tooltip": true
+  },
+  "custom/headless": {
+    "exec": "~/.local/bin/headless-status",
+    "return-type": "json",
+    "interval": 5,
+    "tooltip": true,
+    "on-click": "~/.local/bin/headless off"
   },
   "tray": {
     "spacing": 8
