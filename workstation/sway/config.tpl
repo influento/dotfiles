@@ -188,11 +188,11 @@ exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus PATH
 exec startup-reminders
 exec auto-update
 
-# Lock immediately at session start. Required by the tty1 autologin drop-in
-# (see docs/arch-install-staging.md): autologin exists so Sway comes up
-# unattended after a reboot and can be reached remotely, not to remove
-# authentication. The session starts locked and is unlocked with the password
-# either at the keyboard or over VNC. Never enable autologin without this.
+# Lock immediately at session start. Required by the tty1 autologin drop-in in
+# arch-install: autologin exists so Sway comes up unattended after a reboot and
+# can be reached remotely, not to remove authentication. The session starts
+# locked and is unlocked with the password either at the keyboard or over VNC.
+# Never enable autologin without this.
 exec ~/.local/bin/lock
 
 # Machine-specific overrides (not tracked by dotfiles)

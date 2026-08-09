@@ -249,8 +249,8 @@ the monitor to standby and makes Sway migrate the workspaces to the virtual
 output automatically. The workspace-to-output layout is recorded on the way in
 and restored on the way out.
 
-Requires `wayvnc`/`waypipe`/`tigervnc` and tty1 autologin — all system-level,
-see `docs/arch-install-staging.md`.
+Requires `wayvnc`, `waypipe` and a VNC client (`virt-viewer`, or `wlvncc` from
+the AUR), plus tty1 autologin. All system-level, so they live in arch-install.
 
 ## Code Conventions
 
