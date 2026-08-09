@@ -218,9 +218,16 @@ headless_on() {
   # the ultrawide, and inheriting that would misrender the remote view.
   swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale ${HEADLESS_SCALE}"
 
+  # --render-cursor composites the pointer into the framebuffer at the output's
+  # own scale. Without it wayvnc sends the cursor separately and the client
+  # draws it locally at logical size, so a scale-2 output produces a pointer
+  # twice the size it should be.
+  # --disable-resizing refuses SetDesktopSize outright rather than failing the
+  # request, since a Sway output cannot be resized on a client's say-so.
   systemd-run --user --quiet --unit="${UNIT}" \
     --description="wayvnc serving ${virtual} (headless mode)" \
-    wayvnc --output="${virtual}" "${VNC_ADDR}" "${VNC_PORT}"
+    wayvnc --output="${virtual}" --render-cursor --disable-resizing \
+    "${VNC_ADDR}" "${VNC_PORT}"
 
   # swayidle still suspends at 60 min, which would drop every remote session.
   nosleep on >/dev/null
@@ -377,13 +384,16 @@ run_viewer() {
       # would resample the framebuffer and throw the sharpness away again.
       # auto-resize is off because wayvnc cannot resize a Sway output anyway.
       #
-      # release-cursor gives the keyboard back. gtk-vnc uses the Wayland
-      # keyboard-shortcuts-inhibit protocol, which Sway honours, so without an
-      # escape key $mod+1 switches the *remote* workspace and the local
-      # compositor never sees it. ctrl+alt toggles the grab.
+      # Hotkeys listed here stay active even while the guest display holds
+      # focus — which matters, because gtk-vnc uses the Wayland
+      # keyboard-shortcuts-inhibit protocol that Sway honours, so $mod+1 goes
+      # to the remote and the local compositor never sees it. Fullscreen plus
+      # an inhibited keyboard means shift+f11 is the only way out; without it
+      # the session is a trap. release-cursor is kept as a second escape,
+      # though it does nothing while the pointer is absolute (as it is here).
       # shellcheck disable=SC2086
       remote-viewer -f --auto-resize=never \
-        --hotkeys=release-cursor=ctrl+alt \
+        --hotkeys=toggle-fullscreen=shift+f11,release-cursor=shift+f12 \
         ${HEADLESS_VIEWER_ARGS:-} "vnc://${VNC_ADDR}:${VNC_PORT}"
       ;;
     vncviewer)
@@ -419,6 +429,10 @@ headless_connect() {
   trap "ssh -q -S '${control}' -O exit '${host}' >/dev/null 2>&1 || true" EXIT
 
   echo "headless: connecting with ${viewer}"
+  if [[ "${viewer}" == "remote-viewer" ]]; then
+    echo "headless: shift+f11 leaves fullscreen — the remote grabs the keyboard," \
+         "so local shortcuts do not work until you do"
+  fi
   run_viewer "${viewer}"
 }
 
