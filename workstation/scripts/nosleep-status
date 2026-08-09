@@ -8,9 +8,12 @@ set -euo pipefail
 # running for remote access dies quietly at the 60 min suspend, and on WiFi
 # there is no Wake-on-LAN to recover it. A widget that vanishes when disabled
 # would hide exactly the case worth seeing.
+#
+# No tooltip: toggling already raises a notification, so a hover tooltip only
+# repeats what was just said.
 
 if systemctl --user is-active --quiet nosleep; then
-  echo '{"text": "󰅶", "class": "active", "tooltip": "Suspend inhibited — machine stays awake (click to allow suspend)"}'
+  echo '{"text": "󰅶", "class": "active"}'
 else
-  echo '{"text": "󰒲", "class": "inactive", "tooltip": "Auto-suspend active — machine sleeps after 60 min idle (click to inhibit)"}'
+  echo '{"text": "󰒲", "class": "inactive"}'
 fi
