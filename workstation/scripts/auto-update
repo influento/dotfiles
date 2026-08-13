@@ -7,6 +7,22 @@ set -euo pipefail
 # Sends mako
 # notifications on success (low urgency, auto-dismiss) or failure (critical, persistent).
 
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    -f | --force) FORCE=1 ;;
+    -h | --help)
+      echo "Usage: auto-update [--force]"
+      echo "  --force  Ignore the 12h cooldown and update now."
+      exit 0
+      ;;
+    *)
+      echo "auto-update: unknown option '${arg}'" >&2
+      exit 1
+      ;;
+  esac
+done
+
 STATE_DIR="$HOME/.local/state/dotfiles"
 LOG_FILE="${STATE_DIR}/auto-update.log"
 LAST_FILE="${STATE_DIR}/auto-update-last"
@@ -29,7 +45,7 @@ fi
 # Cooldown — skip if the last run was <12h ago. The stamp is written on every
 # completed run, success or failure: failures already notified the user, so we
 # wait for the next window instead of retrying on every sway start.
-if [[ -f "$LAST_FILE" ]]; then
+if [[ -f "$LAST_FILE" && "$FORCE" -eq 0 ]]; then
   last="$(cat "$LAST_FILE")"
   now="$(date +%s)"
   if (( now - last < COOLDOWN )); then
