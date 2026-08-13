@@ -12,7 +12,10 @@
       "Grep",
       "Agent",
       "WebSearch",
-      "WebFetch"
+      "WebFetch",
+      "Bash(sudo pacman:*)",
+      "Bash(yay:*)",
+      "Bash(auto-update:*)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
