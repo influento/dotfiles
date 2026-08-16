@@ -33,3 +33,9 @@ workstation/scripts/__pycache__/
 # skill-creator eval artifacts (workspace dirs are siblings of the skill)
 common/claude-code/skills/**/*-workspace/
 common/claude-code/skills/**/__pycache__/
+common/claude-code/skills-optional/**/*-workspace/
+common/claude-code/skills-optional/**/__pycache__/
+
+# build-cv contains real CV data (name, employers, dates) — this repo is public,
+# and identity is deliberately kept untracked (see common/git/.gitconfig)
+common/claude-code/skills-optional/build-cv/
