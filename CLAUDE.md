@@ -55,6 +55,7 @@ This means:
 | `workstation/yazi/`                 | `~/.config/yazi/`                         | workstation |
 | `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
+| `common/claude-code/skills-optional/` | *not deployed* — symlinked per project into `<project>/.claude/skills/` | all |
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
 | `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded) | all |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
@@ -149,7 +150,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
-| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (vendored under `skills/`; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
+| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
@@ -251,6 +252,40 @@ and restored on the way out.
 
 Requires `wayvnc`, `waypipe` and a VNC client (`virt-viewer`, or `wlvncc` from
 the AUR), plus tty1 autologin. All system-level, so they live in arch-install.
+
+## Claude Code Skills
+
+Skills are split into two trees under `common/claude-code/`:
+
+| Tree              | Deployed                                    | Contents                                                                                              |
+| ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
+| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
+
+The split is about **trigger blast radius**, not disk or token cost. Only a skill's
+`name` and `description` frontmatter is loaded into context at session start — the
+`SKILL.md` body and its `references/`/`scripts/` load lazily when the skill fires. The
+whole global set is ~1.6k tokens of always-on metadata. What actually degrades quality
+is having many descriptions compete as classifiers, so a language- or project-specific
+skill misfires in an unrelated repo.
+
+Rule of thumb: a skill is **global** if it modifies how Claude writes or responds
+anywhere (registers like `caveman`, `indexer`, `human-like-text`) or handles a file
+format with no natural home repo (`docx`, `pdf`). It is **optional** if it only makes
+sense inside one kind of project (`go/` in Go repos, `manim` in animation projects,
+`excalidraw` in the Obsidian vault, `build-cv` when writing a CV).
+
+To opt a project in, symlink the skill directories it needs:
+
+```bash
+mkdir -p <project>/.claude/skills
+ln -s ~/dev/infra/dotfiles/common/claude-code/skills-optional/go/* <project>/.claude/skills/
+```
+
+The `go/` subdirectory is a grouping only — Claude Code discovers skills as
+`skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
+Add `.claude/skills/` to the project's `.gitignore` when the symlinks are personal
+rather than team-wide.
 
 ## Code Conventions
 
