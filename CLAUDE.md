@@ -259,7 +259,7 @@ Skills are split into two trees under `common/claude-code/`:
 
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
+| `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
 | `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
