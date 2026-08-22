@@ -324,6 +324,10 @@ filtering happens inside the script:
 | contains `!full` | no — escape hatch for when depth is wanted |
 | starts with `/` | no — slash commands carry their own instructions |
 
+`UserPromptExpansion` is deliberately **not** hooked. It fires only for slash-command
+and skill expansions, which is precisely the case the script already skips; hooking it
+would re-inject the cue into the commands we exempt.
+
 Measured on a 4-task, 3-arm blind benchmark (2 docs, 2 code; pre-registered rubrics and
 executable tests; graders blind to arm):
 
@@ -335,11 +339,12 @@ executable tests; graders blind to arm):
 
 The cue's carve-outs are load-bearing:
 
-- **Source code is exempt.** `UserPromptSubmit` fires before any file is known, so the
-  hook cannot detect what will be written - the exemption is enforced by the cue's
-  wording, not mechanically. The benchmark found the cue moved code under 4% and left
-  all 24 executable tests passing anyway, so the wording is a guardrail on a risk that
-  did not show up rather than a fix for one that did.
+- **Only replies and `.md` files are terse. Every other file is exempt.**
+  `UserPromptSubmit` fires before any file is known, so the hook cannot detect what
+  will be written - the exemption is enforced by the cue's wording, not mechanically.
+  The benchmark found the cue moved code under 4% and left all 24 executable tests
+  passing anyway, so the wording is a guardrail on a risk that did not show up rather
+  than a fix for one that did.
 - **Error output, test failures, security findings and destructive-action confirmations
   stay complete**, because truncating them removes what the reader needs to act.
 - **"Keep a problem's fix with the problem"** was added after the benchmark caught the
