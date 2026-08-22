@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Claude Code UserPromptSubmit hook: inject a terse-register cue every turn.
+#
+# Why a hook and not the output style or CLAUDE.md: a register cue only works
+# while it is the newest thing in context. A style rule sits at the top of a
+# 400k window and decays as the session's own verbose turns pile up and become
+# the dominant style prior. Re-injecting per turn removes the decay.
+#
+# UserPromptSubmit has no matcher support (the field is silently ignored), so
+# all filtering happens here. On exit 0 stdout is added to the model's context
+# as plain text.
+set -euo pipefail
+shopt -s extglob
+
+CUE='tldr - terse everywhere, files included. When you flag a problem, keep its fix with it. Keep error output, test failures, security findings, and destructive-action confirmations complete.'
+
+read_prompt() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin).get("prompt",""), end="")' 2>/dev/null || true
+}
+
+prompt="$(read_prompt)"
+
+# Escape hatch: !full anywhere in the prompt restores the normal register.
+case "$prompt" in
+  *'!full'*) exit 0 ;;
+esac
+
+# Slash commands carry their own instructions; do not override their register.
+case "${prompt##+([[:space:]])}" in
+  /*) exit 0 ;;
+esac
+
+printf '%s\n' "$CUE"
