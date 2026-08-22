@@ -40,6 +40,106 @@ link_config() {
   log_info "Linked: $target → $src"
 }
 
+# Deep-merge a tracked JSON config over an app-managed one, in place.
+#
+# Used instead of link_config for files the application rewrites itself.
+# Claude Code saves settings by writing a temp file and rename()-ing it over
+# the target, which replaces a symlink rather than writing through it — so a
+# symlinked ~/.claude/settings.json silently degrades into a stale copy on the
+# first settings change. A hard link breaks identically; a bind mount makes the
+# write fail with EBUSY.
+#
+# Merge semantics: our tracked values win for every key we define (arrays are
+# replaced wholesale, so deleting an entry upstream deletes it here), while
+# keys only the app knows about (enabledPlugins, feature flags, onboarding
+# state) survive untouched.
+#
+# Usage: merge_json_config "/path/to/tracked.json" "/path/to/live.json"
+merge_json_config() {
+  local src="$1"
+  local target="$2"
+
+  if [[ ! -e "$src" ]]; then
+    log_warn "Source does not exist, skipping: $src"
+    return 0
+  fi
+
+  ensure_dir "$(dirname "$target")"
+
+  # No live file yet, or python3 unavailable: tracked copy wins outright.
+  if [[ ! -e "$target" ]]; then
+    install -m 600 "$src" "$target"
+    log_info "Created: $target (from $src)"
+    return 0
+  fi
+
+  if ! command -v python3 &>/dev/null; then
+    log_warn "python3 not found — copying $src over $target without merging"
+    install -m 600 "$src" "$target"
+    return 0
+  fi
+
+  # A corrupt live file is rebuilt from the tracked copy rather than merged
+  # into; the backup below keeps the broken original.
+  if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$target" 2>/dev/null; then
+    log_warn "$target is not valid JSON — rebuilding it from $src"
+  fi
+
+  local merged
+  merged="$(mktemp)"
+
+  if ! python3 - "$src" "$target" >"$merged" 2>/dev/null <<'PY'
+import json
+import sys
+
+
+def deep_merge(base, over):
+    """Recursively overlay `over` onto `base`; non-dict values replace."""
+    out = dict(base)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+src_path, target_path = sys.argv[1], sys.argv[2]
+
+with open(src_path, encoding="utf-8") as handle:
+    tracked = json.load(handle)
+
+try:
+    with open(target_path, encoding="utf-8") as handle:
+        live = json.load(handle)
+except (json.JSONDecodeError, UnicodeDecodeError):
+    live = {}
+
+json.dump(deep_merge(live, tracked), sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")
+PY
+  then
+    rm -f "$merged"
+    log_warn "Could not build merged config from $src — leaving $target untouched"
+    return 0
+  fi
+
+  if cmp -s "$merged" "$target"; then
+    rm -f "$merged"
+    log_info "Already current: $target"
+    return 0
+  fi
+
+  local backup
+  backup="${target}.backup.$(date +%Y%m%d%H%M%S)"
+  cp "$target" "$backup"
+  log_warn "Backing up existing: $target → $backup"
+
+  install -m 600 "$merged" "$target"
+  rm -f "$merged"
+  log_info "Merged: $src → $target"
+}
+
 # Create directory if it doesn't exist.
 # Usage: ensure_dir "/path/to/dir"
 ensure_dir() {
@@ -421,11 +521,13 @@ deploy_configs() {
       mimeapps)
         link_config "${item}mimeapps.list" "${user_home}/.config/mimeapps.list"
         ;;
-      # Claude Code: skills dir + settings.json into ~/.claude/
+      # Claude Code: skills dir symlinked, settings.json merged (Claude Code
+      # rewrites that file itself and would replace a symlink — see
+      # merge_json_config)
       claude-code)
         ensure_dir "${user_home}/.claude"
         link_config "${item}skills" "${user_home}/.claude/skills"
-        link_config "${item}settings.json" "${user_home}/.claude/settings.json"
+        merge_json_config "${item}settings.json" "${user_home}/.claude/settings.json"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/
       scripts)

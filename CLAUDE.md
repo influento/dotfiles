@@ -36,6 +36,17 @@ This means:
 - Re-running `install.sh` is safe (idempotent — existing correct symlinks are skipped)
 - Existing files are backed up with a timestamp before being replaced
 
+**Exception — app-rewritten files.** `~/.claude/settings.json` is deep-merged by
+`merge_json_config` instead of symlinked. Claude Code saves settings by writing a
+temp file and `rename()`-ing it over the target, which replaces the symlink rather
+than writing through it, so a symlinked settings file silently degrades into a
+stale copy on the first `/config` change. A hard link breaks the same way; a bind
+mount makes the write fail with `EBUSY`. On merge, tracked values win for every key
+we define (arrays are replaced wholesale, so deleting an entry here deletes it
+there), while keys only Claude Code knows about — `enabledPlugins`, feature flags,
+onboarding state — survive untouched. Trade-off: edits made via `/config` no longer
+show up in `git diff` on their own; mirror them into the tracked file by hand.
+
 ### Config Mapping
 
 | Source                              | Target                                    | Profile     |
@@ -53,7 +64,7 @@ This means:
 | `common/btop/`                      | `~/.config/btop/`                         | all         |
 | `common/fastfetch/`                 | `~/.config/fastfetch/`                    | all         |
 | `workstation/yazi/`                 | `~/.config/yazi/`                         | workstation |
-| `common/claude-code/settings.json`  | `~/.claude/settings.json`                 | all         |
+| `common/claude-code/settings.json`  | `~/.claude/settings.json` (**merged**, not symlinked) | all         |
 | `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
 | `common/claude-code/skills-optional/` | *not deployed* — symlinked per project into `<project>/.claude/skills/` | all |
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
