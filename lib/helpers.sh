@@ -52,7 +52,8 @@ link_config() {
 # Merge semantics: our tracked values win for every key we define (arrays are
 # replaced wholesale, so deleting an entry upstream deletes it here), while
 # keys only the app knows about (enabledPlugins, feature flags, onboarding
-# state) survive untouched.
+# state) survive untouched. The merge only adds and overrides — deleting a
+# whole key from the tracked file does NOT remove it from the live one.
 #
 # Usage: merge_json_config "/path/to/tracked.json" "/path/to/live.json"
 merge_json_config() {

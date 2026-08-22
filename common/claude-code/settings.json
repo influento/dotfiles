@@ -1,9 +1,7 @@
 {
   "respectGitignore": true,
   "cleanupPeriodDays": 30,
-  "env": {
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
-  },
+  "autoCompactWindow": 400000,
   "includeGitInstructions": true,
   "permissions": {
     "allow": [
@@ -82,10 +80,7 @@
   "editorMode": "vim",
   "showTurnDuration": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true,
   "outputStyle": "Concise",
   "prefersReducedMotion": true,
-  "skipWorkflowUsageWarning": true,
-  "enabledPlugins": {},
-  "extraKnownMarketplaces": {}
+  "skipWorkflowUsageWarning": true
 }
