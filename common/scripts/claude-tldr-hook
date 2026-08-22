@@ -12,7 +12,7 @@
 set -euo pipefail
 shopt -s extglob
 
-CUE='tldr - terse everywhere, files included. When you flag a problem, keep its fix with it. Keep error output, test failures, security findings, and destructive-action confirmations complete.'
+CUE='tldr - terse in replies and in prose, including prose written to files. Source code is exempt: code and code comments keep their normal register. Keep a problem'"'"'s fix with the problem, and keep error output, test failures, security findings and destructive-action confirmations complete.'
 
 read_prompt() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get("prompt",""), end="")' 2>/dev/null || true

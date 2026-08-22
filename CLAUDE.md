@@ -333,11 +333,18 @@ executable tests; graders blind to arm):
 - Usefulness rankings flipped between the two documents, so treat the size saving as the
   established result and the quality claim as unproven in either direction.
 
-The cue's carve-outs are load-bearing. Error output, test failures, security findings and
-destructive-action confirmations stay complete because truncating them removes what the
-reader needs to act. "Keep the fix with the problem" was added after the benchmark caught
-the terse arm naming a trap (`$1`/`$2` in an alert command, `CAP_NET_RAW` on a port check)
-without ever giving the corrected command.
+The cue's carve-outs are load-bearing:
+
+- **Source code is exempt.** `UserPromptSubmit` fires before any file is known, so the
+  hook cannot detect what will be written - the exemption is enforced by the cue's
+  wording, not mechanically. The benchmark found the cue moved code under 4% and left
+  all 24 executable tests passing anyway, so the wording is a guardrail on a risk that
+  did not show up rather than a fix for one that did.
+- **Error output, test failures, security findings and destructive-action confirmations
+  stay complete**, because truncating them removes what the reader needs to act.
+- **"Keep a problem's fix with the problem"** was added after the benchmark caught the
+  terse arm naming a trap (`$1`/`$2` in an alert command, `CAP_NET_RAW` on a port check)
+  without ever giving the corrected command.
 
 Deploys via `common/scripts/*` → `~/.local/bin/*`; the `hooks` block lives in
 `common/claude-code/settings.json` and reaches `~/.claude/settings.json` through
