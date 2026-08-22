@@ -82,5 +82,10 @@
   "editorMode": "vim",
   "showTurnDuration": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "outputStyle": "Concise",
+  "prefersReducedMotion": true,
+  "skipWorkflowUsageWarning": true,
+  "enabledPlugins": {},
+  "extraKnownMarketplaces": {}
 }
