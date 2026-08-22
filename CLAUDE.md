@@ -170,7 +170,6 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
-| **tldr hook**        | `common/scripts/claude-tldr-hook`   | Claude Code `UserPromptSubmit` hook: injects a terse-register cue every turn (see "Terse Register Hook" below) |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
 
 ### Server only
@@ -304,57 +303,6 @@ The `go/` subdirectory is a grouping only — Claude Code discovers skills as
 `skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
 Add `.claude/skills/` to the project's `.gitignore` when the symlinks are personal
 rather than team-wide.
-
-## Terse Register Hook
-
-`common/scripts/claude-tldr-hook` is a Claude Code `UserPromptSubmit` hook. It prints
-one register cue on stdout, which Claude Code appends to the model's context for that
-turn.
-
-The point is position, not wording. An output style or a `CLAUDE.md` rule sits at the
-top of a 400k window and loses against the session's own accumulating turns, which
-become the dominant style prior. Re-injecting per turn removes that decay.
-
-`UserPromptSubmit` has **no matcher support** — the field is silently ignored — so all
-filtering happens inside the script:
-
-| Prompt | Cue injected? |
-| ------ | ------------- |
-| anything ordinary | yes |
-| contains `!full` | no — escape hatch for when depth is wanted |
-| starts with `/` | no — slash commands carry their own instructions |
-
-`UserPromptExpansion` is deliberately **not** hooked. It fires only for slash-command
-and skill expansions, which is precisely the case the script already skips; hooking it
-would re-inject the cue into the commands we exempt.
-
-Measured on a 4-task, 3-arm blind benchmark (2 docs, 2 code; pre-registered rubrics and
-executable tests; graders blind to arm):
-
-- Docs shrank 44–50%. Code moved under 4%.
-- All three arms scored 43/43 rubric items and 12/12 on both test suites. No measured
-  content or correctness loss — but also no power to detect a small one at n=1 per cell.
-- Usefulness rankings flipped between the two documents, so treat the size saving as the
-  established result and the quality claim as unproven in either direction.
-
-The cue's carve-outs are load-bearing:
-
-- **Only replies and `.md` files are terse. Every other file is exempt.**
-  `UserPromptSubmit` fires before any file is known, so the hook cannot detect what
-  will be written - the exemption is enforced by the cue's wording, not mechanically.
-  The benchmark found the cue moved code under 4% and left all 24 executable tests
-  passing anyway, so the wording is a guardrail on a risk that did not show up rather
-  than a fix for one that did.
-- **Error output, test failures, security findings and destructive-action confirmations
-  stay complete**, because truncating them removes what the reader needs to act.
-- **"Keep a problem's fix with the problem"** was added after the benchmark caught the
-  terse arm naming a trap (`$1`/`$2` in an alert command, `CAP_NET_RAW` on a port check)
-  without ever giving the corrected command.
-
-Deploys via `common/scripts/*` → `~/.local/bin/*`; the `hooks` block lives in
-`common/claude-code/settings.json` and reaches `~/.claude/settings.json` through
-`merge_json_config`. Removing a hook from the tracked file does **not** remove it from the
-live file — delete it there by hand as well.
 
 ## Code Conventions
 
