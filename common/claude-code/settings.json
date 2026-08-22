@@ -82,5 +82,17 @@
   "skipAutoPermissionPrompt": true,
   "outputStyle": "Concise",
   "prefersReducedMotion": true,
-  "skipWorkflowUsageWarning": true
+  "skipWorkflowUsageWarning": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/claude-tldr-hook"
+          }
+        ]
+      }
+    ]
+  }
 }
