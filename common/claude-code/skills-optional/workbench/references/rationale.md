@@ -1,8 +1,8 @@
 # Rationale
 
-Nothing on the action path links here. These are the arguments behind choices
-that look arbitrary or look like omissions, kept so that a later reader can see
-what was already considered before re-opening one.
+The arguments behind choices that look arbitrary or look like omissions, kept
+so that a later reader can see what was already considered before re-opening
+one.
 
 ## Why ideas live in one file and items in many
 
@@ -61,3 +61,26 @@ place where work could go without an observable claim attached to it.
 The deeper reason a general refactor cannot be its own class: its natural
 criterion is "behaviour is unchanged", which is green before the work starts.
 See the unchanged-tree rule in verification.md.
+
+## Why the obligation lives in the project's `CLAUDE.md`
+
+A skill description only fires when a request *looks like* a match. That is good
+enough for a capability and not good enough for a rule that says all domain work
+gets an item, since the requests that most need the rule are the ones that look
+like small favours. So the obligation sits in `CLAUDE.md`, which is always in
+context, and the detail stays here, loaded only once the rule has fired.
+
+## Why the sweep's contract is not enforced by a hook
+
+"Write exactly one file" reads like something a `PreToolUse` hook should hold,
+rejecting any path outside `workbench/reviews/`. Skill-scoped hooks do not fire
+inside a forked context, and the sweep is a fork by design, so the hook would
+never run. Declaring one would be worse than declaring nothing: the contract
+would read as enforced while nothing checked it.
+
+The tool set narrows the fork instead — no `Edit`, no subagents, no web — but
+`Bash` has to stay so the sweep can build, test and grep, and `Bash` can write
+through a redirect. So the tool set removes the convenient path and nothing
+more. `workbench review-check` is the only thing that actually proves the
+contract held, which is why it is run on every returned report rather than only
+on a suspicious one.

@@ -75,7 +75,7 @@ the answer from `git branch`, which cannot see the merged ones.
 
 ## Review sweeps
 
-`/workbench-review <reason> [scope]` runs the sweep in a forked context and
+`/workbench-review <reason> ["scope"]` runs the sweep in a forked context and
 returns the report path. It is user-invoked only — never start one unasked.
 
 The fork writes exactly one file, the report. When it returns with the path,
@@ -85,20 +85,11 @@ prove that before reading the findings:
 workbench review-check <report-path>
 ```
 
-`workbench review` recorded the tree as it stood before the sweep started, so
-the check is two-sided by construction — a clean-tree check would not do, since
-mid-item the tree is normally dirty and the sweep's edits would be
-indistinguishable from the user's own. It compares content, not just `git
-status`, because an already-modified file keeps the same status line when it is
-modified again. Anything beyond the report appearing means the sweep edited what
-it was reviewing; say so and do not triage until the user has seen it.
-
-**What the check does not cover.** The baseline is recorded when the sweep runs
-`workbench review`, so a sweep that edits code *before* opening its report bakes
-that edit into its own baseline and passes clean. And a sweep that reads nothing
-and reports confidently produces the same clean result as a genuinely clean
-scope. Both are held by the sweep's instructions, not by the check — treat a
-pass as "wrote only its report", never as "did the work honestly".
+A failure means the sweep edited what it was reviewing: say so and do not
+triage until the user has seen it. A pass means "wrote only its report", never
+"did the work honestly" — a sweep that reads nothing and reports confidently
+passes the same way. How the check works and where it stops are in
+[reviews.md](references/reviews.md).
 
 ## By class
 

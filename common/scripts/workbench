@@ -19,7 +19,7 @@ usage:
   workbench start <id>                 create the branch and worktree for an item
   workbench archive <id>               move to archive, recording the merge commit
   workbench review <reason> [scope]    open a report for a review sweep
-  workbench status                     what is in flight, and any duplicate ids
+  workbench status                     in flight, duplicate ids, untriaged reports
   workbench review-check <report>      prove a sweep wrote only its report
 
   reasons: sweep, pre-merge, docs, memory, adopt
@@ -209,7 +209,7 @@ any feature or bug fix, create an item (\`workbench new\`) and agree its
 verification criterion. Housekeeping — configs, tooling, agent settings — is
 exempt and goes straight to the main branch.
 
-Rules: \`.claude/skills/workbench/SKILL.md\`. State: \`$WB/\`.
+Rules: invoke the \`workbench\` skill. State: \`$WB/\`.
 $MARK_END
 EOF
 }
@@ -267,13 +267,14 @@ cmd_adopt() {
   cmd_init
   cat <<EOF
 
-Now hand the project to the agent:
+Now run the survey from a Claude Code session in this project:
 
-  "read .claude/skills/workbench/references/adopt.md and survey this project"
+  /workbench-review adopt
 
-It reports what work tracking already exists here and asks what should become
-backlog lines, what should become open items, and what to leave alone. Nothing
-converts without your approval, and shipped work never gets a backfilled item.
+It sweeps what work tracking already exists here into a report; triage then
+decides what becomes a backlog line, what becomes an open item, and what to
+leave alone. Nothing converts without your approval, and shipped work never
+gets a backfilled item.
 EOF
 }
 
@@ -619,6 +620,17 @@ cmd_status() {
     echo "DUPLICATE IDS — see references/git.md for repair"
     printf '%s\n' "$dupes" | sed 's/^/  /'
   fi
+
+  # A triaged report is deleted, so anything still here is either waiting for
+  # triage or a skeleton left by a sweep that never returned.
+  local reports=()
+  mapfile -t reports < <(find "${roots[@]/%//$WB\/reviews}" -name '*.md' 2>/dev/null \
+    | sed 's|.*/||' | sort -u)
+  if [ "${#reports[@]}" -gt 0 ]; then
+    echo
+    echo "untriaged reports"
+    printf '  %s\n' "${reports[@]}"
+  fi
 }
 
 baseline_dir() {
@@ -713,8 +725,18 @@ cmd_review() {
   root=$(repo_root)
   stamp=$(date +%Y%m%d)
   slug=$(slugify "${scope:-$reason}")
-  path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}.md"
-  [ -e "$path" ] && die "$path already exists"
+  path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}"
+
+  # The sweep skill opens the report from a preprocessed block, and a failing
+  # command there aborts the whole skill silently. So a same-day collision gets
+  # a numbered suffix rather than an error; 'workbench status' lists every
+  # report still sitting here, which is how an orphaned skeleton stays visible.
+  local n=1 candidate="$path.md"
+  while [ -e "$candidate" ]; do
+    n=$((n + 1))
+    candidate="$path-$n.md"
+  done
+  path=$candidate
 
   # Record what the tree looked like before the sweep touched anything, so that
   # 'review-check' can prove afterwards that the sweep wrote only its report.

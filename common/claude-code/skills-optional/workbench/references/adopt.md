@@ -1,7 +1,10 @@
 # Adopting an existing project
 
-`workbench adopt` has already scaffolded `workbench/` and linked the skill.
-What remains is a survey, and it is a conversation — not a conversion script.
+`workbench adopt` has already scaffolded `workbench/` and linked the skills.
+What remains is a survey and a triage, and they run in different places: the
+survey is a review sweep (`/workbench-review adopt`), forked and writing only
+its report; the triage is a conversation in the invoking context. Neither is a
+conversion script.
 
 ## The one fixed rule
 
@@ -12,7 +15,7 @@ History stays in git.
 
 Everything else is proposed and approved, never assumed.
 
-## Survey
+## Survey — in the sweep
 
 Look at how this project actually tracks work today. Do not guess in advance
 what that will be — find it, then report it. Places worth opening:
@@ -24,11 +27,25 @@ what that will be — find it, then report it. Places worth opening:
 - anything the project's own `CLAUDE.md` or README says about its process
 
 Report what exists with counts and a few real examples, so the user is deciding
-about something concrete rather than a category.
+about something concrete rather than a category. The sweep asks nothing and
+converts nothing; every decision below is taken at triage.
 
-## Ask
+Two further things belong in the report:
 
-Then ask, for each thing found, which of these it is:
+- **Vocabulary.** Words this project uses in a narrower sense than they are
+  used generally, and especially two words already in use for one thing — that
+  is the condition the glossary exists to end, and adoption is the cheapest
+  moment to end it. List the candidates with where each occurs. Choosing
+  between two existing words is a decision, not a survey finding; report both.
+- **Documentation.** Audited, not migrated. Most of what a project accumulates
+  is derivable from its code; what cost real work to discover is worth naming
+  so triage can move it into the item that will use it, or a backlog line.
+  It never becomes a document of its own ([docs.md](docs.md)).
+
+## Triage — in the invoking context
+
+After `workbench review-check` passes, go through the report with the user and
+ask, for each thing found, which of these it is:
 
 | Disposition | Where it goes |
 |---|---|
@@ -46,30 +63,17 @@ Do not create items in bulk. A repository with two hundred `TODO` markers
 yields two hundred backlog lines, not two hundred items — promoting a line to
 an item is where the thinking happens, and it happens one at a time later.
 
-## Documentation
+Deleting someone's document is always their decision, which is why the docs
+audit arrives as findings rather than as edits.
 
-Existing documentation is audited, not migrated. Run it as a `docs` review
-(see [reviews.md](reviews.md)): a report the user triages, so that deleting
-someone's document is always their decision. Most of what a project accumulates
-is derivable from its code and should go; what cost real work to discover moves
-into the item that will use it, or a backlog line. It never becomes a document
-of its own — see [docs.md](docs.md).
-
-## Glossary
+### Glossary
 
 A fresh project starts with an empty glossary and fills it as the domain becomes
-clear. An existing project already has its vocabulary, scattered through code,
-documents and whatever tracking it used, so filling `workbench/GLOSSARY.md` is
-part of adoption.
-
-Propose the terms; do not write them unilaterally. Look for words this project
-uses in a narrower sense than they are used generally, and especially for two
-words already in use for one thing — that is the condition the glossary exists
-to end, and adoption is the cheapest moment to end it.
-
-Choosing between two existing words is a decision, not a survey finding. Put it
-to the user, and once it is settled the losing word becomes a `rename` item like
-any other. Rules in [glossary.md](glossary.md).
+clear. An existing project already has its vocabulary, so filling
+`workbench/GLOSSARY.md` is part of adoption — from the report's candidates,
+proposed and approved, never written unilaterally. Once a choice between two
+words is settled, the losing word becomes a `rename` item like any other. Rules
+in [glossary.md](glossary.md).
 
 ## Finish
 

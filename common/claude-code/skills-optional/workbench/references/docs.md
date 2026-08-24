@@ -84,9 +84,7 @@ documents, is a review reason — see [reviews.md](reviews.md).
 
 ## Deleting means deleting
 
-When removing content, remove it. Leave nothing saying it was ever there.
-
-All of these are violations:
+SKILL.md rule 7. All of these are violations:
 
 ```
 ~~The old retry logic used a fixed 3s delay~~

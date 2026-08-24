@@ -3,9 +3,31 @@
 A review is a deliberate sweep that produces a report. It is not part of
 finishing an item, and it is not tracked work — it is how work gets found.
 
-Run one with `/workbench-review <reason> [scope]`, which forks so the sweep's
-reading stays out of the main context. `workbench review <reason> [scope]` alone
-just opens the report file.
+Run one with `/workbench-review <reason> ["scope"]`, which forks so the sweep's
+reading stays out of the main context. Quote a scope with spaces — the skill
+takes it as one argument, and an unquoted second word is dropped.
+`workbench review <reason> [scope]` alone just opens the report file.
+
+## How the sweep is held to its contract
+
+The fork's tool set is `Read`, `Glob`, `Grep`, `Bash`, `Write` — no `Edit`, no
+subagents, no web. That removes the convenient ways to change a file, nothing
+more: `Bash` must stay so the sweep can build, test and grep, and it can write
+through a redirect. The real gate is `workbench review-check`, run in the
+invoking context on the returned path.
+
+The report is opened, and the tree's state recorded, by a preprocessed block in
+the skill — before the fork's first turn. So the baseline predates anything the
+sweep can do, and the check is two-sided by construction: a clean-tree check
+would not do, since mid-item the tree is normally dirty and the sweep's edits
+would be indistinguishable from the user's own. It compares content, not just
+`git status`, because an already-modified file keeps the same status line when
+it is modified again. The only permitted delta is the report appearing.
+
+**What the check does not cover.** A sweep that reads nothing and reports
+confidently produces the same clean result as a genuinely clean scope. That is
+held by the sweep's instructions, not by the check — treat a pass as "wrote
+only its report", never as "did the work honestly".
 
 ## Reasons
 
@@ -43,6 +65,12 @@ review runs -> report written -> triaged jointly -> items created -> report dele
 Reports are never archived. Once triaged, everything worth keeping is in an
 item, and the report is redundant.
 
+Because the report file is created before the sweep runs, a sweep that errors
+or is aborted leaves an empty skeleton behind. A same-day collision gets a
+numbered suffix rather than an error, so orphans do not stop the next sweep —
+`workbench status` lists everything still in `workbench/reviews/`, and anything
+there is either waiting for triage or an orphan to delete.
+
 ## What pre-merge review covers
 
 - the criterion is genuinely satisfied by the evidence recorded
@@ -54,3 +82,6 @@ item, and the report is redundant.
 - whether anything left unverified could in fact be verified now, by
   synthesising the event — `awaiting` and `unverified` are the user's call, not
   the agent's
+
+The two most often missed: a discovered fact left out of the item whose work
+found it, and a test that reaches past what the criterion describes.

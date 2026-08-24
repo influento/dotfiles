@@ -100,6 +100,10 @@ Allocate with `workbench new`. Never choose an ID by hand: a hand-picked
 number does not advance the counter, and the next allocation will collide
 with it.
 
+Adoption is a property of the repository, not of a checkout: because the counter
+lives in the shared git directory, a worktree whose branch predates adoption can
+still allocate.
+
 ## Duplicate IDs across machines
 
 The counter is a cache; the repository is the source of truth. Allocation takes
