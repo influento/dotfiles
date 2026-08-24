@@ -1,0 +1,50 @@
+# Rationale
+
+Nothing on the action path links here. These are the arguments behind choices
+that look arbitrary or look like omissions, kept so that a later reader can see
+what was already considered before re-opening one.
+
+## Why ideas live in one file and items in many
+
+Ideas are browsed as a list, to pick what is next. Items are looked up
+individually, by ID, from a commit. Different access patterns, different shapes.
+
+## Why the criterion carries the defence, not the test
+
+The reader may not read test code. A test can assert nothing, assert a mock, or
+be written from finished code so that it agrees with the bug. None of that is
+visible in a green result. The criterion is short enough to actually read, so
+that is where the defence sits.
+
+## Why there is no findings directory
+
+A dated record of an external fact looks like it can never rot, because the
+statement stays true. It still stops being useful — the dependency is upgraded,
+the behaviour changes, and a technically accurate document is read as current by
+whoever finds it next.
+
+Worse, such a file has nothing that invalidates it, so nothing ever triggers its
+review and nothing ever deletes it. It is the one document class that can only
+grow.
+
+None of that is lost by removing it, because the thing worth keeping — why the
+code is shaped this way — was never in the document. It is in the item, which is
+dated by its commit, permanent, and reachable from any file through the trailer.
+
+The same argument removes measured baselines. A number matters because it was
+evidence for some item, and that is where it lives, together with the command
+that produced it. A number in a file that nothing re-measures is an old
+measurement presented as a current one.
+
+## Why technical facts go in the repository rather than agent memory
+
+Memory is not versioned, so it cannot be diffed against the commit that
+invalidated it. It passes through no review, so it is written at the agent's
+discretion and never checked. And it is keyed to a directory path, so a worktree
+gets a different store and anything written there is invisible elsewhere.
+
+## Why `rename` is a class and `refactor` is not
+
+A rename is bounded by definition, so its criterion writes itself. A general
+refactor is not, which would make it the class where work goes to dodge the
+criterion discipline. Refactors get no class until something actually needs one.
