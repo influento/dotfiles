@@ -76,6 +76,7 @@ Two consequences of merging rather than replacing:
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
 | `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded) | all |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
+| `common/scripts/workbench`          | `~/.local/bin/workbench` (per-project opt-in CLI) | all |
 | `server/scripts/*`                  | `~/.local/bin/*`                          | server      |
 | `server/systemd/user/`             | `~/.config/systemd/user/`                 | server      |
 | `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
@@ -168,6 +169,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
+| **workbench**        | `common/scripts/workbench`          | Item-tracking workflow CLI: `init`/`adopt` opt a project in, `new`/`start`/`archive`/`review`/`status` drive it. Pairs with the `workbench` and `workbench-review` skills (see "Claude Code Skills") |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
@@ -277,7 +279,7 @@ Skills are split into two trees under `common/claude-code/`:
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
+| `skills-optional/`| never deployed — opted into per project      | `workbench` + `workbench-review`, `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
 `name` and `description` frontmatter is loaded into context at session start — the
@@ -303,6 +305,41 @@ The `go/` subdirectory is a grouping only — Claude Code discovers skills as
 `skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
 Add `.claude/skills/` to the project's `.gitignore` when the symlinks are personal
 rather than team-wide.
+
+### workbench
+
+`workbench` is the exception: it is opted into by its own CLI rather than by
+hand, because the skill needs repo-side state the symlink cannot provide.
+
+```bash
+cd <project>
+workbench init      # new project
+workbench adopt     # existing project — init, then a guided survey
+```
+
+`init` creates `workbench/` (items, reviews, `BACKLOG.md`, `GLOSSARY.md`), links
+both `.claude/skills/workbench` and `.claude/skills/workbench-review` back into
+this repo, ignores `.claude/skills/` and `.worktrees/`, and injects a
+marker-delimited block into the project's `CLAUDE.md`. It is idempotent —
+re-running refreshes the block in place.
+
+`workbench-review` is a second skill rather than a section of the first because
+a sweep must be user-invoked (`disable-model-invocation: true`, which also costs
+zero always-on tokens) and must run forked, so its code-reading stays out of the
+main context. Its `background: false` is load-bearing twice: a backgrounded fork
+gets the narrower background-subagent tool set, and the report path must come
+back in the invoking turn for triage.
+
+The block is what actually makes the workflow binding. A skill description only
+fires when a request *looks like* a match, which is not good enough for a rule
+that says all domain work gets an item, so the obligation lives in `CLAUDE.md`
+(always in context, ~80 tokens) and the detail stays in the skill (loaded
+lazily). `CLAUDE.md` is resolved through `readlink -f` first, so a project where
+it symlinks to `AGENTS.md` is edited in place rather than replaced.
+
+Item IDs come from `.git/item-seq` with an atomic lock directory, so every
+worktree draws from one sequence. Adoption is a property of the repository, not
+of a checkout: a worktree whose branch predates adoption can still allocate.
 
 ## Code Conventions
 

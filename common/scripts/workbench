@@ -1,0 +1,755 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# workbench — item lifecycle for tracked project work.
+#
+# IDs come from a counter in the shared git directory, so every worktree draws
+# from one sequence and numbers can never collide or repeat.
+
+WB=workbench
+MARK_START='<!-- workbench:start -->'
+MARK_END='<!-- workbench:end -->'
+
+usage() {
+  cat <<'EOF'
+usage:
+  workbench init                       scaffold workbench/ and link the skill
+  workbench adopt                      init, then survey an existing project
+  workbench new <bug|feature|rename> "<title>"  allocate an id, write the file
+  workbench start <id>                 create the branch and worktree for an item
+  workbench archive <id>               move to archive, recording the merge commit
+  workbench review <reason> [scope]    open a report for a review sweep
+  workbench status                     what is in flight, and any duplicate ids
+  workbench review-check <report>      prove a sweep wrote only its report
+
+  reasons: sweep, pre-merge, docs, memory, adopt
+  state lives under workbench/
+EOF
+  exit 2
+}
+
+die() {
+  echo "workbench: $1" >&2
+  exit 1
+}
+
+git_common_dir() {
+  local d
+  d=$(git rev-parse --git-common-dir) || die "not inside a git repository"
+  # --git-common-dir may be relative to the current directory
+  (cd "$d" && pwd)
+}
+
+repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
+}
+
+# The main worktree, where the committed state lives. A linked worktree's
+# common dir is always <main>/.git, so its parent is the main checkout.
+main_root() {
+  dirname "$(git_common_dir)"
+}
+
+# Both checkouts that may hold items: the current one, because an item file
+# lives on its branch, and the main one, which holds everything merged.
+wb_roots() {
+  local cur main
+  cur=$(repo_root)
+  main=$(main_root)
+  printf '%s\n' "$cur"
+  [ "$main" != "$cur" ] && printf '%s\n' "$main"
+  return 0
+}
+
+# The skill source sits beside this script in the dotfiles tree. Resolving it
+# from $0 keeps the path out of the script, so a moved checkout still works.
+skill_source() {
+  local self
+  # $0 is a bare name when found on PATH, so resolve it before following links
+  self=$(command -v -- "$0") || die "cannot locate the workbench script"
+  self=$(readlink -f "$self")
+  printf '%s\n' "${WORKBENCH_SKILL_SRC:-$(dirname "$self")/../claude-code/skills-optional/workbench}"
+}
+
+slugify() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' \
+    | cut -c1-50
+}
+
+# A worktree branched before adoption has no $WB/ in its own checkout, yet may
+# still create items. Adoption is a property of the repository, so any checkout
+# carrying $WB/ satisfies it.
+require_init() {
+  local root
+  while IFS= read -r root; do
+    [ -d "$root/$WB" ] && return 0
+  done < <(wb_roots)
+  die "no $WB/ in this repository; run 'workbench init' first"
+}
+
+# Highest number already present, so a missing counter can be rebuilt from the
+# repository itself rather than restarting at 1 and colliding with history.
+highest_existing() {
+  local max=0 n roots=()
+  mapfile -t roots < <(wb_roots)
+  while IFS= read -r f; do
+    n=$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')
+    [ -n "$n" ] || continue
+    n=$((10#$n))
+    [ "$n" -gt "$max" ] && max=$n
+  done < <(find "${roots[@]/%//$WB\/items}" -name '[bfr]-*.md' 2>/dev/null)
+  echo "$max"
+}
+
+next_id() {
+  local seq_file lock_dir current
+  seq_file="$(git_common_dir)/item-seq"
+  lock_dir="$(git_common_dir)/item-seq.lock"
+
+  # mkdir is atomic on POSIX filesystems, so this works without flock
+  local waited=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    waited=$((waited + 1))
+    [ "$waited" -gt 100 ] && die "could not acquire $lock_dir"
+    sleep 0.05
+  done
+  trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT
+
+  # The counter is a cache; the repository is the source of truth. A counter
+  # left behind on this machine goes stale the moment items allocated on
+  # another one are pulled in, so never allocate below what the tree holds.
+  local seen
+  seen=$(highest_existing)
+  current=0
+  [ -f "$seq_file" ] && current=$(cat "$seq_file")
+  [ "$seen" -gt "$current" ] && current=$seen
+  current=$((current + 1))
+  printf '%s\n' "$current" > "$seq_file"
+
+  rmdir "$lock_dir"
+  trap - EXIT
+  printf '%03d\n' "$current"
+}
+
+# --- init -------------------------------------------------------------------
+
+write_glossary() {
+  cat > "$1" <<'EOF'
+# Glossary
+
+<!-- Domain language only: words this project uses in a narrower or different
+     sense than they are used generally. Never well-known concepts.
+
+     One entry per concept, never the same concept twice. Brief — a definition,
+     not an explanation. Nothing that would have to change when the
+     implementation changes; that is a spec, and it belongs elsewhere.
+
+     A term is renamed by `workbench new rename`, and the entry changes in the
+     same commit as the code. Aliases are written as (was: old-term), and only
+     once the old word survives in an archived item or a merged commit. -->
+EOF
+}
+
+write_backlog() {
+  cat > "$1" <<'EOF'
+# Backlog
+
+<!-- One line per idea. No id, no file, no thinking spent yet. Promoting a line
+     to an item is where the thinking happens; delete the line when it goes. -->
+EOF
+}
+
+ensure_gitignore() {
+  local root gi
+  root=$(repo_root)
+  gi="$root/.gitignore"
+  local entry
+  for entry in '.claude/skills/' '.worktrees/'; do
+    grep -qxF "$entry" "$gi" 2>/dev/null && continue
+    printf '%s\n' "$entry" >> "$gi"
+    echo "  .gitignore += $entry"
+  done
+}
+
+# Two skills: the workflow itself, and the sweep, which is a separate skill so
+# it can be user-only and forked. Both are symlinks into the dotfiles tree.
+link_skill() {
+  local root base src dst name
+  root=$(repo_root)
+  base=$(readlink -f "$(skill_source)") || true
+  [ -n "$base" ] && [ -d "$base" ] || die "skill source not found at $(skill_source)"
+
+  mkdir -p "$root/.claude/skills"
+
+  for name in workbench workbench-review; do
+    src="$(dirname "$base")/$name"
+    [ -d "$src" ] || die "skill source not found at $src"
+    dst="$root/.claude/skills/$name"
+
+    if [ -L "$dst" ]; then
+      [ "$(readlink -f "$dst")" = "$src" ] && continue
+      die "$dst points somewhere else; remove it and re-run"
+    fi
+    [ -e "$dst" ] && die "$dst exists and is not a symlink"
+
+    ln -s "$src" "$dst"
+    echo "  linked .claude/skills/$name -> $src"
+  done
+}
+
+claude_md_block() {
+  cat <<EOF
+$MARK_START
+## Workflow
+
+Domain work in this repo is tracked with **workbench**. Before writing code for
+any feature or bug fix, create an item (\`workbench new\`) and agree its
+verification criterion. Housekeeping — configs, tooling, agent settings — is
+exempt and goes straight to the main branch.
+
+Rules: \`.claude/skills/workbench/SKILL.md\`. State: \`$WB/\`.
+$MARK_END
+EOF
+}
+
+# Written through readlink -f so a CLAUDE.md that is a symlink to AGENTS.md is
+# edited in place rather than replaced by a regular file.
+ensure_claude_md() {
+  local root target tmp
+  root=$(repo_root)
+  target=$(readlink -f "$root/CLAUDE.md" 2>/dev/null || printf '%s' "$root/CLAUDE.md")
+
+  if [ ! -f "$target" ]; then
+    { echo "# $(basename "$root")"; echo; claude_md_block; } > "$target"
+    echo "  created $(basename "$target") with the workbench block"
+    return 0
+  fi
+
+  if grep -qF "$MARK_START" "$target"; then
+    tmp=$(mktemp)
+    claude_md_block > "$tmp.block"
+    awk -v start="$MARK_START" -v end="$MARK_END" -v blockfile="$tmp.block" '
+      $0 == start { while ((getline line < blockfile) > 0) print line; skip = 1; next }
+      $0 == end   { skip = 0; next }
+      !skip       { print }
+    ' "$target" > "$tmp"
+    mv "$tmp" "$target"
+    rm -f "$tmp.block"
+    echo "  refreshed the workbench block in $(basename "$target")"
+  else
+    { echo; claude_md_block; } >> "$target"
+    echo "  appended the workbench block to $(basename "$target")"
+  fi
+}
+
+cmd_init() {
+  local root d
+  root=$(repo_root)
+
+  for d in items/bugs items/features items/renames items/archive reviews; do
+    mkdir -p "$root/$WB/$d"
+    [ -e "$root/$WB/$d/.gitkeep" ] || touch "$root/$WB/$d/.gitkeep"
+  done
+
+  [ -f "$root/$WB/GLOSSARY.md" ] || { write_glossary "$root/$WB/GLOSSARY.md"; echo "  wrote $WB/GLOSSARY.md"; }
+  [ -f "$root/$WB/BACKLOG.md" ] || { write_backlog "$root/$WB/BACKLOG.md"; echo "  wrote $WB/BACKLOG.md"; }
+
+  link_skill
+  ensure_gitignore
+  ensure_claude_md
+
+  echo "workbench ready in $root"
+}
+
+cmd_adopt() {
+  cmd_init
+  cat <<EOF
+
+Now hand the project to the agent:
+
+  "read .claude/skills/workbench/references/adopt.md and survey this project"
+
+It reports what work tracking already exists here and asks what should become
+backlog lines, what should become open items, and what to leave alone. Nothing
+converts without your approval, and shipped work never gets a backfilled item.
+EOF
+}
+
+# --- items ------------------------------------------------------------------
+
+write_bug() {
+  cat > "$1" <<EOF
+# $2 — $3
+
+status: open
+
+## What was seen
+
+<!-- The observed behaviour. Delete this comment. -->
+
+## How to reproduce
+
+<!-- Steps, or a note that it was found by reading code — that is fine and
+     needs no apology. Best-effort: a bug with no reproduction still ships.
+     Delete this comment. -->
+
+## Root cause
+
+<!-- The mechanism, on the side you control. "It behaves like X and that is the
+     third party's decision" is a complete root cause. A suspected race is a
+     mechanism: state it, mark the confidence unproven. A fact discovered here
+     about a system you do not control is recorded here, not in a document of
+     its own. Delete this comment. -->
+
+## The fix
+
+<!-- What changed. Delete this comment. -->
+
+## How to confirm it is fixed
+
+<!-- REQUIRED, never omitted. Written before the code and specific enough to
+     stand alone: name the command and the expected result. This is the
+     contract. Delete this comment. -->
+
+## Evidence
+
+<!-- Filled in after implementation: the actual output, not a summary of it.
+     Delete this comment. -->
+EOF
+}
+
+write_feature() {
+  cat > "$1" <<EOF
+# $2 — $3
+
+status: open
+
+## Why
+
+<!-- The problem being solved. Delete this comment. -->
+
+## What changes
+
+<!-- Observable behaviour of the project, not implementation. Delete this
+     comment. -->
+
+## What it touches
+
+<!-- Areas, not a file list. Delete this comment. -->
+
+## How to confirm it works
+
+<!-- The criterion. Written before the code and specific enough to stand alone:
+     name the command and the expected result. This is the contract. Delete
+     this comment. -->
+
+## Evidence
+
+<!-- Filled in after implementation: the actual output, not a summary of it.
+     Delete this comment. -->
+EOF
+}
+
+write_rename() {
+  cat > "$1" <<EOF
+# $2 — $3
+
+status: open
+
+## The term
+
+<!-- old -> new, and the glossary entry that changes with this commit. Delete
+     this comment. -->
+
+## Scope
+
+<!-- The paths holding the domain sense. If the word also has a non-domain
+     sense in this codebase, say which paths carry it and stay out of them.
+     Delete this comment. -->
+
+## How to confirm it is done
+
+<!-- Written before the change. An occurrence count over the scope, plus the
+     count that legitimately survives outside it. Delete this comment. -->
+
+## Evidence
+
+<!-- Filled in after: the actual counts and paths. Delete this comment. -->
+EOF
+}
+
+cmd_new() {
+  local class="${1:-}" title="${2:-}" letter dir slug num id path root
+  [ -n "$class" ] && [ -n "$title" ] || usage
+  require_init
+
+  case "$class" in
+    bug) letter=b; dir=bugs ;;
+    feature) letter=f; dir=features ;;
+    rename) letter=r; dir=renames ;;
+    *) die "class must be 'bug', 'feature' or 'rename', got '$class'" ;;
+  esac
+
+  root=$(repo_root)
+  slug=$(slugify "$title")
+  [ -n "$slug" ] || die "title produced an empty slug"
+
+  num=$(next_id)
+  id="$letter-$num"
+  path="$root/$WB/items/$dir/$id-$slug.md"
+
+  mkdir -p "$root/$WB/items/$dir"
+  [ -e "$path" ] && die "$path already exists"
+
+  case "$class" in
+    bug) write_bug "$path" "$id" "$title" ;;
+    feature) write_feature "$path" "$id" "$title" ;;
+    rename) write_rename "$path" "$id" "$title" ;;
+  esac
+
+  echo "$id"
+  echo "$path" >&2
+}
+
+find_item() {
+  local roots=()
+  mapfile -t roots < <(wb_roots)
+  find "${roots[@]/%//$WB\/items}" -name "$1-*.md" -print -quit 2>/dev/null
+}
+
+# The checkout an item file belongs to. find_item may return a path from the
+# main checkout while the caller stands in a linked worktree, so every path
+# derived from an item must be rooted here and not at repo_root.
+item_root() {
+  printf '%s\n' "${1%/"$WB"/items/*}"
+}
+
+cmd_start() {
+  local id="${1:-}" path branch root wt
+  [ -n "$id" ] || usage
+  require_init
+
+  path=$(find_item "$id")
+  [ -n "$path" ] || die "no item matching '$id'"
+
+  branch=$(basename "$path" .md)
+  root=$(item_root "$path")
+  wt="$(repo_root)/.worktrees/$branch"
+
+  [ -e "$wt" ] && die "worktree already exists: $wt"
+
+  git worktree add -b "$branch" "$wt"
+
+  # The item file lives on its branch. A freshly created one is still untracked
+  # here, so the new worktree branched from HEAD would not contain it; carry it
+  # over. An item already committed is checked out there by the branch itself.
+  if ! git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+    local rel="${path#"$root"/}"
+    mkdir -p "$(dirname "$wt/$rel")"
+    mv "$path" "$wt/$rel"
+    echo "moved $rel onto the branch" >&2
+  fi
+
+  echo "$wt"
+}
+
+item_status() {
+  sed -n 's/^status: *//p' "$1" | head -1
+}
+
+# Evidence is present when the Evidence section holds something other than
+# blank lines and the template comment.
+has_evidence() {
+  sed -n '/^## Evidence/,$p' "$1" \
+    | tail -n +2 \
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
+    | grep -q '[^[:space:]]'
+}
+
+cmd_archive() {
+  local id="${1:-}" path root sha
+  [ -n "$id" ] || usage
+  require_init
+
+  path=$(find_item "$id")
+  [ -n "$path" ] || die "no item matching '$id'"
+
+  case "$path" in
+    */items/archive/*) die "$id is already archived" ;;
+  esac
+
+  local status
+  status=$(item_status "$path")
+
+  case "$status" in
+    awaiting*)
+      die "$id is awaiting a trigger and does not archive. Verify it when the
+trigger fires, or re-state it as 'unverified — <trigger>' if no bound can be
+named." ;;
+    unverified*)
+      # The trigger is the whole value of an unverified archive: it is what a
+      # later search matches on.
+      case "$status" in
+        *—*|*" - "*) ;;
+        *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
+      esac ;;
+    unreproduced*) ;;
+    *)
+      if ! has_evidence "$path"; then
+        die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger>)"
+      fi ;;
+  esac
+
+  # The commit that carries this item's trailer, not whatever is at HEAD: an
+  # item merged as 'awaiting' is archived long after its own merge, once its
+  # trigger fires.
+  sha=$(git log --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
+  # Never fall back to HEAD: HEAD is whatever the checkout happens to sit on,
+  # and recording it would write a commit into the archive that did not
+  # implement the item. An item with no trailer yet — an unreproduced bug, or
+  # one archived before its merge — says so.
+  if [ -z "$sha" ]; then
+    sha=none
+    echo "warning: no commit carries 'Item: $id'; archiving with commit: none" >&2
+  fi
+
+  root=$(item_root "$path")
+  local dest
+  dest="$root/$WB/items/archive/$(basename "$path")"
+  mkdir -p "$(dirname "$dest")"
+
+  printf '\ncommit: %s\n' "$sha" >> "$path"
+  # An item created but never committed is untracked, so git mv cannot move it.
+  # Every other failure is real and must not be swallowed.
+  if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+    git -C "$root" mv "$path" "$dest"
+  else
+    mv "$path" "$dest"
+  fi
+
+  echo "archived $id at $sha"
+}
+
+# --- reviews ----------------------------------------------------------------
+
+# In-flight work is branches plus items merged as 'awaiting', which have no
+# branch left. Both halves are needed; neither alone is the answer.
+cmd_status() {
+  local roots=() dirs=()
+  require_init
+  mapfile -t roots < <(wb_roots)
+  dirs=("${roots[@]/%//$WB\/items}")
+
+  # An item file lives on its branch, so the copy in a worktree and the copy in
+  # the main checkout are the same item at two points in its life and their
+  # status lines can legitimately disagree. Print one line per copy that
+  # disagrees, labelled, rather than picking one and hiding the other.
+  status_lines() {
+    local name="$1" d f st where seen=() pairs=() prev
+    for d in "${dirs[@]}"; do
+      f=$(find "$d" -name "$name" -print -quit 2>/dev/null)
+      [ -n "$f" ] || continue
+      st=$(item_status "$f")
+      where=$(basename "$(item_root "$f")")
+      for prev in ${seen+"${seen[@]}"}; do
+        [ "$prev" = "$st" ] && continue 2
+      done
+      seen+=("$st")
+      pairs+=("$st|$where")
+    done
+    # Label only when the copies disagree, and then label every one of them —
+    # an unlabelled first line next to a labelled second reads as authoritative.
+    local pair
+    for pair in ${pairs+"${pairs[@]}"}; do
+      if [ "${#pairs[@]}" -gt 1 ]; then
+        printf '  %-34s %s   [in %s]\n' "${name%.md}" "${pair%%|*}" "${pair##*|}"
+      else
+        printf '  %-34s %s\n' "${name%.md}" "${pair%%|*}"
+      fi
+    done
+  }
+
+  local names=() name
+  mapfile -t names < <(find "${dirs[@]}" -path '*/archive/*' -prune -o \
+    -name '[bfr]-*.md' -print 2>/dev/null | sed 's|.*/||' | sort -u)
+
+  echo "open items"
+  if [ "${#names[@]}" -eq 0 ]; then
+    echo "  (none)"
+  else
+    for name in "${names[@]}"; do status_lines "$name"; done
+  fi
+
+  echo
+  echo "branches"
+  git branch --format='  %(refname:short)' | grep -E '^  [bfr]-[0-9]+-' \
+    || echo "  (none)"
+
+  # Merged and open: invisible to 'git branch', so nothing but a grep or a
+  # sweep surfaces one whose trigger never fired. Report the file that actually
+  # matched, never a re-lookup that may land on the other checkout's copy.
+  echo
+  echo "merged, still awaiting a trigger"
+  local hits=()
+  mapfile -t hits < <(grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u)
+  if [ "${#hits[@]}" -eq 0 ]; then
+    echo "  (none)"
+  else
+    local f
+    for f in "${hits[@]}"; do
+      printf '  %-34s %s\n' "$(basename "$f" .md)" "$(item_status "$f")"
+    done
+  fi
+
+  # Two machines allocating before either pushes get the same number, and
+  # because the slugs differ git merges the files silently. Detect by ID prefix
+  # over deduplicated names — the same name in two checkouts is one item.
+  #
+  # This runs over the archive as well as the open items. The archive is where
+  # spent numbers live, so an open item colliding with an archived one is the
+  # likeliest real collision, and pruning it here would hide exactly that case.
+  local dupes
+  dupes=$(find "${dirs[@]}" -name '[bfr]-*-*.md' -print 2>/dev/null \
+    | sed 's|.*/||' | sort -u \
+    | sed -n 's|^\([bfr]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
+  if [ -n "$dupes" ]; then
+    echo
+    echo "DUPLICATE IDS — see references/git.md for repair"
+    printf '%s\n' "$dupes" | sed 's/^/  /'
+  fi
+}
+
+baseline_dir() {
+  printf '%s\n' "$(git_common_dir)/review-baseline"
+}
+
+# 'git status --porcelain' reports status, not content: a file already showing
+# ' M' still shows ' M' after further edits, so porcelain alone cannot tell a
+# sweep's changes from the ones already in the tree. The snapshot therefore
+# carries content too — a hash over the tracked diff, and one per untracked
+# file — which is what makes the check hold on the dirty tree it exists for.
+#
+# Runs from the repository root, always. 'git status --porcelain' is
+# root-relative wherever it runs, but 'git ls-files --others' is scoped to the
+# current directory and prints paths relative to it — so an unpinned snapshot
+# would depend on where it was taken, and the two are taken in different places:
+# the baseline wherever the sweep stood, the check wherever the caller stands.
+tree_snapshot() (
+  cd "$(repo_root)" || die "cannot reach the repository root"
+  git status --porcelain | sed 's/^/S /'
+  if git rev-parse --verify -q HEAD >/dev/null; then
+    printf 'D %s\n' "$(git diff HEAD | sha256sum | cut -d' ' -f1)"
+  fi
+  git ls-files --others --exclude-standard -z \
+    | while IFS= read -r -d '' f; do
+        printf 'H %s %s\n' "$f" "$(sha256sum "$f" | cut -d' ' -f1)"
+      done
+)
+
+# The sweep runs in a forked context and cannot be trusted to audit itself, so
+# the comparison is done here: a baseline the CLI recorded, against the tree as
+# it stands now. The only acceptable delta is the report appearing.
+cmd_review_check() {
+  local report="${1:-}" name base root rel added removed
+  [ -n "$report" ] || usage
+  require_init
+
+  name=$(basename "$report")
+  base="$(baseline_dir)/$name"
+  [ -f "$base" ] || die "no baseline for '$name'; open the report with 'workbench review'"
+
+  root=$(repo_root)
+  rel="$WB/reviews/$name"
+  [ -f "$root/$rel" ] || die "$rel does not exist; the sweep wrote no report"
+
+  local now
+  now=$(tree_snapshot)
+  added=$(comm -13 <(sort "$base") <(printf '%s\n' "$now" | sort))
+  removed=$(comm -23 <(sort "$base") <(printf '%s\n' "$now" | sort))
+
+  # The report appearing is the whole permitted delta: its porcelain line, and
+  # its content hash. Everything else names something the sweep touched.
+  local bad=0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$line" in
+      "S ?? $rel") ;;
+      "H $rel "*) ;;
+      "D "*) echo "the sweep changed tracked files" >&2; bad=1 ;;
+      "H "*) echo "the sweep wrote: ${line#H }" >&2; bad=1 ;;
+      *) echo "unexpected change: ${line#S }" >&2; bad=1 ;;
+    esac
+  done <<< "$added"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$line" in
+      "D "*) ;;   # already reported by its replacement on the added side
+      *) echo "the sweep reverted or staged: ${line#? }" >&2; bad=1 ;;
+    esac
+  done <<< "$removed"
+
+  if [ "$bad" -ne 0 ]; then
+    die "the sweep modified the tree beyond its report. Inspect the changes above
+before triaging; the report may be reporting on code it edited."
+  fi
+
+  rm -f "$base"
+  echo "clean: $rel is the only change"
+}
+
+cmd_review() {
+  local reason="${1:-}" scope="${2:-}" root path stamp slug
+  [ -n "$reason" ] || usage
+  require_init
+
+  case "$reason" in
+    sweep|pre-merge|docs|memory|adopt) ;;
+    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt" ;;
+  esac
+
+  root=$(repo_root)
+  stamp=$(date +%Y%m%d)
+  slug=$(slugify "${scope:-$reason}")
+  path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}.md"
+  [ -e "$path" ] && die "$path already exists"
+
+  # Record what the tree looked like before the sweep touched anything, so that
+  # 'review-check' can prove afterwards that the sweep wrote only its report.
+  # A clean-tree check would not do: mid-item the tree is normally dirty and the
+  # sweep's edits would be indistinguishable from the user's own. The baseline
+  # lives in the git directory rather than the tree, or it would appear in its
+  # own diff. Taken before the report is written, so the one expected delta is
+  # the report itself.
+  mkdir -p "$(baseline_dir)"
+  tree_snapshot > "$(baseline_dir)/$(basename "$path")"
+
+  cat > "$path" <<EOF
+# Review — $reason${scope:+ — $scope}
+
+date: $(date +%Y-%m-%d)
+
+<!-- Nothing is written before the review runs except the reason above.
+     Findings with evidence, and a suggested fix where there is one. There is
+     no template; the shape follows what was asked for.
+
+     Triage this with the user, promote survivors with 'workbench new', then
+     delete this file. Reports are never archived. -->
+EOF
+
+  echo "$path"
+}
+
+case "${1:-}" in
+  init) shift; cmd_init "$@" ;;
+  adopt) shift; cmd_adopt "$@" ;;
+  new) shift; cmd_new "$@" ;;
+  start) shift; cmd_start "$@" ;;
+  archive) shift; cmd_archive "$@" ;;
+  review) shift; cmd_review "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  review-check) shift; cmd_review_check "$@" ;;
+  *) usage ;;
+esac
