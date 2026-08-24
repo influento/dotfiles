@@ -18,15 +18,17 @@ usage:
   workbench new <bug|feature|rename> "<title>"  allocate an id, write the file
   workbench start <id>                 create the branch and worktree for an item
   workbench archive <id>               move to archive, recording the merge commit
-  workbench review <reason> [scope]    open a report for a review sweep
-  workbench status                     in flight, duplicate ids, untriaged reports
+  workbench status                     in flight, duplicate ids, reports
   workbench review-check <report>      prove a sweep wrote only its report
+  workbench review-drop <report> [--force]  delete a report and its baseline
+  workbench review <reason> [scope]    open a report; run by the sweep skill, not by hand
 
   reasons: sweep, pre-merge, docs, memory, adopt
   state lives under workbench/
 EOF
   exit 2
 }
+# TODO: workbench merge <id> — squash, trailer-only message, worktree remove, branch -d
 
 die() {
   echo "workbench: $1" >&2
@@ -460,6 +462,23 @@ item_status() {
   sed -n 's/^status: *//p' "$1" | head -1
 }
 
+# The branch squash commits land on. Repositories here are local-first, so the
+# main/master leg is the common path and origin/HEAD the exception; an explicit
+# 'git config workbench.main' answers an odd layout once.
+default_branch() {
+  local b
+  b=$(git config --get workbench.main 2>/dev/null || true)
+  [ -n "$b" ] || b=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+  if [ -z "$b" ]; then
+    for b in main master; do
+      git rev-parse --verify -q "refs/heads/$b" >/dev/null && break
+      b=
+    done
+  fi
+  [ -n "$b" ] || die "cannot resolve the default branch; set 'git config workbench.main <branch>'"
+  printf '%s\n' "$b"
+}
+
 # Evidence is present when the Evidence section holds something other than
 # blank lines and the template comment.
 has_evidence() {
@@ -486,9 +505,9 @@ cmd_archive() {
 
   case "$status" in
     awaiting*)
-      die "$id is awaiting a trigger and does not archive. Verify it when the
-trigger fires, or re-state it as 'unverified — <trigger>' if no bound can be
-named." ;;
+      die "$id is awaiting a trigger and does not archive as-is. When the trigger
+fires, set 'status: open', record the evidence, then archive; or re-state it as
+'unverified — <trigger>' if no bound can be named." ;;
     unverified*)
       # The trigger is the whole value of an unverified archive: it is what a
       # later search matches on.
@@ -503,17 +522,21 @@ named." ;;
       fi ;;
   esac
 
-  # The commit that carries this item's trailer, not whatever is at HEAD: an
-  # item merged as 'awaiting' is archived long after its own merge, once its
-  # trigger fires.
-  sha=$(git log --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
+  # The commit that carries this item's trailer, searched on the default branch
+  # only. The squash commit is the one that legitimately carries the trailer
+  # and it lives there; HEAD would miss it from a worktree branched before the
+  # merge, and --all (or HEAD from the item's own worktree) could hit a branch
+  # commit that the squash then discards — a dangling SHA in the archive.
+  local main
+  main=$(default_branch)
+  sha=$(git log "$main" --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
   # Never fall back to HEAD: HEAD is whatever the checkout happens to sit on,
   # and recording it would write a commit into the archive that did not
   # implement the item. An item with no trailer yet — an unreproduced bug, or
   # one archived before its merge — says so.
   if [ -z "$sha" ]; then
     sha=none
-    echo "warning: no commit carries 'Item: $id'; archiving with commit: none" >&2
+    echo "warning: no commit on $main carries 'Item: $id'; merge first, or archive with commit: none" >&2
   fi
 
   root=$(item_root "$path")
@@ -621,16 +644,87 @@ cmd_status() {
     printf '%s\n' "$dupes" | sed 's/^/  /'
   fi
 
-  # A triaged report is deleted, so anything still here is either waiting for
-  # triage or a skeleton left by a sweep that never returned.
-  local reports=()
-  mapfile -t reports < <(find "${roots[@]/%//$WB\/reviews}" -name '*.md' 2>/dev/null \
-    | sed 's|.*/||' | sort -u)
+  # Reports are untracked and live per checkout; baselines live in the shared
+  # git directory. Classify each name over the union of both, from every
+  # worktree, so the labels hold from any checkout:
+  #   report + baseline  the sweep never returned (the invoker is blocked while
+  #                      one runs, so nobody sees this mid-sweep) — or
+  #                      review-check failed and left the baseline for a re-run
+  #   report only        checked, waiting for triage
+  #   baseline only      the report went without 'review-drop'
+  local reports=() name all=()
+  mapfile -t all < <(all_roots)
+  mapfile -t reports < <({
+    find "${all[@]/%//$WB\/reviews}" -maxdepth 1 -name '*.md' 2>/dev/null | sed 's|.*/||'
+    find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
+  } | sort -u)
   if [ "${#reports[@]}" -gt 0 ]; then
     echo
-    echo "untriaged reports"
-    printf '  %s\n' "${reports[@]}"
+    echo "reports"
+    for name in "${reports[@]}"; do
+      local has_report=0 has_base=0
+      [ -n "$(find_report "$name")" ] && has_report=1
+      [ -f "$(baseline_dir)/$name" ] && has_base=1
+      if [ "$has_report" -eq 1 ] && [ "$has_base" -eq 1 ]; then
+        printf '  %-40s unchecked — never returned, or review-check failed; inspect, then drop\n' "$name"
+      elif [ "$has_report" -eq 1 ]; then
+        printf '  %-40s awaiting triage\n' "$name"
+      else
+        printf '  %-40s stale marker — review-drop it\n' "$name"
+      fi
+    done
   fi
+}
+
+# Every checkout of the repository. Reports are untracked and stay in the
+# checkout the sweep ran in, so unlike items — which wb_roots covers — a report
+# can sit in any worktree, and only the full list finds it.
+all_roots() {
+  git worktree list --porcelain | sed -n 's/^worktree //p'
+}
+
+# A report by bare name or path, searched over every checkout.
+find_report() {
+  local roots=()
+  mapfile -t roots < <(all_roots)
+  find "${roots[@]/%//$WB\/reviews}" -maxdepth 1 -name "$(basename "$1")" -print -quit 2>/dev/null
+}
+
+# A report holds findings when something other than the heading, the date line
+# and HTML comments is present — structural, like has_evidence, because the
+# baseline predates the skeleton and so holds no hash to compare against.
+has_findings() {
+  sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$1" \
+    | grep -v -e '^# ' -e '^date: ' \
+    | grep -q '[^[:space:]]'
+}
+
+# The one removal path for a report, at either end of its life: an orphan left
+# by a sweep that never returned, or a report whose triage is done. Deletes
+# whichever of the report and its baseline exist, so neither can be left behind
+# for the other to be forgotten about.
+cmd_review_drop() {
+  local report="${1:-}" force="${2:-}" name path base
+  [ -n "$report" ] || usage
+  require_init
+
+  name=$(basename "$report")
+  path=$(find_report "$name")
+  base="$(baseline_dir)/$name"
+  [ -n "$path" ] || [ -f "$base" ] || die "no report or baseline named '$name'"
+
+  # Triage leaves no mark on the report, so content alone cannot tell a triaged
+  # report from one nobody has read. The baseline can: review-check removes it
+  # on a clean pass, so while it exists the findings are unseen — or the check
+  # failed, and they are the findings of a sweep that tampered with the tree.
+  # Either way they do not vanish on a bare drop.
+  if [ -n "$path" ] && [ -f "$base" ] && has_findings "$path" && [ "$force" != "--force" ]; then
+    die "$name is unchecked and has findings; run review-check, or pass --force to discard them"
+  fi
+
+  [ -n "$path" ] && rm -f "$path" && echo "deleted $path"
+  [ -f "$base" ] && rm -f "$base" && echo "deleted baseline for $name"
+  return 0
 }
 
 baseline_dir() {
@@ -731,8 +825,11 @@ cmd_review() {
   # command there aborts the whole skill silently. So a same-day collision gets
   # a numbered suffix rather than an error; 'workbench status' lists every
   # report still sitting here, which is how an orphaned skeleton stays visible.
+  # The baseline dir is shared by every worktree while reports are per
+  # checkout, so the collision test covers both or a second worktree's sweep
+  # would overwrite the first one's baseline.
   local n=1 candidate="$path.md"
-  while [ -e "$candidate" ]; do
+  while [ -e "$candidate" ] || [ -e "$(baseline_dir)/$(basename "$candidate")" ]; do
     n=$((n + 1))
     candidate="$path-$n.md"
   done
@@ -744,7 +841,8 @@ cmd_review() {
   # sweep's edits would be indistinguishable from the user's own. The baseline
   # lives in the git directory rather than the tree, or it would appear in its
   # own diff. Taken before the report is written, so the one expected delta is
-  # the report itself.
+  # the report itself. While it exists, a sweep is in flight — or was aborted;
+  # 'review-check' removes it on a clean pass, 'review-drop' otherwise.
   mkdir -p "$(baseline_dir)"
   tree_snapshot > "$(baseline_dir)/$(basename "$path")"
 
@@ -753,12 +851,7 @@ cmd_review() {
 
 date: $(date +%Y-%m-%d)
 
-<!-- Nothing is written before the review runs except the reason above.
-     Findings with evidence, and a suggested fix where there is one. There is
-     no template; the shape follows what was asked for.
-
-     Triage this with the user, promote survivors with 'workbench new', then
-     delete this file. Reports are never archived. -->
+<!-- opened by workbench review; findings with evidence, no template -->
 EOF
 
   echo "$path"
@@ -773,5 +866,6 @@ case "${1:-}" in
   review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
   review-check) shift; cmd_review_check "$@" ;;
+  review-drop) shift; cmd_review_drop "$@" ;;
   *) usage ;;
 esac
