@@ -1,7 +1,7 @@
 ---
 name: workbench-review
 description: Run a workbench review sweep in a forked context and return the report path.
-argument-hint: "<sweep|pre-merge|docs|memory|adopt> [\"scope\"]"
+argument-hint: "<sweep|pre-merge|docs|memory|adopt> [\"scope: letters digits spaces hyphens\"]"
 arguments: reason scope
 disable-model-invocation: true
 context: fork
@@ -32,20 +32,22 @@ outside this fork.
 
 ## Report
 
-The report is already open. It was created — and the tree's state recorded —
-before your first turn, so nothing you do can hide from `review-check`.
+The report already exists at the path below. It was created — and the tree's
+state recorded — before your first turn, so nothing you do can hide from
+`review-check`.
 
 ```!
-workbench review $reason $scope
+workbench review "$reason" "$scope"
 ```
 
 That path is your one permitted write target. It holds a skeleton with the
-reason and date.
+reason and date. `Read` it before you `Write` it — `Write` refuses a file it
+has not seen.
 
 ## Rules for this reason
 
 ```!
-${CLAUDE_SKILL_DIR}/scripts/rules.sh $reason
+${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
 ```
 
 ## Steps
@@ -62,10 +64,5 @@ ${CLAUDE_SKILL_DIR}/scripts/rules.sh $reason
    Run whatever you need to *observe* — tests, greps, builds. Running a command
    is not modifying the tree; committing, editing, or fixing is.
 
-3. Delete the skeleton's HTML comment, then return **only the report path** as
-   your final message. The invoking turn needs it and nothing else.
-
-   That comment holds the triage instructions, so the report arrives without
-   them. This is deliberate: triage happens in the invoking context, and a
-   report carrying instructions for its own disposal reads as if the sweep
-   were running the triage.
+3. Return **only the report path** as your final message. The invoking turn
+   needs it and nothing else.

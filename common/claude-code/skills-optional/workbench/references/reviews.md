@@ -4,30 +4,14 @@ A review is a deliberate sweep that produces a report. It is not part of
 finishing an item, and it is not tracked work — it is how work gets found.
 
 Run one with `/workbench-review <reason> ["scope"]`, which forks so the sweep's
-reading stays out of the main context. Quote a scope with spaces — the skill
-takes it as one argument, and an unquoted second word is dropped.
-`workbench review <reason> [scope]` alone just opens the report file.
+reading stays out of the main context. A scope is a slug seed — letters,
+digits, spaces, hyphens — quoted when it has spaces. Anything else lands
+unescaped in a shell command and aborts the skill with no message.
 
-## How the sweep is held to its contract
-
-The fork's tool set is `Read`, `Glob`, `Grep`, `Bash`, `Write` — no `Edit`, no
-subagents, no web. That removes the convenient ways to change a file, nothing
-more: `Bash` must stay so the sweep can build, test and grep, and it can write
-through a redirect. The real gate is `workbench review-check`, run in the
-invoking context on the returned path.
-
-The report is opened, and the tree's state recorded, by a preprocessed block in
-the skill — before the fork's first turn. So the baseline predates anything the
-sweep can do, and the check is two-sided by construction: a clean-tree check
-would not do, since mid-item the tree is normally dirty and the sweep's edits
-would be indistinguishable from the user's own. It compares content, not just
-`git status`, because an already-modified file keeps the same status line when
-it is modified again. The only permitted delta is the report appearing.
-
-**What the check does not cover.** A sweep that reads nothing and reports
-confidently produces the same clean result as a genuinely clean scope. That is
-held by the sweep's instructions, not by the check — treat a pass as "wrote
-only its report", never as "did the work honestly".
+The sweep is held to its contract by `workbench review-check`, run in the
+invoking context on the returned path; how, and where the check stops, is in
+[rationale.md](rationale.md). The sweep's own rules per reason live with the
+sweep skill, in `workbench-review/rules/`.
 
 ## Reasons
 
@@ -59,29 +43,23 @@ triage become items, using `workbench new`.
 ## Lifecycle
 
 ```
-review runs -> report written -> triaged jointly -> items created -> report deleted
+review runs -> report written -> review-check -> triaged jointly -> items created -> workbench review-drop
 ```
 
 Reports are never archived. Once triaged, everything worth keeping is in an
-item, and the report is redundant.
+item, and the report is redundant. `workbench review-drop <report>` is the one
+way to remove one, at either end of its life — it also removes the tree
+baseline the report was opened with, which a hand `rm` leaves behind. It
+refuses an unchecked report with findings unless passed `--force` — triage
+leaves no mark on a report, so the baseline is what says nobody has read it.
 
-Because the report file is created before the sweep runs, a sweep that errors
-or is aborted leaves an empty skeleton behind. A same-day collision gets a
-numbered suffix rather than an error, so orphans do not stop the next sweep —
-`workbench status` lists everything still in `workbench/reviews/`, and anything
-there is either waiting for triage or an orphan to delete.
+The report and its baseline are created before the sweep runs, so a sweep that
+errors or is aborted leaves both behind. A same-day collision gets a numbered
+suffix rather than an error, so orphans do not stop the next sweep.
+`workbench status` lists every report in one of three states:
 
-## What pre-merge review covers
-
-- the criterion is genuinely satisfied by the evidence recorded
-- the root cause is stated, for a bug
-- documentation: written where it should not have been, or a discovered fact
-  left out of the item that found it
-- tests, if any, stay within what the criterion describes
-- the item's prose and the commit subject use the glossary's words
-- whether anything left unverified could in fact be verified now, by
-  synthesising the event — `awaiting` and `unverified` are the user's call, not
-  the agent's
-
-The two most often missed: a discovered fact left out of the item whose work
-found it, and a test that reaches past what the criterion describes.
+| State | Means |
+|---|---|
+| unchecked | report and baseline both present — the sweep never returned, or `review-check` failed and left the baseline for a re-run; inspect, then drop |
+| awaiting triage | report only — `review-check` passed, triage is pending |
+| stale marker | baseline only — the report was removed by hand; drop it |

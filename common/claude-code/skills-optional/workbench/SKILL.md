@@ -89,7 +89,7 @@ A failure means the sweep edited what it was reviewing: say so and do not
 triage until the user has seen it. A pass means "wrote only its report", never
 "did the work honestly" — a sweep that reads nothing and reports confidently
 passes the same way. How the check works and where it stops are in
-[reviews.md](references/reviews.md).
+[rationale.md](references/rationale.md).
 
 ## By class
 

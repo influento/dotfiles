@@ -80,4 +80,5 @@ in [glossary.md](glossary.md).
 Leave the counter at zero. Old issue numbers are not item IDs, and aligning
 them buys nothing while guaranteeing a collision later.
 
-Delete the adoption report once triage is done ([reviews.md](reviews.md)).
+Remove the adoption report once triage is done with `workbench review-drop`
+([reviews.md](reviews.md)).

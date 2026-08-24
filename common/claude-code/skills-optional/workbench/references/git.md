@@ -57,18 +57,19 @@ This survives adding a hosting service later, so adopting one changes nothing.
 
 Move the item to `workbench/items/archive/` and record the commit SHA in it.
 
-**What triggers it is the criterion being satisfied, not the merge.** For most
-items those coincide — everything was verified before merging, so the item
-archives immediately after. An item merged as `awaiting` ([items.md](items.md))
-archives later, when its trigger fires and the criterion finally runs.
+**What triggers it is the criterion being satisfied, not the merge.** The two
+usually coincide; when they do not, the statuses in [items.md](items.md) apply.
 
-The recorded SHA is therefore resolved from the trailer:
+The recorded SHA is resolved from the trailer, on the default branch:
 
 ```bash
-git log --grep="^Item: b-038$" --format=%h -1
+git log main --grep="^Item: b-038$" --format=%h -1
 ```
 
-not from `HEAD`, which by then is whatever unrelated work happened since.
+Not `HEAD`, which is whatever the checkout happens to sit on, and not `--all`,
+which can hit a branch commit that the squash then discards. `workbench
+archive` resolves the branch as `git config workbench.main`, then
+`origin/HEAD`, then `main` or `master`.
 
 ## IDs
 

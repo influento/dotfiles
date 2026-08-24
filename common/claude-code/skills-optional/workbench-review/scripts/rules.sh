@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Prints the workbench rules a sweep needs for its reason: reviews.md always,
-# plus docs.md or adopt.md when the reason is one of those.
+# Prints the rules a sweep needs for its reason: the reason's own file from
+# rules/, then the reference the reason audits against — docs.md for docs and
+# memory, adopt.md plus docs.md for adopt. Whole files, never a section cut out
+# by heading: the block this feeds is fail-closed, and a heading edit would
+# abort the sweep silently.
 #
 # One script rather than a shell one-liner in the skill body, because the
 # preprocessed block is permission-parsed per statement and a compound command
@@ -11,11 +14,20 @@ set -euo pipefail
 reason="${1:-}"
 [ -n "$reason" ] || { echo "usage: rules.sh <reason>" >&2; exit 2; }
 
-refs="$(dirname "$(readlink -f "$0")")/../../workbench/references"
+here="$(dirname "$(readlink -f "$0")")"
+rules="$here/../rules"
+refs="$here/../../workbench/references"
 
-cat "$refs/reviews.md"
+[ -f "$rules/$reason.md" ] || { echo "rules.sh: no rules for reason '$reason'" >&2; exit 2; }
+
+cat "$rules/$reason.md"
 case "$reason" in
-  docs|adopt)
+  docs|memory)
     echo
-    cat "$refs/$reason.md" ;;
+    cat "$refs/docs.md" ;;
+  adopt)
+    echo
+    cat "$refs/adopt.md"
+    echo
+    cat "$refs/docs.md" ;;
 esac

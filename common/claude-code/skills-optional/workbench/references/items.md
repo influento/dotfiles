@@ -26,7 +26,7 @@ collision repair are in [git.md](git.md).
 | Status | Merged? | Archived? | Means |
 |---|---|---|---|
 | `open` | not yet | no | in flight |
-| `awaiting — <trigger>` | yes | **never** | everything verifiable was verified; the criterion needs an event you can name a time for |
+| `awaiting — <trigger>` | yes | never as-is | everything verifiable was verified; the criterion needs an event you can name a time for. When it fires, re-state as `open`, record the evidence, archive |
 | `unreproduced` | n/a | yes | a bug that could not be reproduced |
 | `unverified — <trigger>` | yes | yes | as `awaiting`, but no bound can be named for the trigger |
 
@@ -53,12 +53,6 @@ the bug being unreproducible:
 Archive them with the status `unreproduced`. Do not leave them open forever — a
 pile of permanently open items serves nobody.
 
-Archived `unreproduced` items then act as a **recurrence detector**. When a new
-odd bug appears, search them first. A match proves the bug is real and
-recurring rather than a phantom: reopen it as a normal bug with both sightings
-as evidence. Something that never recurs stays archived, which is the correct
-outcome for a phantom.
-
 ### Work that only a third party can verify
 
 The same shape, for the same reason. A fix whose criterion turns on an event you
@@ -66,9 +60,15 @@ neither control nor can schedule archives as `unverified — <trigger>`, once
 everything else about it has been verified
 ([verification.md](verification.md)).
 
-Those archived items are a detector too. When the event finally happens and
-something breaks, search them first: a match names the exact assumption that was
-wrong and hands you the reasoning that produced it.
+### Both are detectors
+
+When a new odd bug appears, or the awaited event finally happens and something
+breaks, search these archived items first. A match against an `unreproduced`
+item proves the bug is real and recurring rather than a phantom — reopen it as
+a normal bug with both sightings as evidence. A match against an `unverified`
+item names the exact assumption that was wrong and hands you the reasoning that
+produced it. Something that never recurs stays archived, which is the correct
+outcome for a phantom.
 
 ## Rename items
 

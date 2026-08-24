@@ -84,3 +84,10 @@ through a redirect. So the tool set removes the convenient path and nothing
 more. `workbench review-check` is the only thing that actually proves the
 contract held, which is why it is run on every returned report rather than only
 on a suspicious one.
+
+It can prove it because the baseline predates the fork's first turn: the
+skill's preprocessed block records the tree — status plus content hashes, since
+mid-item the tree is normally dirty and a modified file keeps the same status
+line when modified again — and only then writes the skeleton. The one permitted
+delta is the report appearing. What it cannot prove is that the sweep did the
+work: a sweep that reads nothing and reports confidently passes the same way.
