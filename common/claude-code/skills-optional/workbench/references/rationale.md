@@ -45,6 +45,19 @@ gets a different store and anything written there is invisible elsewhere.
 
 ## Why `rename` is a class and `refactor` is not
 
-A rename is bounded by definition, so its criterion writes itself. A general
-refactor is not, which would make it the class where work goes to dodge the
-criterion discipline. Refactors get no class until something actually needs one.
+`rename` looks like a special case carved out of a homeless general one, since
+a rename is a refactor. It is not. The classes are shapes of criterion, not
+kinds of edit, and there are only two shapes:
+
+- **fixed** — the class supplies the criterion, and the author has no choice in
+  it. `rename` is the only one: an occurrence count over a scope.
+- **free** — the author supplies the criterion per item. `bug` and `feature`
+  are this, and every refactor that is not a rename is too.
+
+So a standalone refactor is not homeless; a free-shape class already exists and
+it is `feature`. Adding `refactor` would add no shape, and would create the one
+place where work could go without an observable claim attached to it.
+
+The deeper reason a general refactor cannot be its own class: its natural
+criterion is "behaviour is unchanged", which is green before the work starts.
+See the unchanged-tree rule in verification.md.

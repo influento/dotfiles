@@ -28,7 +28,9 @@ idea (workbench/BACKLOG.md line)
    tooling — gets none and may go straight to the main branch.
 
 2. **The criterion is written before the code, and it is the contract.**
-   Evidence is matched against the criterion, never against a test. Detail on
+   Evidence is matched against the criterion, never against a test. Run it
+   before writing anything: **a criterion that passes on the unchanged tree is
+   not a criterion.** Detail on
    [verification.md](references/verification.md).
 
 3. **Nothing is archived without verified evidence.** Merging is a separate

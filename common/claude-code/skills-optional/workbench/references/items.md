@@ -77,8 +77,28 @@ its own class because the alternative — absorbing it into whichever feature or
 bug exposed the problem — widens that item past its frozen criterion, which
 rule 5 forbids.
 
-The class is deliberately narrower than "refactor". General refactors have no
-class, and do not get one until something actually needs it.
+### Refactors
+
+A refactor is not its own item.
+
+| Case | Where it goes |
+|---|---|
+| needed to fix a bug or land a feature | inside that item — it is implementation, and the item's criterion is untouched by it |
+| stands alone, with a measurable justification | a feature item, with the measurement as the criterion |
+| stands alone, with no measurement | a backlog line, until an item needs it |
+
+The measurement must survive the **Why** field, stated to someone who does not
+read code: p99 latency, build time, dependency count, binary size. "LOC −12%" or
+"complexity down" does not — a number chosen because the planned diff happens to
+move it is criterion-after-code wearing a number.
+
+"The behaviour is unchanged" is never the criterion. It is a preservation guard
+and belongs in Evidence ([verification.md](verification.md)) — a no-op passes it.
+
+This does not contradict the reason `rename` is its own class. A rename changes
+vocabulary across a whole area, outside the host item's scope, so absorbing it
+widens that item. A refactor the item needed is inside its scope by
+construction.
 
 Full procedure, including homographs and aliases, in [glossary.md](glossary.md).
 

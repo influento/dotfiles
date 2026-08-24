@@ -19,6 +19,30 @@ It also settles what gets tested. Scope is bounded by the criterion, so config
 files, deployment scripts, and wiring get no tests unless a criterion asked
 for one.
 
+## A criterion must fail on the unchanged tree
+
+Run it before writing anything. If it passes, it is not a criterion.
+
+A bug's fails — the thing is still broken. A feature's fails — the behaviour is
+absent. A rename's fails — the count is N, not 0. One that is already green has
+described the world rather than the change, and will be green at the end whether
+or not the work was done.
+
+This is the RED/GREEN argument applied to the criterion itself, and it catches
+three things that otherwise look fine:
+
+| Looks like a criterion | Why it is not |
+|---|---|
+| "behaviour is unchanged" | a no-op passes it |
+| "the module is cleaner", "the API is more consistent" | nothing runs, so nothing can fail |
+| a rename count taken over the wrong scope | already 0 before the work |
+
+Something that must hold *afterwards* but already holds *now* is a
+**preservation guard**, not a criterion. Guards are real and worth recording —
+the suite still green, a fixture still byte-identical — but they belong in
+Evidence beside the criterion, never in the criterion field. An item whose only
+check is a guard has no contract.
+
 ## Form
 
 A criterion is a **description** of how to verify. Use a command when a real
