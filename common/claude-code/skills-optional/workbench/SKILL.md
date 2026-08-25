@@ -17,7 +17,7 @@ idea (workbench/BACKLOG.md line)
   -> branch    <id>-<slug>, in its own worktree under .worktrees/
   -> work      root cause / implementation
   -> evidence  criterion filled in with real output
-  -> merge     squash, commit trailer "Item: <id>"
+  -> merge     workbench merge: squash, commit trailer "Item: <id>"
   -> archive   workbench/items/archive/, records the commit SHA
 ```
 
@@ -64,6 +64,7 @@ idea (workbench/BACKLOG.md line)
 workbench new bug "frozen coords"      # allocates id, writes the file
 workbench new rename "shard to region" # same, for a vocabulary change
 workbench start b-038                  # branch + worktree for it
+workbench merge b-038 "<subject>"      # after the pre-merge review: squash, trailer, cleanup
 ```
 
 IDs are allocated from a counter shared by every worktree, so any worktree may

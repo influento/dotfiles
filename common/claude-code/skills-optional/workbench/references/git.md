@@ -21,8 +21,13 @@ reconstruct it.
 
 ## Merging
 
-Squash into one commit. Subject line describes the change; a trailer carries
-the ID:
+```bash
+workbench merge f-037 "resolve position from the client rather than the frame"
+```
+
+Squashes the branch onto the default branch as one commit, removes the
+worktree, deletes the branch. The subject is the one argument; the message is
+the subject and the trailer, nothing else:
 
 ```
 resolve position from the client rather than the frame
@@ -32,7 +37,15 @@ Item: f-037
 
 **Nothing else goes in the message.** A body would be a second source of truth
 and would tempt a reader to use it instead of opening the item, which is the
-contract.
+contract. The subject describes the change, not the item's title.
+
+The command refuses, before touching anything, when the main checkout is not on
+the default branch or has uncommitted changes, the worktree has uncommitted
+changes, the branch conflicts with the default branch (rebase it in the
+worktree first), or the default branch already carries the trailer. It does not
+check evidence: the merge gate — was everything verifiable verified? — is the
+pre-merge review's question ([verification.md](verification.md)), and an item
+merges open as `awaiting`. It does not push.
 
 Every item merges this way. Housekeeping goes straight to the main branch
 (SKILL.md, rule 1).
