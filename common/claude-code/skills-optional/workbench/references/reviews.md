@@ -95,7 +95,9 @@ leaves no mark on a report, so the baseline is what says nobody has read it.
 
 The report and its baseline are created before the sweep runs, so a sweep that
 errors or is aborted leaves both behind. A same-day collision gets a numbered
-suffix rather than an error, so orphans do not stop the next sweep.
+suffix (`20260826-sweep.2.md`) rather than an error, so orphans do not stop
+the next sweep. The report directory needs no placeholder: `workbench review`
+creates it, and reports are never tracked.
 `workbench status` lists every report in one of four states:
 
 | State | Means |

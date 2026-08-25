@@ -2,9 +2,11 @@
 
 Audit the agent's stored memory for this project. It lives under
 `~/.claude/projects/<slug>/memory/`, where `<slug>` is the checkout's absolute
-path with `/` replaced by `-`; `MEMORY.md` there is the index, one file per
-fact beside it. A worktree has a different path and so a different store —
-check the one for the main checkout as well as the one you are in.
+path with every character outside `[A-Za-z0-9]` replaced by `-`; `MEMORY.md`
+there is the index, one file per fact beside it. A worktree has a different
+path and so a different store — check the one for the main checkout as well
+as the one you are in. Both stores are in the baseline: a memory file edited,
+added or removed fails `review-check` like a tree file would.
 
 A finding is a memory that:
 

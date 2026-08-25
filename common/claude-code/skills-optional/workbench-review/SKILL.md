@@ -11,10 +11,9 @@ agent: general-purpose
 # sweep exists to perform; and the report path must come back in the invoking
 # turn so triage happens in the same sitting. Do not restore the default.
 background: false
-# This list is the sweep's entire tool set, and it pre-approves the two
-# preprocessed blocks below. Bash stays bare: the sweep greps, builds and runs
-# tests. Edit is left out on purpose — it removes the convenient way to change
-# a file, nothing more; 'workbench review-check' is the real gate.
+# The sweep's entire tool set; it also pre-approves the two preprocessed
+# blocks below. No Edit, Bash bare: references/rationale.md, "Why the sweep's
+# contract is not enforced by a hook".
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -40,8 +39,12 @@ state recorded — before your first turn, so nothing you do can hide from
 tick: read it before writing, and append.
 
 ```!
-workbench review "$reason" "$scope"
+${CLAUDE_SKILL_DIR}/scripts/open.sh "$reason" "$scope"
 ```
+
+**If that output is not a path** — it starts with `workbench:`, or is any
+other message — return it verbatim as your final message and do nothing
+else. It is the reason no report was opened.
 
 That path holds a skeleton with the reason and date. `Read` it before you
 `Write` it — `Write` refuses a file it has not seen. For `watch`, never

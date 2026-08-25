@@ -39,6 +39,22 @@ a statement of what was *not* proved, which is what keeps the archive honest —
 an item archived as if it were verified would spend the one guarantee the whole
 system provides.
 
+### What each gate asks
+
+This is the one place the status rules live; the other references link here.
+
+| Gate | Asks | Passes with |
+|---|---|---|
+| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the pre-merge review's question; the command checks no evidence | `open` with evidence, or `awaiting` / `unverified` once the user has chosen it at pre-merge |
+| archive (`workbench archive`) | has the criterion been satisfied? | `open` with evidence recorded; `unreproduced` and `unverified` without |
+
+An item may merge while still open: the worktree goes, the change ships, and
+nothing claims success until the criterion runs. `awaiting` is then the only
+in-flight state with no branch — `workbench status` reports it beside the
+branches. An `unreproduced` bug's branch never merges; `workbench archive`
+retires it, provided it carries nothing but the item file. Entering `awaiting`
+or `unverified` is the user's decision, never the agent's.
+
 ## Bug items
 
 `workbench new bug` writes the fields, each carrying the guidance for filling
@@ -128,7 +144,7 @@ Archived items are locked.
 
 Retrieval is keyed to files, not topics. `git log` already knows which items
 touched a path, through the trailer, so `workbench find <path>...` is exact
-and maintains nothing. Words (`--grep`) narrow that set, or search every item
+and maintains nothing. Words (`--grep <word>`, repeatable) narrow that set, or search every item
 when no path is given.
 
 The gates, so it narrows reading instead of adding to it:

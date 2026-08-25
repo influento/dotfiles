@@ -18,10 +18,10 @@ A consequence: the main branch cannot show what is in flight, only what is
 archived. `git branch` lists in-flight work, because branch names carry the ID
 and slug. This is accepted, not a problem to solve.
 
-The exception is an item merged as `awaiting` ([items.md](items.md)): it has no
-branch left. So `git branch` is not the whole list — in-flight is branches
-**plus** that status. `workbench status` reports both halves; do not
-reconstruct it.
+The exception is an item merged as `awaiting`: it has no branch left, so
+in-flight is branches **plus** that status. `workbench status` reports both
+halves; do not reconstruct it. Which statuses merge and which archive:
+[items.md](items.md), "What each gate asks".
 
 ## Merging
 
@@ -47,9 +47,8 @@ The command refuses, before touching anything, when the main checkout is not on
 the default branch or has uncommitted changes, the worktree has uncommitted
 changes, the branch conflicts with the default branch (rebase it in the
 worktree first), or the default branch already carries the trailer. It does not
-check evidence: the merge gate — was everything verifiable verified? — is the
-pre-merge review's question ([verification.md](verification.md)), and an item
-merges open as `awaiting`. It does not push.
+check evidence — that is the pre-merge review's question, see
+[items.md](items.md), "What each gate asks". It does not push.
 
 A pre-merge report lives untracked in the worktree, so it counts as
 uncommitted there: `workbench review-drop` it after triage, before merging.

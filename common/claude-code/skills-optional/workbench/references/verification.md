@@ -105,9 +105,10 @@ Reading the code is not verification. Running it against a synthesised event is.
 | yes — next deploy, tomorrow's cron, the monthly run | `awaiting`, merged and open; it resolves shortly |
 | no — "whenever they push one" | archive as `unverified` |
 
-Both statuses are defined in [items.md](items.md). Entering either state is the user's decision at pre-merge, once the agent has
-shown what it verified and what it could not. It is never the agent's own call,
-which is what keeps it exceptional.
+What each status lets merge and archive do is in [items.md](items.md), "What
+each gate asks". Entering either state is the user's decision at pre-merge,
+once the agent has shown what it verified and what it could not. It is never
+the agent's own call, which is what keeps it exceptional.
 
 ## Tests
 
