@@ -89,5 +89,15 @@ It can prove it because the baseline predates the fork's first turn: the
 skill's preprocessed block records the tree — status plus content hashes, since
 mid-item the tree is normally dirty and a modified file keeps the same status
 line when modified again — and only then writes the skeleton. The one permitted
-delta is the report appearing. What it cannot prove is that the sweep did the
-work: a sweep that reads nothing and reports confidently passes the same way.
+delta is the report appearing.
+
+What it cannot prove is that the sweep did the work. The fork's reads happen in
+tools whose calls never touch the tree, so there is nothing to record. Two
+checks stand where the proof would: every `path:line` the report cites must
+exist, because the one mistake a sweep that read nothing cannot avoid is
+pointing at a place that is not there; and every file in a path scope must be
+named in the report, or its directory, because coverage that is stated can be
+wrong but coverage that is absent cannot even be questioned. The manifest is
+written into the skeleton and recorded in the baseline, and the check runs over
+the report with its comments stripped — what the sweep wrote, not what it was
+handed. A sweep that names every file without opening one still passes.

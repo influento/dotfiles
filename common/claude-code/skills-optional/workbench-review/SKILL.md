@@ -56,10 +56,18 @@ ${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
    in the report what you covered — a reader cannot tell an unswept area from
    a clean one.
 
+   The skeleton may list two things. Nested `CLAUDE.md` files under the scope:
+   `Read` each before sweeping its area — they load on `Read` only, never on
+   `cat`, `head` or `grep`. And, when the scope names paths, the files in
+   scope: name every one you covered, or the directory with its trailing
+   slash (`src/world/`) when you covered all of it. `review-check` fails on any
+   file left unnamed — say why it was skipped rather than leaving it silent.
+
 2. Write findings into the report. Each one carries evidence: the command and
-   its real output, or the file and line. A finding without evidence is an
-   opinion, and the user is triaging it blind. There is no template; the shape
-   follows the reason.
+   its real output, or the file and line as `path:line`. A finding without
+   evidence is an opinion, and the user is triaging it blind. `review-check`
+   resolves every `path:line` against the tree; one that points nowhere fails
+   the report. There is no template; the shape follows the reason.
 
    Run whatever you need to *observe* — tests, greps, builds. Running a command
    is not modifying the tree; committing, editing, or fixing is.

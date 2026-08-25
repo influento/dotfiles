@@ -60,6 +60,6 @@ suffix rather than an error, so orphans do not stop the next sweep.
 
 | State | Means |
 |---|---|
-| unchecked | report and baseline both present — the sweep never returned, or `review-check` failed and left the baseline for a re-run; inspect, then drop |
+| unchecked | report and baseline both present — the sweep never returned, or `review-check` failed (tree edited, a citation that resolves nowhere, a scope file never named) and left the baseline for a re-run; inspect, then drop |
 | awaiting triage | report only — `review-check` passed, triage is pending |
 | stale marker | baseline only — the report was removed by hand; drop it |
