@@ -303,8 +303,9 @@ ln -s ~/dev/infra/dotfiles/common/claude-code/skills-optional/go/* <project>/.cl
 
 The `go/` subdirectory is a grouping only — Claude Code discovers skills as
 `skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
-Add `.claude/skills/` to the project's `.gitignore` when the symlinks are personal
-rather than team-wide.
+Ignore the symlinks themselves in the project's `.gitignore` (`workbench init` does
+this for the two it creates); `.claude/skills/` as a whole only when every skill
+there is personal rather than team-wide.
 
 ## Code Conventions
 

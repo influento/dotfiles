@@ -15,16 +15,22 @@ usage() {
 usage:
   workbench init                       scaffold workbench/ and link the skill
   workbench adopt                      init, then survey an existing project
-  workbench new <bug|feature|rename> "<title>"  allocate an id, write the file
+  workbench new <bug|feature|rename> "<title>" [--milestone <slug>]
+                                       allocate an id, write the file
+  workbench find [<path>...] [--grep <word>...] [--all]
+                                       items that touched these paths, newest first
+  workbench milestone "<title>"        open a big-picture goal under workbench/milestones/
+  workbench milestone archive <slug>   close it, once its items are archived and evidence is in
   workbench start <id>                 create the branch and worktree for an item
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch
   workbench archive <id>               move to archive, recording the merge commit
   workbench status                     in flight, duplicate ids, reports
-  workbench review-check <report>      prove a sweep wrote only its report
-  workbench review-drop <report> [--force]  delete a report and its baseline
+  workbench watch "<title>"            write the contract a watch shift runs under
+  workbench review-check <report>      prove a sweep changed nothing tracked
+  workbench review-drop <report> [--force]  delete a report, its baseline and scratch
   workbench review <reason> [scope]    open a report; run by the sweep skill, not by hand
 
-  reasons: sweep, pre-merge, docs, memory, adopt
+  reasons: sweep, pre-merge, docs, memory, adopt, watch
   state lives under workbench/
 EOF
   exit 2
@@ -76,8 +82,9 @@ skill_source() {
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
-    | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' \
-    | cut -c1-50
+    | sed -e 's/[^a-z0-9]\+/-/g' \
+    | cut -c1-50 \
+    | sed -e 's/^-//' -e 's/-$//'
 }
 
 # A worktree branched before adoption has no $WB/ in its own checkout, yet may
@@ -93,9 +100,11 @@ require_init() {
 
 # Highest number already present, so a missing counter can be rebuilt from the
 # repository itself rather than restarting at 1 and colliding with history.
+# Over every checkout: an item that only exists in a sibling worktree has a
+# number too.
 highest_existing() {
   local max=0 n roots=()
-  mapfile -t roots < <(wb_roots)
+  mapfile -t roots < <(all_roots)
   while IFS= read -r f; do
     n=$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')
     [ -n "$n" ] || continue
@@ -168,7 +177,7 @@ ensure_gitignore() {
   root=$(repo_root)
   gi="$root/.gitignore"
   local entry
-  for entry in '.claude/skills/' '.worktrees/'; do
+  for entry in '.claude/skills/workbench' '.claude/skills/workbench-review' '.worktrees/'; do
     grep -qxF "$entry" "$gi" 2>/dev/null && continue
     printf '%s\n' "$entry" >> "$gi"
     echo "  .gitignore += $entry"
@@ -263,6 +272,35 @@ cmd_init() {
   ensure_claude_md
 
   echo "workbench ready in $root"
+  setup_checklist
+}
+
+# What has to be decided with the user rather than scaffolded. Printed so the
+# agent running init has the list in front of it and takes each point to the
+# user; the skill says how.
+setup_checklist() {
+  local root main
+  root=$(repo_root)
+  echo
+  echo "setup — decide these with the user:"
+
+  if main=$(git config --get workbench.main 2>/dev/null) && [ -n "$main" ]; then
+    echo "  default branch    $main (git config workbench.main)"
+  elif main=$(default_branch 2>/dev/null); then
+    echo "  default branch    $main — squash merges land here; 'git config workbench.main <branch>' if that is wrong"
+  else
+    echo "  default branch    UNRESOLVED — set 'git config workbench.main <branch>' before the first merge"
+  fi
+
+  if [ -f "$root/.claude/settings.json" ]; then
+    echo "  permissions       .claude/settings.json exists; sweeps and watch shifts run the commands they need through Bash and prompt for each unless allowed there"
+  else
+    echo "  permissions       no .claude/settings.json; sweeps and watch shifts prompt for every Bash command they run — allow-list them there, or run in auto mode"
+  fi
+
+  echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
+  echo "  milestones        optional, big-picture only — 'workbench milestone \"<title>\"' when there is one, now or later; items need not name one"
+  echo "  watch             optional — only if the app runs as a service the user wants watched unattended, now or whenever it does: 'workbench watch \"<title>\"' writes the contract"
 }
 
 cmd_adopt() {
@@ -300,7 +338,9 @@ status: open
 
 ## Root cause
 
-<!-- The mechanism, on the side you control. "It behaves like X and that is the
+<!-- Before writing this, once: 'workbench find <paths>' for the files involved.
+     Read an item from the index only if its line matches this bug.
+     The mechanism, on the side you control. "It behaves like X and that is the
      third party's decision" is a complete root cause. A suspected race is a
      mechanism: state it, mark the confidence unproven. A fact discovered here
      about a system you do not control is recorded here, not in a document of
@@ -340,7 +380,9 @@ status: open
 
 ## What it touches
 
-<!-- Areas, not a file list. Delete this comment. -->
+<!-- Areas, not a file list. Before writing this, once: 'workbench find <paths>'
+     for the files involved; read an item from the index only if its line
+     matches. Delete this comment. -->
 
 ## How to confirm it works
 
@@ -384,9 +426,19 @@ EOF
 }
 
 cmd_new() {
-  local class="${1:-}" title="${2:-}" letter dir slug num id path root
+  local class="${1:-}" title="${2:-}" letter dir slug num id path root milestone=
   [ -n "$class" ] && [ -n "$title" ] || usage
+  shift 2
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --milestone) milestone="${2:-}"; [ -n "$milestone" ] || usage; shift 2 ;;
+      *) usage ;;
+    esac
+  done
   require_init
+  if [ -n "$milestone" ]; then
+    [ -n "$(find_milestone "$milestone")" ] || die "no milestone named '$milestone'"
+  fi
 
   case "$class" in
     bug) letter=b; dir=bugs ;;
@@ -411,14 +463,27 @@ cmd_new() {
     feature) write_feature "$path" "$id" "$title" ;;
     rename) write_rename "$path" "$id" "$title" ;;
   esac
+  [ -z "$milestone" ] || sed -i "s/^status: open\$/&\nmilestone: $milestone/" "$path"
 
   echo "$id"
   echo "$path" >&2
+  echo "leave it uncommitted; 'workbench start $id' moves it onto its branch" >&2
 }
 
 find_item() {
   local roots=()
   mapfile -t roots < <(wb_roots)
+  find "${roots[@]/%//$WB\/items}" -name "$1-*.md" -print -quit 2>/dev/null
+}
+
+# The same item, over every checkout, for callers that only read it: a
+# pre-merge names an item whose worktree need not be the one the sweep runs
+# from. Linked worktrees first, so the copy on the item's branch wins over an
+# older one in the main checkout.
+find_item_anywhere() {
+  local roots=() main
+  main=$(main_root)
+  mapfile -t roots < <(all_roots | grep -vxF "$main"; printf '%s\n' "$main")
   find "${roots[@]/%//$WB\/items}" -name "$1-*.md" -print -quit 2>/dev/null
 }
 
@@ -439,20 +504,30 @@ cmd_start() {
 
   branch=$(basename "$path" .md)
   root=$(item_root "$path")
-  wt="$(repo_root)/.worktrees/$branch"
+  # Always under the main checkout and off the default branch. Run from inside
+  # another item's worktree, the new one would otherwise nest under it — and
+  # vanish with it at that item's merge — and start from that item's commits.
+  wt="$(main_root)/.worktrees/$branch"
 
   [ -e "$wt" ] && die "worktree already exists: $wt"
 
-  git worktree add --quiet -b "$branch" "$wt"
+  git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
 
-  # The item file lives on its branch. A freshly created one is still untracked
-  # here, so the new worktree branched from HEAD would not contain it; carry it
-  # over. An item already committed is checked out there by the branch itself.
-  if ! git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-    local rel="${path#"$root"/}"
+  # The item file lives on its branch, so a new one is not on the default
+  # branch and the fresh worktree lacks it; carry it over. Untracked, it moves.
+  # Already committed on another item's branch, it is copied and that branch
+  # is named: its squash would otherwise land this file on the default branch
+  # under the wrong trailer, and this item's own merge would then collide.
+  local rel="${path#"$root"/}"
+  if [ ! -e "$wt/$rel" ]; then
     mkdir -p "$(dirname "$wt/$rel")"
-    mv "$path" "$wt/$rel"
-    echo "moved $rel onto the branch" >&2
+    if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+      cp "$path" "$wt/$rel"
+      echo "copied $rel onto the branch; it is also committed on $(git -C "$root" rev-parse --abbrev-ref HEAD) — remove it there before that branch merges" >&2
+    else
+      mv "$path" "$wt/$rel"
+      echo "moved $rel onto the branch" >&2
+    fi
   fi
 
   echo "$wt"
@@ -663,44 +738,307 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
   echo "archived $id at $sha"
 }
 
+# --- find -------------------------------------------------------------------
+
+FIND_CAP=10
+
+item_title() {
+  sed -n '1s/^# [bfr]-[0-9]* — //p' "$1"
+}
+
+# Every item file, open or archived, over both checkouts.
+all_items() {
+  local roots=()
+  mapfile -t roots < <(wb_roots)
+  find "${roots[@]/%//$WB\/items}" -name '[bfr]-*.md' 2>/dev/null
+}
+
+# One index line per item: date, status, title. The date is the commit that
+# carries the trailer for an archived item, or the last commit that touched an
+# open one; an item never committed has none.
+index_line() {
+  local f="$1" id date status
+  id=$(basename "$f" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p')
+  status=$(item_status "$f")
+  case "$f" in
+    */archive/*)
+      # Archiving leaves the status line alone, so a plain 'open' here means
+      # verified and shipped; the unproved statuses say so themselves.
+      [ "$status" = open ] && status=archived
+      local sha
+      sha=$(sed -n 's/^commit: *//p' "$f" | tail -1)
+      date=$(git log -1 --format=%cs "$sha" -- 2>/dev/null || true) ;;
+  esac
+  [ -n "${date:-}" ] || date=$(git -C "$(item_root "$f")" log -1 --format=%cs -- "$f" 2>/dev/null || true)
+  printf '%s\t%s\t%s\t%s\n' "${date:--}" "$id" "$status" "$(item_title "$f")"
+}
+
+# Retrieval keyed to files, not topics: git already indexes which items touched
+# a path, through the trailer, so the answer is exact and costs nothing to
+# maintain. Words are opt-in and narrow that set, or search the items alone
+# when no path is given. The output is an index, never bodies — one line per
+# item, capped, with unreproduced and unverified items first regardless of age
+# because an unproved claim on the file about to change is the hit that bites.
+cmd_find() {
+  local paths=() words=() all=0 arg
+  require_init
+  while [ $# -gt 0 ]; do
+    arg="$1"; shift
+    case "$arg" in
+      --grep) while [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; do words+=("$1"); shift; done ;;
+      --all) all=1 ;;
+      --) ;;
+      -*) usage ;;
+      *) paths+=("$arg") ;;
+    esac
+  done
+  [ "${#paths[@]}" -gt 0 ] || [ "${#words[@]}" -gt 0 ] || usage
+
+  local files=() f ids=() id
+  if [ "${#paths[@]}" -gt 0 ]; then
+    local main root
+    main=$(default_branch)
+    root=$(main_root)
+    mapfile -t ids < <(git -C "$root" log "$main" --format='%(trailers:key=Item,valueonly)' -- "${paths[@]}" \
+      | grep -E '^[bfr]-[0-9]+$' | awk '!seen[$0]++')
+    for id in ${ids+"${ids[@]}"}; do
+      f=$(all_items | grep -m1 "/$id-[^/]*\.md$" || true)
+      [ -n "$f" ] && files+=("$f")
+    done
+    # An unproved item has no commit on the path, so the trailer cannot find
+    # it; it names the path in its own text, and that is the link used here.
+    local p
+    while IFS= read -r f; do
+      case "$(item_status "$f")" in unreproduced*|unverified*) ;; *) continue ;; esac
+      for p in "${paths[@]}"; do
+        if grep -qF -- "$p" "$f"; then files+=("$f"); break; fi
+      done
+    done < <(all_items | grep '/archive/')
+  else
+    mapfile -t files < <(all_items)
+  fi
+
+  local w kept=() seen=()
+  for f in ${files+"${files[@]}"}; do
+    for w in ${seen+"${seen[@]}"}; do [ "$w" = "$f" ] && continue 2; done
+    seen+=("$f")
+    for w in ${words+"${words[@]}"}; do
+      grep -qi -- "$w" "$f" || continue 2
+    done
+    kept+=("$f")
+  done
+
+  if [ "${#kept[@]}" -eq 0 ]; then
+    echo "no items"
+    return 0
+  fi
+
+  # Flagged first, then newest. The flag column is stripped before printing.
+  local lines
+  lines=$(for f in "${kept[@]}"; do
+    case "$(item_status "$f")" in
+      unreproduced*|unverified*) printf '0\t' ;;
+      *) printf '1\t' ;;
+    esac
+    printf '%s\t' "$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')"
+    index_line "$f"
+  done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
+
+  local total shown
+  total=$(printf '%s\n' "$lines" | wc -l)
+  shown=$total
+  [ "$all" -eq 1 ] || [ "$total" -le "$FIND_CAP" ] || shown=$FIND_CAP
+
+  printf '%s\n' "$lines" | head -n "$shown" \
+    | awk -F '\t' '{ printf "%-6s  %-10s  %-28s  %s\n", $4, $3, $5, $6 }'
+  if [ "$shown" -lt "$total" ]; then
+    echo "… $((total - shown)) more; narrow with a path or --grep, or pass --all"
+  fi
+}
+
+# --- milestones -------------------------------------------------------------
+
+# A milestone is a big-picture goal with a done-criterion, and nothing more:
+# no item list to maintain, since the items name it themselves with an
+# optional 'milestone:' line, and no obligation for any item to name one.
+find_milestone() {
+  local roots=()
+  mapfile -t roots < <(wb_roots)
+  find "${roots[@]/%//$WB\/milestones}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+}
+
+write_milestone() {
+  cat > "$1" <<EOF
+# $2
+
+status: open
+
+## Goal
+
+<!-- The big picture: what is true of the project once this is done. Delete
+     this comment. -->
+
+## Done when
+
+<!-- Observable, like an item criterion, at the level of the project. Delete
+     this comment. -->
+
+## Evidence
+
+<!-- Filled in when it is done: the actual output. Delete this comment. -->
+EOF
+}
+
+# Items naming a milestone, split open / archived, over both checkouts.
+milestone_items() {
+  local slug="$1" f
+  while IFS= read -r f; do
+    grep -qx "milestone: $slug" "$f" || continue
+    case "$f" in
+      */archive/*) printf 'archived\t%s\n' "$(basename "$f" .md)" ;;
+      *) printf 'open\t%s\n' "$(basename "$f" .md)" ;;
+    esac
+  done < <(all_items)
+}
+
+cmd_milestone() {
+  local sub="${1:-}" root slug path
+  [ -n "$sub" ] || usage
+  require_init
+  root=$(repo_root)
+
+  case "$sub" in
+    archive)
+      slug="${2:-}"
+      [ -n "$slug" ] || usage
+      path=$(find_milestone "$slug")
+      [ -n "$path" ] || die "no milestone named '$slug'"
+      local open
+      open=$(milestone_items "$slug" | awk -F '\t' '$1 == "open" { print "  " $2 }')
+      [ -z "$open" ] || die "$slug still has open items:
+$open"
+      has_evidence "$path" || die "$slug has no evidence recorded"
+      local mroot dest
+      mroot="${path%/"$WB"/milestones/*}"
+      dest="$mroot/$WB/milestones/archive/$(basename "$path")"
+      mkdir -p "$(dirname "$dest")"
+      if git -C "$mroot" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+        git -C "$mroot" mv "$path" "$dest"
+      else
+        mv "$path" "$dest"
+      fi
+      echo "archived milestone $slug" ;;
+    *)
+      # anything else is a title
+      slug=$(slugify "$sub")
+      [ -n "$slug" ] || die "title produced an empty slug"
+      path="$root/$WB/milestones/$slug.md"
+      [ -e "$path" ] && die "$path already exists"
+      [ -n "$(find_milestone "$slug")" ] && die "milestone '$slug' already exists in another checkout"
+      mkdir -p "$root/$WB/milestones"
+      write_milestone "$path" "$sub"
+      echo "$slug"
+      echo "$path" >&2 ;;
+  esac
+}
+
+# --- watch ------------------------------------------------------------------
+
+find_watch() {
+  local roots=()
+  mapfile -t roots < <(wb_roots)
+  find "${roots[@]/%//$WB\/watches}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+}
+
+# The contract a watch shift runs under. It is the whole authority for what
+# the fork may do to the running system: observe with anything, recover with
+# exactly what is listed, escalate as stated.
+write_watch() {
+  cat > "$1" <<EOF
+# $2
+
+## Healthy when
+
+<!-- Each check as a command and what its output looks like when healthy.
+     Every check runs every tick. Delete this comment. -->
+
+## Recovery, in order
+
+<!-- The only actions permitted to change the running system's state in
+     order to bring it back. Step 1 first; the next step only if the re-check
+     still fails. Nothing outside this list is recovery. Delete this comment. -->
+
+## Escalate
+
+<!-- When to stop recovering — e.g. the same failure 3 times in one shift —
+     and how to notify. Delete this comment. -->
+EOF
+}
+
+cmd_watch() {
+  local title="${1:-}" slug root path
+  [ -n "$title" ] || usage
+  require_init
+  slug=$(slugify "$title")
+  [ -n "$slug" ] || die "title produced an empty slug"
+  root=$(repo_root)
+  path="$root/$WB/watches/$slug.md"
+  [ -e "$path" ] && die "$path already exists"
+  mkdir -p "$root/$WB/watches"
+  write_watch "$path" "$title"
+  echo "$slug"
+  cat >&2 <<EOF
+$path
+
+next, with the user:
+  1. fill the three sections — every check, the only recovery actions, when to escalate
+  2. every command in it runs from a fork through Bash: allow-list each in
+     .claude/settings.json (or the shift runs in auto mode), or the first
+     restart blocks on a prompt nobody is there to answer
+  3. run the shift from the main checkout:  /loop 15m /workbench-review watch $slug
+EOF
+}
+
 # --- reviews ----------------------------------------------------------------
 
 # In-flight work is branches plus items merged as 'awaiting', which have no
 # branch left. Both halves are needed; neither alone is the answer.
+# An item file lives on its branch, so the copy in a worktree and the copy in
+# the main checkout are the same item at two points in its life and their
+# status lines can legitimately disagree. Print one line per copy that
+# disagrees, labelled, rather than picking one and hiding the other.
+status_lines() {
+  local name="$1" d f st where seen=() pairs=() prev
+  shift
+  for d in "$@"; do
+    f=$(find "$d" -name "$name" -print -quit 2>/dev/null)
+    [ -n "$f" ] || continue
+    st=$(item_status "$f")
+    where=$(basename "$(item_root "$f")")
+    for prev in ${seen+"${seen[@]}"}; do
+      [ "$prev" = "$st" ] && continue 2
+    done
+    seen+=("$st")
+    pairs+=("$st|$where")
+  done
+  # Label only when the copies disagree, and then label every one of them —
+  # an unlabelled first line next to a labelled second reads as authoritative.
+  local pair
+  for pair in ${pairs+"${pairs[@]}"}; do
+    if [ "${#pairs[@]}" -gt 1 ]; then
+      printf '  %-34s %s   [in %s]\n' "${name%.md}" "${pair%%|*}" "${pair##*|}"
+    else
+      printf '  %-34s %s\n' "${name%.md}" "${pair%%|*}"
+    fi
+  done
+}
+
 cmd_status() {
   local roots=() dirs=()
   require_init
-  mapfile -t roots < <(wb_roots)
+  # Every checkout: an item on a sibling worktree's branch is in flight too.
+  mapfile -t roots < <(all_roots)
   dirs=("${roots[@]/%//$WB\/items}")
-
-  # An item file lives on its branch, so the copy in a worktree and the copy in
-  # the main checkout are the same item at two points in its life and their
-  # status lines can legitimately disagree. Print one line per copy that
-  # disagrees, labelled, rather than picking one and hiding the other.
-  status_lines() {
-    local name="$1" d f st where seen=() pairs=() prev
-    for d in "${dirs[@]}"; do
-      f=$(find "$d" -name "$name" -print -quit 2>/dev/null)
-      [ -n "$f" ] || continue
-      st=$(item_status "$f")
-      where=$(basename "$(item_root "$f")")
-      for prev in ${seen+"${seen[@]}"}; do
-        [ "$prev" = "$st" ] && continue 2
-      done
-      seen+=("$st")
-      pairs+=("$st|$where")
-    done
-    # Label only when the copies disagree, and then label every one of them —
-    # an unlabelled first line next to a labelled second reads as authoritative.
-    local pair
-    for pair in ${pairs+"${pairs[@]}"}; do
-      if [ "${#pairs[@]}" -gt 1 ]; then
-        printf '  %-34s %s   [in %s]\n' "${name%.md}" "${pair%%|*}" "${pair##*|}"
-      else
-        printf '  %-34s %s\n' "${name%.md}" "${pair%%|*}"
-      fi
-    done
-  }
 
   local names=() name
   mapfile -t names < <(find "${dirs[@]}" -path '*/archive/*' -prune -o \
@@ -710,7 +1048,23 @@ cmd_status() {
   if [ "${#names[@]}" -eq 0 ]; then
     echo "  (none)"
   else
-    for name in "${names[@]}"; do status_lines "$name"; done
+    for name in "${names[@]}"; do status_lines "$name" "${dirs[@]}"; done
+  fi
+
+  # Progress is derived from the items that name the milestone, so there is
+  # nothing to keep in step by hand and nothing an unattached item owes it.
+  local ms=() m
+  mapfile -t ms < <(find "${roots[@]/%//$WB\/milestones}" -maxdepth 1 -name '*.md' 2>/dev/null \
+    | sed 's|.*/||; s|\.md$||' | sort -u)
+  if [ "${#ms[@]}" -gt 0 ]; then
+    echo
+    echo "milestones"
+    for m in "${ms[@]}"; do
+      local done_n open_n
+      done_n=$(milestone_items "$m" | grep -c '^archived' || true)
+      open_n=$(milestone_items "$m" | grep -c '^open' || true)
+      printf '  %-34s %s archived, %s open\n' "$m" "$done_n" "$open_n"
+    done
   fi
 
   echo
@@ -772,7 +1126,9 @@ cmd_status() {
       local has_report=0 has_base=0
       [ -n "$(find_report "$name")" ] && has_report=1
       [ -f "$(baseline_dir)/$name" ] && has_base=1
-      if [ "$has_report" -eq 1 ] && [ "$has_base" -eq 1 ]; then
+      if [ "$has_report" -eq 1 ] && [ "$has_base" -eq 1 ] && grep -qx 'R watch' "$(baseline_dir)/$name"; then
+        printf '  %-40s watch shift open — review-check to verify, review-drop to end it\n' "$name"
+      elif [ "$has_report" -eq 1 ] && [ "$has_base" -eq 1 ]; then
         printf '  %-40s unchecked — never returned, or review-check failed; inspect, then drop\n' "$name"
       elif [ "$has_report" -eq 1 ]; then
         printf '  %-40s awaiting triage\n' "$name"
@@ -825,17 +1181,40 @@ cmd_review_drop() {
   # on a clean pass, so while it exists the findings are unseen — or the check
   # failed, and they are the findings of a sweep that tampered with the tree.
   # Either way they do not vanish on a bare drop.
-  if [ -n "$path" ] && [ -f "$base" ] && has_findings "$path" && [ "$force" != "--force" ]; then
+  # A watch keeps its baseline across the shift; the 'C checked' line is what
+  # says the last review-check passed on it.
+  if [ -n "$path" ] && [ -f "$base" ] && has_findings "$path" && [ "$force" != "--force" ] \
+    && ! grep -qx 'C checked' "$base"; then
     die "$name is unchecked and has findings; run review-check, or pass --force to discard them"
   fi
 
   [ -n "$path" ] && rm -f "$path" && echo "deleted $path"
   [ -f "$base" ] && rm -f "$base" && echo "deleted baseline for $name"
+  local d
+  d=$(scratch_dir "$name")
+  [ -d "$d" ] && rm -rf "$d" && echo "deleted scratch for $name"
   return 0
 }
 
 baseline_dir() {
   printf '%s\n' "$(git_common_dir)/review-baseline"
+}
+
+# Where a sweep may write besides its report: helper scripts, captured output,
+# whatever investigation needs. The directory ignores itself, so it never
+# shows in the snapshot and needs no entry in the project's .gitignore.
+scratch_dir() {
+  local root
+  root=$(repo_root)
+  printf '%s\n' "$root/$WB/scratch/$(basename "$1" .md)"
+}
+
+ensure_scratch() {
+  local d
+  d=$(scratch_dir "$1")
+  mkdir -p "$d"
+  [ -f "$d/../.gitignore" ] || printf '*\n' > "$d/../.gitignore"
+  printf '%s\n' "$d"
 }
 
 # 'git status --porcelain' reports status, not content: a file already showing
@@ -850,7 +1229,7 @@ baseline_dir() {
 # would depend on where it was taken, and the two are taken in different places:
 # the baseline wherever the sweep stood, the check wherever the caller stands.
 tree_snapshot() (
-  cd "$(repo_root)" || die "cannot reach the repository root"
+  cd "${1:-$(repo_root)}" || die "cannot reach the repository root"
   git status --porcelain | sed 's/^/S /'
   if git rev-parse --verify -q HEAD >/dev/null; then
     printf 'D %s\n' "$(git diff HEAD | sha256sum | cut -d' ' -f1)"
@@ -873,26 +1252,37 @@ cmd_review_check() {
   base="$(baseline_dir)/$name"
   [ -f "$base" ] || die "no baseline for '$name'; open the report with 'workbench review'"
 
-  root=$(repo_root)
+  # The report sits in the checkout the sweep ran in, which need not be the
+  # one the check runs from; the snapshot is taken there as the baseline was.
+  local found
+  found=$(find_report "$name")
+  [ -n "$found" ] || die "$WB/reviews/$name does not exist in any checkout; the sweep wrote no report"
+  root=${found%/"$WB"/reviews/*}
   rel="$WB/reviews/$name"
-  [ -f "$root/$rel" ] || die "$rel does not exist; the sweep wrote no report"
 
-  local now
-  now=$(tree_snapshot)
-  added=$(comm -13 <(grep -v '^M ' "$base" | sort) <(printf '%s\n' "$now" | sort))
-  removed=$(comm -23 <(grep -v '^M ' "$base" | sort) <(printf '%s\n' "$now" | sort))
+  local now reason
+  now=$(tree_snapshot "$root")
+  reason=$(sed -n 's/^R //p' "$base")
+  added=$(comm -13 <(grep -v -e '^M ' -e '^R ' -e '^C ' "$base" | sort) <(printf '%s\n' "$now" | sort))
+  removed=$(comm -23 <(grep -v -e '^M ' -e '^R ' -e '^C ' "$base" | sort) <(printf '%s\n' "$now" | sort))
 
   # The report appearing is the whole permitted delta: its porcelain line, and
   # its content hash. Everything else names something the sweep touched.
-  local bad=0
+  #
+  # A watch runs in the main checkout for hours, and by day the user works
+  # there too, so a tracked change during a watch is listed for the user to
+  # own rather than failing — by night the list is empty and the proof holds.
+  local bad=0 tracked=0
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
       "S ?? $rel") ;;
       "H $rel "*) ;;
-      "D "*) echo "the sweep changed tracked files" >&2; bad=1 ;;
+      "D "*) tracked=1 ;;
       "H "*) echo "the sweep wrote: ${line#H }" >&2; bad=1 ;;
-      *) echo "unexpected change: ${line#S }" >&2; bad=1 ;;
+      "S ?? "*) [ "$reason" = watch ] || { echo "unexpected change: ${line#S }" >&2; bad=1; } ;;  # its H line reports it
+      "S "*) if [ "$reason" = watch ]; then tracked=1; else echo "unexpected change: ${line#S }" >&2; bad=1; fi ;;
+      *) echo "unexpected change: $line" >&2; bad=1 ;;
     esac
   done <<< "$added"
 
@@ -900,9 +1290,20 @@ cmd_review_check() {
     [ -n "$line" ] || continue
     case "$line" in
       "D "*) ;;   # already reported by its replacement on the added side
-      *) echo "the sweep reverted or staged: ${line#? }" >&2; bad=1 ;;
+      "S "*) if [ "$reason" = watch ]; then tracked=1; else echo "the sweep reverted or staged: ${line#S }" >&2; bad=1; fi ;;
+      *) echo "the sweep reverted or staged: $line" >&2; bad=1 ;;
     esac
   done <<< "$removed"
+
+  if [ "$tracked" -eq 1 ]; then
+    if [ "$reason" = watch ]; then
+      echo "tracked files changed during the watch — verify these are yours:" >&2
+      git -C "$root" status --porcelain --untracked-files=no | sed 's/^/  /' >&2
+    elif [ "$bad" -eq 0 ]; then
+      # content changed on a file that was already modified, so no status line moved
+      echo "the sweep changed tracked files" >&2; bad=1
+    fi
+  fi
 
   if [ "$bad" -ne 0 ]; then
     die "the sweep modified the tree beyond its report. Inspect the changes above
@@ -925,7 +1326,7 @@ before triaging; the report may be reporting on code it edited."
     if [ ! -f "$root/$file" ]; then
       echo "cites $tok, and $file is not in the tree" >&2; bad=1
     else
-      n=$(wc -l < "$root/$file")
+      n=$(grep -c '' "$root/$file" || true)
       [ "$line" -le "$n" ] || { echo "cites $tok, and $file has $n lines" >&2; bad=1; }
     fi
   done < <(citations "$prose")
@@ -944,30 +1345,48 @@ before triaging; the report may be reporting on code it edited."
 coverage, then re-run review-check; or review-drop --force to discard it."
   fi
 
-  rm -f "$base"
-  echo "clean: $rel is the only change, its citations resolve, its scope is named"
+  # A watch shift stays open — its baseline is what lets the next tick find
+  # the report — until review-drop ends it. Every other report is checked once.
+  if [ "$reason" = watch ]; then
+    grep -qx 'C checked' "$base" || echo 'C checked' >> "$base"
+    echo "clean: $rel holds up; the shift stays open until review-drop"
+  else
+    rm -f "$base"
+    echo "clean: $rel is the only change, its citations resolve, its scope is named"
+  fi
 }
 
 # The path:line tokens in a report — the evidence form the sweep is told to
 # use. Needs a slash or a dot so a clock time does not count; a URL's port
-# arrives as '//host/path:port' once the scheme is cut at its colon.
+# arrives as '//host/path:port' once the scheme is cut at its colon. Real
+# command output cites places outside the tree too — a host:port, a stack
+# frame under /usr — and those are skipped by their shape. Only ever by shape:
+# the sweep writes the whole report, so any region exempted (a fenced block,
+# say) is a region it could hide a bogus citation in.
 citations() {
-  grep -oE '[A-Za-z0-9_./-]+:[0-9]+' "$1" \
-    | grep -E '[/.]' | grep -v -e '://' -e '^//' | sort -u
+  grep -oE '[][A-Za-z0-9_.+()/-]+:[0-9]+' "$1" \
+    | grep -E '[/.]' | grep -v -e '://' -e '^//' -e '^/' -e '^[0-9.]*:' | sort -u
 }
 
 # Manifest files the report never mentions. A file counts as mentioned by its
 # own path or by any parent directory written with its trailing slash — "src/"
 # standing alone, not "src/" as the head of another path — so a sweep that
-# covered a directory says so once.
+# covered a directory says so once. A path is bounded by whitespace, quotes,
+# brackets or ,;:* on either side, with an optional "./" before and a
+# sentence-ending period after; every other character in it is literal, which
+# is what keeps "(group)" and "+page" from reading as regex. A bad pattern is
+# fatal — grep's exit 2 read as "not found" would credit every file.
 uncovered() {
-  local report="$1" base="$2" p cand found
+  local report="$1" base="$2" p cand found rc
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     found=0
     cand=$p
     while :; do
-      if grep -qE "(^|[^A-Za-z0-9_./-])$(printf '%s' "$cand" | sed 's/[.[\*^$]/\\&/g')([^A-Za-z0-9_.-]|$)" "$report"; then
+      rc=0
+      grep -qE "(^|[[:space:]\`\"'(*,;:])(\./)?$(printf '%s' "$cand" | sed 's/[^A-Za-z0-9_/-]/\\&/g')(\.?([[:space:]\`\"'),;:*]|$))" "$report" || rc=$?
+      [ "$rc" -le 1 ] || die "coverage check: bad pattern for '$cand'"
+      if [ "$rc" -eq 0 ]; then
         found=1; break
       fi
       cand=${cand%/}
@@ -987,7 +1406,23 @@ cmd_review() {
 
   case "$reason" in
     sweep|pre-merge|docs|memory|adopt) ;;
-    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt" ;;
+    watch)
+      # A watch is a sweep with a clock: the loop calls this every tick, and
+      # the ticks share one report. An open shift — report and baseline both
+      # present for this contract — is resumed, not reopened.
+      [ -n "$scope" ] || die "watch needs the contract's slug: workbench review watch <slug>"
+      [ -n "$(find_watch "$scope")" ] || die "no contract $WB/watches/$scope.md; write it with 'workbench watch'"
+      local open
+      open=$(find "$(baseline_dir)" -mindepth 1 -maxdepth 1 \( -name "*-watch-$scope.md" -o -name "*-watch-$scope-[0-9]*.md" \) 2>/dev/null \
+        | sort | tail -1 || true)
+      if [ -n "$open" ] && [ -n "$(find_report "$(basename "$open")")" ]; then
+        # The tick may append findings the last review-check never saw, so
+        # its verdict is withdrawn; review-drop asks for a fresh one.
+        sed -i '/^C checked$/d' "$open"
+        find_report "$(basename "$open")"
+        return 0
+      fi ;;
+    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch" ;;
   esac
 
   root=$(repo_root)
@@ -1018,15 +1453,34 @@ cmd_review() {
   # the report itself. While it exists, a sweep is in flight — or was aborted;
   # 'review-check' removes it on a clean pass, 'review-drop' otherwise.
   mkdir -p "$(baseline_dir)"
-  tree_snapshot > "$(baseline_dir)/$(basename "$path")"
+  # The scratch directory exists before the snapshot, so its self-ignore is
+  # in place and nothing written there can ever show as a delta.
+  ensure_scratch "$path" >/dev/null
+  { tree_snapshot; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
 
+  local stem
+  stem=$(basename "$path" .md)
   cat > "$path" <<EOF
 # Review — $reason${scope:+ — $scope}
 
 date: $(date +%Y-%m-%d)
 
-<!-- opened by workbench review; findings with evidence, no template -->
+<!-- opened by workbench review; findings with evidence, no template.
+     scratch: $WB/scratch/$stem/ — yours to write in -->
 EOF
+
+  # A pre-merge's item file lives on its branch — in that item's worktree,
+  # not necessarily where the sweep runs. Name it, or say it was not found;
+  # never fail here, since the skill's preprocessed block aborts silently.
+  if [ "$reason" = pre-merge ]; then
+    local item=
+    [ -z "$scope" ] || item=$(find_item_anywhere "$scope")
+    if [ -n "$item" ]; then
+      printf '\n<!-- item: %s -->\n' "$item" >> "$path"
+    else
+      printf '\n<!-- no item file matching "%s" in any checkout; ask for the id -->\n' "$scope" >> "$path"
+    fi
+  fi
 
   write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope"
 
@@ -1094,6 +1548,9 @@ case "${1:-}" in
   new) shift; cmd_new "$@" ;;
   start) shift; cmd_start "$@" ;;
   merge) shift; cmd_merge "$@" ;;
+  find) shift; cmd_find "$@" ;;
+  watch) shift; cmd_watch "$@" ;;
+  milestone) shift; cmd_milestone "$@" ;;
   archive) shift; cmd_archive "$@" ;;
   review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
