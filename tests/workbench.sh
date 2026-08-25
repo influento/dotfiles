@@ -97,13 +97,20 @@ check "find README does not list b-001" not_listed b-001 README
 # longer one must not hit.
 id2=$("$WB" new bug "handler lost" 2>/dev/null)
 item2=workbench/items/bugs/$id2-handler-lost.md
-printf '\nthe handler lives in resources/api and is unreproduced\n' >> "$item2"
+# shellcheck disable=SC2016
+printf '\nthe handler lives in resources/api and is unreproduced; see `lib/util.go`,\nthe loop at lib/loop.go:12, and cfg/main.toml.\n' >> "$item2"
 set_status "$item2" unreproduced
 run "archive unreproduced" 0 "archived $id2" "$WB" archive "$id2"
 git add -A && git commit -qm "archive $id2"
 run "find matches a path named in prose" 0 "$id2" "$WB" find resources
 check "find 'src' skips 'resources'" not_listed "$id2" src
 check "find 'sources' skips 'resources'" not_listed "$id2" sources
+run "find matches a backticked path" 0 "$id2" "$WB" find lib/util.go
+run "find matches a path:line citation" 0 "$id2" "$WB" find lib/loop.go
+run "find matches a path before a sentence period" 0 "$id2" "$WB" find cfg/main.toml
+check "find 'lib/util' skips 'lib/util.go'" not_listed "$id2" lib/util
+check "find 'cfg/main' skips 'cfg/main.toml'" not_listed "$id2" cfg/main
+run "find strips a leading ./" 0 "$id2" "$WB" find ./lib/util.go
 
 run "status" 0 "" "$WB" status
 
@@ -123,6 +130,11 @@ git checkout -q README
 ( cd .worktrees/b-001-one && echo more >> README )
 run "merge names generic dirt generically" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one"
 ( cd .worktrees/b-001-one && git checkout -q README )
+
+# the item file plus a stray .md: not the item-only case
+( cd .worktrees/b-001-one && git rm -q --cached workbench/items/bugs/b-001-one.md && git commit -qm untrack && echo n > notes.md )
+run "merge with item file and a stray .md is generic" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one"
+( cd .worktrees/b-001-one && rm notes.md && git add -A && git commit -qm retrack )
 
 # conflicting branch
 echo b >> README && git commit -qam b

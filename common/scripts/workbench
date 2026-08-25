@@ -92,13 +92,14 @@ slugify() {
     | sed -e 's/^-//' -e 's/-$//'
 }
 
-# A path as it appears in prose: preceded by nothing that could extend it and
-# followed by a slash or the end, so 'src' matches 'src/main.go' and 'in src'
-# but not 'srcset' or 'resources'. Metacharacters in the path are literal.
+# A path as it appears in prose: bounded on both sides by something that
+# cannot extend a path, a sentence-ending period allowed, so 'src' matches
+# 'src/main.go', '`src`', 'src:12' and 'in src.' but not 'srcset', 'src.go'
+# or 'resources'. Metacharacters in the path are literal.
 path_re() {
   local p="${1%/}"
   p=$(printf '%s' "$p" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
-  printf '(^|[^A-Za-z0-9_./-])%s(/|$)' "$p"
+  printf '(^|[^A-Za-z0-9_./-])%s(/|\\.?([^A-Za-z0-9_./-]|$))' "$p"
 }
 
 # An id is exactly <letter>-<number>. Everything that resolves one globs on
@@ -642,10 +643,12 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
       # 'start' moved it in untracked — so name it rather than say "changes".
       local only
       only=$(printf '%s\n' "$dirt" | sed 's/^...//')
-      case "$only" in
-        "$WB/items/"*"/$id-"*.md)
-          die "$only is not committed on the branch; commit it, then retry" ;;
-      esac
+      if [ "$(printf '%s\n' "$only" | wc -l)" -eq 1 ]; then
+        case "$only" in
+          "$WB/items/"*"/$id-"*.md)
+            die "$only is not committed on the branch; commit it, then retry" ;;
+        esac
+      fi
       die "$wt has uncommitted changes; commit or discard them first"
     fi
   fi
@@ -928,12 +931,10 @@ cmd_find() {
   # which is also how item text names them.
   local prefix p
   prefix=$(git rev-parse --show-prefix 2>/dev/null || true)
-  if [ -n "$prefix" ]; then
-    for ((i = 0; i < ${#paths[@]}; i++)); do
-      p="${paths[$i]}"
-      case "$p" in /*) ;; *) paths[i]="$prefix$p" ;; esac
-    done
-  fi
+  for ((i = 0; i < ${#paths[@]}; i++)); do
+    p="${paths[$i]}"
+    case "$p" in /*) ;; *) paths[i]="$prefix${p#./}" ;; esac
+  done
 
   local files=() f ids=() id items
   declare -A sibling=()
