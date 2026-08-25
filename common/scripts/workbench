@@ -1513,15 +1513,21 @@ cmd_review_check() {
   # listed for the user to own rather than failing; by night the list is
   # empty and the proof holds. Every other reason fails on the first delta.
   local bad=0 changed=0 head_moved=0 watch=0 what
-  declare -A wadded=()
+  # A file clean at open and edited since gains both a status line and a diff
+  # hash; the status line names it, so its hash line stays quiet.
+  declare -A wadded=() sadded=()
+  while IFS= read -r line; do
+    case "$line" in "S "*) sadded[${line:5}]=1 ;; esac
+  done <<< "$added"
   [ "$reason" != watch ] || watch=1
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
       "S ?? $rel") ;;
       "H $rel "*) ;;
-      "W "*) what=${line#W }; wadded[${what% *}]=1
-             if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep changed: ${what% *}" >&2; bad=1; fi ;;
+      "W "*) what=${line#W }; what=${what% *}; wadded[$what]=1
+             if [ "$watch" -eq 1 ]; then changed=1
+             elif [ -z "${sadded[$what]:-}" ]; then echo "the sweep changed: $what" >&2; bad=1; fi ;;
       "T "*) if [ "$watch" -eq 1 ]; then head_moved=1; else echo "the sweep moved HEAD to ${line#T }" >&2; bad=1; fi ;;
       "H "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep wrote: ${line#H }" >&2; bad=1; fi ;;
       "S ?? "*) [ "$watch" -eq 1 ] || { echo "unexpected change: ${line#S }" >&2; bad=1; } ;;  # its H line reports it

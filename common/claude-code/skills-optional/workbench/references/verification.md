@@ -74,10 +74,11 @@ pretending otherwise.
 
 Merge asks whether everything that *can* be verified now has been; archive
 asks whether the criterion is satisfied — the table is in
-[items.md](items.md), "What each gate asks". Collapsing the two produces a deadlock: a fix that can only be exercised by a
-real third-party event cannot be verified until it ships, and cannot ship until
-it is verified. So an item may merge while still open. The worktree goes, the
-change ships, and nothing claims success until the criterion actually runs.
+[items.md](items.md), "What each gate asks". Collapsing the two produces a
+deadlock: a fix that can only be exercised by a real third-party event cannot
+be verified until it ships, and cannot ship until it is verified. So an item
+may merge while still open. The worktree goes, the change ships, and nothing
+claims success until the criterion actually runs.
 
 ### Split the criterion first
 

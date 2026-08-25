@@ -142,6 +142,7 @@ sweep() { "$WB" review sweep 2>/dev/null; }
 report=$(sweep)
 echo edited >> README
 run "review-check catches a tracked edit" 1 "unexpected change:  M README" "$WB" review-check "$report"
+check "a fresh edit is reported once" [ "$("$WB" review-check "$report" 2>&1 | grep -c README)" -eq 1 ]
 git checkout -q README
 run "review-check passes once the edit is reverted" 0 "^clean:" "$WB" review-check "$report"
 "$WB" review-drop "$report" >/dev/null 2>&1

@@ -121,8 +121,10 @@ commit:  "resolve position from the client\n\nItem: f-037"
 
 A counter in the shared git directory, `.git/item-seq`. Every worktree resolves
 to the same one, so a single sequence serves all of them and numbers can never
-repeat. Increments are guarded by an atomic lock directory, so simultaneous
-allocations from different worktrees cannot collide.
+repeat. One sequence for every class as well: `b-001` is followed by `f-002`,
+so a number names one item whatever its letter — which is what keeps the "both
+are merged" repair below safe. Increments are guarded by an atomic lock
+directory, so simultaneous allocations from different worktrees cannot collide.
 
 If the counter is missing — a fresh clone, or another machine — it is rebuilt
 from the highest ID already present in the repository, including
