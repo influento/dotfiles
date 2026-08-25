@@ -4,9 +4,10 @@ A review is a deliberate sweep that produces a report. It is not part of
 finishing an item, and it is not tracked work — it is how work gets found.
 
 Run one with `/workbench-review <reason> ["scope"]`, which forks so the sweep's
-reading stays out of the main context. A scope is a slug seed — letters,
-digits, spaces, hyphens — quoted when it has spaces. Anything else lands
-unescaped in a shell command and aborts the skill with no message.
+reading stays out of the main context. A scope is paths or words, quoted when
+it has spaces; paths get a manifest, words do not. It is substituted inside a
+double-quoted shell argument, so a quote, backtick, `$` or backslash in it
+aborts the skill with no message.
 
 The sweep is held to its contract by `workbench review-check`, run in the
 invoking context on the returned path; how, and where the check stops, is in

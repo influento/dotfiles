@@ -8,7 +8,8 @@ system. Then read the report's tail: the shift so far lives there, not in you.
 
 1. Run every check under **Healthy when**.
 2. All green → update the one liveness line (`checked: N ticks, last HH:MM`)
-   and return. Nothing else is written on a green tick.
+   in place with `sed -i` — the only edit that ever rewrites a line of the
+   report — and return. Nothing else is written on a green tick.
 3. Failed → **capture before recovering**: the failing check's output, the
    log tail, process and socket state, whatever the failure names. A restart
    destroys the evidence; the evidence is the point.

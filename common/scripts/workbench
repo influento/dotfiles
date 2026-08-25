@@ -92,6 +92,15 @@ slugify() {
     | sed -e 's/^-//' -e 's/-$//'
 }
 
+# A path as it appears in prose: preceded by nothing that could extend it and
+# followed by a slash or the end, so 'src' matches 'src/main.go' and 'in src'
+# but not 'srcset' or 'resources'. Metacharacters in the path are literal.
+path_re() {
+  local p="${1%/}"
+  p=$(printf '%s' "$p" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+  printf '(^|[^A-Za-z0-9_./-])%s(/|$)' "$p"
+}
+
 # An id is exactly <letter>-<number>. Everything that resolves one globs on
 # "$id-*", so a bare letter would match every item of that class and act on
 # whichever one find happened to return first.
@@ -374,8 +383,9 @@ status: open
 
 ## Evidence
 
-<!-- Filled in after implementation: the actual output, not a summary of it.
-     Delete this comment. -->
+<!-- Filled in after implementation: the actual output, not a summary of it,
+     pasted in a fenced block — archive refuses an Evidence section without
+     one. Delete this comment. -->
 EOF
 }
 
@@ -408,8 +418,9 @@ status: open
 
 ## Evidence
 
-<!-- Filled in after implementation: the actual output, not a summary of it.
-     Delete this comment. -->
+<!-- Filled in after implementation: the actual output, not a summary of it,
+     pasted in a fenced block — archive refuses an Evidence section without
+     one. Delete this comment. -->
 EOF
 }
 
@@ -437,7 +448,8 @@ status: open
 
 ## Evidence
 
-<!-- Filled in after: the actual counts and paths. Delete this comment. -->
+<!-- Filled in after: the actual counts and paths, pasted in a fenced block —
+     archive refuses an Evidence section without one. Delete this comment. -->
 EOF
 }
 
@@ -626,6 +638,14 @@ cmd_merge() {
         die "$wt still holds a review report; triage it, then 'workbench review-drop' it before merging:
 $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
       fi
+      # The item file is the one a fresh branch always has uncommitted —
+      # 'start' moved it in untracked — so name it rather than say "changes".
+      local only
+      only=$(printf '%s\n' "$dirt" | sed 's/^...//')
+      case "$only" in
+        "$WB/items/"*"/$id-"*.md)
+          die "$only is not committed on the branch; commit it, then retry" ;;
+      esac
       die "$wt has uncommitted changes; commit or discard them first"
     fi
   fi
@@ -710,13 +730,14 @@ default_branch() {
   printf '%s\n' "$b"
 }
 
-# Evidence is present when the Evidence section holds something other than
-# blank lines and the template comment.
+# Evidence is present when the Evidence section holds a fenced block. Evidence
+# is defined as actual output, and output is pasted, not typed — a bare "done"
+# or "TBD" under the heading is exactly what this refuses.
 has_evidence() {
   sed -n '/^## Evidence/,$p' "$1" \
     | tail -n +2 \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
-    | grep -q '[^[:space:]]'
+    | grep -q '^[[:space:]]*```'
 }
 
 # An unreproduced bug that was started has a branch holding nothing but its
@@ -902,6 +923,18 @@ cmd_find() {
   done
   [ "${#paths[@]}" -gt 0 ] || [ "${#words[@]}" -gt 0 ] || usage
 
+  # Paths are taken as the shell gives them, relative to the cwd, while every
+  # git call below is pinned to the root — so make them root-relative here,
+  # which is also how item text names them.
+  local prefix p
+  prefix=$(git rev-parse --show-prefix 2>/dev/null || true)
+  if [ -n "$prefix" ]; then
+    for ((i = 0; i < ${#paths[@]}; i++)); do
+      p="${paths[$i]}"
+      case "$p" in /*) ;; *) paths[i]="$prefix$p" ;; esac
+    done
+  fi
+
   local files=() f ids=() id items
   declare -A sibling=()
   if [ "${#paths[@]}" -gt 0 ]; then
@@ -917,11 +950,15 @@ cmd_find() {
     done
     # An unproved item has no commit on the path, so the trailer cannot find
     # it; it names the path in its own text, and that is the link used here.
-    local p
+    # Matched on path boundaries: a scope of 'src' or 'api' as a bare
+    # substring would hit every item using the word in any sense, and those
+    # false hits would then sort to the top as flagged.
+    local res=()
+    for p in "${paths[@]}"; do res+=("$(path_re "$p")"); done
     while IFS= read -r f; do
       case "$(item_status "$f")" in unreproduced*|unverified*) ;; *) continue ;; esac
-      for p in "${paths[@]}"; do
-        if grep -qF -- "$p" "$f"; then files+=("$f"); break; fi
+      for p in "${res[@]}"; do
+        if grep -qE -- "$p" "$f"; then files+=("$f"); break; fi
       done
     done < <(printf '%s\n' "$items" | grep '/archive/')
     # An open item on a sibling branch has no commit on the default branch
@@ -931,8 +968,8 @@ cmd_find() {
     local r
     while IFS= read -r r; do
       while IFS= read -r f; do
-        for p in "${paths[@]}"; do
-          if grep -qF -- "$p" "$f"; then files+=("$f"); sibling[$f]=1; break; fi
+        for p in "${res[@]}"; do
+          if grep -qE -- "$p" "$f"; then files+=("$f"); sibling[$f]=1; break; fi
         done
       done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfr]-*.md' -print 2>/dev/null)
     done < <(all_roots | grep -vxF -f <(wb_roots))
@@ -1656,6 +1693,9 @@ cmd_review() {
 
   local stem
   stem=$(basename "$path" .md)
+  # A branch cut before the init commit has no reviews/ yet; an empty
+  # directory is invisible to the snapshot, so creating it here is safe.
+  mkdir -p "$(dirname "$path")"
   cat > "$path" <<EOF
 # Review — $reason${scope:+ — $scope}
 
@@ -1768,9 +1808,15 @@ write_manifest() {
 
   {
     echo
-    echo "<!-- in scope: ${#files[@]} files. Name each one the sweep covered, or the"
-    echo '     directory when a whole directory was; review-check lists any the report'
-    echo '     never mentions:'
+    if [ -n "$branch" ]; then
+      echo "<!-- changed on the branch: ${#files[@]} files, the item file among them. Name each"
+      echo '     one the sweep covered, or the directory when a whole directory was;'
+      echo '     review-check lists any the report never mentions:'
+    else
+      echo "<!-- in scope: ${#files[@]} files. Name each one the sweep covered, or the"
+      echo '     directory when a whole directory was; review-check lists any the report'
+      echo '     never mentions:'
+    fi
     printf '     %s\n' "${files[@]}"
     echo '-->'
   } >> "$report"

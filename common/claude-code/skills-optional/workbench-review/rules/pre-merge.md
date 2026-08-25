@@ -6,7 +6,8 @@ the item file there and, when the two differ, the root. Every path is relative
 to that root — prefix Bash commands with `cd <root> &&`, give Read, Grep and
 Glob absolute paths under it. `review-check` resolves every citation against
 it, and the files the branch changed are the manifest: name each one you
-covered. Check:
+covered. The item file is among them — the branch carries it — so read it and
+name it; the checks below are made against it. Check:
 
 - the criterion is genuinely satisfied by the evidence recorded
 - the root cause is stated, for a bug

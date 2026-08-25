@@ -1,7 +1,7 @@
 ---
 name: workbench-review
 description: Run a workbench review sweep in a forked context and return the report path.
-argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch> [\"scope: letters digits spaces hyphens\"]"
+argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
 arguments: reason scope
 disable-model-invocation: true
 context: fork
@@ -47,7 +47,8 @@ That path holds a skeleton with the reason and date. `Read` it before you
 `Write` it — `Write` refuses a file it has not seen. For `watch`, never
 `Write` it: the report is the shift's whole timeline, and a rewrite can drop
 what earlier ticks recorded. Append through Bash instead —
-`cat >> "<report>" <<'EOF' … EOF`.
+`cat >> "<report>" <<'EOF' … EOF`. The one in-place edit a watch makes is
+the liveness line, with `sed -i` on that line alone.
 
 ## Rules for this reason
 
