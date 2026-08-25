@@ -106,6 +106,12 @@ handed. A sweep that names every file without opening one still passes.
 The citation check reads the whole report, pasted command output included.
 Real output cites places outside the tree — a host and port, a stack frame
 under `/usr` — and those are skipped by their shape, never by where they sit.
+Real output also cites bare basenames, which is why a slashless token
+resolves against every file of that name and the sweep gets the benefit of
+the doubt when several match; and why a slashless name with an extension no
+tree file carries reads as a host rather than a fabrication. Both rules are
+decided from the tree — `git ls-files` — never from anything the report says
+about itself.
 Exempting a region of the report, a fenced block say, looks like the obvious
 relief the first time a watch report fails on a stack trace; it is not, because
 the sweep writes every byte of the report, so any region it can mark exempt is

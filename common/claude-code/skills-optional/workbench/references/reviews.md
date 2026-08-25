@@ -13,6 +13,14 @@ invoking context on the returned path; how, and where the check stops, is in
 [rationale.md](rationale.md). The sweep's own rules per reason live with the
 sweep skill, in `workbench-review/rules/`.
 
+Every `path:line` in the report must resolve against the tree. A token with a
+slash resolves as written. One without — the form test runners and compilers
+print, `pos_test.go:42` — resolves by basename against every file of that
+name, and passes when any of them reaches the line: ambiguity resolves in the
+sweep's favour, since the check asks "cites nowhere?", not "cites precisely?".
+A slashless name no file carries is taken for a host (`db.internal:5432`) when
+nothing in the tree has its extension, and for a bogus citation otherwise.
+
 ## Reasons
 
 | Reason | When |
@@ -61,12 +69,12 @@ shift's report instead of a new one while its baseline exists, so the ticks
 share a timeline. What a tick does is the sweep skill's `rules/watch.md`.
 
 `review-check` on a watch verifies the same things as on any report, with one
-difference: the shift runs where you work, so a tracked file that changed is
-listed for you to own rather than failing the check — by night the list is
-empty. The baseline stays until `review-drop` ends the shift; `workbench
-status` shows it as `watch shift open`. A resumed tick withdraws the last
-check's verdict, since it may append findings that check never saw, so the
-morning starts with a fresh `review-check`.
+difference: the shift runs where you work, so a change to the tree — a tracked
+edit, a new file, a commit — is listed for you to own rather than failing the
+check; by night the list is empty. The baseline stays until `review-drop` ends
+the shift; `workbench status` shows it as `watch shift open`. A resumed tick
+withdraws the last check's verdict, since it may append findings that check
+never saw, so the morning starts with a fresh `review-check`.
 
 Morning: `review-check`, triage, `workbench new bug` for what survived with
 the timeline's captures as *What was seen*, then `review-drop`.
@@ -87,7 +95,7 @@ leaves no mark on a report, so the baseline is what says nobody has read it.
 The report and its baseline are created before the sweep runs, so a sweep that
 errors or is aborted leaves both behind. A same-day collision gets a numbered
 suffix rather than an error, so orphans do not stop the next sweep.
-`workbench status` lists every report in one of three states:
+`workbench status` lists every report in one of four states:
 
 | State | Means |
 |---|---|

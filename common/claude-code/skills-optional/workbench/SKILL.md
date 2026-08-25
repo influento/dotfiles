@@ -117,8 +117,9 @@ the answer from `git branch`, which cannot see the merged ones.
 `/workbench-review <reason> ["scope"]` runs the sweep in a forked context and
 returns the report path. It is user-invoked only — never start one unasked.
 
-The fork writes exactly one file, the report. When it returns with the path,
-prove that before reading the findings:
+The fork writes the report, and scratch under `workbench/scratch/` that git
+never sees — nothing tracked. When it returns with the path, prove that before
+reading the findings:
 
 ```bash
 workbench review-check <report-path>

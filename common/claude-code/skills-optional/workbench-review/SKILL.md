@@ -43,9 +43,11 @@ tick: read it before writing, and append.
 workbench review "$reason" "$scope"
 ```
 
-That path is your one permitted write target. It holds a skeleton with the
-reason and date. `Read` it before you `Write` it — `Write` refuses a file it
-has not seen.
+That path holds a skeleton with the reason and date. `Read` it before you
+`Write` it — `Write` refuses a file it has not seen. For `watch`, never
+`Write` it: the report is the shift's whole timeline, and a rewrite can drop
+what earlier ticks recorded. Append through Bash instead —
+`cat >> "<report>" <<'EOF' … EOF`.
 
 ## Rules for this reason
 
