@@ -33,7 +33,7 @@ usage:
   reasons: sweep, pre-merge, docs, memory, adopt, watch
   state lives under workbench/
 EOF
-  exit 2
+  exit "${1:-2}"
 }
 
 die() {
@@ -45,17 +45,19 @@ git_common_dir() {
   local d
   d=$(git rev-parse --git-common-dir) || die "not inside a git repository"
   # --git-common-dir may be relative to the current directory
-  (cd "$d" && pwd)
+  (cd "$d" && pwd -P)
 }
 
 repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
 }
 
-# The main worktree, where the committed state lives. A linked worktree's
-# common dir is always <main>/.git, so its parent is the main checkout.
+# The main worktree, where the committed state lives: git lists it first,
+# always. Not the parent of the common dir — that is no checkout at all for a
+# bare repository, and it followed the logical path where repo_root gives the
+# physical one, so a checkout reached through a symlink counted as two.
 main_root() {
-  dirname "$(git_common_dir)"
+  git worktree list --porcelain | sed -n '1s/^worktree //p'
 }
 
 # Both checkouts that may hold items: the current one, because an item file
@@ -87,6 +89,13 @@ slugify() {
     | sed -e 's/^-//' -e 's/-$//'
 }
 
+# An id is exactly <letter>-<number>. Everything that resolves one globs on
+# "$id-*", so a bare letter would match every item of that class and act on
+# whichever one find happened to return first.
+require_id() {
+  [[ "$1" =~ ^[bfr]-[0-9]+$ ]] || die "'$1' is not an item id; ids look like b-038"
+}
+
 # A worktree branched before adoption has no $WB/ in its own checkout, yet may
 # still create items. Adoption is a property of the repository, so any checkout
 # carrying $WB/ satisfies it.
@@ -110,7 +119,7 @@ highest_existing() {
     [ -n "$n" ] || continue
     n=$((10#$n))
     [ "$n" -gt "$max" ] && max=$n
-  done < <(find "${roots[@]/%//$WB\/items}" -name '[bfr]-*.md' 2>/dev/null)
+  done < <(find "${roots[@]/%//$WB/items}" -name '[bfr]-*.md' 2>/dev/null)
   echo "$max"
 }
 
@@ -123,7 +132,7 @@ next_id() {
   local waited=0
   while ! mkdir "$lock_dir" 2>/dev/null; do
     waited=$((waited + 1))
-    [ "$waited" -gt 100 ] && die "could not acquire $lock_dir"
+    [ "$waited" -gt 100 ] && die "could not acquire $lock_dir; if no 'workbench new' is running, it is stale — rmdir it and retry"
     sleep 0.05
   done
   trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT
@@ -179,6 +188,8 @@ ensure_gitignore() {
   local entry
   for entry in '.claude/skills/workbench' '.claude/skills/workbench-review' '.worktrees/'; do
     grep -qxF "$entry" "$gi" 2>/dev/null && continue
+    # A last line missing its newline would otherwise absorb the entry.
+    [ ! -s "$gi" ] || [ -z "$(tail -c1 "$gi")" ] || echo >> "$gi"
     printf '%s\n' "$entry" >> "$gi"
     echo "  .gitignore += $entry"
   done
@@ -246,6 +257,8 @@ ensure_claude_md() {
       $0 == end   { skip = 0; next }
       !skip       { print }
     ' "$target" > "$tmp"
+    # mktemp creates 0600; the replace must not carry that onto CLAUDE.md.
+    chmod --reference="$target" "$tmp"
     mv "$tmp" "$target"
     rm -f "$tmp.block"
     echo "  refreshed the workbench block in $(basename "$target")"
@@ -473,7 +486,7 @@ cmd_new() {
 find_item() {
   local roots=()
   mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB\/items}" -name "$1-*.md" -print -quit 2>/dev/null
+  find "${roots[@]/%//$WB/items}" -name "$1-*.md" -print -quit 2>/dev/null
 }
 
 # The same item, over every checkout, for callers that only read it: a
@@ -484,7 +497,7 @@ find_item_anywhere() {
   local roots=() main
   main=$(main_root)
   mapfile -t roots < <(all_roots | grep -vxF "$main"; printf '%s\n' "$main")
-  find "${roots[@]/%//$WB\/items}" -name "$1-*.md" -print -quit 2>/dev/null
+  find "${roots[@]/%//$WB/items}" -name "$1-*.md" -print -quit 2>/dev/null
 }
 
 # The checkout an item file belongs to. find_item may return a path from the
@@ -497,6 +510,7 @@ item_root() {
 cmd_start() {
   local id="${1:-}" path branch root wt
   [ -n "$id" ] || usage
+  require_id "$id"
   require_init
 
   path=$(find_item "$id")
@@ -557,6 +571,7 @@ worktree_of() {
 cmd_merge() {
   local id="${1:-}" subject="${2:-}" branch main root wt
   [ -n "$id" ] && [ -n "$subject" ] || usage
+  require_id "$id"
   require_init
 
   case "$subject" in
@@ -596,8 +611,17 @@ cmd_merge() {
 
   wt=$(worktree_of "$branch")
   if [ -n "$wt" ]; then
-    [ -z "$(git -C "$wt" status --porcelain)" ] \
-      || die "$wt has uncommitted changes; commit or discard them first"
+    local dirt
+    dirt=$(git -C "$wt" status --porcelain)
+    if [ -n "$dirt" ]; then
+      # A pre-merge report sits untracked in the worktree, so it is the usual
+      # dirt here — and it wants dropping, not committing.
+      if ! printf '%s\n' "$dirt" | grep -qvE "^.. $WB/reviews/"; then
+        die "$wt still holds a review report; triage it, then 'workbench review-drop' it before merging:
+$(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
+      fi
+      die "$wt has uncommitted changes; commit or discard them first"
+    fi
   fi
 
   git -C "$root" merge-base --is-ancestor "$branch" "$main" \
@@ -628,10 +652,14 @@ cmd_merge() {
   # The item file rode along in the squash, so read its status from the copy
   # now on the default branch.
   local item
-  item=$(find "$root/$WB/items" -name "$id-*.md" -not -path '*/archive/*' -print -quit 2>/dev/null)
-  case "$(item_status "${item:-/dev/null}")" in
-    awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
-    *) echo "next: workbench archive $id" >&2 ;;
+  item=$(find "$root/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null)
+  case "$item" in
+    */archive/*) echo "$id is already archived" >&2 ;;
+    *)
+      case "$(item_status "${item:-/dev/null}")" in
+        awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
+        *) echo "next: workbench archive $id" >&2 ;;
+      esac ;;
   esac
   if [ -n "$wt" ]; then
     case "$PWD" in
@@ -670,12 +698,54 @@ has_evidence() {
     | grep -q '[^[:space:]]'
 }
 
+# An unreproduced bug that was started has a branch holding nothing but its
+# item file — there was nothing to fix — and a worktree the file was moved
+# into. Archiving it means bringing the file back to the main checkout and
+# dropping both. Only when the item is all the branch holds: anything else is
+# work, and work merges or is discarded by hand, never here. The item file is
+# itself always the dirty one — 'start' moved it in uncommitted, untracked
+# to git, and the status edit came after — so it alone is exempt from both
+# checks. Prints the path of the copy now in the main checkout.
+retire_branch() {
+  local id="$1" branch="$2" path="$3" main root wt other item_re
+  main=$(default_branch)
+  root=$(main_root)
+  wt=$(worktree_of "$branch")
+  item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
+
+  if [ -n "$wt" ]; then
+    other=$(git -C "$wt" status --porcelain | grep -vE "$item_re" || true)
+    [ -z "$other" ] || die "$wt has changes beyond the item file:
+$other
+merge $id, or remove the worktree and branch yourself, then archive"
+  fi
+  other=$(git -C "$root" diff --name-only "$main...$branch" | grep -vE "^$item_re" || true)
+  [ -z "$other" ] || die "$branch carries work beyond the item file:
+$other
+merge $id, or remove the worktree and branch yourself, then archive"
+
+  # The worktree may already be gone by hand, leaving the item in the main
+  # checkout: then the copy is already where it needs to be.
+  local rel="${path#"$(item_root "$path")"/}"
+  mkdir -p "$root/$(dirname "$rel")"
+  [ "$path" = "$root/$rel" ] || cp "$path" "$root/$rel"
+  # --force only because of the item file just copied out; everything else
+  # was verified clean above.
+  [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
+  git -C "$root" branch -D --quiet "$branch"
+  echo "retired $branch; nothing but the item was on it" >&2
+  printf '%s\n' "$root/$rel"
+}
+
 cmd_archive() {
   local id="${1:-}" path root sha
   [ -n "$id" ] || usage
+  require_id "$id"
   require_init
 
-  path=$(find_item "$id")
+  # Over every checkout: an unreproduced item that was started lives only in
+  # its worktree, while archive is run from the main checkout.
+  path=$(find_item_anywhere "$id")
   [ -n "$path" ] || die "no item matching '$id'"
 
   case "$path" in
@@ -704,21 +774,35 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
       fi ;;
   esac
 
+  # A branch still standing means the item has not merged, and archiving now
+  # would record 'commit: none' for good while the squash commit arrives
+  # later. The one branch that legitimately never merges is an unreproduced
+  # bug's; that one is retired here.
+  local main branch
+  main=$(default_branch)
+  branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+  case "$branch" in
+    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
+  esac
+  if [ -n "$branch" ]; then
+    case "$status" in
+      unreproduced*) path=$(retire_branch "$id" "$branch" "$path") ;;
+      *) die "$id still has branch $branch; merge it first — archive records the squash commit" ;;
+    esac
+  fi
+
   # The commit that carries this item's trailer, searched on the default branch
   # only. The squash commit is the one that legitimately carries the trailer
   # and it lives there; HEAD would miss it from a worktree branched before the
   # merge, and --all (or HEAD from the item's own worktree) could hit a branch
   # commit that the squash then discards — a dangling SHA in the archive.
-  local main
-  main=$(default_branch)
   sha=$(git log "$main" --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
   # Never fall back to HEAD: HEAD is whatever the checkout happens to sit on,
   # and recording it would write a commit into the archive that did not
-  # implement the item. An item with no trailer yet — an unreproduced bug, or
-  # one archived before its merge — says so.
+  # implement the item. An item with no trailer — an unreproduced bug — says so.
   if [ -z "$sha" ]; then
     sha=none
-    echo "warning: no commit on $main carries 'Item: $id'; merge first, or archive with commit: none" >&2
+    echo "no commit on $main carries 'Item: $id'; recorded as commit: none" >&2
   fi
 
   root=$(item_root "$path")
@@ -736,6 +820,7 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
   fi
 
   echo "archived $id at $sha"
+  echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
 # --- find -------------------------------------------------------------------
@@ -750,12 +835,13 @@ item_title() {
 all_items() {
   local roots=()
   mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB\/items}" -name '[bfr]-*.md' 2>/dev/null
+  find "${roots[@]/%//$WB/items}" -name '[bfr]-*.md' 2>/dev/null
 }
 
 # One index line per item: date, status, title. The date is the commit that
 # carries the trailer for an archived item, or the last commit that touched an
-# open one; an item never committed has none.
+# open one; an item never committed takes the file's own date, so the newest
+# item sorts first rather than last.
 index_line() {
   local f="$1" id date status
   id=$(basename "$f" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p')
@@ -770,7 +856,8 @@ index_line() {
       date=$(git log -1 --format=%cs "$sha" -- 2>/dev/null || true) ;;
   esac
   [ -n "${date:-}" ] || date=$(git -C "$(item_root "$f")" log -1 --format=%cs -- "$f" 2>/dev/null || true)
-  printf '%s\t%s\t%s\t%s\n' "${date:--}" "$id" "$status" "$(item_title "$f")"
+  [ -n "${date:-}" ] || date=$(date -r "$f" +%F)
+  printf '%s\t%s\t%s\t%s\n' "$date" "$id" "${2:-$status}" "$(item_title "$f")"
 }
 
 # Retrieval keyed to files, not topics: git already indexes which items touched
@@ -794,15 +881,17 @@ cmd_find() {
   done
   [ "${#paths[@]}" -gt 0 ] || [ "${#words[@]}" -gt 0 ] || usage
 
-  local files=() f ids=() id
+  local files=() f ids=() id items
+  declare -A sibling=()
   if [ "${#paths[@]}" -gt 0 ]; then
     local main root
     main=$(default_branch)
     root=$(main_root)
+    items=$(all_items)
     mapfile -t ids < <(git -C "$root" log "$main" --format='%(trailers:key=Item,valueonly)' -- "${paths[@]}" \
       | grep -E '^[bfr]-[0-9]+$' | awk '!seen[$0]++')
     for id in ${ids+"${ids[@]}"}; do
-      f=$(all_items | grep -m1 "/$id-[^/]*\.md$" || true)
+      f=$(printf '%s\n' "$items" | grep -m1 "/$id-[^/]*\.md$" || true)
       [ -n "$f" ] && files+=("$f")
     done
     # An unproved item has no commit on the path, so the trailer cannot find
@@ -813,7 +902,19 @@ cmd_find() {
       for p in "${paths[@]}"; do
         if grep -qF -- "$p" "$f"; then files+=("$f"); break; fi
       done
-    done < <(all_items | grep '/archive/')
+    done < <(printf '%s\n' "$items" | grep '/archive/')
+    # An open item on a sibling branch has no commit on the default branch
+    # either, and it is the hit that matters most — work about to collide
+    # with this. Matched by text like the unproved ones, and shown as its own
+    # class, since a text match can be wrong where a trailer cannot.
+    local r
+    while IFS= read -r r; do
+      while IFS= read -r f; do
+        for p in "${paths[@]}"; do
+          if grep -qF -- "$p" "$f"; then files+=("$f"); sibling[$f]=1; break; fi
+        done
+      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfr]-*.md' -print 2>/dev/null)
+    done < <(all_roots | grep -vxF -f <(wb_roots))
   else
     mapfile -t files < <(all_items)
   fi
@@ -841,7 +942,11 @@ cmd_find() {
       *) printf '1\t' ;;
     esac
     printf '%s\t' "$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')"
-    index_line "$f"
+    if [ -n "${sibling[$f]:-}" ]; then
+      index_line "$f" "on-branch"
+    else
+      index_line "$f"
+    fi
   done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
 
   local total shown
@@ -864,7 +969,7 @@ cmd_find() {
 find_milestone() {
   local roots=()
   mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB\/milestones}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+  find "${roots[@]/%//$WB/milestones}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
 }
 
 write_milestone() {
@@ -947,7 +1052,7 @@ $open"
 find_watch() {
   local roots=()
   mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB\/watches}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+  find "${roots[@]/%//$WB/watches}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
 }
 
 # The contract a watch shift runs under. It is the whole authority for what
@@ -1038,7 +1143,7 @@ cmd_status() {
   require_init
   # Every checkout: an item on a sibling worktree's branch is in flight too.
   mapfile -t roots < <(all_roots)
-  dirs=("${roots[@]/%//$WB\/items}")
+  dirs=("${roots[@]/%//$WB/items}")
 
   local names=() name
   mapfile -t names < <(find "${dirs[@]}" -path '*/archive/*' -prune -o \
@@ -1054,7 +1159,7 @@ cmd_status() {
   # Progress is derived from the items that name the milestone, so there is
   # nothing to keep in step by hand and nothing an unattached item owes it.
   local ms=() m
-  mapfile -t ms < <(find "${roots[@]/%//$WB\/milestones}" -maxdepth 1 -name '*.md' 2>/dev/null \
+  mapfile -t ms < <(find "${roots[@]/%//$WB/milestones}" -maxdepth 1 -name '*.md' 2>/dev/null \
     | sed 's|.*/||; s|\.md$||' | sort -u)
   if [ "${#ms[@]}" -gt 0 ]; then
     echo
@@ -1116,7 +1221,7 @@ cmd_status() {
   local reports=() name all=()
   mapfile -t all < <(all_roots)
   mapfile -t reports < <({
-    find "${all[@]/%//$WB\/reviews}" -maxdepth 1 -name '*.md' 2>/dev/null | sed 's|.*/||'
+    find "${all[@]/%//$WB/reviews}" -maxdepth 1 -name '*.md' 2>/dev/null | sed 's|.*/||'
     find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
   } | sort -u)
   if [ "${#reports[@]}" -gt 0 ]; then
@@ -1150,7 +1255,7 @@ all_roots() {
 find_report() {
   local roots=()
   mapfile -t roots < <(all_roots)
-  find "${roots[@]/%//$WB\/reviews}" -maxdepth 1 -name "$(basename "$1")" -print -quit 2>/dev/null
+  find "${roots[@]/%//$WB/reviews}" -maxdepth 1 -name "$(basename "$1")" -print -quit 2>/dev/null
 }
 
 # A report holds findings when something other than the heading, the date line
@@ -1188,10 +1293,13 @@ cmd_review_drop() {
     die "$name is unchecked and has findings; run review-check, or pass --force to discard them"
   fi
 
+  # Scratch sits beside the report, in whichever checkout the sweep was rooted.
+  local root d
+  root=$(repo_root)
+  [ -z "$path" ] || root=${path%/"$WB"/reviews/*}
   [ -n "$path" ] && rm -f "$path" && echo "deleted $path"
   [ -f "$base" ] && rm -f "$base" && echo "deleted baseline for $name"
-  local d
-  d=$(scratch_dir "$name")
+  d=$(scratch_dir "$root" "$name")
   [ -d "$d" ] && rm -rf "$d" && echo "deleted scratch for $name"
   return 0
 }
@@ -1204,14 +1312,12 @@ baseline_dir() {
 # whatever investigation needs. The directory ignores itself, so it never
 # shows in the snapshot and needs no entry in the project's .gitignore.
 scratch_dir() {
-  local root
-  root=$(repo_root)
-  printf '%s\n' "$root/$WB/scratch/$(basename "$1" .md)"
+  printf '%s\n' "$1/$WB/scratch/$(basename "$2" .md)"
 }
 
 ensure_scratch() {
   local d
-  d=$(scratch_dir "$1")
+  d=$(scratch_dir "$1" "$2")
   mkdir -p "$d"
   [ -f "$d/../.gitignore" ] || printf '*\n' > "$d/../.gitignore"
   printf '%s\n' "$d"
@@ -1222,6 +1328,9 @@ ensure_scratch() {
 # sweep's changes from the ones already in the tree. The snapshot therefore
 # carries content too — a hash over the tracked diff, and one per untracked
 # file — which is what makes the check hold on the dirty tree it exists for.
+# And HEAD itself: on a clean tree, an edit that is then committed leaves
+# status, diff and the untracked set exactly as they were, and only the
+# commit says anything happened. Same for a reset or an amend.
 #
 # Runs from the repository root, always. 'git status --porcelain' is
 # root-relative wherever it runs, but 'git ls-files --others' is scoped to the
@@ -1232,6 +1341,7 @@ tree_snapshot() (
   cd "${1:-$(repo_root)}" || die "cannot reach the repository root"
   git status --porcelain | sed 's/^/S /'
   if git rev-parse --verify -q HEAD >/dev/null; then
+    printf 'T %s\n' "$(git rev-parse HEAD)"
     printf 'D %s\n' "$(git diff HEAD | sha256sum | cut -d' ' -f1)"
   fi
   git ls-files --others --exclude-standard -z \
@@ -1272,13 +1382,14 @@ cmd_review_check() {
   # A watch runs in the main checkout for hours, and by day the user works
   # there too, so a tracked change during a watch is listed for the user to
   # own rather than failing — by night the list is empty and the proof holds.
-  local bad=0 tracked=0
+  local bad=0 tracked=0 head_moved=0
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
       "S ?? $rel") ;;
       "H $rel "*) ;;
       "D "*) tracked=1 ;;
+      "T "*) if [ "$reason" = watch ]; then head_moved=1; else echo "the sweep moved HEAD to ${line#T }" >&2; bad=1; fi ;;
       "H "*) echo "the sweep wrote: ${line#H }" >&2; bad=1 ;;
       "S ?? "*) [ "$reason" = watch ] || { echo "unexpected change: ${line#S }" >&2; bad=1; } ;;  # its H line reports it
       "S "*) if [ "$reason" = watch ]; then tracked=1; else echo "unexpected change: ${line#S }" >&2; bad=1; fi ;;
@@ -1289,12 +1400,15 @@ cmd_review_check() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
-      "D "*) ;;   # already reported by its replacement on the added side
+      "D "*|"T "*) ;;   # already reported by its replacement on the added side
       "S "*) if [ "$reason" = watch ]; then tracked=1; else echo "the sweep reverted or staged: ${line#S }" >&2; bad=1; fi ;;
       *) echo "the sweep reverted or staged: $line" >&2; bad=1 ;;
     esac
   done <<< "$removed"
 
+  if [ "$head_moved" -eq 1 ]; then
+    echo "HEAD moved during the watch — verify this is yours: $(sed -n 's/^T //p' "$base" | cut -c1-12) -> $(git -C "$root" rev-parse --short=12 HEAD)" >&2
+  fi
   if [ "$tracked" -eq 1 ]; then
     if [ "$reason" = watch ]; then
       echo "tracked files changed during the watch — verify these are yours:" >&2
@@ -1374,8 +1488,10 @@ citations() {
 # covered a directory says so once. A path is bounded by whitespace, quotes,
 # brackets or ,;:* on either side, with an optional "./" before and a
 # sentence-ending period after; every other character in it is literal, which
-# is what keeps "(group)" and "+page" from reading as regex. A bad pattern is
-# fatal — grep's exit 2 read as "not found" would credit every file.
+# is what keeps "(group)" and "+page" from reading as regex. Only the ERE
+# metacharacters are escaped — a backslash before a space or an "@" is a
+# "stray \" warning from grep 3.8 on. A bad pattern is fatal — grep's exit 2
+# read as "not found" would credit every file.
 uncovered() {
   local report="$1" base="$2" p cand found rc
   while IFS= read -r p; do
@@ -1384,7 +1500,7 @@ uncovered() {
     cand=$p
     while :; do
       rc=0
-      grep -qE "(^|[[:space:]\`\"'(*,;:])(\./)?$(printf '%s' "$cand" | sed 's/[^A-Za-z0-9_/-]/\\&/g')(\.?([[:space:]\`\"'),;:*]|$))" "$report" || rc=$?
+      grep -qE "(^|[[:space:]\`\"'(*,;:])(\./)?$(printf '%s' "$cand" | sed 's/[][\\.*+?(){}|^$]/\\&/g')(\.?([[:space:]\`\"'),;:*]|$))" "$report" || rc=$?
       [ "$rc" -le 1 ] || die "coverage check: bad pattern for '$cand'"
       if [ "$rc" -eq 0 ]; then
         found=1; break
@@ -1426,6 +1542,16 @@ cmd_review() {
   esac
 
   root=$(repo_root)
+  # A pre-merge is rooted at the item's worktree wherever it is invoked from:
+  # the code under review is there, so the baseline, the manifest and every
+  # citation resolve against it. The fork's tools do not follow on their own —
+  # the skeleton says so, below.
+  local item='' branch=''
+  if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfr]-[0-9]+$ ]]; then
+    item=$(find_item_anywhere "$scope")
+    [ -z "$item" ] || root=$(item_root "$item")
+    branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*" | head -1)
+  fi
   stamp=$(date +%Y%m%d)
   slug=$(slugify "${scope:-$reason}")
   path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}"
@@ -1455,8 +1581,8 @@ cmd_review() {
   mkdir -p "$(baseline_dir)"
   # The scratch directory exists before the snapshot, so its self-ignore is
   # in place and nothing written there can ever show as a delta.
-  ensure_scratch "$path" >/dev/null
-  { tree_snapshot; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
+  ensure_scratch "$root" "$path" >/dev/null
+  { tree_snapshot "$root"; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
 
   local stem
   stem=$(basename "$path" .md)
@@ -1473,16 +1599,23 @@ EOF
   # not necessarily where the sweep runs. Name it, or say it was not found;
   # never fail here, since the skill's preprocessed block aborts silently.
   if [ "$reason" = pre-merge ]; then
-    local item=
-    [ -z "$scope" ] || item=$(find_item_anywhere "$scope")
     if [ -n "$item" ]; then
       printf '\n<!-- item: %s -->\n' "$item" >> "$path"
+      if [ "$root" != "$(repo_root)" ]; then
+        cat >> "$path" <<EOF
+
+<!-- This sweep is rooted at $root — the item's worktree, not the checkout
+     you were invoked in. Every path here is relative to it: prefix Bash
+     commands with 'cd $root &&', and give Read, Grep and Glob absolute paths
+     under it. review-check resolves every citation against it. -->
+EOF
+      fi
     else
       printf '\n<!-- no item file matching "%s" in any checkout; ask for the id -->\n' "$scope" >> "$path"
     fi
   fi
 
-  write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope"
+  write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope" "$root" "$branch" "$reason"
 
   echo "$path"
 }
@@ -1496,10 +1629,13 @@ EOF
 # Nested CLAUDE.md files are listed alongside because they load on Read only,
 # never on cat, head or grep: a sweep that shells out for everything walks
 # straight past the instructions for the area it is reviewing.
+#
+# A pre-merge's scope is its branch: the files it changed against the default
+# branch are the manifest, so a changed file the report never names is caught
+# the same way an unswept one is.
 MANIFEST_CAP=300
 write_manifest() {
-  local report="$1" base="$2" scope="$3" root
-  root=$(repo_root)
+  local report="$1" base="$2" scope="$3" root="$4" branch="${5:-}" reason="${6:-}"
 
   local words=() w paths=()
   read -ra words <<< "$scope"
@@ -1508,10 +1644,20 @@ write_manifest() {
   done
 
   local files=() guides=()
-  if [ "${#words[@]}" -gt 0 ] && [ "${#paths[@]}" -eq "${#words[@]}" ]; then
+  if [ -n "$branch" ]; then
+    mapfile -t files < <(git -C "$root" diff --name-only "$(default_branch)...$branch" | sort -u)
+    mapfile -t guides < <(printf '%s\n' ${files+"${files[@]}"} | grep -E '(^|/)(CLAUDE|AGENTS)\.md$' | grep -v '^[^/]*$')
+  elif [ "${#words[@]}" -gt 0 ] && [ "${#paths[@]}" -eq "${#words[@]}" ]; then
     mapfile -t files < <(git -C "$root" ls-files --cached --others --exclude-standard -- "${paths[@]}" | sort -u)
     mapfile -t guides < <(printf '%s\n' ${files+"${files[@]}"} | grep -E '(^|/)(CLAUDE|AGENTS)\.md$' | grep -v '^[^/]*$')
   else
+    # A scope that is not entirely paths is a topic: no manifest, and the
+    # coverage check has nothing to hold the report to. Say so rather than
+    # letting it read as covered. A pre-merge's scope is its id, and its
+    # manifest came from the branch above or there was no branch to take.
+    if [ "${#words[@]}" -gt 0 ] && [ "$reason" != pre-merge ]; then
+      echo "workbench: scope '$scope' is not all paths; no manifest, coverage unchecked" >&2
+    fi
     mapfile -t guides < <(git -C "$root" ls-files -- '*/CLAUDE.md' '*/AGENTS.md' | grep '/')
   fi
 
@@ -1556,5 +1702,6 @@ case "${1:-}" in
   status) shift; cmd_status "$@" ;;
   review-check) shift; cmd_review_check "$@" ;;
   review-drop) shift; cmd_review_drop "$@" ;;
+  help|-h|--help) usage 0 ;;
   *) usage ;;
 esac

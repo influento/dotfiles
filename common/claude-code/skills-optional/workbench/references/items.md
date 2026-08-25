@@ -139,6 +139,7 @@ The gates, so it narrows reading instead of adding to it:
 | input | the paths about to change. Words are opt-in |
 | output | an index, one line per item, never bodies. Newest ten; the rest as a count |
 | order | `unreproduced` and `unverified` first regardless of age — an unproved claim on the file about to change is the hit that bites. They have no commit on the path, so they are matched by naming the path in their text |
+| `on-branch` | an open item on a sibling worktree's branch that names the path — work about to collide with this. A text match, not a trailer, so it can be wrong; shown as its own class for that reason |
 | reading | only an item whose line matches the problem; at most the two most recent |
 | recording | nothing. A prior item that changes the decision is cited in the root cause |
 

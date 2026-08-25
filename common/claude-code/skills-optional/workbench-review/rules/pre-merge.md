@@ -1,8 +1,12 @@
 # Pre-merge
 
-The scope is the item about to merge. Its file lives on its branch, so the
-skeleton names the path — in the item's worktree, not necessarily the checkout
-you run in; read it there. Check:
+The scope is the item about to merge. The sweep is rooted at the item's
+worktree, not necessarily the checkout you were invoked in: the skeleton names
+the item file there and, when the two differ, the root. Every path is relative
+to that root — prefix Bash commands with `cd <root> &&`, give Read, Grep and
+Glob absolute paths under it. `review-check` resolves every citation against
+it, and the files the branch changed are the manifest: name each one you
+covered. Check:
 
 - the criterion is genuinely satisfied by the evidence recorded
 - the root cause is stated, for a bug
@@ -17,3 +21,6 @@ you run in; read it there. Check:
 
 The two most often missed: a discovered fact left out of the item whose work
 found it, and a test that reaches past what the criterion describes.
+
+The report sits untracked in the worktree and blocks `workbench merge` until
+triage has `review-drop`ped it.

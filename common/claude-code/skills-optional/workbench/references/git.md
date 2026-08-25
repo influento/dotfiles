@@ -51,6 +51,11 @@ check evidence: the merge gate — was everything verifiable verified? — is th
 pre-merge review's question ([verification.md](verification.md)), and an item
 merges open as `awaiting`. It does not push.
 
+A pre-merge report lives untracked in the worktree, so it counts as
+uncommitted there: `workbench review-drop` it after triage, before merging.
+
+Needs git 2.38 or later: the conflict check is `merge-tree --write-tree`.
+
 Every item merges this way. Housekeeping goes straight to the main branch
 (SKILL.md, rule 1).
 
@@ -87,6 +92,16 @@ Not `HEAD`, which is whatever the checkout happens to sit on, and not `--all`,
 which can hit a branch commit that the squash then discards. `workbench
 archive` resolves the branch as `git config workbench.main`, then
 `origin/HEAD`, then `main` or `master`.
+
+The command refuses while the item's branch still exists — archived first, the
+item would record `commit: none` for good while the squash commit arrives
+later. The one branch that never merges is an `unreproduced` bug's: nothing
+to fix, so nothing on it but the item file. That one `archive` retires
+itself: the item comes back to the main checkout, the worktree and branch go.
+Only when the item is all the branch holds; any other change is work, and
+work merges or is discarded by hand.
+
+The move is left uncommitted; the command prints the commit to make.
 
 ## IDs
 

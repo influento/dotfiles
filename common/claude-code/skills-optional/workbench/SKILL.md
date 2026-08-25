@@ -124,13 +124,9 @@ prove that before reading the findings:
 workbench review-check <report-path>
 ```
 
-A failure says which of three things went wrong: the sweep edited what it was
-reviewing, a `path:line` it cites does not exist, or a file in scope is never
-named. Say so and do not triage until the user has seen it. A pass means "wrote
-only its report, its evidence points at real places, its scope is accounted
-for" — never "did the work honestly": a sweep can name a file it never opened.
-How the check works and where it stops are in
-[rationale.md](references/rationale.md).
+A failure names what went wrong; say so and do not triage until the user has
+seen it. A pass proves the contract held, never that the work was done — what
+it checks and where it stops are in [rationale.md](references/rationale.md).
 
 ## Watching a running app
 
