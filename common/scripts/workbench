@@ -861,14 +861,16 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
   dest="$root/$WB/items/archive/$(basename "$path")"
   mkdir -p "$(dirname "$dest")"
 
-  printf '\ncommit: %s\n' "$sha" >> "$path"
   # An item created but never committed is untracked, so git mv cannot move it.
-  # Every other failure is real and must not be swallowed.
+  # Every other failure is real and must not be swallowed. The commit line
+  # goes on after the move: a move that fails leaves the file as it was, so a
+  # re-run appends it once.
   if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
     git -C "$root" mv "$path" "$dest"
   else
     mv "$path" "$dest"
   fi
+  printf '\ncommit: %s\n' "$sha" >> "$dest"
 
   echo "archived $id at $sha"
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
@@ -943,7 +945,7 @@ cmd_find() {
   done
 
   local files=() f ids=() id items
-  declare -A sibling=()
+  declare -A label=()
   if [ "${#paths[@]}" -gt 0 ]; then
     local main root
     main=$(default_branch)
@@ -976,10 +978,19 @@ cmd_find() {
     while IFS= read -r r; do
       while IFS= read -r f; do
         for p in "${res[@]}"; do
-          if grep -qE -- "$p" "$f"; then files+=("$f"); sibling[$f]=1; break; fi
+          if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="on-branch"; break; fi
         done
       done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfr]-*.md' -print 2>/dev/null)
     done < <(all_roots | grep -vxF -f <(wb_roots))
+    # An open item here or in the main checkout has no commit on the path
+    # either — created and not started, or started and not merged — and the
+    # trailer cannot see it. Text-matched like the others, shown as 'open'.
+    while IFS= read -r f; do
+      [ "$(item_status "$f")" = open ] || continue
+      for p in "${res[@]}"; do
+        if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="open"; break; fi
+      done
+    done < <(printf '%s\n' "$items" | grep -v '/archive/')
   else
     mapfile -t files < <(all_items)
   fi
@@ -1007,11 +1018,7 @@ cmd_find() {
       *) printf '1\t' ;;
     esac
     printf '%s\t' "$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')"
-    if [ -n "${sibling[$f]:-}" ]; then
-      index_line "$f" "on-branch"
-    else
-      index_line "$f"
-    fi
+    index_line "$f" ${label[$f]+"${label[$f]}"}
   done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
 
   local total shown
@@ -1248,7 +1255,13 @@ cmd_status() {
   echo
   echo "merged, still awaiting a trigger"
   local hits=()
-  mapfile -t hits < <(grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u)
+  # 'awaiting' is chosen at pre-merge, so an item still on its branch carries
+  # it too; that one is in flight and listed above, not merged.
+  local h
+  mapfile -t hits < <(grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u \
+    | while IFS= read -r h; do
+        [ -n "$(git branch --list "$(basename "$h" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p')-*")" ] || printf '%s\n' "$h"
+      done)
   if [ "${#hits[@]}" -eq 0 ]; then
     echo "  (none)"
   else
@@ -1320,12 +1333,13 @@ find_report() {
   find "${roots[@]/%//$WB/reviews}" -maxdepth 1 -name "$(basename "$1")" -print -quit 2>/dev/null
 }
 
-# A report holds findings when something other than the heading, the date line
-# and HTML comments is present — structural, like has_evidence, because the
-# baseline predates the skeleton and so holds no hash to compare against.
+# A report holds findings when something other than the heading, the date
+# line, a watch's liveness line and HTML comments is present — structural,
+# like has_evidence, because the baseline predates the skeleton and so holds
+# no hash to compare against.
 has_findings() {
   sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$1" \
-    | grep -v -e '^# ' -e '^date: ' \
+    | grep -v -e '^# ' -e '^date: ' -e '^checked: ' \
     | grep -q '[^[:space:]]'
 }
 
@@ -1396,8 +1410,9 @@ ensure_scratch() {
 # 'git status --porcelain' reports status, not content: a file already showing
 # ' M' still shows ' M' after further edits, so porcelain alone cannot tell a
 # sweep's changes from the ones already in the tree. The snapshot therefore
-# carries content too — a hash over the tracked diff, and one per untracked
-# file — which is what makes the check hold on the dirty tree it exists for.
+# carries content too — a hash of each modified tracked file's diff, and one
+# per untracked file — which is what makes the check hold on the dirty tree
+# it exists for, and name the file when it does not.
 # And HEAD itself: on a clean tree, an edit that is then committed leaves
 # status, diff and the untracked set exactly as they were, and only the
 # commit says anything happened. Same for a reset or an amend.
@@ -1421,7 +1436,10 @@ tree_snapshot() (
   git status --porcelain --untracked-files=all | sed 's/^/S /'
   if git rev-parse --verify -q HEAD >/dev/null; then
     printf 'T %s\n' "$(git rev-parse HEAD)"
-    printf 'D %s\n' "$(git diff HEAD --no-ext-diff --no-color | sha256sum | cut -d' ' -f1)"
+    git diff HEAD --name-only -z \
+      | while IFS= read -r -d '' f; do
+          printf 'W %s %s\n' "$f" "$(git diff HEAD --no-ext-diff --no-color -- "$f" | sha256sum | cut -d' ' -f1)"
+        done
   fi
   git ls-files --others --exclude-standard -z \
     | while IFS= read -r -d '' f; do
@@ -1473,6 +1491,14 @@ cmd_review_check() {
   root=${found%/"$WB"/reviews/*}
   rel="$WB/reviews/$name"
 
+  # Every untracked file is hashed, twice per sweep; build output left
+  # unignored makes that a crawl. Said here, where a person is reading — the
+  # sweep's own open cannot warn, since its stdout is the report path alone.
+  local untracked
+  untracked=$(git -C "$root" ls-files --others --exclude-standard | wc -l)
+  [ "$untracked" -le "$SNAPSHOT_WARN" ] \
+    || echo "hashing $untracked untracked files; ignore build output to make this quick" >&2
+
   local now reason
   reason=$(sed -n 's/^R //p' "$base")
   now=$(tree_snapshot "$root" "$reason")
@@ -1487,13 +1513,15 @@ cmd_review_check() {
   # listed for the user to own rather than failing; by night the list is
   # empty and the proof holds. Every other reason fails on the first delta.
   local bad=0 changed=0 head_moved=0 watch=0 what
+  declare -A wadded=()
   [ "$reason" != watch ] || watch=1
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
       "S ?? $rel") ;;
       "H $rel "*) ;;
-      "D "*) changed=1 ;;
+      "W "*) what=${line#W }; wadded[${what% *}]=1
+             if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep changed: ${what% *}" >&2; bad=1; fi ;;
       "T "*) if [ "$watch" -eq 1 ]; then head_moved=1; else echo "the sweep moved HEAD to ${line#T }" >&2; bad=1; fi ;;
       "H "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep wrote: ${line#H }" >&2; bad=1; fi ;;
       "S ?? "*) [ "$watch" -eq 1 ] || { echo "unexpected change: ${line#S }" >&2; bad=1; } ;;  # its H line reports it
@@ -1505,7 +1533,10 @@ cmd_review_check() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
-      "D "*|"T "*) ;;   # already reported by its replacement on the added side
+      "T "*) ;;   # already reported by its replacement on the added side
+      "W "*) what=${line#W }; what=${what% *}
+             # a moved hash is reported by its replacement; a vanished one is a revert
+             [ -n "${wadded[$what]:-}" ] || { if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep reverted: $what" >&2; bad=1; fi; } ;;
       "S ?? "*) [ "$watch" -eq 1 ] || bad=1 ;;   # its H line reports it
       "S "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep reverted or staged: ${line#S }" >&2; bad=1; fi ;;
       "H "*) if [ "$watch" -eq 1 ]; then changed=1; else what=${line#H }; echo "the sweep removed: ${what% *}" >&2; bad=1; fi ;;
@@ -1516,14 +1547,9 @@ cmd_review_check() {
   if [ "$head_moved" -eq 1 ]; then
     echo "HEAD moved during the watch — verify this is yours: $(sed -n 's/^T //p' "$base" | cut -c1-12) -> $(git -C "$root" rev-parse --short=12 HEAD)" >&2
   fi
-  if [ "$changed" -eq 1 ]; then
-    if [ "$watch" -eq 1 ]; then
-      echo "the tree changed during the watch — verify these are yours:" >&2
-      git -C "$root" status --porcelain | grep -vF " $rel" | sed 's/^/  /' >&2 || true
-    elif [ "$bad" -eq 0 ]; then
-      # content changed on a file that was already modified, so no status line moved
-      echo "the sweep changed tracked files" >&2; bad=1
-    fi
+  if [ "$changed" -eq 1 ] && [ "$watch" -eq 1 ]; then
+    echo "the tree changed during the watch — verify these are yours:" >&2
+    git -C "$root" status --porcelain | grep -vF " $rel" | sed 's/^/  /' >&2 || true
   fi
 
   if [ "$bad" -ne 0 ]; then
@@ -1563,13 +1589,16 @@ or test run left behind counts too: ignore it or delete it, then re-run."
         # when any of them reaches the line: this check is "cites nowhere",
         # not "cites precisely". One that names no file is a host — 'db.internal:5432'
         # — when nothing in the tree carries its extension, and a bogus
-        # citation otherwise. Decided from the tree, never from the report.
+        # citation otherwise. A dotless one — 'exit:1', 'localhost:5432' —
+        # has no extension to ask about, so it is a word unless a file of that
+        # name exists: 'Makefile:99' is checked when there is a Makefile and
+        # passes when there is none. Decided from the tree, never from the report.
         local esc cands=() ok c
         esc=$(printf '%s' "$file" | sed 's/[][\\.*+?(){}|^$]/\\&/g')
         mapfile -t cands < <(printf '%s\n' "$index" | grep -E "(^|/)$esc\$" || true)
         if [ "${#cands[@]}" -eq 0 ]; then
           esc=$(printf '%s' "${file##*.}" | sed 's/[][\\.*+?(){}|^$]/\\&/g')
-          if printf '%s\n' "$index" | grep -qE "\\.$esc\$"; then
+          if [[ "$file" == *.* ]] && printf '%s\n' "$index" | grep -qE "\\.$esc\$"; then
             echo "cites $tok, and no $file is in the tree" >&2; bad=1
           fi
         else
@@ -1609,8 +1638,9 @@ coverage, then re-run review-check; or review-drop --force to discard it."
 }
 
 # The path:line tokens in a report — the evidence form the sweep is told to
-# use. Needs a slash or a dot so a clock time does not count; a URL's port
-# arrives as '//host/path:port' once the scheme is cut at its colon. Real
+# use. A clock time is cut by its leading digits; a URL's port arrives as
+# '//host/path:port' once the scheme is cut at its colon. A token with neither
+# slash nor dot — 'Makefile:99', 'exit:1' — is kept and resolved below. Real
 # command output cites places outside the tree too — a host:port, a stack
 # frame under /usr or ../vendor — and those are skipped by their shape. Only
 # ever by shape: the sweep writes the whole report, so any region exempted (a
@@ -1621,7 +1651,7 @@ coverage, then re-run review-check; or review-drop --force to discard it."
 # markdown link, yield the path and not the bracket.
 citations() {
   grep -oE '([A-Za-z0-9_.+/-]|\([A-Za-z0-9_.+-]+\)|\[[A-Za-z0-9_.+-]+\])+:[0-9]+' "$1" \
-    | grep -E '[/.]' | grep -v -e '://' -e '^//' -e '^/' -e '^\.\./' -e '^[0-9.]*:' | sort -u
+    | grep -v -e '://' -e '^//' -e '^/' -e '^\.\./' -e '^[0-9.]*:' | sort -u
 }
 
 # Manifest files the report never mentions. A file counts as mentioned by its
@@ -1657,6 +1687,9 @@ uncovered() {
   done < <(sed -n 's/^M //p' "$base")
 }
 
+# Nothing below writes to stderr short of die: the skill's open.sh hands the
+# fork stdout on success and stderr on failure, so a warning belongs in the
+# skeleton, where the sweep and then triage both read it.
 cmd_review() {
   local reason="${1:-}" scope="${2:-}" root path stamp slug
   [ -n "$reason" ] || usage
@@ -1692,11 +1725,14 @@ cmd_review() {
   # the code under review is there, so the baseline, the manifest and every
   # citation resolve against it. The fork's tools do not follow on their own —
   # the skeleton says so, below.
-  local item='' branch=''
+  local item='' branch='' branches=''
   if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfr]-[0-9]+$ ]]; then
     item=$(find_item_anywhere "$scope")
     [ -z "$item" ] || root=$(item_root "$item")
-    branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*" | head -1)
+    # Several branches carrying the id is merge's to refuse; the sweep must
+    # still return a report, so the first one's manifest and a note.
+    branches=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*")
+    branch=${branches%%$'\n'*}
   fi
   stamp=$(date +%Y%m%d)
   slug=$(slugify "${scope:-$reason}")
@@ -1754,14 +1790,22 @@ EOF
 
 <!-- This sweep is rooted at $root — the item's worktree, not the checkout
      you were invoked in. Every path here is relative to it: prefix Bash
-     commands with 'cd $root &&', and give Read, Grep and Glob absolute paths
-     under it. review-check resolves every citation against it. -->
+     commands with 'cd $root &&', and give Read, Write, Grep and Glob
+     absolute paths under it. review-check resolves every citation against
+     it. -->
 EOF
+      fi
+      if [ "$branches" != "$branch" ]; then
+        printf '\n<!-- several branches carry %s; the manifest is from %s. merge refuses\n     until one remains:\n%s\n-->\n' "$scope" "$branch" "$(printf '%s\n' "$branches" | sed 's/^/     /')" >> "$path"
       fi
     else
       printf '\n<!-- no item file matching "%s" in any checkout; ask for the id -->\n' "$scope" >> "$path"
     fi
   fi
+
+  # The liveness line the watch rules rewrite in place, seeded so the first
+  # green tick has a line to rewrite and appends nothing.
+  [ "$reason" != watch ] || printf '\nchecked: 0 ticks, last —\n' >> "$path"
 
   write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope" "$root" "$branch" "$reason"
 
@@ -1785,6 +1829,7 @@ EOF
 # branch are the manifest, so a changed file the report never names is caught
 # the same way an unswept one is.
 MANIFEST_CAP=300
+SNAPSHOT_WARN=500
 guides_for() {
   local root="$1" f d g
   shift
@@ -1821,7 +1866,7 @@ write_manifest() {
     # letting it read as covered. A pre-merge's scope is its id and a watch's
     # its contract slug, never paths, so neither is warned about.
     if [ "${#words[@]}" -gt 0 ] && [ "$reason" != pre-merge ] && [ "$reason" != watch ]; then
-      echo "workbench: scope '$scope' is not all paths; no manifest, coverage unchecked" >&2
+      printf "\n<!-- scope '%s' is not all paths: a topic. No manifest, so coverage is\n     unchecked — say what was covered. -->\n" "$scope" >> "$report"
     fi
     mapfile -t guides < <(git -C "$root" ls-files -- '*/CLAUDE.md' '*/AGENTS.md' | grep '/')
   fi
@@ -1838,7 +1883,7 @@ write_manifest() {
 
   [ "${#files[@]}" -gt 0 ] || return 0
   if [ "${#files[@]}" -gt "$MANIFEST_CAP" ]; then
-    echo "workbench: scope holds ${#files[@]} files, above $MANIFEST_CAP; no manifest, coverage unchecked" >&2
+    printf '\n<!-- scope holds %s files, above %s: no manifest, so coverage is\n     unchecked — say what was covered. -->\n' "${#files[@]}" "$MANIFEST_CAP" >> "$report"
     return 0
   fi
 

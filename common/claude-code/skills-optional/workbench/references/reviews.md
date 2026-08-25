@@ -93,6 +93,10 @@ baseline the report was opened with, which a hand `rm` leaves behind. It
 refuses an unchecked report with findings unless passed `--force` — triage
 leaves no mark on a report, so the baseline is what says nobody has read it.
 
+The baseline hashes every untracked, unignored file, at open and again at
+check. Build output or a vendored tree left unignored turns that into a
+crawl; `review-check` says so above 500 files. Ignore it.
+
 The report and its baseline are created before the sweep runs, so a sweep that
 errors or is aborted leaves both behind. A same-day collision gets a numbered
 suffix (`20260826-sweep.2.md`) rather than an error, so orphans do not stop
