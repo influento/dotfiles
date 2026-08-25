@@ -2,13 +2,17 @@
 
 ## Branches
 
-One branch per item, named after it. `workbench start` creates the branch and its worktree together, under
-`.worktrees/<branch>`. There is no branch-only path.
+One branch per item, named after it. `workbench start` creates the branch off
+the default branch and its worktree together, under `.worktrees/<branch>` in
+the main checkout — wherever it is run from. There is no branch-only path.
 
 ## The item file lives on the branch
 
-It is created wherever you happen to be, edited during the work as the root
-cause and evidence are filled in, and merges with its change.
+It is created wherever you happen to be and stays uncommitted until
+`workbench start` moves it onto its branch; committed early on another item's
+branch, it would ride that item's squash under the wrong trailer. From there
+it is edited during the work as the root cause and evidence are filled in,
+and merges with its change.
 
 A consequence: the main branch cannot show what is in flight, only what is
 archived. `git branch` lists in-flight work, because branch names carry the ID

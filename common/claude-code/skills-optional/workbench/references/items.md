@@ -21,7 +21,8 @@ collision repair are in [git.md](git.md).
 
 ## Statuses
 
-`status:` is the first field of every item.
+`status:` is the first field of every item. An optional `milestone: <slug>`
+line may follow it — see [milestones.md](milestones.md).
 
 | Status | Merged? | Archived? | Means |
 |---|---|---|---|
@@ -122,3 +123,24 @@ after implementation. Never the reverse — a criterion written afterwards is
 just a test chosen because the code already passes it.
 
 Archived items are locked.
+
+## What came before: `workbench find`
+
+Retrieval is keyed to files, not topics. `git log` already knows which items
+touched a path, through the trailer, so `workbench find <path>...` is exact
+and maintains nothing. Words (`--grep`) narrow that set, or search every item
+when no path is given.
+
+The gates, so it narrows reading instead of adding to it:
+
+| Gate | Rule |
+|---|---|
+| when | once, while writing **Root cause** or **What it touches** — the fields that already force a pause. Never during implementation |
+| input | the paths about to change. Words are opt-in |
+| output | an index, one line per item, never bodies. Newest ten; the rest as a count |
+| order | `unreproduced` and `unverified` first regardless of age — an unproved claim on the file about to change is the hit that bites. They have no commit on the path, so they are matched by naming the path in their text |
+| reading | only an item whose line matches the problem; at most the two most recent |
+| recording | nothing. A prior item that changes the decision is cited in the root cause |
+
+If the index routinely sends the agent into five items per bug, the cap is
+what to tighten, not the habit to drop.

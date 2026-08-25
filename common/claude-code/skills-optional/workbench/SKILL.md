@@ -58,6 +58,21 @@ idea (workbench/BACKLOG.md line)
    existed — no "formerly", no "removed in favour of", no inline changelog.
    Git already stores it.
 
+## Setting up
+
+`workbench init` and `workbench adopt` end with a checklist headed
+`setup — decide these with the user`. That output is the list; take each line
+to the user, in conversation, before any item is created — none is yours to
+settle alone. Three rules the list does not carry:
+
+- permissions: propose the allow-list entries — for a watch, derived from the
+  contract's own commands — and write them only with the user's OK
+- glossary: seed it with the user's words, never yours
+- milestones and watch: ask, create only what the user names, and "not yet"
+  is a complete answer
+
+`workbench watch` prints its own next steps for the same reason.
+
 ## Starting work
 
 ```bash
@@ -69,6 +84,29 @@ workbench merge b-038 "<subject>"      # after the pre-merge review: squash, tra
 
 IDs are allocated from a counter shared by every worktree, so any worktree may
 create an item. Never hand-pick an ID.
+
+## What came before
+
+```bash
+workbench find src/world/pos.go        # items that touched these files, newest first
+workbench find src/world --grep resize # narrowed by word; --grep alone searches all items
+```
+
+Run it **once**, at the point the item already makes you stop — writing the
+root cause of a bug, or what a feature touches — with the paths about to
+change. It prints an index, one line per item, capped at ten, unproved items
+(`unreproduced`, `unverified`) first. Read an item only when its line matches
+the problem in hand, at most the two most recent that do. Nothing is recorded
+about having looked; a prior item that changes the decision is cited in the
+root cause, where it belongs. Detail in [items.md](references/items.md).
+
+## Milestones
+
+A milestone is a big-picture goal — `workbench milestone "<title>"` — with a
+done-criterion at the level of the project. An item may name one with a
+`milestone:` line (`workbench new … --milestone <slug>`); most will not, and
+no item owes one. Suggest one when the fit is obvious; never ask for one.
+[milestones.md](references/milestones.md).
 
 `workbench status` answers what is in flight: open items, items merged and still
 `awaiting` a trigger, and any duplicate IDs. Run it rather than reconstructing
@@ -94,14 +132,30 @@ for" — never "did the work honestly": a sweep can name a file it never opened.
 How the check works and where it stops are in
 [rationale.md](references/rationale.md).
 
+## Watching a running app
+
+A watch is a sweep with a clock. `workbench watch "<title>"` writes the
+contract — what healthy is, the only recovery actions allowed, when to
+escalate — and the shift runs as
+
+```
+/loop 15m /workbench-review watch <slug>
+```
+
+Each tick is a fresh fork that appends to one report; the shift ends when
+you `review-check` and `review-drop` it, and the timeline's captures become
+the bug items' evidence at triage. The watcher observes freely and recovers
+only as the contract says. It never fixes. [reviews.md](references/reviews.md).
+
 ## By class
 
 | Class | Reference |
 |---|---|
-| feature, bug, rename — fields, states, IDs, archiving | [items.md](references/items.md) |
+| feature, bug, rename — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
+| milestones — big-picture goals, optional attachment | [milestones.md](references/milestones.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
-| review sweeps, reports, triage | [reviews.md](references/reviews.md) |
+| review sweeps, reports, triage, watch shifts | [reviews.md](references/reviews.md) |
 | what to document and where | [docs.md](references/docs.md) |
 | branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |
 | bringing an existing project in | [adopt.md](references/adopt.md) |

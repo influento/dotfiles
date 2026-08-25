@@ -30,7 +30,14 @@ Report what exists with counts and a few real examples, so the user is deciding
 about something concrete rather than a category. The sweep asks nothing and
 converts nothing; every decision below is taken at triage.
 
-Two further things belong in the report:
+Three further things belong in the report:
+
+- **How the app runs.** Whether there is something to watch unattended: a
+  service, how it starts, a health endpoint, where it logs, what a restart is.
+  Reported as facts, not as a contract — the contract is written with the user
+  at setup ([reviews.md](reviews.md), "Watch shifts"). Big-picture goals the
+  README or a roadmap states are reported the same way, as milestone
+  candidates.
 
 - **Vocabulary.** Words this project uses in a narrower sense than they are
   used generally, and especially two words already in use for one thing — that
@@ -74,6 +81,13 @@ clear. An existing project already has its vocabulary, so filling
 proposed and approved, never written unilaterally. Once a choice between two
 words is settled, the losing word becomes a `rename` item like any other. Rules
 in [glossary.md](glossary.md).
+
+## Setup
+
+`workbench adopt` ran `init`, which printed the setup checklist; go through
+it with the user after triage as SKILL.md "Setting up" describes, with the
+survey's findings on how the app runs and what goals it states feeding the
+milestone and watch lines.
 
 ## Finish
 

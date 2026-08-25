@@ -1,6 +1,8 @@
 # Pre-merge
 
-The scope is the item about to merge. Check:
+The scope is the item about to merge. Its file lives on its branch, so the
+skeleton names the path — in the item's worktree, not necessarily the checkout
+you run in; read it there. Check:
 
 - the criterion is genuinely satisfied by the evidence recorded
 - the root cause is stated, for a bug

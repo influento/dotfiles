@@ -1,7 +1,7 @@
 ---
 name: workbench-review
 description: Run a workbench review sweep in a forked context and return the report path.
-argument-hint: "<sweep|pre-merge|docs|memory|adopt> [\"scope: letters digits spaces hyphens\"]"
+argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch> [\"scope: letters digits spaces hyphens\"]"
 arguments: reason scope
 disable-model-invocation: true
 context: fork
@@ -24,17 +24,20 @@ You are running one sweep, now. Do the steps below and return.
 
 ## Contract
 
-**Write exactly one file: the report at the path below. Modify nothing else.**
-Not the code, not items, not `BACKLOG.md`, not `GLOSSARY.md`. If a finding is
-trivially fixable, record the fix as a suggestion in the report — never apply
-it. Findings become items only after the user triages them, and that happens
-outside this fork.
+**Change nothing tracked. Write the report at the path below, and anything
+you need under its scratch directory — nothing else.** Not the code, not
+items, not `BACKLOG.md`, not `GLOSSARY.md`. Helper scripts, captured output,
+probes: `workbench/scratch/<report>/`, which the skeleton names; it is ignored
+by git and deleted with the report. If a finding is trivially fixable, record
+the fix as a suggestion in the report — never apply it. Findings become items
+only after the user triages them, and that happens outside this fork.
 
 ## Report
 
 The report already exists at the path below. It was created — and the tree's
 state recorded — before your first turn, so nothing you do can hide from
-`review-check`.
+`review-check`. For `watch`, the path is the shift's report, shared by every
+tick: read it before writing, and append.
 
 ```!
 workbench review "$reason" "$scope"

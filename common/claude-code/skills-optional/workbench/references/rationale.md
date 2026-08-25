@@ -101,3 +101,45 @@ wrong but coverage that is absent cannot even be questioned. The manifest is
 written into the skeleton and recorded in the baseline, and the check runs over
 the report with its comments stripped — what the sweep wrote, not what it was
 handed. A sweep that names every file without opening one still passes.
+
+The citation check reads the whole report, pasted command output included.
+Real output cites places outside the tree — a host and port, a stack frame
+under `/usr` — and those are skipped by their shape, never by where they sit.
+Exempting a region of the report, a fenced block say, looks like the obvious
+relief the first time a watch report fails on a stack trace; it is not, because
+the sweep writes every byte of the report, so any region it can mark exempt is
+a region it can hide a bogus citation in. Provenance would be the real
+distinction, and the check has no access to it. When a new legitimate shape
+turns up, extend the skip list by shape.
+
+## Why retrieval is keyed to files and capped
+
+Knowledge that goes into items has to come back out, or the archive is
+write-only and the agent re-derives what a past item settled. Keying retrieval
+to a topic overloads the context with whatever shares a word; keying it to
+the files about to change is exact, because the trailer already indexes them
+through `git log`. The cap and the "read at most two" rule are the other half:
+the feature pays for itself only while it narrows code reading, and the
+moment it adds reading it is worse than nothing. See `find` in
+[items.md](items.md).
+
+## Why milestones are optional and there is nothing above them
+
+A hierarchy that every item must slot into turns starting work into deciding
+where it goes, and for one person that decision is where a day disappears. So
+a milestone is a big-picture goal only, an item may name one or not, and the
+level above — designs, epics, brainstorm records — does not exist. What a
+conversation decides lands in a milestone or an item; the conversation itself
+is not an artifact.
+
+## Why a watch may investigate freely but never fix
+
+Unattended, the worst a watcher that only observes and restarts can do is
+restart something three times and wake someone up. A watcher that fixes can
+do anything, and does it at the hour nobody is reading. So the line is not
+drawn at what the fork may *do* — it may poke the running app, write helper
+scripts, send it whatever it likes — but at what it may *change*: the
+running system only as the contract lists, the repository never. The
+morning's item carries the fix, through the same gates as by day, and the
+shift's whole value is that the evidence for it was captured before the
+restart destroyed it.
