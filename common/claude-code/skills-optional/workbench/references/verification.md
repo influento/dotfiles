@@ -59,8 +59,9 @@ eyes — visual, subjective, or in-world judgements.
 
 ## Evidence
 
-Record the actual output, not a summary of it. "Tests pass" is not evidence;
-the command and its output are.
+Record the actual output, not a summary of it, in a fenced block — `archive`
+refuses an Evidence section without one. "Tests pass" is not evidence; the
+command and its output are.
 
 An item may mix automatable and manual parts. Test what is testable, have the
 user verify the rest, record both.
