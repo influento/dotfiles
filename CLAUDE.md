@@ -324,7 +324,8 @@ there is personal rather than team-wide.
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh`
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/scripts/workbench tests/*.sh`
+- Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for `workbench`, in a temp repo
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
