@@ -17,6 +17,7 @@ usage:
   workbench adopt                      init, then survey an existing project
   workbench new <bug|feature|rename> "<title>"  allocate an id, write the file
   workbench start <id>                 create the branch and worktree for an item
+  workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch
   workbench archive <id>               move to archive, recording the merge commit
   workbench status                     in flight, duplicate ids, reports
   workbench review-check <report>      prove a sweep wrote only its report
@@ -28,7 +29,6 @@ usage:
 EOF
   exit 2
 }
-# TODO: workbench merge <id> — squash, trailer-only message, worktree remove, branch -d
 
 die() {
   echo "workbench: $1" >&2
@@ -443,7 +443,7 @@ cmd_start() {
 
   [ -e "$wt" ] && die "worktree already exists: $wt"
 
-  git worktree add -b "$branch" "$wt"
+  git worktree add --quiet -b "$branch" "$wt"
 
   # The item file lives on its branch. A freshly created one is still untracked
   # here, so the new worktree branched from HEAD would not contain it; carry it
@@ -456,6 +456,112 @@ cmd_start() {
   fi
 
   echo "$wt"
+}
+# The checkout holding a branch, from git's own list rather than the
+# .worktrees/<branch> convention: 'workbench start' run from a linked worktree
+# nests its .worktrees/ there, and a worktree moved by hand is still a worktree.
+worktree_of() {
+  git worktree list --porcelain \
+    | awk -v want="refs/heads/$1" '
+        /^worktree / { wt = substr($0, 10) }
+        /^branch /   { if ($2 == want) { print wt; exit } }
+      '
+}
+
+# The squash commit is the whole point of the merge: the change lands on the
+# default branch as one commit whose only body is the trailer. Everything the
+# command checks exists to keep that commit honest — one branch, one item, one
+# subject, no unrelated changes, nothing lost — and everything it cannot check
+# (whether what could be verified was) is the pre-merge review's job. So no
+# evidence gate here: an item merges open as 'awaiting'.
+#
+# Every git call is pinned to the main checkout. The command may be run from
+# the item's own worktree, which stops existing halfway through, and a bare
+# 'git' there fails on a working directory that has gone.
+cmd_merge() {
+  local id="${1:-}" subject="${2:-}" branch main root wt
+  [ -n "$id" ] && [ -n "$subject" ] || usage
+  require_init
+
+  case "$subject" in
+    *$'\n'*) die "the subject must be a single line" ;;
+    *"Item:"*) die "the subject must not carry the trailer; it is added here" ;;
+  esac
+
+  root=$(main_root)
+  main=$(default_branch)
+
+  # The branch is what merges, and it carries the ID, so resolve it directly:
+  # the item file lives on the branch and is invisible to find_item from the
+  # main checkout. The archive is still consulted — an archived item's branch
+  # is a leftover, not work to merge.
+  case "$(find_item "$id")" in
+    */items/archive/*) die "$id is already archived" ;;
+  esac
+  local prior
+  prior=$(git -C "$root" log "$main" --grep="^Item: $id\$" --format=%h -1)
+  [ -z "$prior" ] || die "$main already carries 'Item: $id' at $prior"
+  branch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+  [ -n "$branch" ] || die "no branch named $id-*; nothing to merge"
+  case "$branch" in
+    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
+  esac
+
+  # The squash needs the default branch checked out, and that checkout is the
+  # main one: a linked worktree cannot hold a branch another checkout holds.
+  local on
+  on=$(git -C "$root" symbolic-ref -q --short HEAD || true)
+  [ "$on" = "$main" ] || die "$root has '${on:-a detached HEAD}' checked out, not $main; the squash lands there"
+
+  # A dirty main checkout would bleed into the squash commit — staged or not,
+  # since the commit takes the index and the index is about to be rewritten.
+  [ -z "$(git -C "$root" status --porcelain --untracked-files=no)" ] \
+    || die "$root has uncommitted changes; the squash commit would absorb them"
+
+  wt=$(worktree_of "$branch")
+  if [ -n "$wt" ]; then
+    [ -z "$(git -C "$wt" status --porcelain)" ] \
+      || die "$wt has uncommitted changes; commit or discard them first"
+  fi
+
+  git -C "$root" merge-base --is-ancestor "$branch" "$main" \
+    && die "$branch has nothing $main does not already have"
+
+  # Refuse a conflicting branch before touching anything. A squash that stops
+  # on conflicts leaves the main index half-merged, and the repair is the
+  # user's rebase in the worktree anyway, so ask for it up front.
+  if ! git -C "$root" merge-tree --write-tree "$main" "$branch" >/dev/null 2>&1; then
+    die "$branch conflicts with $main; rebase it onto $main in its worktree, then retry"
+  fi
+
+  git -C "$root" merge --squash --quiet "$branch" >/dev/null
+  git -C "$root" commit --quiet -m "$subject" -m "Item: $id"
+
+  # git's own safety in 'branch -d' cannot apply after a squash — the branch is
+  # never an ancestor of the commit — so the check it would have made is made
+  # here instead: the commit just written is the one the trailer finds.
+  local sha
+  sha=$(git -C "$root" log "$main" --grep="^Item: $id\$" --format=%h -1)
+  [ -n "$sha" ] && [ "$sha" = "$(git -C "$root" rev-parse --short HEAD)" ] \
+    || die "the squash commit did not land on $main as expected; nothing removed"
+
+  [ -n "$wt" ] && git -C "$root" worktree remove "$wt"
+  git -C "$root" branch -D --quiet "$branch"
+
+  echo "merged $id as $sha on $main"
+  # The item file rode along in the squash, so read its status from the copy
+  # now on the default branch.
+  local item
+  item=$(find "$root/$WB/items" -name "$id-*.md" -not -path '*/archive/*' -print -quit 2>/dev/null)
+  case "$(item_status "${item:-/dev/null}")" in
+    awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
+    *) echo "next: workbench archive $id" >&2 ;;
+  esac
+  if [ -n "$wt" ]; then
+    case "$PWD" in
+      "$wt"|"$wt"/*) echo "this shell's directory is gone; cd $root" >&2 ;;
+    esac
+  fi
 }
 
 item_status() {
@@ -862,6 +968,7 @@ case "${1:-}" in
   adopt) shift; cmd_adopt "$@" ;;
   new) shift; cmd_new "$@" ;;
   start) shift; cmd_start "$@" ;;
+  merge) shift; cmd_merge "$@" ;;
   archive) shift; cmd_archive "$@" ;;
   review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
