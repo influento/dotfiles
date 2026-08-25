@@ -20,7 +20,7 @@ usage:
   workbench adopt                      init, then survey an existing project
   workbench new <bug|feature|rename> "<title>" [--milestone <slug>]
                                        allocate an id, write the file
-  workbench find [<path>...] [--grep <word>...] [--all]
+  workbench find [<path>...] [--grep <word>]... [--all]
                                        items that touched these paths, newest first
   workbench milestone "<title>"        open a big-picture goal under workbench/milestones/
   workbench milestone archive <slug>   close it, once its items are archived and evidence is in
@@ -492,7 +492,10 @@ cmd_new() {
     feature) write_feature "$path" "$id" "$title" ;;
     rename) write_rename "$path" "$id" "$title" ;;
   esac
-  [ -z "$milestone" ] || sed -i "s/^status: open\$/&\nmilestone: $milestone/" "$path"
+  if [ -n "$milestone" ]; then
+    m="$milestone" awk '{ print } /^status: open$/ { print "milestone: " ENVIRON["m"] }' "$path" > "$path.tmp" \
+      && mv "$path.tmp" "$path"
+  fi
 
   echo "$id"
   echo "$path" >&2
@@ -559,6 +562,9 @@ cmd_start() {
       echo "copied $rel onto the branch; it is also committed on $(git -C "$root" rev-parse --abbrev-ref HEAD) — remove it there before that branch merges" >&2
     else
       mv "$path" "$wt/$rel"
+      # 'new' may have created the class directory just for this file.
+      # Relative, so the walk up stops at the checkout rather than the root.
+      (cd "$root" && rmdir -p --ignore-fail-on-non-empty "$(dirname "$rel")" 2>/dev/null) || true
       echo "moved $rel onto the branch" >&2
     fi
   fi
@@ -631,7 +637,7 @@ cmd_merge() {
   wt=$(worktree_of "$branch")
   if [ -n "$wt" ]; then
     local dirt
-    dirt=$(git -C "$wt" status --porcelain)
+    dirt=$(git -C "$wt" status --porcelain --untracked-files=all)
     if [ -n "$dirt" ]; then
       # A pre-merge report sits untracked in the worktree, so it is the usual
       # dirt here — and it wants dropping, not committing.
@@ -759,7 +765,7 @@ retire_branch() {
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
 
   if [ -n "$wt" ]; then
-    other=$(git -C "$wt" status --porcelain | grep -vE "$item_re" || true)
+    other=$(git -C "$wt" status --porcelain --untracked-files=all | grep -vE "$item_re" || true)
     [ -z "$other" ] || die "$wt has changes beyond the item file:
 $other
 merge $id, or remove the worktree and branch yourself, then archive"
@@ -917,7 +923,7 @@ cmd_find() {
   while [ $# -gt 0 ]; do
     arg="$1"; shift
     case "$arg" in
-      --grep) while [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; do words+=("$1"); shift; done ;;
+      --grep) { [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; } || usage; words+=("$1"); shift ;;
       --all) all=1 ;;
       --) ;;
       -*) usage ;;
@@ -1252,13 +1258,10 @@ cmd_status() {
     done
   fi
 
-  # Two machines allocating before either pushes get the same number, and
-  # because the slugs differ git merges the files silently. Detect by ID prefix
-  # over deduplicated names — the same name in two checkouts is one item.
-  #
-  # This runs over the archive as well as the open items. The archive is where
-  # spent numbers live, so an open item colliding with an archived one is the
-  # likeliest real collision, and pruning it here would hide exactly that case.
+  # Same ID under two slugs, open items and archive alike — the archive holds
+  # the spent numbers a fresh allocation collides with. Names are deduplicated
+  # first: the same file in two checkouts is one item. Cause and repair:
+  # references/git.md, "Duplicate IDs across machines".
   local dupes
   dupes=$(find "${dirs[@]}" -name '[bfr]-*-*.md' -print 2>/dev/null \
     | sed 's|.*/||' | sort -u \
@@ -1404,22 +1407,55 @@ ensure_scratch() {
 # current directory and prints paths relative to it — so an unpinned snapshot
 # would depend on where it was taken, and the two are taken in different places:
 # the baseline wherever the sweep stood, the check wherever the caller stands.
+#
+# Untracked files are listed one per line: porcelain otherwise collapses an
+# untracked directory to a single 'dir/' entry, so a report in a reviews/ that
+# holds nothing tracked would show as the directory rather than as itself.
+# The diff is git's own, uncoloured: an external diff may print mtimes.
+#
+# A memory sweep reads the agent's store, outside the tree, and the fork can
+# write there; so for that reason the store's files are hashed too, under
+# absolute paths, which no tree entry can be confused with.
 tree_snapshot() (
   cd "${1:-$(repo_root)}" || die "cannot reach the repository root"
-  git status --porcelain | sed 's/^/S /'
+  git status --porcelain --untracked-files=all | sed 's/^/S /'
   if git rev-parse --verify -q HEAD >/dev/null; then
     printf 'T %s\n' "$(git rev-parse HEAD)"
-    printf 'D %s\n' "$(git diff HEAD | sha256sum | cut -d' ' -f1)"
+    printf 'D %s\n' "$(git diff HEAD --no-ext-diff --no-color | sha256sum | cut -d' ' -f1)"
   fi
   git ls-files --others --exclude-standard -z \
     | while IFS= read -r -d '' f; do
         printf 'H %s %s\n' "$f" "$(sha256sum "$f" | cut -d' ' -f1)"
       done
+  if [ "${2:-}" = memory ]; then
+    local d
+    while IFS= read -r d; do
+      [ -d "$d" ] || continue
+      find "$d" -type f -print0 | sort -z \
+        | while IFS= read -r -d '' f; do
+            printf 'H %s %s\n' "$f" "$(sha256sum "$f" | cut -d' ' -f1)"
+          done
+    done < <(memory_dirs "$PWD")
+  fi
 )
 
-# The sweep runs in a forked context and cannot be trusted to audit itself, so
-# the comparison is done here: a baseline the CLI recorded, against the tree as
-# it stands now. The only acceptable delta is the report appearing.
+# The agent's memory stores a sweep from this checkout is told to audit: its
+# own and the main checkout's, once each. Claude Code keys the store to the
+# checkout's absolute path with every character outside [A-Za-z0-9] turned
+# into '-', so a linked worktree gets a store of its own.
+memory_dirs() {
+  local root="$1" main d
+  main=$(main_root)
+  { printf '%s\n' "$root"; [ "$main" = "$root" ] || printf '%s\n' "$main"; } \
+    | while IFS= read -r d; do
+        printf '%s/.claude/projects/%s/memory\n' "${HOME%/}" "$(printf '%s' "$d" | sed 's/[^A-Za-z0-9]/-/g')"
+      done
+}
+
+# Baseline the CLI recorded before the sweep's first turn, against the tree
+# now; the only acceptable delta is the report appearing. Why this and not a
+# hook or the tool set: references/rationale.md, "Why the sweep's contract is
+# not enforced by a hook".
 cmd_review_check() {
   local report="${1:-}" name base root rel added removed
   [ -n "$report" ] || usage
@@ -1438,8 +1474,8 @@ cmd_review_check() {
   rel="$WB/reviews/$name"
 
   local now reason
-  now=$(tree_snapshot "$root")
   reason=$(sed -n 's/^R //p' "$base")
+  now=$(tree_snapshot "$root" "$reason")
   added=$(comm -13 <(grep -v -e '^M ' -e '^R ' -e '^C ' "$base" | sort) <(printf '%s\n' "$now" | sort))
   removed=$(comm -23 <(grep -v -e '^M ' -e '^R ' -e '^C ' "$base" | sort) <(printf '%s\n' "$now" | sort))
 
@@ -1637,13 +1673,15 @@ cmd_review() {
       [[ "$scope" =~ ^[a-z0-9-]+$ ]] || die "'$scope' is not a contract slug; slugs are lowercase letters, digits and hyphens"
       [ -n "$(find_watch "$scope")" ] || die "no contract $WB/watches/$scope.md; write it with 'workbench watch'"
       local open
-      open=$(find "$(baseline_dir)" -mindepth 1 -maxdepth 1 \( -name "*-watch-$scope.md" -o -name "*-watch-$scope-[0-9]*.md" \) 2>/dev/null \
-        | sort | tail -1 || true)
-      if [ -n "$open" ] && [ -n "$(find_report "$(basename "$open")")" ]; then
+      # Same-day shifts are '<stamp>-watch-<slug>.md', then '.2.md'; the
+      # newest is the highest number, which plain sort puts first.
+      open=$(find "$(baseline_dir)" -mindepth 1 -maxdepth 1 \( -name "*-watch-$scope.md" -o -name "*-watch-$scope.[0-9]*.md" \) -printf '%f\n' 2>/dev/null \
+        | sort -t. -k1,1 -k2,2n | tail -1 || true)
+      if [ -n "$open" ] && [ -n "$(find_report "$open")" ]; then
         # The tick may append findings the last review-check never saw, so
         # its verdict is withdrawn; review-drop asks for a fresh one.
-        sed -i '/^C checked$/d' "$open"
-        find_report "$(basename "$open")"
+        sed -i '/^C checked$/d' "$(baseline_dir)/$open"
+        find_report "$open"
         return 0
       fi ;;
     *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch" ;;
@@ -1664,33 +1702,29 @@ cmd_review() {
   slug=$(slugify "${scope:-$reason}")
   path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}"
 
-  # The sweep skill opens the report from a preprocessed block, and a failing
-  # command there aborts the whole skill silently. So a same-day collision gets
-  # a numbered suffix rather than an error; 'workbench status' lists every
-  # report still sitting here, which is how an orphaned skeleton stays visible.
+  # A same-day collision is an orphan from an aborted sweep, not an error:
+  # number this one and let 'workbench status' show the other. The suffix is
+  # '.N' — a hyphen would be ambiguous, since a watch slug may end in '-2'.
   # The baseline dir is shared by every worktree while reports are per
   # checkout, so the collision test covers both or a second worktree's sweep
   # would overwrite the first one's baseline.
   local n=1 candidate="$path.md"
   while [ -e "$candidate" ] || [ -e "$(baseline_dir)/$(basename "$candidate")" ]; do
     n=$((n + 1))
-    candidate="$path-$n.md"
+    candidate="$path.$n.md"
   done
   path=$candidate
 
-  # Record what the tree looked like before the sweep touched anything, so that
-  # 'review-check' can prove afterwards that the sweep wrote only its report.
-  # A clean-tree check would not do: mid-item the tree is normally dirty and the
-  # sweep's edits would be indistinguishable from the user's own. The baseline
-  # lives in the git directory rather than the tree, or it would appear in its
-  # own diff. Taken before the report is written, so the one expected delta is
-  # the report itself. While it exists, a sweep is in flight — or was aborted;
-  # 'review-check' removes it on a clean pass, 'review-drop' otherwise.
+  # The baseline 'review-check' compares against. In the git directory, not
+  # the tree, or it would appear in its own diff; taken before the report is
+  # written, so the report is the one expected delta. While it exists a sweep
+  # is in flight or was aborted: 'review-check' removes it on a clean pass,
+  # 'review-drop' otherwise.
   mkdir -p "$(baseline_dir)"
   # The scratch directory exists before the snapshot, so its self-ignore is
   # in place and nothing written there can ever show as a delta.
   ensure_scratch "$root" "$path" >/dev/null
-  { tree_snapshot "$root"; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
+  { tree_snapshot "$root" "$reason"; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
 
   local stem
   stem=$(basename "$path" .md)
@@ -1709,8 +1743,9 @@ date: $(date +%Y-%m-%d)
 EOF
 
   # A pre-merge's item file lives on its branch — in that item's worktree,
-  # not necessarily where the sweep runs. Name it, or say it was not found;
-  # never fail here, since the skill's preprocessed block aborts silently.
+  # not necessarily where the sweep runs. Name it, or say it was not found:
+  # a missing item is the sweep's to report back, so it gets a skeleton with
+  # the note rather than a refusal.
   if [ "$reason" = pre-merge ]; then
     if [ -n "$item" ]; then
       printf '\n<!-- item: %s -->\n' "$item" >> "$path"

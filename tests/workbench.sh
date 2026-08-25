@@ -5,6 +5,7 @@
 set -euo pipefail
 
 WB=$(readlink -f "$(dirname "$0")/../common/scripts/workbench")
+OPEN=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/open.sh")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -111,8 +112,101 @@ run "find matches a path before a sentence period" 0 "$id2" "$WB" find cfg/main.
 check "find 'lib/util' skips 'lib/util.go'" not_listed "$id2" lib/util
 check "find 'cfg/main' skips 'cfg/main.toml'" not_listed "$id2" cfg/main
 run "find strips a leading ./" 0 "$id2" "$WB" find ./lib/util.go
+run "find --grep takes one word, a path may follow" 0 "b-001" "$WB" find --grep crash src.txt
+run "find --grep repeats" 0 "b-001" "$WB" find --grep crash --grep save
+check "find --grep with a wrong word narrows to nothing" not_listed b-001 --grep crash --grep nosuchword
+run "find --grep without a word is usage" 2 "usage" "$WB" find --grep
+
+"$WB" milestone "Big goal" >/dev/null 2>&1
+id3=$("$WB" new feature "under goal" --milestone big-goal 2>/dev/null)
+check "new --milestone writes the line after status" grep -qx 'milestone: big-goal' "workbench/items/features/$id3-under-goal.md"
+rm "workbench/items/features/$id3-under-goal.md"
 
 run "status" 0 "" "$WB" status
+
+# The skill's preprocessed block is fail-closed, so the wrapper must turn a
+# refusal into output with a zero exit.
+run "open.sh folds a refusal into stdout" 0 "^workbench: reason must be" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" bogus ""
+run "open.sh returns the path on success" 0 "/workbench/reviews/.*-sweep\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep ""
+"$WB" review-drop "$(command ls workbench/reviews/*-sweep.md)" >/dev/null 2>&1
+
+# --- review-check catches what the sweep did --------------------------------
+# Each case opens a fresh report on a clean main, does what a sweep must not,
+# and expects the named refusal; the tree is put back and the report dropped.
+
+sweep() { "$WB" review sweep 2>/dev/null; }
+report=$(sweep)
+echo edited >> README
+run "review-check catches a tracked edit" 1 "unexpected change:  M README" "$WB" review-check "$report"
+git checkout -q README
+run "review-check passes once the edit is reverted" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+report=$(sweep)
+echo stray > stray.txt
+run "review-check catches a new untracked file" 1 "the sweep wrote: stray.txt" "$WB" review-check "$report"
+rm stray.txt; "$WB" review-drop "$report" >/dev/null 2>&1
+
+echo stray > stray.txt
+report=$(sweep)
+rm stray.txt
+run "review-check catches a removed untracked file" 1 "the sweep removed: stray.txt" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+report=$(sweep)
+git commit -q --allow-empty -m moved
+run "review-check catches HEAD moving" 1 "the sweep moved HEAD" "$WB" review-check "$report"
+git reset -q HEAD~1; "$WB" review-drop "$report" >/dev/null 2>&1
+
+report=$(sweep)
+printf '\nsee src.txt:999 and nowhere/at/all.go:3\n' >> "$report"
+run "review-check catches a citation past the end" 1 "cites src.txt:999, and no src.txt has 999 lines" "$WB" review-check "$report"
+run "review-check catches a citation to a missing file" 1 "cites nowhere/at/all.go:3, and nowhere/at/all.go is not in the tree" "$WB" review-check "$report"
+"$WB" review-drop --force "$report" >/dev/null 2>&1
+
+# reviews/ holding nothing tracked: the report must still be its own line
+git rm -q workbench/reviews/.gitkeep && git commit -qm 'drop placeholder'
+report=$(sweep)
+run "review-check passes with no placeholder in reviews/" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+git revert --no-edit HEAD >/dev/null
+
+# a memory sweep: the store outside the tree is in the baseline too
+mem="$HOME/.claude/projects/$(pwd | sed 's/[^A-Za-z0-9]/-/g')/memory"
+mkdir -p "$mem" && echo fact > "$mem/fact.md"
+report=$("$WB" review memory 2>/dev/null)
+echo changed >> "$mem/fact.md"
+run "review-check catches a memory edit" 1 "the sweep wrote: $mem/fact.md" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+report=$("$WB" review memory 2>/dev/null)
+echo new > "$mem/new.md"
+run "review-check catches a new memory file" 1 "the sweep wrote: $mem/new.md" "$WB" review-check "$report"
+rm "$mem/new.md"; "$WB" review-drop "$report" >/dev/null 2>&1
+report=$(sweep)
+echo new > "$mem/new.md"
+run "a plain sweep ignores the memory store" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+# --- watch shifts -------------------------------------------------------------
+
+"$WB" watch "db" >/dev/null 2>&1
+"$WB" watch "db 2" >/dev/null 2>&1
+w1=$("$WB" review watch db 2>/dev/null)
+w2=$("$WB" review watch db-2 2>/dev/null)
+check "watch db-2 gets its own report" [ "$w2" != "$w1" ]
+check "watch db resumes db, not db-2" [ "$("$WB" review watch db 2>/dev/null)" = "$w1" ]
+check "watch db-2 resumes db-2" [ "$("$WB" review watch db-2 2>/dev/null)" = "$w2" ]
+echo edited >> README
+run "review-check tolerates changes during a watch" 0 "verify these are yours" "$WB" review-check "$w1"
+git checkout -q README
+run "a checked watch shift stays open" 0 "" test -f "$w1"
+rm "$w1"                                   # the report gone by hand: baseline orphaned
+w1b=$("$WB" review watch db 2>/dev/null)
+check "an orphaned watch baseline yields a .2 report" [ "$(basename "$w1b")" = "$(basename "$w1" .md).2.md" ]
+check "the .2 shift is the one resumed" [ "$("$WB" review watch db 2>/dev/null)" = "$w1b" ]
+run "review watch refuses a slug without a contract" 1 "no contract" "$WB" review watch nope
+run "review watch refuses a non-slug" 1 "not a contract slug" "$WB" review watch 'Db 2'
+for r in "$w1" "$w1b" "$w2"; do "$WB" review-drop --force "$r" >/dev/null 2>&1 || true; done
 
 # --- failure paths ----------------------------------------------------------
 
@@ -169,6 +263,11 @@ new_repo early
 [ ! -d .worktrees/b-001-early/workbench/reviews ] || fail "setup: reviews/ unexpectedly present"
 report=$("$WB" review pre-merge b-001 2>/dev/null) || true
 check "review pre-merge creates reviews/ when the branch lacks it" [ -f "$report" ]
+"$WB" review-drop "$report" >/dev/null 2>&1
+# The worktree's whole workbench/ is untracked here; the item must still be
+# seen as the one file it is, not as the directory.
+set_status .worktrees/b-001-early/workbench/items/bugs/b-001-early.md unreproduced
+run "archive retires a branch whose workbench/ is untracked" 0 "retired b-001-early" "$WB" archive b-001
 
 echo
 echo "$checks checks, $fails failed"
