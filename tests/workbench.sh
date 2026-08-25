@@ -129,6 +129,10 @@ run "status" 0 "" "$WB" status
 run "open.sh folds a refusal into stdout" 0 "^workbench: reason must be" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" bogus ""
 run "open.sh returns the path on success" 0 "/workbench/reviews/.*-sweep\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep ""
 "$WB" review-drop "$(command ls workbench/reviews/*-sweep.md)" >/dev/null 2>&1
+report=$(env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep "resize")
+check "open.sh with a topic scope returns the path alone" [ -f "$report" ]
+check "the topic warning is in the skeleton" grep -q "scope 'resize' is not all paths" "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
 
 # --- review-check catches what the sweep did --------------------------------
 # Each case opens a fresh report on a clean main, does what a sweep must not,
@@ -163,6 +167,31 @@ printf '\nsee src.txt:999 and nowhere/at/all.go:3\n' >> "$report"
 run "review-check catches a citation past the end" 1 "cites src.txt:999, and no src.txt has 999 lines" "$WB" review-check "$report"
 run "review-check catches a citation to a missing file" 1 "cites nowhere/at/all.go:3, and nowhere/at/all.go is not in the tree" "$WB" review-check "$report"
 "$WB" review-drop --force "$report" >/dev/null 2>&1
+
+# a file already modified before the sweep, modified again by it
+echo before >> README
+report=$(sweep)
+echo during >> README
+run "review-check names a re-edited tracked file" 1 "the sweep changed: README" "$WB" review-check "$report"
+git checkout -q README
+run "review-check names a reverted tracked file" 1 "the sweep reverted: README" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+# dotless citations resolve against the tree
+printf 'all:\n\ttrue\n' > Makefile && git add Makefile && git commit -qm makefile
+report=$(sweep)
+printf '\nsee Makefile:2, exit:1 and localhost:5432\n' >> "$report"
+run "review-check accepts a dotless citation in range" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+report=$(sweep)
+printf '\nsee Makefile:99\n' >> "$report"
+run "review-check catches a dotless citation past the end" 1 "cites Makefile:99, and no Makefile has 99 lines" "$WB" review-check "$report"
+"$WB" review-drop --force "$report" >/dev/null 2>&1
+git rm -q Makefile && git commit -qm 'no makefile'
+report=$(sweep)
+printf '\nsee Makefile:99\n' >> "$report"
+run "a dotless citation with no such file is a word" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
 
 # reviews/ holding nothing tracked: the report must still be its own line
 git rm -q workbench/reviews/.gitkeep && git commit -qm 'drop placeholder'
@@ -206,7 +235,53 @@ check "an orphaned watch baseline yields a .2 report" [ "$(basename "$w1b")" = "
 check "the .2 shift is the one resumed" [ "$("$WB" review watch db 2>/dev/null)" = "$w1b" ]
 run "review watch refuses a slug without a contract" 1 "no contract" "$WB" review watch nope
 run "review watch refuses a non-slug" 1 "not a contract slug" "$WB" review watch 'Db 2'
+check "watch skeleton seeds the liveness line" grep -qx 'checked: 0 ticks, last —' "$w2"
 for r in "$w1" "$w1b" "$w2"; do "$WB" review-drop --force "$r" >/dev/null 2>&1 || true; done
+
+# --- status, find, milestones, adopt ------------------------------------------
+
+idl=$("$WB" new feature "later" 2>/dev/null)          # unstarted, in main
+printf '\ntouches src.txt when it lands\n' >> "workbench/items/features/$idl-later.md"
+run "find lists an open unstarted item by text, as open" 0 "$idl .*open" "$WB" find src.txt
+"$WB" start "$idl" >/dev/null 2>&1
+set_status ".worktrees/$idl-later/workbench/items/features/$idl-later.md" "awaiting — next deploy"
+run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p' | grep -q '(none)'"
+( cd ".worktrees/$idl-later" && git add -A && git commit -qm later )
+"$WB" merge "$idl" "later" >/dev/null 2>&1
+run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"
+
+# start from inside another item's worktree: the file is copied, the branch named
+idi=$("$WB" new bug "inner" 2>/dev/null) && "$WB" start "$idi" >/dev/null 2>&1
+idn=$(cd ".worktrees/$idi-inner" && "$WB" new bug "nested" 2>/dev/null && git add -A && git commit -qm 'nested on inner')
+run "start from another worktree copies an item committed there" 0 "copied .* also committed on $idi-inner" bash -c "cd .worktrees/$idi-inner && '$WB' start $idn"
+check "the nested worktree sits under the main checkout" [ -d ".worktrees/$idn-nested" ]
+check "the copy is on the nested branch" [ -f ".worktrees/$idn-nested/workbench/items/bugs/$idn-nested.md" ]
+
+# status report labels
+r1=$(sweep); r2=$(sweep); rm "$r2"
+r3=$(sweep); "$WB" review-check "$r3" >/dev/null 2>&1
+run "status labels an unchecked report" 0 "$(basename "$r1") *unchecked" "$WB" status
+run "status labels a stale marker" 0 "$(basename "$r2") *stale marker" "$WB" status
+run "status labels a checked report" 0 "$(basename "$r3") *awaiting triage" "$WB" status
+for r in "$r1" "$r2" "$r3"; do "$WB" review-drop "$r" >/dev/null 2>&1 || true; done
+
+# milestone archive
+id5=$("$WB" new feature "under goal too" --milestone big-goal 2>/dev/null)
+run "milestone archive refuses with open items" 1 "still has open items" "$WB" milestone archive big-goal
+rm -f "workbench/items/features/$id5-under-goal-too.md"
+run "milestone archive refuses without evidence" 1 "no evidence recorded" "$WB" milestone archive big-goal
+fill_evidence workbench/milestones/big-goal.md "make release" "ok"
+run "milestone archive" 0 "archived milestone big-goal" "$WB" milestone archive big-goal
+check "milestone lands in its archive" [ -f workbench/milestones/archive/big-goal.md ]
+
+# adopt on a symlinked CLAUDE.md edits the target, not the link
+new_repo adopt
+mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude
+run "adopt" 0 "/workbench-review adopt" "$WB" adopt
+check "adopt keeps CLAUDE.md a symlink" [ -L CLAUDE.md ]
+check "adopt writes the block through the link" grep -q 'workbench:start' docs/CLAUDE.md
+run "adopt is idempotent" 0 "refreshed the workbench block" "$WB" adopt
+check "the block is not duplicated" [ "$(grep -c 'workbench:start' docs/CLAUDE.md)" -eq 1 ]
 
 # --- failure paths ----------------------------------------------------------
 
