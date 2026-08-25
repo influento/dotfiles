@@ -457,6 +457,7 @@ cmd_start() {
 
   echo "$wt"
 }
+
 # The checkout holding a branch, from git's own list rather than the
 # .worktrees/<branch> convention: 'workbench start' run from a linked worktree
 # nests its .worktrees/ there, and a worktree moved by hand is still a worktree.
@@ -878,8 +879,8 @@ cmd_review_check() {
 
   local now
   now=$(tree_snapshot)
-  added=$(comm -13 <(sort "$base") <(printf '%s\n' "$now" | sort))
-  removed=$(comm -23 <(sort "$base") <(printf '%s\n' "$now" | sort))
+  added=$(comm -13 <(grep -v '^M ' "$base" | sort) <(printf '%s\n' "$now" | sort))
+  removed=$(comm -23 <(grep -v '^M ' "$base" | sort) <(printf '%s\n' "$now" | sort))
 
   # The report appearing is the whole permitted delta: its porcelain line, and
   # its content hash. Everything else names something the sweep touched.
@@ -908,8 +909,75 @@ cmd_review_check() {
 before triaging; the report may be reporting on code it edited."
   fi
 
+  # Nothing here proves the sweep read anything. What it proves is that the
+  # evidence points at the tree as it stands — the one failure a sweep that
+  # read nothing cannot avoid is citing a place that is not there.
+  # The skeleton's own comments name every manifest file, so match against the
+  # report with its comments stripped — what the sweep wrote, not what it got.
+  local prose tok file line n
+  prose=$(mktemp)
+  sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" > "$prose"
+
+  while IFS= read -r tok; do
+    [ -n "$tok" ] || continue
+    file=${tok%:*}; line=${tok##*:}
+    file=${file#./}
+    if [ ! -f "$root/$file" ]; then
+      echo "cites $tok, and $file is not in the tree" >&2; bad=1
+    else
+      n=$(wc -l < "$root/$file")
+      [ "$line" -le "$n" ] || { echo "cites $tok, and $file has $n lines" >&2; bad=1; }
+    fi
+  done < <(citations "$prose")
+
+  local missing=()
+  mapfile -t missing < <(uncovered "$prose" "$base")
+  rm -f "$prose"
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "in scope but never named in the report — unswept, or swept and unstated:" >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    bad=1
+  fi
+
+  if [ "$bad" -ne 0 ]; then
+    die "the report does not hold up as written. Fix the citations or state the
+coverage, then re-run review-check; or review-drop --force to discard it."
+  fi
+
   rm -f "$base"
-  echo "clean: $rel is the only change"
+  echo "clean: $rel is the only change, its citations resolve, its scope is named"
+}
+
+# The path:line tokens in a report — the evidence form the sweep is told to
+# use. Needs a slash or a dot so a clock time does not count; a URL's port
+# arrives as '//host/path:port' once the scheme is cut at its colon.
+citations() {
+  grep -oE '[A-Za-z0-9_./-]+:[0-9]+' "$1" \
+    | grep -E '[/.]' | grep -v -e '://' -e '^//' | sort -u
+}
+
+# Manifest files the report never mentions. A file counts as mentioned by its
+# own path or by any parent directory written with its trailing slash — "src/"
+# standing alone, not "src/" as the head of another path — so a sweep that
+# covered a directory says so once.
+uncovered() {
+  local report="$1" base="$2" p cand found
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    found=0
+    cand=$p
+    while :; do
+      if grep -qE "(^|[^A-Za-z0-9_./-])$(printf '%s' "$cand" | sed 's/[.[\*^$]/\\&/g')([^A-Za-z0-9_.-]|$)" "$report"; then
+        found=1; break
+      fi
+      cand=${cand%/}
+      case "$cand" in
+        */*) cand="${cand%/*}/" ;;
+        *) break ;;
+      esac
+    done
+    [ "$found" -eq 1 ] || printf '%s\n' "$p"
+  done < <(sed -n 's/^M //p' "$base")
 }
 
 cmd_review() {
@@ -960,7 +1028,64 @@ date: $(date +%Y-%m-%d)
 <!-- opened by workbench review; findings with evidence, no template -->
 EOF
 
+  write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope"
+
   echo "$path"
+}
+
+# An unswept file and a clean one look the same in a report, so when the scope
+# names paths, the skeleton lists what is in them and the baseline records the
+# same list as 'M ' lines. review-check then names every file the report never
+# mentions. Coverage stays self-reported — the sweep can name a file it never
+# opened — but an area it forgot is no longer silent.
+#
+# Nested CLAUDE.md files are listed alongside because they load on Read only,
+# never on cat, head or grep: a sweep that shells out for everything walks
+# straight past the instructions for the area it is reviewing.
+MANIFEST_CAP=300
+write_manifest() {
+  local report="$1" base="$2" scope="$3" root
+  root=$(repo_root)
+
+  local words=() w paths=()
+  read -ra words <<< "$scope"
+  for w in ${words+"${words[@]}"}; do
+    [ -e "$root/$w" ] && paths+=("$w")
+  done
+
+  local files=() guides=()
+  if [ "${#words[@]}" -gt 0 ] && [ "${#paths[@]}" -eq "${#words[@]}" ]; then
+    mapfile -t files < <(git -C "$root" ls-files --cached --others --exclude-standard -- "${paths[@]}" | sort -u)
+    mapfile -t guides < <(printf '%s\n' ${files+"${files[@]}"} | grep -E '(^|/)(CLAUDE|AGENTS)\.md$' | grep -v '^[^/]*$')
+  else
+    mapfile -t guides < <(git -C "$root" ls-files -- '*/CLAUDE.md' '*/AGENTS.md' | grep '/')
+  fi
+
+  if [ "${#guides[@]}" -gt 0 ]; then
+    {
+      echo
+      echo '<!-- CLAUDE.md under the scope. Read each before sweeping its area; they do'
+      echo '     not auto-load on cat, head or grep:'
+      printf '     %s\n' "${guides[@]}"
+      echo '-->'
+    } >> "$report"
+  fi
+
+  [ "${#files[@]}" -gt 0 ] || return 0
+  if [ "${#files[@]}" -gt "$MANIFEST_CAP" ]; then
+    echo "workbench: scope holds ${#files[@]} files, above $MANIFEST_CAP; no manifest, coverage unchecked" >&2
+    return 0
+  fi
+
+  {
+    echo
+    echo "<!-- in scope: ${#files[@]} files. Name each one the sweep covered, or the"
+    echo '     directory when a whole directory was; review-check lists any the report'
+    echo '     never mentions:'
+    printf '     %s\n' "${files[@]}"
+    echo '-->'
+  } >> "$report"
+  printf 'M %s\n' "${files[@]}" >> "$base"
 }
 
 case "${1:-}" in
