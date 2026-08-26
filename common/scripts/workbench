@@ -26,6 +26,7 @@ usage:
   workbench adopt                      init, then survey an existing project
   workbench new <bug|feature|rename|research> "<title>" [--milestone <slug>]
                                        allocate an id, write the file
+  workbench idea "<sentence>"          one backlog line, on the main checkout wherever it runs
   workbench find [<path>...] [--grep <word>]... [--all]
                                        items that touched these paths, newest first
   workbench milestone "<title>"        open a big-picture goal under workbench/milestones/
@@ -914,11 +915,23 @@ cmd_start() {
       *) git worktree add --quiet "$wt" "$branch" ;;
     esac
     echo "resumed $branch in $wt" >&2
+    # The file is on the branch, so it is readable only now; the branch
+    # exists already, so this is a note rather than a refusal.
+    local f
+    f=$(find "$wt/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null || true)
+    if [ -n "$f" ] && ! section_filled "$f" "$(criterion_heading "$id")"; then
+      echo "note: $id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code" >&2
+    fi
   else
     [ -n "$path" ] || die "no item matching '$id'"
 
     branch=$(basename "$path" .md)
     root=$(item_root "$path")
+    # Rule 2, held here because this is where code begins: the criterion —
+    # a research item's Scope — is written and agreed before the branch is
+    # cut. A template comment alone does not count.
+    section_filled "$path" "$(criterion_heading "$id")" \
+      || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
     # Always under the main checkout and off the default branch. Run from
     # inside another item's worktree, the new one would otherwise nest under
     # it — and vanish with it at that item's merge — and start from that
@@ -1278,6 +1291,14 @@ section_filled() {
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' | grep -q '[^[:space:]]'
 }
 
+# The section that must be filled before an item starts: the criterion, whose
+# heading differs by verb per class and is matched on its prefix; for
+# research the Scope, agreed before any reading the way a criterion is
+# before any code.
+criterion_heading() {
+  case "$1" in x-*) echo Scope ;; *) echo "How to confirm" ;; esac
+}
+
 # One line per '### ' heading under '## Concepts': "<heading>\t<state>", the
 # state empty when the concept has no 'state:' line. The last 'state:' line
 # under a heading wins, so a rewritten concept need not delete the old one.
@@ -1333,8 +1354,12 @@ each ends as '-> <id>', '-> milestone <slug>', '-> backlog' or 'dropped — <why
         milestone_exists "$target" || die "$id: '$h' names milestone '$target', which does not exist" ;;
       "-> "?*)
         target=${s#-> }
-        [[ "$target" =~ ^[bfrx]-[0-9]+$ ]] && [ -n "$(find_item "$target")" ] \
-          || die "$id: '$h' names '$target', which is not an item"
+        # Looked up in canonical form, refused unless written in it: 'find
+        # --grep <id>' matches the text as written, so 'b-1' would never list.
+        local canon
+        canon=$(require_id "$target" 2>/dev/null) || die "$id: '$h' names '$target', which is not an item"
+        [ "$canon" = "$target" ] || die "$id: '$h' names '$target'; write it as $canon — 'find --grep' matches the text as written"
+        [ -n "$(find_item "$target")" ] || die "$id: '$h' names '$target', which is not an item"
         # 'find --grep <research id>' promises to list what it spawned, so the
         # spawned item's opening section — a feature's Why — has to say so.
         lead_section "$(find_item "$target")" | grep -qF "$id" \
@@ -1522,6 +1547,25 @@ cmd_statusline() {
   [ "$reports" -eq 0 ] || out="$out · $reports report$([ "$reports" -eq 1 ] || echo s)"
 
   printf '%s\n' "$out"
+}
+
+# --- ideas ------------------------------------------------------------------
+
+# One line onto the backlog, in the main checkout wherever this runs. The
+# backlog is housekeeping and lands on the default branch; appended in a
+# worktree it would ride that item's squash under its trailer. What it
+# leaves behind is an unstaged edit on main, which merge tolerates.
+cmd_idea() {
+  local line="${1:-}" f
+  [ $# -eq 1 ] && [ -n "$line" ] || usage
+  require_init
+  case "$line" in *$'\n'*) die "an idea is one line" ;; esac
+  f="$(main_root)/$WB/BACKLOG.md"
+  [ -f "$f" ] || die "no $f; run 'workbench init' in the main checkout"
+  # A last line missing its newline would otherwise absorb the entry.
+  [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+  printf -- '- %s\n' "$line" >> "$f"
+  echo "$f"
 }
 
 # --- find -------------------------------------------------------------------
@@ -2643,6 +2687,7 @@ case "${1:-}" in
   new) shift; cmd_new "$@" ;;
   start) shift; cmd_start "$@" ;;
   merge) shift; cmd_merge "$@" ;;
+  idea) shift; cmd_idea "$@" ;;
   find) shift; cmd_find "$@" ;;
   watch) shift; cmd_watch "$@" ;;
   milestone) shift; cmd_milestone "$@" ;;
