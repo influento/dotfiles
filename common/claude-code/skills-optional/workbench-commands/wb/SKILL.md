@@ -16,10 +16,11 @@ unchecked, duplicate ids. Name what is actionable now; omit what is not.
 
 **An id** — pick that item up:
 
-1. Find its worktree with `git worktree list`; enter it. If it has none,
-   say so — `workbench start <id>` cuts one, for an unstarted item and for
-   a started one whose worktree is gone (removed, or its branch only fetched
-   from another machine); an archived one is read, never reopened.
+1. `workbench start <id>`. Unstarted, it cuts the branch and worktree;
+   started with the worktree gone (removed, or its branch only fetched from
+   another machine), it cuts the worktree again; already started, it refuses
+   and names the worktree. Enter the worktree it names. Archived, it
+   refuses — an archived item is read, never reopened.
 2. Read the item file. For research, **Next** is the entry point; for a bug
    or feature, the criterion and whatever Root cause or Evidence already
    holds.
@@ -27,7 +28,7 @@ unchecked, duplicate ids. Name what is actionable now; omit what is not.
    wait for the user. Change nothing before that.
 
 **`rename <old> to <new>`** — open a rename item (the skill's glossary
-reference applies; a top-level `/rename` would shadow Claude Code's own):
+reference applies):
 
 1. Confirm the old term is domain vocabulary — in `workbench/GLOSSARY.md`,
    or used in a narrower sense than the general one. If it is not, this is

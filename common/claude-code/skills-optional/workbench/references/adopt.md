@@ -1,6 +1,6 @@
 # Adopting an existing project
 
-`workbench adopt` has already scaffolded `workbench/` and linked the skills.
+`workbench adopt` has already scaffolded `workbench/` and rendered the skills.
 What remains is a survey and a triage, and they run in different places: the
 survey is a review sweep (`/workbench-review adopt`), forked and writing only
 its report; the triage is a conversation in the invoking context. Neither is a

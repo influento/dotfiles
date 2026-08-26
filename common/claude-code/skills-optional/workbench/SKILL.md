@@ -82,16 +82,15 @@ settle alone. Three rules the list does not carry:
 
 ## Commands
 
-`workbench init` renders five project-scoped skills, one per thing the user
-types. `/bug`, `/feature` and `/research` open an item of that class from
-a one-line description; `/idea` appends a backlog line; `/wb` reports what
-is in flight, with an id picks that item up where it was left, and with
-`rename <old> to <new>` opens a rename item (no `/rename`: it would shadow
-Claude Code's own; `/bug` shadows only a feedback form). Each is a thin
-instruction — the sizing check, the command to run, the fields to draft —
-so the rules stay here and the agent runs `workbench` itself. The sizing
-check comes before any id is allocated: a description that is really a
-milestone or research is said so first.
+`workbench init` renders five project-scoped skills. `/bug`, `/feature` and
+`/research` open an item of that class from a one-line description; `/idea`
+appends a backlog line; `/wb` reports what is in flight, with an id picks
+that item up where it was left, and with `rename <old> to <new>` opens a
+rename item. Each is a thin instruction — the sizing check, the command to
+run, the fields to draft — so the rules stay here and the agent runs
+`workbench` itself; why they are shaped this way is in
+[rationale.md](references/rationale.md), "Why the commands are thin". The
+sizing check comes before any id is allocated.
 
 Two settings come with them, in `.claude/settings.json`: `workbench status`
 runs at session start so what is in flight is in context before the first

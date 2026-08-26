@@ -9,8 +9,8 @@ set -euo pipefail
 WB=workbench
 # The project-scoped commands, one thin skill each under skills-optional/
 # workbench-commands/. Rendered as committed copies by init, so the list
-# lives here. No /rename: it would shadow Claude Code's own (rename the
-# conversation), and a rename item is rare enough to live under /wb rename.
+# lives here. No /rename — a rename is '/wb rename'; why is in the skill's
+# rationale.md, "Why the commands are thin".
 WB_COMMANDS="bug feature research idea wb"
 MARK_START='<!-- workbench:start -->'
 MARK_END='<!-- workbench:end -->'
@@ -134,11 +134,14 @@ path_re() {
   printf '(^|[^A-Za-z0-9_./-])%s(/|\\.?([^A-Za-z0-9_./-]|$))' "$p"
 }
 
-# An id is exactly <letter>-<number>. Everything that resolves one globs on
-# "$id-*", so a bare letter would match every item of that class and act on
-# whichever one find happened to return first.
+# An id is exactly <letter>-<number>, printed back with the number as the
+# allocator writes it — three digits, more once past 999 — so 'b-1', 'b-01'
+# and 'b-0001' all name b-001. Everything that resolves one globs on "$id-*",
+# so a bare letter would match every item of that class and act on whichever
+# one find happened to return first.
 require_id() {
-  [[ "$1" =~ ^[bfrx]-[0-9]+$ ]] || die "'$1' is not an item id; ids look like b-038"
+  [[ "$1" =~ ^([bfrx])-([0-9]+)$ ]] || die "'$1' is not an item id; ids look like b-038"
+  printf '%s-%03d\n' "${BASH_REMATCH[1]}" "$((10#${BASH_REMATCH[2]}))"
 }
 
 # A worktree branched before adoption has no $WB/ in its own checkout, yet may
@@ -480,14 +483,17 @@ changed = []
 # of failing every session. A bare command from an earlier init is upgraded.
 HOOK = "command -v workbench >/dev/null && workbench status || true"
 LINE = "command -v workbench >/dev/null && workbench statusline || true"
-allow = data.setdefault("permissions", {}).setdefault("allow", [])
-if "Bash(workbench:*)" not in allow:
-    allow.append("Bash(workbench:*)")
-    changed.append("permissions.allow += Bash(workbench:*)")
 # Shapes Claude Code would reject are skipped, not crashed on: a settings
 # file is the user's, and init must still reach the steps after this one.
+perms = data.setdefault("permissions", {})
+allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
+if not isinstance(allow, list):
+    print("  permissions.allow is not a list in .claude/settings.json; left alone")
+elif "Bash(workbench:*)" not in allow:
+    allow.append("Bash(workbench:*)")
+    changed.append("permissions.allow += Bash(workbench:*)")
 hooks = data.setdefault("hooks", {})
-starts = hooks.get("SessionStart")
+starts = hooks.get("SessionStart") if isinstance(hooks, dict) else "odd"
 if starts is None:
     starts = hooks["SessionStart"] = []
 if not isinstance(starts, list):
@@ -594,7 +600,7 @@ setup_checklist() {
     echo "  permissions       .claude/settings.json lacks Bash(workbench:*) — add it by hand; sweeps and watch shifts prompt for every Bash command unless allowed there, or run in auto mode"
   fi
 
-  echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>' — a top-level /rename would shadow Claude Code's own"
+  echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>'"
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
   echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
   echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
@@ -783,10 +789,6 @@ cmd_new() {
     esac
   done
   require_init
-  if [ -n "$milestone" ]; then
-    [ -n "$(find_milestone "$milestone")" ] || die "no milestone named '$milestone'"
-  fi
-
   case "$class" in
     bug) letter=b; dir=bugs ;;
     feature) letter=f; dir=features ;;
@@ -794,6 +796,9 @@ cmd_new() {
     research) letter=x; dir=research ;;
     *) die "class must be 'bug', 'feature', 'rename' or 'research', got '$class'" ;;
   esac
+  if [ -n "$milestone" ]; then
+    [ -n "$(find_milestone "$milestone")" ] || die "no milestone named '$milestone'"
+  fi
 
   root=$(repo_root)
   slug=$(slugify "$title")
@@ -865,7 +870,7 @@ item_branch() {
 cmd_start() {
   local id="${1:-}" path='' branch root='' wt ref
   [ -n "$id" ] || usage
-  require_id "$id"
+  id=$(require_id "$id")
   require_init
 
   # Closed items first, before any ref is consulted: merge deletes the local
@@ -988,7 +993,7 @@ live_worktree_of() {
 cmd_merge() {
   local id="${1:-}" subject="${2:-}" branch main root wt
   [ -n "$id" ] && [ -n "$subject" ] || usage
-  require_id "$id"
+  id=$(require_id "$id")
   require_init
   case "$id" in
     x-*) die "$id is research and never merges; what it decided is spawned as items — 'workbench archive $id' retires the branch" ;;
@@ -1062,6 +1067,18 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
       die "$wt has uncommitted changes; commit or discard them first"
     fi
   fi
+
+  # Another item's file committed on this branch — created here, or copied
+  # in by 'start' — would land on the default branch in this squash, under
+  # this item's trailer, and that item's own merge would then collide. Any
+  # class: ids share one sequence. Not the archive, a record move that
+  # carries its own SHA and reaches a branch only by hand.
+  local foreign
+  foreign=$(git -C "$root" diff --name-only "$main...$branch" \
+    | grep -E "^$WB/items/[^/]+/[bfrx]-[0-9]+-[^/]*\.md\$" \
+    | grep -v -e "^$WB/items/archive/" -e "/$id-" || true)
+  [ -z "$foreign" ] || die "$branch carries another item's file; 'git rm' it here — after 'workbench start <id>' for that item if it is not started — then retry:
+$(printf '%s\n' "$foreign" | sed 's/^/  /')"
 
   git -C "$root" merge-base --is-ancestor "$branch" "$main" \
     && die "$branch has nothing $main does not already have"
@@ -1338,7 +1355,7 @@ cmd_archive() {
       *) usage ;;
     esac
   done
-  require_id "$id"
+  id=$(require_id "$id")
   require_init
   case "$id" in
     x-*) ;;
@@ -2434,6 +2451,7 @@ cmd_review() {
   # the skeleton says so, below.
   local item='' branch='' branches=''
   if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfrx]-[0-9]+$ ]]; then
+    scope=$(require_id "$scope")
     item=$(find_item "$scope")
     [ -z "$item" ] || root=$(item_root "$item")
     # Several branches carrying the id is merge's to refuse; the sweep must

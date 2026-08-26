@@ -33,8 +33,6 @@ nothing in the tree has its extension, and for a bogus citation otherwise.
 | `adopt` | bringing an existing project in — see [adopt.md](adopt.md) |
 | `watch` | a shift over a running app: observe, recover as contracted, investigate, report — see "Watch shifts" below |
 
-Nothing is written before a review runs except the reason.
-
 ## Reports
 
 Live in `workbench/reviews/`. There is no required structure — it varies with what was
@@ -92,6 +90,8 @@ way to remove one, at either end of its life — it also removes the tree
 baseline the report was opened with, which a hand `rm` leaves behind. It
 refuses an unchecked report with findings unless passed `--force` — triage
 leaves no mark on a report, so the baseline is what says nobody has read it.
+Any prose beyond the skeleton is findings to that check, so an unchecked
+report that only says what was covered needs `--force` too.
 
 The baseline hashes every untracked, unignored file, at open and again at
 check. Build output or a vendored tree left unignored turns that into a

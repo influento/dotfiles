@@ -86,6 +86,11 @@ wt=.worktrees/b-001-crash-on-save
 check "start moves the item into the worktree" [ -f "$wt/$item" ]
 check "start leaves no copy on main" [ ! -e "$item" ]
 run "statusline names the worktree's item" 0 '^\[Opus\] wb: on b-001 · 1 open$' bash -c "$(declare -f session); session '$PWD/$wt' | '$WB' statusline"
+for short in b-1 b-01 b-0001; do
+  run "start reads $short as b-001" 1 "b-001 is already started; its worktree is .*/$wt$" "$WB" start "$short"
+done
+run "start refuses a bare letter" 1 "is not an item id" "$WB" start b
+run "new validates the class before --milestone" 1 "class must be" "$WB" new bogus "t" --milestone nope
 
 run "merge names the uncommitted item file" 1 "$item is not committed on the branch" "$WB" merge b-001 "fix crash"
 
@@ -108,7 +113,7 @@ run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-
 printf '\nTBD\n' >> "$item"
 run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
 fill_evidence "$item" "make test" "ok"
-run "archive" 0 "archived b-001" "$WB" archive b-001
+run "archive takes a short id" 0 "archived b-001" "$WB" archive b-01
 git add -A && git commit -qm 'archive b-001'
 
 run "find by path" 0 "b-001" "$WB" find src.txt
@@ -384,6 +389,10 @@ echo '{"statusLine":"echo hi","hooks":{"SessionStart":["odd"]}}' > .claude/setti
 run "init survives a non-object statusLine" 0 "statusLine is already set" "$WB" init
 check "the string statusLine survives" grep -q '"echo hi"' .claude/settings.json
 check "the hook is added beside a non-object SessionStart entry" grep -q 'workbench status ||' .claude/settings.json
+echo '{"permissions":[],"hooks":"odd"}' > .claude/settings.json
+run "init survives odd permissions and hooks shapes" 0 "permissions.allow is not a list" "$WB" init
+check "init still reached the checklist" bash -c "'$WB' init | grep -q 'decide these with the user'"
+check "the odd permissions were left alone" grep -q '"permissions": \[\]' .claude/settings.json
 # a bare command from an earlier init is upgraded in place, once
 echo '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"workbench status"}]}]},"statusLine":{"type":"command","command":"workbench statusline"}}' > .claude/settings.json
 run "init guards a bare hook from an earlier init" 0 "workbench status now guarded on PATH" "$WB" init
@@ -563,6 +572,18 @@ git add -A && git commit -qm 'same by hand'
 run "merge names a branch that changes nothing" 1 "changes nothing on main" "$WB" merge "$idd" "dup"
 check "the empty squash left main clean" [ -z "$(git status --porcelain --untracked-files=no)" ]
 
+# another item's file committed on the branch would ride the squash under
+# the wrong trailer
+idh=$("$WB" new bug "host" 2>/dev/null); "$WB" start "$idh" >/dev/null 2>&1
+idg=$(cd ".worktrees/$idh-host" && "$WB" new feature "guest" 2>/dev/null && git add -A && git commit -qm 'two items')
+run "merge refuses a branch carrying another item's file" 1 "carries another item's file" "$WB" merge "$idh" "host"
+check "the refusal names the guest file" bash -c "'$WB' merge $idh host 2>&1 | grep -q '^  workbench/items/features/$idg-guest.md$'"
+check "the refusal does not name the host's own file" bash -c "! '$WB' merge $idh host 2>&1 | grep -q '$idh-host.md'"
+check "nothing landed on main" [ -z "$(git log --grep="^Item: $idh" --format=%h)" ]
+( cd ".worktrees/$idh-host" && git rm -q "workbench/items/features/$idg-guest.md" && git commit -qm 'guest off' )
+run "merge goes through once the file is off the branch" 0 "merged $idh" "$WB" merge "$idh" "host"
+check "the squash carries only the host's item" bash -c "! git show --stat --format= HEAD | grep -q guest"
+
 # --- lookups over every worktree --------------------------------------------
 # A detached worktree with no workbench/, an item created in a sibling, a
 # pre-merge before the item commit, a worktree removed by hand, and archive
@@ -677,6 +698,24 @@ check "find by a relative path lists the item" bash -c "'$WB' find README | grep
 check "find by an absolute path lists the item" bash -c "'$WB' find '$PWD/README' | grep -q '^b-002 '"
 check "find by an absolute path outside the repo lists nothing" not_listed b-002 /nonexistent/README
 check "find --grep is a fixed string" not_listed b-002 --grep 'a.s'
+
+# --- find's cap, and citations that name a file without its path ------------
+
+new_repo cap
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+for i in $(seq 1 11); do "$WB" new bug "cap $i" >/dev/null 2>&1; done
+check "find shows ten lines and counts the rest" bash -c "'$WB' find --grep cap | grep -c '^b-' | grep -qx 10 && '$WB' find --grep cap | grep -q '… 1 more'"
+check "find --all shows every line" bash -c "'$WB' find --grep cap --all | grep -c '^b-' | grep -qx 11 && ! '$WB' find --grep cap --all | grep -q 'more'"
+mkdir -p a b && seq 5 > a/pos_test.go && seq 50 > b/pos_test.go && git add -A && git commit -qm pos
+report=$("$WB" review sweep 2>/dev/null)
+printf '\nsee pos_test.go:42, db.internal:5432 and 2026-08-26T10:15:30\n' >> "$report"
+run "a basename citation passes when any file of that name reaches the line" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+report=$("$WB" review sweep 2>/dev/null)
+printf '\nsee pos_test.go:99 and other.go:3\n' >> "$report"
+run "a basename citation fails when no file of that name reaches the line" 1 "cites pos_test.go:99, and no pos_test.go has 99 lines" "$WB" review-check "$report"
+run "a basename with a known extension and no such file is bogus" 1 "cites other.go:3, and no other.go is in the tree" "$WB" review-check "$report"
+"$WB" review-drop --force "$report" >/dev/null 2>&1
 
 # --- worktree cut before the init commit ------------------------------------
 
