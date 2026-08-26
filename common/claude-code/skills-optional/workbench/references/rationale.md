@@ -38,10 +38,18 @@ measurement presented as a current one.
 
 ## Why technical facts go in the repository rather than agent memory
 
-Memory is not versioned, so it cannot be diffed against the commit that
-invalidated it. It passes through no review, so it is written at the agent's
-discretion and never checked. And it is keyed to a directory path, so a worktree
-gets a different store and anything written there is invisible elsewhere.
+Memory passes through no review: it is written at the agent's discretion,
+never checked, and nothing invalidates an entry when a commit makes it wrong.
+An item is dated by its commit and reachable from any file through the
+trailer; a memory entry is neither. That is the whole argument, and it holds
+whether or not the store is versioned.
+
+It used to have two more legs — memory was machine-local, and keyed to the
+checkout's path so a worktree got a store of its own — and `init` removes
+both by pointing `autoMemoryDirectory` at `.claude/memory/` in the tree: one
+store, committed, shared by every worktree and clone. What that buys is sync
+and a diff. What it does not buy is review, which is why the `memory` sweep
+reason exists.
 
 ## Why `rename` is a class and `refactor` is not
 
@@ -50,7 +58,9 @@ a rename is a refactor. It is not. The classes are shapes of criterion, not
 kinds of edit, and there are only two shapes:
 
 - **fixed** — the class supplies the criterion, and the author has no choice in
-  it. `rename` is the only one: an occurrence count over a scope.
+  it. `rename` is one: an occurrence count over a scope. `research` is the
+  other: every concept terminal and pointing at something real, and an outcome
+  written.
 - **free** — the author supplies the criterion per item. `bug` and `feature`
   are this, and every refactor that is not a rename is too.
 
@@ -61,6 +71,40 @@ place where work could go without an observable claim attached to it.
 The deeper reason a general refactor cannot be its own class: its natural
 criterion is "behaviour is unchanged", which is green before the work starts.
 See the unchanged-tree rule in verification.md.
+
+## Why the commands are thin, and the copies committed
+
+`/bug` and the others hold no rules: a rule in two places drifts, and the
+skill body is the one place. They also run no shell before the first turn,
+though a preprocessed block could allocate the id: a title with a quote or a
+`$` breaks a substituted command, and the sizing call belongs before an id
+exists — an agent that has already allocated `f-051` argues for a feature.
+
+The skills under `.claude/skills/` are rendered copies of the dotfiles
+sources, and they are committed. A symlink would keep every project on the
+latest source for free, but it is one machine's path and it exists only in
+the checkout it was made in — a session opened inside a worktree, or a
+fresh clone, had no commands, no hook and no status line. A committed copy
+is in every checkout git makes. The price is drift, and it is paid
+visibly: each copy carries a hash of its source, `status` lists the ones
+that have fallen behind, `init` re-renders them, and the copy is never
+edited by hand. Files ending in `.tpl` are rendered on the way, which is
+where per-project content goes if a project ever needs any.
+
+A copy the user edits by hand is the other half of drift: the stamp holds
+the copy's own hash beside the source's, `status` names an edited copy
+apart from a stale one, and `init` overwrites it only with `--force`. The
+edit belongs in the source.
+
+The session hook, status line and `Bash(workbench:*)` go in the tracked
+`.claude/settings.json` for the same reason; the setup checklist names all
+three so the user can strike any.
+
+A project skill wins over a Claude Code builtin of the same name, so the
+names were chosen against that list. `/bug` shadows the builtin bug-report
+form, which loses nothing in a project with its own tracker. `/rename`
+would have shadowed renaming the conversation in every adopted project, for
+the rarest item class, so a rename is `/wb rename <old> to <new>` instead.
 
 ## Why the obligation lives in the project's `CLAUDE.md`
 
@@ -138,6 +182,44 @@ a milestone is a big-picture goal only, an item may name one or not, and the
 level above — designs, epics, brainstorm records — does not exist. What a
 conversation decides lands in a milestone or an item; the conversation itself
 is not an artifact.
+
+Research is not that level. It sits *before* an item or milestone can be
+written, not above them, and it holds no work — only a scope that ends by
+decomposing into the levels that do.
+
+## Why `research` is a class and a brainstorm record is not
+
+A brainstorm record is the findings directory argued against above with a
+different name: no end, nothing that invalidates it, and it can only grow.
+Research has an end, the end is checked, and what survives it is a set of
+decisions each pointing at an item, a milestone, a backlog line, or a stated
+reason for dropping — every one reachable from the thing it spawned. The
+prose that produced those decisions is rewritten each iteration rather than
+kept, which is what keeps the file from becoming the record it replaces.
+
+It never merges for the same reason a refactor is not a class: a prototype
+that should ship is, by then, describable — so it is an item, with a
+criterion, under its own trailer. Letting research merge would be the one
+path by which code lands with no observable claim attached.
+
+## Why sizing is one question
+
+Whether something is an idea, an item, a milestone or research could be
+argued fresh each time, and then no two calls would match, and the archive
+would stop being something a later reader can rely on. So it is one question
+— how well can it be described right now — with a row per answer, and the
+one-item-or-several question is one test — could an entry go green and merge
+while the others are red. The agent names the row; the user confirms. The
+rows are in SKILL.md so they are in context whenever the rule fires.
+
+The idea row is the one place the question does not decide alone. "Crash
+on save" is one obvious sentence and also an item, and the rule says item;
+a second axis — is anyone doing it now — would have to be judged fresh each
+time, which is the drift the rule exists to stop. So the agent never
+proposes the backlog for something item-shaped, and the user reaches it by
+saying so: `/idea` is that signal, and it takes the sentence in the user's
+words without argument. Deferral is an act of the user, not a level the
+agent assigns.
 
 ## Why a watch may investigate freely but never fix
 

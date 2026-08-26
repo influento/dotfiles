@@ -7,6 +7,11 @@ set -euo pipefail
 # from one sequence and numbers can never collide or repeat.
 
 WB=workbench
+# The project-scoped commands, one thin skill each under skills-optional/
+# workbench-commands/. Rendered as committed copies by init, so the list
+# lives here. No /rename: it would shadow Claude Code's own (rename the
+# conversation), and a rename item is rare enough to live under /wb rename.
+WB_COMMANDS="bug feature research idea wb"
 MARK_START='<!-- workbench:start -->'
 MARK_END='<!-- workbench:end -->'
 
@@ -16,9 +21,10 @@ usage() {
   [ "${1:-2}" -eq 0 ] || exec >&2
   cat <<'EOF'
 usage:
-  workbench init                       scaffold workbench/ and link the skill
+  workbench init [--force]             scaffold workbench/, render the skills as committed copies
+                                       (--force overwrites a copy edited by hand)
   workbench adopt                      init, then survey an existing project
-  workbench new <bug|feature|rename> "<title>" [--milestone <slug>]
+  workbench new <bug|feature|rename|research> "<title>" [--milestone <slug>]
                                        allocate an id, write the file
   workbench find [<path>...] [--grep <word>]... [--all]
                                        items that touched these paths, newest first
@@ -26,8 +32,10 @@ usage:
   workbench milestone archive <slug>   close it, once its items are archived and evidence is in
   workbench start <id>                 create the branch and worktree for an item
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch
-  workbench archive <id>               move to archive, recording the merge commit
+  workbench archive <id> [--discard]   move to archive, recording the merge commit;
+                                       --discard drops a research branch's prototypes
   workbench status                     in flight, duplicate ids, reports
+  workbench statusline                 one line for the Claude Code status line; reads the session JSON on stdin
   workbench watch "<title>"            write the contract a watch shift runs under
   workbench review-check <report>      prove a sweep changed nothing tracked
   workbench review-drop [--force] <report>  delete a report, its baseline and scratch
@@ -130,7 +138,7 @@ path_re() {
 # "$id-*", so a bare letter would match every item of that class and act on
 # whichever one find happened to return first.
 require_id() {
-  [[ "$1" =~ ^[bfr]-[0-9]+$ ]] || die "'$1' is not an item id; ids look like b-038"
+  [[ "$1" =~ ^[bfrx]-[0-9]+$ ]] || die "'$1' is not an item id; ids look like b-038"
 }
 
 # A worktree branched before adoption has no $WB/ in its own checkout, yet may
@@ -151,11 +159,11 @@ require_init() {
 highest_existing() {
   local max=0 n
   while IFS= read -r f; do
-    n=$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')
+    n=$(basename "$f" | sed -n 's/^[bfrx]-\([0-9]\{1,\}\)-.*/\1/p')
     [ -n "$n" ] || continue
     n=$((10#$n))
     [ "$n" -gt "$max" ] && max=$n
-  done < <(wb_find items -name '[bfr]-*.md' < <(all_roots))
+  done < <(wb_find items -name '[bfrx]-*.md' < <(all_roots))
   echo "$max"
 }
 
@@ -221,40 +229,162 @@ ensure_gitignore() {
   local root gi
   root=$(repo_root)
   gi="$root/.gitignore"
-  local entry
-  for entry in '.claude/skills/workbench' '.claude/skills/workbench-review' '.worktrees/'; do
-    grep -qxF "$entry" "$gi" 2>/dev/null && continue
-    # A last line missing its newline would otherwise absorb the entry.
-    [ ! -s "$gi" ] || [ -z "$(tail -c1 "$gi")" ] || echo >> "$gi"
-    printf '%s\n' "$entry" >> "$gi"
-    echo "  .gitignore += $entry"
+  # Skills are rendered copies, committed so every checkout and clone has
+  # them; an earlier init ignored them as links, and those lines would keep
+  # the copies out of git. settings.local.json is left ignored: that file is
+  # per-user by Claude Code's own definition. grep exits 1 when nothing
+  # survives, which is a valid result here, not a failure.
+  local stale name
+  if [ -f "$gi" ]; then
+    stale='^\.claude/skills/(workbench|workbench-review|rename'
+    for name in $WB_COMMANDS; do stale="$stale|$name"; done
+    stale="$stale)\$"
+    if grep -qE "$stale" "$gi"; then
+      grep -vE "$stale" "$gi" > "$gi.tmp" || true
+      mv "$gi.tmp" "$gi"
+      echo "  .gitignore -= the skill links; the copies are meant to be committed"
+    fi
+  fi
+  local entry='.worktrees/'
+  grep -qxF "$entry" "$gi" 2>/dev/null && return 0
+  # A last line missing its newline would otherwise absorb the entry.
+  [ ! -s "$gi" ] || [ -z "$(tail -c1 "$gi")" ] || echo >> "$gi"
+  printf '%s\n' "$entry" >> "$gi"
+  echo "  .gitignore += $entry"
+}
+
+# The skill sources, in the dotfiles tree beside this script: the workflow
+# itself; the sweep, a separate skill so it can be user-only and forked; and
+# one thin user-only skill per command, so '/bug <title>' is a thing to type.
+skill_sources() {
+  local base dir name
+  base=$(readlink -f "$(skill_source)") || true
+  [ -n "$base" ] && [ -d "$base" ] || die "skill source not found at $(skill_source)"
+  dir=$(dirname "$base")
+  printf '%s\n' "$dir/workbench" "$dir/workbench-review"
+  for name in $WB_COMMANDS; do printf '%s\n' "$dir/workbench-commands/$name"; done
+}
+
+# What a rendered copy records about where it came from: the source hash on
+# line 1, the copy's own hash on line 2. Content-addressed, so no version is
+# bumped by hand; a changed source shows as stale, a changed copy as edited.
+# Each file's relative path goes into the hash ahead of its content, so a
+# rename or a move of text between files changes it too; the order is fixed
+# under LC_ALL=C because the locale's collation would otherwise put the same
+# tree in a different order on another machine. Symlinks are refused rather
+# than hashed: a copy of one is a machine-local path.
+STAMP=GENERATED
+skill_hash() {
+  local f
+  f=$(find "$1" -type l -print -quit)
+  [ -z "$f" ] || die "$f is a symlink; skill sources hold files only"
+  {
+    find "$1" -type f ! -path '*/__pycache__/*' ! -name '*-workspace' ! -name "$STAMP" -printf '%P\0' \
+      | LC_ALL=C sort -z \
+      | while IFS= read -r -d '' f; do printf '%s\0' "$f"; cat "$1/$f"; done
+  } | sha256sum | cut -c1-12
+}
+
+# current | stale | edited | missing — for the copy of <name> under <root>.
+# A copy whose content no longer matches its own stamp was edited by hand,
+# and init refuses to overwrite it without --force. A stamp without a copy
+# hash (an earlier format) reads as stale, so it is simply re-rendered.
+skill_state() {
+  local root="$1" src="$2" dst src_hash copy_hash
+  dst="$root/.claude/skills/$(basename "$src")"
+  [ -f "$dst/$STAMP" ] || { echo missing; return; }
+  src_hash=$(sed -n 1p "$dst/$STAMP")
+  copy_hash=$(sed -n 2p "$dst/$STAMP")
+  if [[ "$copy_hash" =~ ^[0-9a-f]{12}$ ]] && [ "$(skill_hash "$dst")" != "$copy_hash" ]; then
+    echo edited
+  elif [ "$src_hash" != "$(skill_hash "$src")" ]; then
+    echo stale
+  else
+    echo current
+  fi
+}
+
+# Copies, not links, and committed: a link is one machine's path and lives
+# only in the checkout it was made in, so a worktree session or another
+# clone had none of this. A copy is refreshed by re-running init, and
+# 'status' says when one has fallen behind its source. Files ending in .tpl
+# are rendered on the way — @@PROJECT@@, @@DEFAULT_BRANCH@@ — which is the
+# hook for per-project content; nothing shipped uses it yet.
+render_skills() {
+  local force="${1:-0}" root src srcdir dst name hash state project main tpl wanted=" "
+  root=$(repo_root)
+  project=$(basename "$root")
+  # The names go through sed as replacement text, where these three are
+  # syntax; no project is called that, so refuse rather than escape.
+  case "$project" in *[\|\&\\]*) die "project directory name '$project' holds one of | & \\, which the templates cannot render" ;; esac
+  main=$(default_branch 2>/dev/null || echo main)
+  srcdir=$(dirname "$(readlink -f "$(skill_source)")")
+  mkdir -p "$root/.claude/skills"
+
+  while IFS= read -r src; do
+    [ -d "$src" ] || die "skill source not found at $src"
+    name=$(basename "$src")
+    wanted="$wanted$name "
+    dst="$root/.claude/skills/$name"
+    hash=$(skill_hash "$src")
+    state=
+
+    if [ -L "$dst" ]; then
+      rm "$dst"
+      echo "  .claude/skills/$name: link replaced by a copy"
+    elif [ -d "$dst" ]; then
+      if [ ! -f "$dst/$STAMP" ]; then
+        die "$dst exists and was not generated by workbench; move it away and re-run"
+      fi
+      state=$(skill_state "$root" "$src")
+      if [ "$state" = edited ] && [ "$force" != 1 ]; then
+        die "$dst was edited by hand since it was rendered; move the edit into the source, or 'workbench init --force' to overwrite it"
+      fi
+      [ "$state" != current ] || continue
+      rm -rf "$dst"
+    elif [ -e "$dst" ]; then
+      die "$dst exists and is not a directory"
+    fi
+
+    cp -RL "$src" "$dst"
+    find "$dst" -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+    while IFS= read -r tpl; do
+      sed -e "s|@@PROJECT@@|$project|g" -e "s|@@DEFAULT_BRANCH@@|$main|g" "$tpl" > "${tpl%.tpl}"
+      rm "$tpl"
+    done < <(find "$dst" -name '*.tpl')
+    printf '%s\n%s\n%s\n' "$hash" "$(skill_hash "$dst")" \
+      "generated by 'workbench init' from skills-optional/${src#"$srcdir"/}; edit the source and re-run, never this copy" > "$dst/$STAMP"
+    if [ "$state" = edited ]; then echo "  rendered .claude/skills/$name (the hand edit is gone)"; else echo "  rendered .claude/skills/$name"; fi
+  done < <(skill_sources)
+
+  # A copy this tool generated for a skill that no longer exists in the
+  # source. Guarded by the stamp's own wording, not the file's presence, so
+  # a foreign skill carrying a GENERATED file is left alone — and an edited
+  # copy is refused the same way as above.
+  local copy_hash
+  for dst in "$root"/.claude/skills/*/; do
+    dst=${dst%/}; name=$(basename "$dst")
+    [ -f "$dst/$STAMP" ] || continue
+    grep -q "generated by 'workbench init'" "$dst/$STAMP" || continue
+    case "$wanted" in *" $name "*) continue ;; esac
+    copy_hash=$(sed -n 2p "$dst/$STAMP")
+    if [[ "$copy_hash" =~ ^[0-9a-f]{12}$ ]] && [ "$(skill_hash "$dst")" != "$copy_hash" ] && [ "$force" != 1 ]; then
+      die "$dst is no longer a workbench skill but was edited by hand; move the edit somewhere, or 'workbench init --force' to remove it"
+    fi
+    rm -rf "$dst"
+    echo "  removed .claude/skills/$name: no longer a workbench skill"
   done
 }
 
-# Two skills: the workflow itself, and the sweep, which is a separate skill so
-# it can be user-only and forked. Both are symlinks into the dotfiles tree.
-link_skill() {
-  local root base src dst name
-  root=$(repo_root)
-  base=$(readlink -f "$(skill_source)") || true
-  [ -n "$base" ] && [ -d "$base" ] || die "skill source not found at $(skill_source)"
-
-  mkdir -p "$root/.claude/skills"
-
-  for name in workbench workbench-review; do
-    src="$(dirname "$base")/$name"
-    [ -d "$src" ] || die "skill source not found at $src"
-    dst="$root/.claude/skills/$name"
-
-    if [ -L "$dst" ]; then
-      [ "$(readlink -f "$dst")" = "$src" ] && continue
-      die "$dst points somewhere else; remove it and re-run"
-    fi
-    [ -e "$dst" ] && die "$dst exists and is not a symlink"
-
-    ln -s "$src" "$dst"
-    echo "  linked .claude/skills/$name -> $src"
-  done
+# The copies that no longer match: "<name>\t<stale|edited|missing>". Over the
+# main checkout only: that is where init runs and what gets committed.
+skill_drift() {
+  local root src state
+  root=$(main_root)
+  while IFS= read -r src; do
+    state=$(skill_state "$root" "$src")
+    [ "$state" = current ] || printf '%s\t%s\n' "$(basename "$src")" "$state"
+  done < <(skill_sources 2>/dev/null)
 }
 
 claude_md_block() {
@@ -264,8 +394,10 @@ $MARK_START
 
 Domain work in this repo is tracked with **workbench**. Before writing code for
 any feature or bug fix, create an item (\`workbench new\`) and agree its
-verification criterion. Housekeeping — configs, tooling, agent settings — is
-exempt and goes straight to the main branch.
+verification criterion. An area not yet understood well enough to write an
+item for is a research item, which ends by spawning what it decided.
+Housekeeping — configs, tooling, agent settings — is exempt and goes straight
+to the main branch.
 
 Rules: invoke the \`workbench\` skill. State: \`$WB/\`.
 $MARK_END
@@ -304,11 +436,98 @@ ensure_claude_md() {
   fi
 }
 
+# The session wiring, committed with the skills: 'workbench status' into
+# context at every session start, the status line, and the permission the
+# commands need. Merged into .claude/settings.json, never replacing it: a
+# line already there is left alone, a statusLine the user set is never
+# overridden.
+ensure_settings() {
+  local root f
+  root=$(repo_root)
+  f="$root/.claude/settings.json"
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', a SessionStart hook running 'workbench status', statusLine 'workbench statusline'"
+    return 0
+  fi
+  mkdir -p "$root/.claude"
+  # Memory in the tree: tracked, so every worktree and clone shares one store.
+  # Claude Code wants the path absolute or '~/'-based, and the same '~/' path
+  # holds on every machine laid out alike; a project outside ~ gets a note.
+  local mem=
+  # shellcheck disable=SC2088  # a literal '~/' — Claude Code expands it, on every machine
+  case "$root" in "${HOME%/}"/*) mem="~/${root#"${HOME%/}"/}/.claude/memory" ;; esac
+  python3 - "$f" "$mem" <<'PY'
+import json, os, sys
+path, mem = sys.argv[1], sys.argv[2]
+data = {}
+if os.path.exists(path):
+    with open(path) as fh:
+        raw = fh.read().strip()
+    if raw:
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            print("  .claude/settings.json is not valid JSON; left alone")
+            sys.exit(0)
+if not isinstance(data, dict):
+    print("  .claude/settings.json is not a JSON object; left alone")
+    sys.exit(0)
+changed = []
+allow = data.setdefault("permissions", {}).setdefault("allow", [])
+if "Bash(workbench:*)" not in allow:
+    allow.append("Bash(workbench:*)")
+    changed.append("permissions.allow += Bash(workbench:*)")
+# Shapes Claude Code would reject are skipped, not crashed on: a settings
+# file is the user's, and init must still reach the steps after this one.
+hooks = data.setdefault("hooks", {})
+starts = hooks.get("SessionStart")
+if starts is None:
+    starts = hooks["SessionStart"] = []
+if not isinstance(starts, list):
+    print("  hooks.SessionStart is not a list in .claude/settings.json; left alone")
+elif not any(isinstance(h, dict) and str(h.get("command", "")).startswith("workbench status")
+             for grp in starts if isinstance(grp, dict)
+             for h in grp.get("hooks", []) if isinstance(grp.get("hooks"), list)):
+    starts.append({"hooks": [{"type": "command", "command": "workbench status"}]})
+    changed.append("hooks.SessionStart += workbench status")
+line = data.get("statusLine")
+if line is None:
+    data["statusLine"] = {"type": "command", "command": "workbench statusline"}
+    changed.append("statusLine = workbench statusline")
+elif not isinstance(line, dict) or line.get("command") != "workbench statusline":
+    print("  statusLine is already set in .claude/settings.json; left alone")
+if mem:
+    cur = data.get("autoMemoryDirectory")
+    if cur is None:
+        data["autoMemoryDirectory"] = mem
+        changed.append("autoMemoryDirectory = " + mem)
+    elif cur != mem:
+        print("  autoMemoryDirectory is already " + cur + "; left alone")
+else:
+    print("  autoMemoryDirectory: the project is not under ~, so set it by hand (absolute path) for memory to live in the tree")
+if changed:
+    with open(path, "w") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    for c in changed:
+        print("  .claude/settings.json: " + c)
+PY
+  if [ -f "$root/.claude/settings.local.json" ] && grep -q '"autoMemoryDirectory"' "$root/.claude/settings.local.json"; then
+    echo "  settings.local.json also sets autoMemoryDirectory, and it wins over settings.json; keep one"
+  fi
+}
+
 cmd_init() {
-  local root d
+  local root d force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      *) usage ;;
+    esac
+  done
   root=$(repo_root)
 
-  for d in items/bugs items/features items/renames items/archive reviews; do
+  for d in items/bugs items/features items/renames items/research items/archive reviews; do
     mkdir -p "$root/$WB/$d"
     [ -e "$root/$WB/$d/.gitkeep" ] || touch "$root/$WB/$d/.gitkeep"
   done
@@ -316,8 +535,9 @@ cmd_init() {
   [ -f "$root/$WB/GLOSSARY.md" ] || { write_glossary "$root/$WB/GLOSSARY.md"; echo "  wrote $WB/GLOSSARY.md"; }
   [ -f "$root/$WB/BACKLOG.md" ] || { write_backlog "$root/$WB/BACKLOG.md"; echo "  wrote $WB/BACKLOG.md"; }
 
-  link_skill
+  render_skills "$force"
   ensure_gitignore
+  ensure_settings
   ensure_claude_md
 
   echo "workbench ready in $root"
@@ -341,19 +561,23 @@ setup_checklist() {
     echo "  default branch    UNRESOLVED — set 'git config workbench.main <branch>' before the first merge"
   fi
 
-  if [ -f "$root/.claude/settings.json" ]; then
-    echo "  permissions       .claude/settings.json exists; sweeps and watch shifts run the commands they need through Bash and prompt for each unless allowed there"
+  if grep -qs 'Bash(workbench:\*)' "$root/.claude/settings.json"; then
+    echo "  permissions       .claude/settings.json allows Bash(workbench:*), written now; sweeps and watch shifts run other commands through Bash and prompt for each unless allowed there too, or run in auto mode"
   else
-    echo "  permissions       no .claude/settings.json; sweeps and watch shifts prompt for every Bash command they run — allow-list them there, or run in auto mode"
+    echo "  permissions       .claude/settings.json lacks Bash(workbench:*) — add it by hand; sweeps and watch shifts prompt for every Bash command unless allowed there, or run in auto mode"
   fi
 
+  echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>' — a top-level /rename would shadow Claude Code's own"
+  echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three"
+  echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree and clone; its edits land on the main checkout, commit them as housekeeping"
+  echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
   echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
   echo "  milestones        optional, big-picture only — 'workbench milestone \"<title>\"' when there is one, now or later; items need not name one"
   echo "  watch             optional — only if the app runs as a service the user wants watched unattended, now or whenever it does: 'workbench watch \"<title>\"' writes the contract"
 }
 
 cmd_adopt() {
-  cmd_init
+  cmd_init "$@"
   cat <<EOF
 
 Now run the survey from a Claude Code session in this project:
@@ -477,6 +701,50 @@ status: open
 EOF
 }
 
+# A research item is a scope, not a question: an area of mechanics or theory
+# not yet understood well enough to write an item for. It ends by decomposing
+# — every concept becomes an item, a milestone, a backlog line, or is dropped
+# — so its criterion is structural and the class supplies it, like a rename's.
+write_research() {
+  cat > "$1" <<EOF
+# $2 — $3
+
+status: open
+
+## Scope
+
+<!-- The area, what is in and out of it, and the project need behind it —
+     agreed with the user before any reading. Delete this comment. -->
+
+## Concepts
+
+<!-- One '### <concept>' per mechanic or theory piece, in the project's own
+     words: what it is, how it would fit here, what it would touch. Rewritten
+     each iteration to the current understanding — never a log. Each ends
+     with exactly one state line:
+       state: open
+       state: -> f-050                spawned that item
+       state: -> milestone <slug>     spawned that milestone; its items follow
+       state: -> backlog              became one obvious sentence there
+       state: dropped — <why>
+     Which one, and whether one item or several: 'Sizing' in the skill. The
+     user confirms every terminal state. Delete this comment. -->
+
+## Next
+
+<!-- Where to pick up: open questions, what to read or try. Replaced each
+     iteration, not appended — this is the resume point. Delete this
+     comment. -->
+
+## Outcome
+
+<!-- Written last: what the scope became — the items, milestones, backlog
+     lines and drops — and anything learned that no single concept holds.
+     Archive refuses while this is empty or any concept is open. Delete this
+     comment. -->
+EOF
+}
+
 cmd_new() {
   local class="${1:-}" title="${2:-}" letter dir slug num id path root milestone=
   [ -n "$class" ] && [ -n "$title" ] || usage
@@ -496,7 +764,8 @@ cmd_new() {
     bug) letter=b; dir=bugs ;;
     feature) letter=f; dir=features ;;
     rename) letter=r; dir=renames ;;
-    *) die "class must be 'bug', 'feature' or 'rename', got '$class'" ;;
+    research) letter=x; dir=research ;;
+    *) die "class must be 'bug', 'feature', 'rename' or 'research', got '$class'" ;;
   esac
 
   root=$(repo_root)
@@ -514,6 +783,7 @@ cmd_new() {
     bug) write_bug "$path" "$id" "$title" ;;
     feature) write_feature "$path" "$id" "$title" ;;
     rename) write_rename "$path" "$id" "$title" ;;
+    research) write_research "$path" "$id" "$title" ;;
   esac
   if [ -n "$milestone" ]; then
     m="$milestone" awk '{ print } /^status: open$/ { print "milestone: " ENVIRON["m"] }' "$path" > "$path.tmp" \
@@ -574,6 +844,11 @@ cmd_start() {
   [ -e "$wt" ] && die "worktree already exists: $wt"
 
   git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
+  # The skills are tracked copies, so a committed .claude/ is in the new
+  # checkout already; uncommitted, it is not, and a session opened there
+  # has no commands, hook or status line.
+  [ -d "$wt/.claude/skills/workbench" ] \
+    || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
 
   # The item file lives on its branch, so a new one is not on the default
   # branch and the fresh worktree lacks it; carry it over. Untracked, it moves.
@@ -635,6 +910,9 @@ cmd_merge() {
   [ -n "$id" ] && [ -n "$subject" ] || usage
   require_id "$id"
   require_init
+  case "$id" in
+    x-*) die "$id is research and never merges; what it decided is spawned as items — 'workbench archive $id' retires the branch" ;;
+  esac
 
   case "$subject" in
     *$'\n'*) die "the subject must be a single line" ;;
@@ -666,10 +944,20 @@ cmd_merge() {
   on=$(git -C "$root" symbolic-ref -q --short HEAD || true)
   [ "$on" = "$main" ] || die "$root has '${on:-a detached HEAD}' checked out, not $main; the squash lands there"
 
-  # A dirty main checkout would bleed into the squash commit — staged or not,
-  # since the commit takes the index and the index is about to be rewritten.
-  [ -z "$(git -C "$root" status --porcelain --untracked-files=no)" ] \
-    || die "$root has uncommitted changes; the squash commit would absorb them"
+  # A dirty main checkout would bleed into the squash commit: anything staged
+  # goes in with it, and the index is about to be rewritten. Unstaged edits do
+  # not — the commit takes the index — and the one place they are expected is
+  # the memory store when it lives in the tree, written by every worktree
+  # session all day. Those alone are tolerated; the rest is refused as before.
+  local dirt mem_rel
+  dirt=$(git -C "$root" status --porcelain --untracked-files=no)
+  mem_rel=$(memory_dir_setting)
+  case "$mem_rel" in "$root"/*) mem_rel="${mem_rel#"$root"/}" ;; *) mem_rel= ;; esac
+  if [ -n "$dirt" ] && [ -n "$mem_rel" ]; then
+    dirt=$(printf '%s\n' "$dirt" | awk -v mem="$mem_rel/" '
+      !(substr($0, 1, 2) ~ /^ [MD]$/ && index(substr($0, 4), mem) == 1)')
+  fi
+  [ -z "$dirt" ] || die "$root has uncommitted changes; the squash commit would absorb them"
 
   wt=$(live_worktree_of "$branch")
   if [ -n "$wt" ]; then
@@ -714,7 +1002,16 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
   # on stderr, which is noise on success and evidence on failure.
   local squash
   squash=$(git -C "$root" merge --squash --quiet "$branch" 2>&1) \
-    || { printf '%s\n' "$squash" >&2; unsquash "$root"; die "the squash stopped; $root is restored — rebase $branch onto $main in its worktree, then retry"; }
+    || {
+      printf '%s\n' "$squash" >&2; unsquash "$root"
+      # The one dirt tolerated above is an unstaged memory edit on main; when
+      # the branch touches the same file, git stops here to protect it, and
+      # the way forward is to commit that edit, not to rebase.
+      if grep -q 'overwritten by merge' <<< "$squash"; then
+        die "the squash stopped; $root is restored — an uncommitted memory edit on $main is in the way; commit it as housekeeping, then retry"
+      fi
+      die "the squash stopped; $root is restored — rebase $branch onto $main in its worktree, then retry"
+    }
   git -C "$root" commit --quiet -m "$subject" -m "Item: $id" \
     || { unsquash "$root"; die "the squash commit was refused; $root is restored and nothing was removed"; }
 
@@ -764,7 +1061,7 @@ shown_status() {
 }
 
 item_id() {
-  basename "$1" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p'
+  basename "$1" | sed -n 's/^\([bfrx]-[0-9]\{1,\}\)-.*/\1/p'
 }
 
 # Undo a squash that did not reach its commit. The tracked tree was verified
@@ -811,23 +1108,42 @@ has_evidence() {
 # itself always the dirty one — 'start' moved it in uncommitted, untracked
 # to git, and the status edit came after — so it alone is exempt from both
 # checks. Prints the path of the copy now in the main checkout.
+#
+# A research branch is the other one that never merges, and it may carry
+# prototypes — throwaway by definition, since a prototype worth keeping went
+# into the item it spawned. Those are dropped only when asked (discard=1),
+# and named as they go.
 retire_branch() {
-  local id="$1" branch="$2" path="$3" main root wt other item_re
+  local id="$1" branch="$2" path="$3" discard="${4:-0}" main root wt other item_re hint dropped=0
   main=$(default_branch)
   root=$(main_root)
   wt=$(live_worktree_of "$branch")
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
+  case "$id" in
+    x-*) hint="research never merges: 'workbench archive $id --discard' drops it; a prototype worth keeping goes into the item it spawned first" ;;
+    *) hint="merge $id, or remove the worktree and branch yourself, then archive" ;;
+  esac
 
   if [ -n "$wt" ]; then
     other=$(git -C "$wt" status --porcelain --untracked-files=all | grep -vE "$item_re" || true)
-    [ -z "$other" ] || die "$wt has changes beyond the item file:
+    if [ -n "$other" ]; then
+      [ "$discard" -eq 1 ] || die "$wt has changes beyond the item file:
 $other
-merge $id, or remove the worktree and branch yourself, then archive"
+$hint"
+      echo "dropping uncommitted changes in $wt:" >&2
+      printf '%s\n' "$other" | sed 's/^/  /' >&2
+      dropped=1
+    fi
   fi
   other=$(git -C "$root" diff --name-only "$main...$branch" | grep -vE "^$item_re" || true)
-  [ -z "$other" ] || die "$branch carries work beyond the item file:
+  if [ -n "$other" ]; then
+    [ "$discard" -eq 1 ] || die "$branch carries work beyond the item file:
 $other
-merge $id, or remove the worktree and branch yourself, then archive"
+$hint"
+    echo "dropping from $branch:" >&2
+    printf '%s\n' "$other" | sed 's/^/  /' >&2
+    dropped=1
+  fi
 
   # The worktree may already be gone by hand, leaving the item in the main
   # checkout: then the copy is already where it needs to be.
@@ -838,15 +1154,110 @@ merge $id, or remove the worktree and branch yourself, then archive"
   # was verified clean above.
   [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
   git -C "$root" branch -D --quiet "$branch"
-  echo "retired $branch; nothing but the item was on it" >&2
+  if [ "$dropped" -eq 1 ]; then
+    echo "retired $branch; its prototypes are gone" >&2
+  else
+    echo "retired $branch; nothing but the item was on it" >&2
+  fi
   printf '%s\n' "$root/$rel"
 }
 
+# A section holds something beyond its template comment.
+# The first '## ' section of an item, comments stripped: Why for a feature,
+# What was seen for a bug, The term for a rename, Scope for research.
+lead_section() {
+  awk '/^## / { n++ } n == 1' "$1" | tail -n +2 \
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
+}
+
+section_filled() {
+  sed -n "/^## $2/,/^## /p" "$1" | tail -n +2 | grep -v '^## ' \
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' | grep -q '[^[:space:]]'
+}
+
+# One line per '### ' heading under '## Concepts': "<heading>\t<state>", the
+# state empty when the concept has no 'state:' line. The last 'state:' line
+# under a heading wins, so a rewritten concept need not delete the old one.
+concept_states() {
+  sed -n '/^## Concepts/,/^## /p' "$1" \
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
+    | awk '
+        /^## / { next }
+        /^### / { if (h != "") print h "\t" s; h = substr($0, 5); s = ""; next }
+        /^state:/ { if (h != "") { sub(/^state:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); s = $0 }; next }
+        END { if (h != "") print h "\t" s }
+      '
+}
+
+# What 'status' shows beside a research item: the count that says whether it
+# can close. A concept without a state line counts as open.
+concept_summary() {
+  local total open
+  total=$(concept_states "$1" | grep -c . || true)
+  open=$(concept_states "$1" | awk -F '\t' '$2 == "open" || $2 == ""' | grep -c . || true)
+  if [ "$total" -eq 0 ]; then echo "no concepts yet"; else echo "$open of $total concepts open"; fi
+}
+
+# Every milestone, archived or not: a concept may have spawned one that has
+# since closed.
+milestone_exists() {
+  [ -n "$(find_milestone "$1")" ] \
+    || [ -n "$(wb_find milestones/archive -maxdepth 1 -name "$1.md" -print -quit < <(wb_roots))" ]
+}
+
+# The archive gate for research. Its criterion is structural — every concept
+# reached a terminal state that names something real, and the outcome is
+# written — so it is checked here rather than read as evidence. A state that
+# names a missing item or milestone is refused: the whole value of the record
+# is that a later reader can follow it.
+research_gate() {
+  local path="$1" id="$2" states bad h s target
+  states=$(concept_states "$path")
+  bad=$(awk -F '\t' '$2 == "" { print "  " $1 }' <<< "$states")
+  [ -z "$bad" ] || die "$id has concepts without a state line:
+$bad"
+  bad=$(awk -F '\t' '$2 == "open" { print "  " $1 }' <<< "$states")
+  [ -z "$bad" ] || die "$id still has open concepts:
+$bad
+each ends as '-> <id>', '-> milestone <slug>', '-> backlog' or 'dropped — <why>'"
+  while IFS=$'\t' read -r h s; do
+    [ -n "$h" ] || continue
+    case "$s" in
+      "-> backlog") ;;
+      "dropped — "?*|"dropped - "?*) ;;
+      "-> milestone "?*)
+        target=${s#-> milestone }
+        milestone_exists "$target" || die "$id: '$h' names milestone '$target', which does not exist" ;;
+      "-> "?*)
+        target=${s#-> }
+        [[ "$target" =~ ^[bfrx]-[0-9]+$ ]] && [ -n "$(find_item "$target")" ] \
+          || die "$id: '$h' names '$target', which is not an item"
+        # 'find --grep <research id>' promises to list what it spawned, so the
+        # spawned item's opening section — a feature's Why — has to say so.
+        lead_section "$(find_item "$target")" | grep -qF "$id" \
+          || die "$id: '$h' names '$target', whose first section does not cite $id — a spawned item says what it came from" ;;
+      *) die "$id: '$h' has state '$s'; known states: open, -> <id>, -> milestone <slug>, -> backlog, dropped — <why>" ;;
+    esac
+  done <<< "$states"
+  section_filled "$path" Outcome || die "$id has no outcome recorded; archive requires it"
+}
+
 cmd_archive() {
-  local id="${1:-}" path root sha
+  local id="${1:-}" path root sha discard=0
   [ -n "$id" ] || usage
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --discard) discard=1; shift ;;
+      *) usage ;;
+    esac
+  done
   require_id "$id"
   require_init
+  case "$id" in
+    x-*) ;;
+    *) [ "$discard" -eq 0 ] || die "--discard is for research items; $id merges or is retired as it is" ;;
+  esac
 
   # Over every checkout: an unreproduced item that was started lives only in
   # its worktree, while archive is run from the main checkout.
@@ -860,24 +1271,31 @@ cmd_archive() {
   local status
   status=$(item_status "$path")
 
-  case "$status" in
-    awaiting*)
-      die "$id is awaiting a trigger and does not archive as-is. When the trigger
-fires, set 'status: open', record the evidence, then archive; or re-state it as
-'unverified — <trigger>' if no bound can be named." ;;
-    unverified*)
-      # The trigger is the whole value of an unverified archive: it is what a
-      # later search matches on.
-      case "$status" in
-        *—*|*" - "*) ;;
-        *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
-      esac ;;
-    unreproduced*) ;;
-    *)
-      if ! has_evidence "$path"; then
-        die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger>)"
-      fi ;;
-  esac
+  # Research has one status and a structural gate; the unproved statuses
+  # below are for claims about code, and research makes none.
+  if [[ "$id" == x-* ]]; then
+    [ "$status" = open ] || die "$id is research and stays 'open' until archived; 'awaiting', 'unverified' and 'unreproduced' are for bugs and features"
+    research_gate "$path" "$id"
+  else
+    case "$status" in
+      awaiting*)
+        die "$id is awaiting a trigger and does not archive as-is. When the trigger
+  fires, set 'status: open', record the evidence, then archive; or re-state it as
+  'unverified — <trigger>' if no bound can be named." ;;
+      unverified*)
+        # The trigger is the whole value of an unverified archive: it is what a
+        # later search matches on.
+        case "$status" in
+          *—*|*" - "*) ;;
+          *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
+        esac ;;
+      unreproduced*) ;;
+      *)
+        if ! has_evidence "$path"; then
+          die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger>)"
+        fi ;;
+    esac
+  fi
 
   # A branch still standing means the item has not merged, and archiving now
   # would record 'commit: none' for good while the squash commit arrives
@@ -890,8 +1308,9 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
     *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
   esac
   if [ -n "$branch" ]; then
-    case "$status" in
-      unreproduced*) path=$(retire_branch "$id" "$branch" "$path") ;;
+    case "$id:$status" in
+      x-*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
+      *:unreproduced*) path=$(retire_branch "$id" "$branch" "$path") ;;
       *) die "$id still has branch $branch; merge it first — archive records the squash commit" ;;
     esac
   fi
@@ -930,19 +1349,91 @@ fires, set 'status: open', record the evidence, then archive; or re-state it as
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
+# --- statusline -------------------------------------------------------------
+
+# One line for the Claude Code status line. The harness pipes the session
+# JSON in and runs this from wherever it sits, so the directory comes from
+# the JSON, not the cwd. Cheap by construction — file counts and one branch
+# lookup, never the full 'status' — since it runs on every repaint. Silent
+# outside a workbench project: the setting is per project, but a worktree
+# session inherits it while its own checkout may predate adoption.
+cmd_statusline() {
+  local input dir model
+  input=$(cat)
+  if command -v jq >/dev/null 2>&1; then
+    dir=$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty' 2>/dev/null || true)
+    model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null || true)
+  elif command -v python3 >/dev/null 2>&1; then
+    dir=$(printf '%s' "$input" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("workspace",{}).get("current_dir") or d.get("cwd") or "")' 2>/dev/null || true)
+    model=$(printf '%s' "$input" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("model",{}).get("display_name") or "")' 2>/dev/null || true)
+  else
+    dir=$(printf '%s' "$input" | sed -n 's/.*"current_dir": *"\([^"]*\)".*/\1/p' | head -1)
+    model=$(printf '%s' "$input" | sed -n 's/.*"display_name": *"\([^"]*\)".*/\1/p' | head -1)
+  fi
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+  cd "$dir" || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  local root ok=0
+  while IFS= read -r root; do
+    [ -d "$root/$WB" ] && ok=1
+  done < <(wb_roots 2>/dev/null)
+  [ "$ok" -eq 1 ] || return 0
+
+  local out="" here f names=() name n
+  [ -z "$model" ] || out="[$model] "
+  out="${out}wb:"
+
+  # The item whose worktree this is, from the branch the checkout sits on.
+  here=$(git symbolic-ref -q --short HEAD 2>/dev/null || true)
+  case "$here" in
+    [bfrx]-[0-9]*-*) out="$out on $(item_id "$here") ·" ;;
+  esac
+
+  mapfile -t names < <(wb_find items -path '*/archive/*' -prune -o \
+    -name '[bfrx]-*.md' -print < <(all_roots 2>/dev/null) | sed 's|.*/||' | sort -u)
+  n=${#names[@]}
+  if [ "$n" -eq 0 ]; then
+    out="$out nothing in flight"
+  else
+    out="$out $n open"
+    for name in "${names[@]}"; do
+      case "$name" in x-*) ;; *) continue ;; esac
+      f=$(wb_find items -name "$name" -print -quit < <(all_roots 2>/dev/null))
+      [ -n "$f" ] || continue
+      out="$out · $(item_id "$name") $(concept_summary "$f" | sed 's/ of / \/ /; s/ concepts open//; s/no concepts yet/0 concepts/')"
+    done
+  fi
+
+  local awaiting=0 reports dirs=()
+  mapfile -t dirs < <(wb_dirs items < <(all_roots 2>/dev/null))
+  # By name, not path: the same item sits in every checkout that inherited it.
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    [ -n "$(git branch --list "$(item_id "$name")-*")" ] || awaiting=$((awaiting + 1))
+  done < <(grep -rl '^status: awaiting' ${dirs[@]+"${dirs[@]}"} 2>/dev/null | sed 's|.*/||' | sort -u)
+  [ "$awaiting" -eq 0 ] || out="$out · $awaiting awaiting"
+  reports=$({
+    wb_find reviews -maxdepth 1 -name '*.md' < <(all_roots 2>/dev/null) | sed 's|.*/||'
+    find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
+  } | sort -u | grep -c . || true)
+  [ "$reports" -eq 0 ] || out="$out · $reports report$([ "$reports" -eq 1 ] || echo s)"
+
+  printf '%s\n' "$out"
+}
+
 # --- find -------------------------------------------------------------------
 
 FIND_CAP=10
 
 item_title() {
-  sed -n '1s/^# [bfr]-[0-9]* — //p' "$1"
+  sed -n '1s/^# [bfrx]-[0-9]* — //p' "$1"
 }
 
 # Every item file, open or archived, over both checkouts. Archived copies
 # first: a worktree cut before an archive still carries the open copy, and a
 # first-hit lookup by id must land on the record, not the leftover.
 all_items() {
-  wb_find items -name '[bfr]-*.md' < <(wb_roots) \
+  wb_find items -name '[bfrx]-*.md' < <(wb_roots) \
     | awk '/\/archive\// { print; next } { rest = rest $0 "\n" } END { printf "%s", rest }'
 }
 
@@ -1004,7 +1495,7 @@ cmd_find() {
     root=$(main_root)
     items=$(all_items)
     mapfile -t ids < <(git -C "$root" log "$main" --format='%(trailers:key=Item,valueonly)' -- "${paths[@]}" \
-      | grep -E '^[bfr]-[0-9]+$' | awk '!seen[$0]++')
+      | grep -E '^[bfrx]-[0-9]+$' | awk '!seen[$0]++')
     for id in ${ids+"${ids[@]}"}; do
       f=$(printf '%s\n' "$items" | grep -m1 "/$id-[^/]*\.md$" || true)
       [ -n "$f" ] && files+=("$f")
@@ -1032,7 +1523,7 @@ cmd_find() {
         for p in "${res[@]}"; do
           if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="on-branch"; break; fi
         done
-      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfr]-*.md' -print 2>/dev/null)
+      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfrx]-*.md' -print 2>/dev/null)
     done < <(all_roots | grep -vxF -f <(wb_roots))
     # An open item here or in the main checkout has no commit on the path
     # either — created and not started, or started and not merged — and the
@@ -1080,7 +1571,7 @@ cmd_find() {
       unreproduced*|unverified*) printf '0\t' ;;
       *) printf '1\t' ;;
     esac
-    printf '%s\t' "$(item_id "$f" | sed 's/^[bfr]-//')"
+    printf '%s\t' "$(item_id "$f" | sed 's/^[bfrx]-//')"
     index_line "$f" ${label[$f]+"${label[$f]}"}
   done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
 
@@ -1252,6 +1743,7 @@ status_lines() {
     f=$(find "$d" -name "$name" -print -quit 2>/dev/null || true)
     [ -n "$f" ] || continue
     st=$(shown_status "$f")
+    case "$name" in x-*) st="$st   $(concept_summary "$f")" ;; esac
     where=$(basename "$(item_root "$f")")
     for prev in ${seen+"${seen[@]}"}; do
       [ "$prev" = "$st" ] && continue 2
@@ -1279,7 +1771,7 @@ cmd_status() {
 
   local names=() name
   mapfile -t names < <(wb_find items -path '*/archive/*' -prune -o \
-    -name '[bfr]-*.md' -print < <(all_roots) | sed 's|.*/||' | sort -u)
+    -name '[bfrx]-*.md' -print < <(all_roots) | sed 's|.*/||' | sort -u)
 
   echo "open items"
   if [ "${#names[@]}" -eq 0 ]; then
@@ -1306,7 +1798,7 @@ cmd_status() {
 
   echo
   echo "branches"
-  git branch --format='  %(refname:short)' | grep -E '^  [bfr]-[0-9]+-' \
+  git branch --format='  %(refname:short)' | grep -E '^  [bfrx]-[0-9]+-' \
     || echo "  (none)"
 
   # Merged and open: invisible to 'git branch', so nothing but a grep or a
@@ -1320,7 +1812,7 @@ cmd_status() {
   local h
   mapfile -t hits < <(grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u \
     | while IFS= read -r h; do
-        [ -n "$(git branch --list "$(basename "$h" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p')-*")" ] || printf '%s\n' "$h"
+        [ -n "$(git branch --list "$(basename "$h" | sed -n 's/^\([bfrx]-[0-9]\{1,\}\)-.*/\1/p')-*")" ] || printf '%s\n' "$h"
       done)
   if [ "${#hits[@]}" -eq 0 ]; then
     echo "  (none)"
@@ -1336,13 +1828,31 @@ cmd_status() {
   # first: the same file in two checkouts is one item. Cause and repair:
   # references/git.md, "Duplicate IDs across machines".
   local dupes
-  dupes=$(wb_find items -name '[bfr]-*-*.md' -print < <(all_roots) \
+  dupes=$(wb_find items -name '[bfrx]-*-*.md' -print < <(all_roots) \
     | sed 's|.*/||' | sort -u \
-    | sed -n 's|^\([bfr]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
+    | sed -n 's|^\([bfrx]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
   if [ -n "$dupes" ]; then
     echo
     echo "DUPLICATE IDS — see references/git.md for repair"
     printf '%s\n' "$dupes" | sed 's/^/  /'
+  fi
+
+  # Rendered copies that no longer match. Listed, not fixed: init refreshes
+  # them, and that is a commit the user makes. An edited copy is named apart
+  # from a stale one, since init overwrites the first only when told to.
+  local drift stale edited
+  drift=$(skill_drift)
+  stale=$(awk -F '\t' '$2 != "edited" { printf "%s ", $1 }' <<< "$drift")
+  edited=$(awk -F '\t' '$2 == "edited" { printf "%s ", $1 }' <<< "$drift")
+  if [ -n "${stale// /}" ]; then
+    echo
+    echo "skills behind their source — run 'workbench init', then commit .claude/"
+    echo "  $stale"
+  fi
+  if [ -n "${edited// /}" ]; then
+    echo
+    echo "skills edited by hand under .claude/skills/ — move the edit into the source; 'workbench init --force' overwrites"
+    echo "  $edited"
   fi
 
   # Reports are untracked and live per checkout; baselines live in the shared
@@ -1515,12 +2025,42 @@ tree_snapshot() (
   fi
 )
 
-# The agent's memory stores a sweep from this checkout is told to audit: its
-# own and the main checkout's, once each. Claude Code keys the store to the
+# Where Claude Code keeps this project's memory when a setting says so:
+# 'autoMemoryDirectory', local settings over project over user, absolute or
+# '~/'-based by Claude Code's own rule. Empty when unset.
+memory_dir_setting() {
+  local f v
+  for f in "$(main_root)/.claude/settings.local.json" "$(main_root)/.claude/settings.json" "${HOME%/}/.claude/settings.json"; do
+    [ -f "$f" ] || continue
+    if command -v python3 >/dev/null 2>&1; then
+      v=$(python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("autoMemoryDirectory") or "")
+except Exception: print("")' "$f")
+    else
+      v=$(sed -n 's/.*"autoMemoryDirectory" *: *"\([^"]*\)".*/\1/p' "$f" | head -1)
+    fi
+    [ -n "$v" ] || continue
+    # shellcheck disable=SC2088  # the setting's own literal '~/'
+    case "$v" in "~/"*) v="${HOME%/}/${v#\~/}" ;; esac
+    printf '%s\n' "$v"
+    return 0
+  done
+  return 0
+}
+
+# The agent's memory stores a sweep from this checkout is told to audit. With
+# 'autoMemoryDirectory' set — init points it into the tree — there is one
+# store for every checkout. Otherwise Claude Code keys the store to the
 # checkout's absolute path with every character outside [A-Za-z0-9] turned
-# into '-', so a linked worktree gets a store of its own.
+# into '-', so a linked worktree gets a store of its own: its own and the
+# main checkout's, once each.
 memory_dirs() {
-  local root="$1" main d
+  local root="$1" main d set
+  set=$(memory_dir_setting)
+  if [ -n "$set" ]; then
+    printf '%s\n' "$set"
+    return 0
+  fi
   main=$(main_root)
   { printf '%s\n' "$root"; [ "$main" = "$root" ] || printf '%s\n' "$main"; } \
     | while IFS= read -r d; do
@@ -1790,7 +2330,7 @@ cmd_review() {
   # citation resolve against it. The fork's tools do not follow on their own —
   # the skeleton says so, below.
   local item='' branch='' branches=''
-  if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfr]-[0-9]+$ ]]; then
+  if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfrx]-[0-9]+$ ]]; then
     item=$(find_item "$scope")
     [ -z "$item" ] || root=$(item_root "$item")
     # Several branches carrying the id is merge's to refuse; the sweep must
@@ -1988,6 +2528,7 @@ case "${1:-}" in
   archive) shift; cmd_archive "$@" ;;
   review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
+  statusline) shift; cmd_statusline "$@" ;;
   review-check) shift; cmd_review_check "$@" ;;
   review-drop) shift; cmd_review_drop "$@" ;;
   help|-h|--help) usage 0 ;;

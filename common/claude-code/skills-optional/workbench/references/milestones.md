@@ -30,9 +30,13 @@ fit is obvious and never asks for one. This is deliberate: a milestone exists
 to hold the big picture, not to sort every piece of work into it, and the
 moment attaching becomes a step it becomes a place to stall.
 
-For the same reason there is no design or brainstorm artifact above the
-milestone. Thinking about a direction is a conversation; what it decides lands
-in a milestone or an item, or nowhere.
+There is nothing above a milestone. What comes *before* one — an area not yet
+understood well enough to write its done-criterion — is a research item
+([items.md](items.md), "Research items"), which spawns the milestone once it
+is. Thinking about a direction that needs no research is a conversation; what
+it decides lands in a milestone or an item, or nowhere. Which level a piece
+of work gets, and when a large feature is a milestone with an item per slice:
+SKILL.md, "Sizing".
 
 ## Archiving
 

@@ -1,6 +1,6 @@
 ---
 name: workbench
-description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, running a code review sweep, deciding whether something needs documentation, or preparing work for merge.
+description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, researching an area or concept before it can be an item, deciding whether work is one item, several, or a milestone, running a code review sweep, deciding whether something needs documentation, or preparing work for merge.
 ---
 
 # Workbench
@@ -12,6 +12,8 @@ read code at all — items and command output are the only channel they have.
 ## The loop
 
 ```
+research     workbench/items/research/<id>-<slug>.md, on its own branch —
+             a scope not yet understood; ends by spawning the rows below
 idea (workbench/BACKLOG.md line)
   -> item      workbench/items/{bugs,features,renames}/<id>-<slug>.md
   -> branch    <id>-<slug>, in its own worktree under .worktrees/
@@ -24,8 +26,13 @@ idea (workbench/BACKLOG.md line)
 ## Hard rules
 
 1. **Domain work is an item.** Features and bug fixes always get one, however
-   small. Housekeeping that is not domain work — configs, agent settings,
-   tooling — gets none and may go straight to the main branch.
+   small, once someone opens them; until then `/idea` is the user's deferral
+   ("Sizing"). Housekeeping that is not domain work — configs, agent
+   settings, tooling — gets none and may go straight to the main branch.
+   Work that cannot yet be described as an item — an area not understood,
+   or not clear how it fits — is a research item, and it ends by spawning
+   what it decided. Which level a piece of work gets is decided by "Sizing"
+   below, the same way every time.
 
 2. **The criterion is written before the code, and it is the contract.**
    Evidence is matched against the criterion, never against a test. Run it
@@ -73,6 +80,28 @@ settle alone. Three rules the list does not carry:
 
 `workbench watch` prints its own next steps for the same reason.
 
+## Commands
+
+`workbench init` renders five project-scoped skills, one per thing the user
+types. `/bug`, `/feature` and `/research` open an item of that class from
+a one-line description; `/idea` appends a backlog line; `/wb` reports what
+is in flight, with an id picks that item up where it was left, and with
+`rename <old> to <new>` opens a rename item (no `/rename`: it would shadow
+Claude Code's own; `/bug` shadows only a feedback form). Each is a thin
+instruction — the sizing check, the command to run, the fields to draft —
+so the rules stay here and the agent runs `workbench` itself. The sizing
+check comes before any id is allocated: a description that is really a
+milestone or research is said so first.
+
+Two settings come with them, in `.claude/settings.json`: `workbench status`
+runs at session start so what is in flight is in context before the first
+prompt, and `workbench statusline` keeps one line of it in the footer. The
+user may strike either.
+
+Skills and settings are copies, committed with the project, so every
+worktree and clone has them. `workbench status` says when a copy is behind
+its source; `workbench init` refreshes it, and never edit the copy itself.
+
 ## Starting work
 
 ```bash
@@ -100,6 +129,47 @@ the problem in hand, at most the two most recent that do. Nothing is recorded
 about having looked; a prior item that changes the decision is cited in the
 root cause, where it belongs. Detail in [items.md](references/items.md).
 
+## Sizing — the same call every time
+
+Which level a piece of work gets is settled by one question: **how well can
+it be described right now?** Answer it, name the row, and let the user
+confirm. Past decisions are relied on, so the row decides — not the size of
+the work, and not tidiness.
+
+| It can be described as | It is | Lives as |
+|---|---|---|
+| what changes and how to confirm it | an item | `workbench new bug\|feature\|rename` |
+| the done-criterion, but not yet the items that reach it | a milestone | `workbench milestone`; items attach as they become describable |
+| an area — cannot yet say what will be true when it is done, or how it fits, or both | research | `workbench new research` |
+| one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line |
+
+The rows are read from the item down: whatever fits the item row is an
+item, however small (rule 1). The idea row is the one the agent never
+proposes for something item-shaped — "crash on save" is a bug — since it is
+not a level of description but the user's decision to defer, reached only by
+the user saying so: `/idea`, or "backlog it". Nothing else in the rule
+defers.
+
+Research is a scope, not a large idea: it holds many concepts, and each one
+ends at a row above or is dropped — including another research item, when an
+area turns out to be two. A milestone is not a large feature: its
+done-criterion is at the level of the project, and a feature too big for one
+criterion is a milestone with an item per slice.
+
+**One item or several.** Draft the whole criteria list first, then ask of
+each entry: *could this go green and merge while the others are still red?*
+
+| Answer | Shape |
+|---|---|
+| no entry could | one item, however long the list — one behaviour checked from several angles |
+| one or more could | a milestone, one item per slice, each with its own short list |
+
+An item that could ship in halves costs a long-lived branch, one giant squash
+and a pre-merge review that must hold everything at once; two items that only
+make sense together cannot each satisfy a criterion. Backlog lines are raw
+material: any number may fold into one item and one may split, and nothing
+records which lines fed which.
+
 ## Milestones
 
 A milestone is a big-picture goal — `workbench milestone "<title>"` — with a
@@ -111,6 +181,24 @@ no item owes one. Suggest one when the fit is obvious; never ask for one.
 `workbench status` answers what is in flight: open items, items merged and still
 `awaiting` a trigger, and any duplicate IDs. Run it rather than reconstructing
 the answer from `git branch`, which cannot see the merged ones.
+
+## Research
+
+```bash
+workbench new research "rollback netcode"   # x-041
+workbench start x-041                        # branch + worktree; prototypes live there
+workbench archive x-041 [--discard]          # once every concept is terminal
+```
+
+Agree **Scope** with the user before reading anything. Each session rewrites
+**Concepts** and **Next** to the current understanding — there is no log, git
+holds the history. A concept ends when the user confirms its state:
+`-> <id>`, `-> milestone <slug>`, `-> backlog`, or `dropped — <why>`; the
+"Sizing" rows decide which, and a spawned item's **Why** cites the research
+id. Research never merges. `archive` retires the branch, and refuses while a
+concept is open, the Outcome is empty, a state names something that does not
+exist, or the branch carries prototypes not yet dropped with `--discard`.
+[items.md](references/items.md), "Research items".
 
 ## Review sweeps
 
@@ -149,6 +237,7 @@ only as the contract says. It never fixes. [reviews.md](references/reviews.md).
 | Class | Reference |
 |---|---|
 | feature, bug, rename — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
+| research — scope, concepts and their states, iterations, closing | [items.md](references/items.md), "Research items" |
 | milestones — big-picture goals, optional attachment | [milestones.md](references/milestones.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |

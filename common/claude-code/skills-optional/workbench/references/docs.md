@@ -10,8 +10,8 @@ while it is wrong is worse than no document.
    the answer.
 2. **Is it derivable from our own code?** If yes, do not write it — it will rot.
 3. **Is it a discovered fact about a system we do not control?** Then it belongs
-   in the item whose work discovered it — a bug's root cause, a feature's why —
-   not in a document of its own. The archive is already dated, searchable and
+   in the item whose work discovered it — a bug's root cause, a feature's why,
+   a research concept — not in a document of its own. The archive is already dated, searchable and
    locked, and the fact is attached to the change it explains.
 4. **Only what is left** may be a document, and only if it passes the test
    below.
@@ -75,9 +75,16 @@ fact. One question settles it:
 | Yes — it is tied to our code | a repository document, or the item itself |
 | Yes — but it describes an external system | the item whose work discovered it |
 | No — it is about the user, their machine, preferences, or workflow | agent memory |
-| No — it is credentials-adjacent | agent memory, which is not committed |
+| No — it is credentials-adjacent | nowhere in the repository — memory lives in the tree here, so `CLAUDE.local.md` or the user's own `~/.claude/` |
 
 Technical facts about the project belong in the repository, not in memory.
+
+Memory lives in the tree: `workbench init` points `autoMemoryDirectory` at
+`.claude/memory/`, tracked, one store for every worktree and clone. That
+changes where memory is, not what goes in it. Every session writes there
+through the main checkout, so its edits show up as unstaged changes on the
+default branch; commit them as housekeeping. `workbench merge` tolerates
+them unstaged and refuses them staged.
 
 Auditing memory for facts that have drifted, or that should have been repository
 documents, is a review reason — see [reviews.md](reviews.md).

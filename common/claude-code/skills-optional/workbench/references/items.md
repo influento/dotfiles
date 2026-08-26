@@ -5,7 +5,7 @@
 | State | Where | Notes |
 |---|---|---|
 | idea | one line in `workbench/BACKLOG.md` | no ID, no file |
-| open | `workbench/items/bugs/`, `features/` or `renames/` | freely editable |
+| open | `workbench/items/bugs/`, `features/`, `renames/` or `research/` | freely editable |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
 An open item may already have merged. See "Statuses" below.
@@ -34,6 +34,9 @@ line may follow it — see [milestones.md](milestones.md).
 The trigger goes in the status line rather than in prose so that these can be
 found by grep — see [git.md](git.md) for what is in flight.
 
+A research item is `open` until archived and nothing else: the other statuses
+qualify a claim about code, and research makes none.
+
 `unreproduced` and `unverified` are the only two archive bypasses. Both archive
 a statement of what was *not* proved, which is what keeps the archive honest —
 an item archived as if it were verified would spend the one guarantee the whole
@@ -47,6 +50,10 @@ This is the one place the status rules live; the other references link here.
 |---|---|---|
 | merge (`workbench merge`) | has everything that *can* be verified now been verified? — the pre-merge review's question; the command checks no evidence | `open` with evidence, or `awaiting` / `unverified` once the user has chosen it at pre-merge |
 | archive (`workbench archive`) | has the criterion been satisfied? | `open` with evidence recorded; `unreproduced` and `unverified` without |
+| archive, research | has every concept reached a terminal state that names something real, and is the Outcome written? | `open`, no evidence block; the branch retired, `--discard` if it carried prototypes |
+
+Research never passes the merge gate: there is nothing to ship, and what it
+decided is spawned as items that pass it themselves.
 
 An item may merge while still open: the worktree goes, the change ships, and
 nothing claims success until the criterion runs. `awaiting` is then the only
@@ -86,6 +93,66 @@ a normal bug with both sightings as evidence. A match against an `unverified`
 item names the exact assumption that was wrong and hands you the reasoning that
 produced it. Something that never recurs stays archived, which is the correct
 outcome for a phantom.
+
+## Research items
+
+A research item is a **scope**: an area of mechanics or theory not yet
+understood well enough to write an item for, or not yet clear how to fit into
+this project, or both. It is not a large idea — an idea is one sentence whose
+meaning is obvious — and not a milestone, whose done-criterion can already be
+stated. Which of the four a piece of work is: SKILL.md, "Sizing".
+
+`workbench new research` writes the fields; `start` gives it a branch and
+worktree like any item, and everything tried — prototypes, benchmarks, pasted
+sources — lives there, throwaway by definition.
+
+| Field | Holds |
+|---|---|
+| Scope | the area, what is in and out, the project need behind it — agreed with the user before any reading |
+| Concepts | one `### ` heading per mechanic or theory piece, in the project's own words: what it is, how it would fit here, what it would touch; each ending in one `state:` line |
+| Next | where to pick up — the resume point, replaced each iteration |
+| Outcome | written last: what the scope became, and anything learned that no single concept holds |
+
+### Iterations
+
+Research takes several sessions. Each one rewrites Concepts and Next to the
+current understanding; nothing is appended as a log, and git holds what the
+earlier understanding was (SKILL.md rule 7). A discovered fact about a system
+we do not control goes into the concept that needed it, as it would go into a
+bug's root cause.
+
+### Concept states
+
+Every concept ends in exactly one line, and archive reads them:
+
+| State | Means |
+|---|---|
+| `state: open` | still being understood |
+| `state: -> f-050` | became that item — its first section (a feature's **Why**) cites this research id, and archive checks that it does; `-> x-052` is allowed, an area that turned out to be two |
+| `state: -> milestone <slug>` | became that milestone; its items follow, each citing this id |
+| `state: -> backlog` | became one obvious sentence in `BACKLOG.md` |
+| `state: dropped — <why>` | will not be pursued; the reason is the record |
+
+Which terminal state, and whether one item or several, is the "Sizing" rule.
+The agent proposes; **the user confirms every terminal state**, as with
+`awaiting`. An item or milestone is spawned the moment its concept is
+describable, while the research stays open — the spawned item runs the normal
+loop on its own branch. A prototype worth keeping is copied into that item's
+worktree by hand; the research branch is never a base for anything.
+
+### Closing
+
+`workbench archive x-041` refuses while any concept is `open` or lacks a
+state line, while a state names an item or milestone that does not exist,
+while a named item's first section does not cite `x-041`, while the Outcome
+is empty, or — since research never merges — while the
+branch carries anything beyond the item file. `--discard` drops the
+prototypes, naming each as it goes. The item lands in the archive with
+`commit: none`.
+
+A revisit is a new research item citing the old one; nothing reopens.
+`workbench find --grep x-041` lists what it spawned, since every spawned
+item's first section names it — archive refused otherwise.
 
 ## Rename items
 

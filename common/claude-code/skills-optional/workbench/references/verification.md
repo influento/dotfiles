@@ -46,7 +46,9 @@ check is a guard has no contract.
 ## Form
 
 A criterion is a **description** of how to verify. Use a command when a real
-tool already covers it.
+tool already covers it. It may be a list; whether a list is one item or a
+milestone with an item per slice is decided by SKILL.md, "Sizing", before the
+item is written.
 
 Never write a script whose only purpose is to satisfy a criterion. Real tooling
 that does real work and happens to prove something is right; a test harness

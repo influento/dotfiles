@@ -100,11 +100,12 @@ archive` resolves the branch as `git config workbench.main`, then
 
 The command refuses while the item's branch still exists — archived first, the
 item would record `commit: none` for good while the squash commit arrives
-later. The one branch that never merges is an `unreproduced` bug's: nothing
-to fix, so nothing on it but the item file. That one `archive` retires
-itself: the item comes back to the main checkout, the worktree and branch go.
-Only when the item is all the branch holds; any other change is work, and
-work merges or is discarded by hand.
+later. Two branches never merge, and `archive` retires those itself: the item
+comes back to the main checkout, the worktree and branch go. An `unreproduced`
+bug's holds nothing but the item file — nothing to fix — and anything else on
+it is work, which merges or is discarded by hand. A research item's may hold
+prototypes, throwaway by definition; `archive --discard` drops them, naming
+each, and without the flag the command refuses and says so.
 
 The move is left uncommitted; the command prints the commit to make.
 
@@ -112,8 +113,8 @@ The move is left uncommitted; the command prints the commit to make.
 
 Format `<letter>-<number>-<slug>`, e.g. `f-037-mob-positions`,
 `b-038-frozen-coords`. The letter is `f` for feature, `b` for bug, `r` for
-rename, and is kept even though the folder already says the class, because
-`workbench/items/archive/` is flat.
+rename, `x` for research, and is kept even though the folder already says the
+class, because `workbench/items/archive/` is flat.
 
 The ID seeds everything downstream:
 
