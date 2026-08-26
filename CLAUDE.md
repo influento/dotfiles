@@ -169,7 +169,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
-| **workbench**        | `common/scripts/workbench`          | Item-tracking workflow CLI, opted into per project; ships with the `workbench` / `workbench-review` skills |
+| **workbench**        | `common/scripts/workbench`          | Item-tracking workflow CLI, opted into per project; `init` renders the `workbench` / `workbench-review` skills plus the `/bug /feature /research /idea /wb` commands (`/wb rename` covers renames; a `/rename` would shadow the builtin) as committed copies under `.claude/skills/` (stamped with source + copy hashes; `status` flags stale and hand-edited ones, `init --force` overwrites the latter) and merges a session hook + status line + allow rule + `autoMemoryDirectory` (memory tracked in the tree) into the project's `.claude/settings.json` |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
@@ -279,7 +279,7 @@ Skills are split into two trees under `common/claude-code/`:
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `skills-optional/`| never deployed — opted into per project      | `workbench` + `workbench-review`, `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
+| `skills-optional/`| never deployed — opted into per project      | `workbench` + `workbench-review` + `workbench-commands/` (`/bug /feature /research /idea /wb`; `workbench init` renders all of them as committed copies, not links), `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
 `name` and `description` frontmatter is loaded into context at session start — the
@@ -303,9 +303,10 @@ ln -s ~/dev/infra/dotfiles/common/claude-code/skills-optional/go/* <project>/.cl
 
 The `go/` subdirectory is a grouping only — Claude Code discovers skills as
 `skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
-Ignore the symlinks themselves in the project's `.gitignore` (`workbench init` does
-this for the two it creates); `.claude/skills/` as a whole only when every skill
-there is personal rather than team-wide.
+Ignore the symlinks themselves in the project's `.gitignore`; `.claude/skills/` as
+a whole only when every skill there is personal rather than team-wide. Workbench
+is the exception: `workbench init` renders its skills as committed copies so
+worktrees and other clones carry them — see the `workbench` row above.
 
 ## Code Conventions
 

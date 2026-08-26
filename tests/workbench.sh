@@ -53,6 +53,25 @@ new_repo() {
 
 new_repo loop
 run "init" 0 "workbench ready" "$WB" init
+run "init outside ~ says to set the memory path by hand" 0 "not under ~" "$WB" init
+for c in workbench workbench-review bug feature research idea wb; do
+  check "init renders /$c as a copy" [ -f ".claude/skills/$c/SKILL.md" ] && [ ! -L ".claude/skills/$c" ] && [ -f ".claude/skills/$c/GENERATED" ]
+done
+check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
+check "no /rename is rendered" [ ! -e .claude/skills/rename ]
+check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
+check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
+check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
+check "init writes the session hook" grep -q '"workbench status"' .claude/settings.json
+check "init writes the status line" grep -q '"workbench statusline"' .claude/settings.json
+run "init is idempotent" 0 "workbench ready" "$WB" init
+check "unchanged copies are not re-rendered" bash -c "! '$WB' init 2>&1 | grep -q 'rendered .claude'"
+check "the hook is not duplicated" [ "$(grep -c '"workbench status"' .claude/settings.json)" -eq 1 ]
+run "status is quiet while the copies are current" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
+session() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"}}' "$1"; }
+run "statusline with nothing in flight" 0 '^\[Opus\] wb: nothing in flight$' bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+run "statusline outside a workbench project is silent" 0 "" bash -c "$(declare -f session); session '$HOME' | '$WB' statusline"
+check "statusline outside a workbench project prints nothing" [ -z "$(session "$HOME" | "$WB" statusline)" ]
 git add -A && git commit -qm 'workbench init'
 
 id=$("$WB" new bug "crash on save" 2>/dev/null)
@@ -64,6 +83,7 @@ run "start" 0 "moved $item onto the branch" "$WB" start b-001
 wt=.worktrees/b-001-crash-on-save
 check "start moves the item into the worktree" [ -f "$wt/$item" ]
 check "start leaves no copy on main" [ ! -e "$item" ]
+run "statusline names the worktree's item" 0 '^\[Opus\] wb: on b-001 · 1 open$' bash -c "$(declare -f session); session '$PWD/$wt' | '$WB' statusline"
 
 run "merge names the uncommitted item file" 1 "$item is not committed on the branch" "$WB" merge b-001 "fix crash"
 
@@ -275,6 +295,189 @@ fill_evidence workbench/milestones/big-goal.md "make release" "ok"
 run "milestone archive" 0 "archived milestone big-goal" "$WB" milestone archive big-goal
 check "milestone lands in its archive" [ -f workbench/milestones/archive/big-goal.md ]
 
+# --- research -----------------------------------------------------------------
+# A scope that ends by decomposing: never merges, archives once every concept
+# is terminal and names something real, drops its prototypes only when told.
+
+# research_item <path> <id> <outcome> <state>... — one concept per state; an
+# empty state omits the line.
+research_item() {
+  local path="$1" id="$2" outcome="$3" n=0 st; shift 3
+  {
+    printf '# %s — netcode\n\nstatus: open\n\n## Scope\n\nlockstep or rollback\n\n## Concepts\n' "$id"
+    for st in "$@"; do
+      n=$((n + 1))
+      printf '\n### concept %s\n\nwords\n' "$n"
+      [ -z "$st" ] || printf 'state: %s\n' "$st"
+    done
+    printf '\n## Next\n\n## Outcome\n\n%s\n' "$outcome"
+  } > "$path"
+}
+
+idx=$("$WB" new research "netcode" 2>/dev/null)
+check "new research allocates x-" [ "${idx%%-*}" = x ]
+ritem=workbench/items/research/$idx-netcode.md
+check "new research writes under items/research" [ -f "$ritem" ]
+check "the research template carries the state grammar" grep -q 'state: -> milestone <slug>' "$ritem"
+run "archive --discard refuses a non-research id" 1 "for research items" "$WB" archive b-001 --discard
+"$WB" start "$idx" >/dev/null 2>&1
+rwt=.worktrees/$idx-netcode
+ritem=$rwt/$ritem
+run "merge refuses research" 1 "never merges" "$WB" merge "$idx" "netcode"
+run "status shows a research item with no concepts" 0 "$idx-netcode +open +no concepts yet" "$WB" status
+research_item "$ritem" "$idx" "" "open" "-> backlog"
+run "status counts open concepts" 0 "$idx-netcode +open +1 of 2 concepts open" "$WB" status
+run "statusline counts open concepts" 0 "wb: .* · $idx 1 / 2" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+run "archive refuses with an open concept" 1 "still has open concepts" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "" "" "-> backlog"
+run "archive names a concept without a state" 1 "concepts without a state line" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "" "-> f-999"
+run "archive refuses a state naming a missing item" 1 "names 'f-999', which is not an item" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "" "-> milestone nope"
+run "archive refuses a state naming a missing milestone" 1 "names milestone 'nope', which does not exist" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "" "later"
+run "archive refuses an unknown state" 1 "known states" "$WB" archive "$idx"
+set_status "$ritem" "awaiting — next deploy"
+run "archive refuses a research status other than open" 1 "stays 'open' until archived" "$WB" archive "$idx"
+# every terminal form, pointing at things that exist — an archived item and an
+# archived milestone among them
+research_item "$ritem" "$idx" "" "-> backlog" "-> b-001" "-> milestone big-goal" "dropped — too slow"
+run "archive refuses a spawned item that does not cite the research" 1 "whose first section does not cite $idx" "$WB" archive "$idx"
+sed -i "/^## What was seen/a\\
+\\
+spawned by $idx" workbench/items/archive/b-001-crash-on-save.md
+sed -i "/^## Root cause/a\\
+\\
+see also $idx-in-the-wrong-place" workbench/items/archive/b-001-crash-on-save.md
+run "archive refuses without an outcome" 1 "no outcome recorded" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "became b-001 and a backlog line" "-> backlog" "-> b-001" "-> milestone big-goal" "dropped — too slow"
+( cd "$rwt" && echo proto > proto.txt && git add -A && git commit -qm prototype )
+run "archive refuses to drop prototypes unasked" 1 "archive $idx --discard" "$WB" archive "$idx"
+check "the refusal names the prototype" bash -c "'$WB' archive $idx 2>&1 | grep -q proto.txt"
+( cd "$rwt" && echo more > scratch.txt )
+rc=0; out=$("$WB" archive "$idx" --discard 2>&1) || rc=$?
+check "archive --discard retires the research branch" [ "$rc" -eq 0 ]
+check "--discard says the prototypes are gone" grep -q 'its prototypes are gone' <<< "$out"
+check "--discard names the committed prototype" grep -q 'proto.txt' <<< "$out"
+check "--discard names the uncommitted scratch" grep -q 'scratch.txt' <<< "$out"
+check "research worktree removed" [ ! -e "$rwt" ]
+check "research branch deleted" [ -z "$(git branch --list "$idx-netcode")" ]
+check "research archived on main" [ -f "workbench/items/archive/$idx-netcode.md" ]
+check "research records no commit" grep -qx 'commit: none' "workbench/items/archive/$idx-netcode.md"
+git add -A && git commit -qm "archive $idx"
+run "find --grep lists archived research" 0 "^$idx .*archived" "$WB" find --grep lockstep
+run "status no longer lists it" 0 "" bash -c "! '$WB' status | grep -q $idx-netcode"
+
+# a statusLine the user already set is never overridden
+new_repo settings
+mkdir -p .claude && echo '{"statusLine":{"type":"command","command":"echo mine"}}' > .claude/settings.json
+run "init leaves a user statusLine alone" 0 "statusLine is already set" "$WB" init
+check "the user statusLine survives" grep -q '"echo mine"' .claude/settings.json
+check "the hook is still added beside it" grep -q '"workbench status"' .claude/settings.json
+echo 'not json' > .claude/settings.json
+run "init leaves invalid settings alone" 0 "not valid JSON; left alone" "$WB" init
+check "invalid settings are untouched" grep -qx 'not json' .claude/settings.json
+# a statusLine that is not an object is left alone, and init still finishes
+echo '{"statusLine":"echo hi","hooks":{"SessionStart":["odd"]}}' > .claude/settings.json
+run "init survives a non-object statusLine" 0 "statusLine is already set" "$WB" init
+check "the string statusLine survives" grep -q '"echo hi"' .claude/settings.json
+check "the hook is added beside a non-object SessionStart entry" grep -q '"workbench status"' .claude/settings.json
+check "init reached the checklist" bash -c "'$WB' init | grep -q 'decide these with the user'"
+
+# --- memory in the tree -------------------------------------------------------
+# Under ~, init points autoMemoryDirectory into the checkout; the memory sweep
+# baselines that store, and merge tolerates its unstaged edits on main.
+
+new_repo home/memproj
+run "init sets autoMemoryDirectory under ~" 0 'autoMemoryDirectory = ~/memproj/.claude/memory' "$WB" init
+check "the setting is tilde-based" grep -q '"autoMemoryDirectory": "~/memproj/.claude/memory"' .claude/settings.json
+run "init leaves the setting alone next time" 0 "" bash -c "! '$WB' init 2>&1 | grep -q 'autoMemoryDirectory ='"
+mkdir -p .claude/memory && echo '# Memory' > .claude/memory/MEMORY.md
+git add -A && git commit -qm 'init + memory'
+report=$("$WB" review memory 2>/dev/null)
+echo new > .claude/memory/new.md
+run "a memory sweep baselines the in-tree store" 1 "new.md" "$WB" review-check "$report"
+rm .claude/memory/new.md; "$WB" review-drop "$report" >/dev/null 2>&1
+"$WB" new bug "one" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
+( cd .worktrees/b-001-one && echo fix > src.txt && git add -A && git commit -qm fix )
+echo learned >> .claude/memory/MEMORY.md
+run "merge tolerates unstaged memory edits on main" 0 "merged b-001" "$WB" merge b-001 "one"
+check "the memory edit stayed out of the squash" bash -c "! git show --stat --format= HEAD | grep -q MEMORY.md"
+check "the memory edit is still pending" [ -n "$(git status --porcelain .claude/memory)" ]
+git add -A && git commit -qm memory
+"$WB" new bug "two" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
+( cd .worktrees/b-002-two && echo fix2 > src2.txt && git add -A && git commit -qm fix2 )
+echo staged >> .claude/memory/MEMORY.md && git add .claude/memory/MEMORY.md
+run "merge refuses staged memory edits" 1 "uncommitted changes" "$WB" merge b-002 "two"
+git reset -q && git checkout -q .claude/memory/MEMORY.md
+echo other >> README
+run "merge still refuses other unstaged dirt" 1 "uncommitted changes" "$WB" merge b-002 "two"
+git checkout -q README
+
+# --- rendered copies: migration from links, staleness, templates ------------
+
+new_repo copies
+src_root=$(readlink -f "$(dirname "$WB")/../claude-code/skills-optional")
+"$WB" init >/dev/null 2>&1
+rm -rf .claude/skills/wb && ln -s "$src_root/workbench-commands/wb" .claude/skills/wb
+printf '.claude/skills/workbench\n.claude/skills/wb\n.claude/skills/rename\n.claude/settings.local.json\n' >> .gitignore
+mkdir -p .claude/skills/rename && printf "x\nx\ngenerated by 'workbench init' from skills-optional/workbench-commands/rename\n" > .claude/skills/rename/GENERATED
+mkdir -p .claude/skills/foreign && printf 'x\nx\nmade elsewhere\n' > .claude/skills/foreign/GENERATED
+run "init replaces an old link with a copy" 0 "skills/wb: link replaced by a copy" "$WB" init
+check "a foreign GENERATED file is not a workbench stamp" [ -f .claude/skills/foreign/GENERATED ]
+rm -rf .claude/skills/foreign
+check "the copy is no longer a link" [ ! -L .claude/skills/wb ] && [ -f .claude/skills/wb/GENERATED ]
+check "init drops the old ignore lines" bash -c "! grep -q 'claude/skills' .gitignore"
+check "init keeps settings.local.json ignored" grep -qx '.claude/settings.local.json' .gitignore
+check "init keeps .worktrees/ ignored" grep -qx '.worktrees/' .gitignore
+check "init removes a generated copy of a skill that is gone" [ ! -e .claude/skills/rename ]
+# a dropped skill's copy that was edited by hand is refused like any other
+cp -R .claude/skills/idea .claude/skills/gone && sed -i "s|from skills-optional/[^;]*|from skills-optional/gone|" .claude/skills/gone/GENERATED
+echo tweak >> .claude/skills/gone/SKILL.md
+run "init refuses to remove an edited copy of a dropped skill" 1 "no longer a workbench skill but was edited by hand" "$WB" init
+run "init --force removes it" 0 "removed .claude/skills/gone" "$WB" init --force
+run "adopt takes --force too" 0 "workbench ready" "$WB" adopt --force
+sed -i '1s/.*/000000000000/' .claude/skills/wb/GENERATED
+run "status flags a copy behind its source" 0 "behind their source" "$WB" status
+run "init re-renders a stale copy" 0 "rendered .claude/skills/wb" "$WB" init
+run "status is quiet again" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
+# a copy edited by hand is named as such, and only --force overwrites it
+echo 'my tweak' >> .claude/skills/wb/SKILL.md
+run "status names an edited copy" 0 "edited by hand.*init --force" "$WB" status
+check "an edited copy is not listed as stale" bash -c "! '$WB' status | grep -q 'behind their source'"
+run "init refuses to overwrite an edited copy" 1 "edited by hand since it was rendered" "$WB" init
+check "the edit survives the refusal" grep -q 'my tweak' .claude/skills/wb/SKILL.md
+run "init --force overwrites it" 0 "rendered .claude/skills/wb \(the hand edit is gone\)" "$WB" init --force
+check "the edit is gone" bash -c "! grep -q 'my tweak' .claude/skills/wb/SKILL.md"
+run "status is quiet after --force" 0 "" bash -c "! '$WB' status | grep -q 'edited by hand'"
+# the stamp does not depend on the locale that rendered it
+LC_ALL=en_US.UTF-8 "$WB" init >/dev/null 2>&1
+run "status under C agrees with a copy rendered under en_US.UTF-8" 0 "" bash -c "! LC_ALL=C '$WB' status | grep -q 'behind their source'"
+# a .gitignore holding nothing but a stale line empties cleanly
+new_repo gi
+printf '.claude/skills/workbench\n' > .gitignore
+run "init strips the only line of a .gitignore" 0 "workbench ready" "$WB" init
+check "no .gitignore.tmp is left behind" [ ! -e .gitignore.tmp ]
+check "the stale line is gone" bash -c "! grep -q 'claude/skills' .gitignore"
+check ".worktrees/ is ignored" grep -qx '.worktrees/' .gitignore
+cd "$TMP/copies"
+mkdir -p .claude/skills/hand && echo x > .claude/skills/hand/SKILL.md
+cp -R "$src_root/workbench-commands/idea" .claude/skills/idea-copy && rm -rf .claude/skills/idea && mv .claude/skills/idea-copy .claude/skills/idea
+run "init refuses a skill dir it did not generate" 1 "was not generated by workbench" "$WB" init
+rm -rf .claude/skills/idea
+# a .tpl in a source renders with the project's own values
+cp -R "$src_root" "$TMP/src"
+printf '@@PROJECT@@ on @@DEFAULT_BRANCH@@\n' > "$TMP/src/workbench-commands/wb/probe.md.tpl"
+run "init renders a template from an overridden source" 0 "rendered .claude/skills/wb" env WORKBENCH_SKILL_SRC="$TMP/src/workbench" "$WB" init
+check "the template is substituted" grep -qx 'copies on main' .claude/skills/wb/probe.md
+check "the .tpl itself is not copied" [ ! -e .claude/skills/wb/probe.md.tpl ]
+# the hash sees paths, not just content: a rename in the source is a change
+mv "$TMP/src/workbench-commands/wb/probe.md.tpl" "$TMP/src/workbench-commands/wb/probe2.md.tpl"
+run "a renamed source file shows the copy as stale" 0 "behind their source" env WORKBENCH_SKILL_SRC="$TMP/src/workbench" "$WB" status
+ln -s SKILL.md "$TMP/src/workbench-commands/wb/link.md"
+run "init refuses a symlink in a source" 1 "is a symlink" env WORKBENCH_SKILL_SRC="$TMP/src/workbench" "$WB" init
+rm "$TMP/src/workbench-commands/wb/link.md"
+
 # adopt on a symlinked CLAUDE.md edits the target, not the link
 new_repo adopt
 mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude
@@ -382,7 +585,7 @@ run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" 
 new_repo early
 "$WB" init >/dev/null           # left uncommitted: main has no workbench/
 "$WB" new bug "early" >/dev/null 2>&1
-"$WB" start b-001 >/dev/null 2>&1
+run "start notes an uncommitted .claude" 0 "lacks the workbench commands" "$WB" start b-001
 [ ! -d .worktrees/b-001-early/workbench/reviews ] || fail "setup: reviews/ unexpectedly present"
 report=$("$WB" review pre-merge b-001 2>/dev/null) || true
 check "review pre-merge creates reviews/ when the branch lacks it" [ -f "$report" ]
