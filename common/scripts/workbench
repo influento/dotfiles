@@ -74,6 +74,30 @@ wb_roots() {
   return 0
 }
 
+# $WB/<sub> in each checkout read from stdin, existing ones only. Any lookup
+# over 'git worktree list' meets checkouts without it: a worktree branched
+# before adoption, a detached one, one removed by hand and not yet pruned.
+# find exits non-zero on a missing start path — even when -quit ended it on a
+# hit — and under set -e that kills the caller without a word.
+wb_dirs() {
+  local sub="$1" r
+  while IFS= read -r r; do
+    [ -n "$r" ] && [ -d "$r/$WB/$sub" ] && printf '%s\n' "$r/$WB/$sub"
+  done
+  return 0
+}
+
+# find over wb_dirs, in the order the checkouts were given. No checkout has
+# the directory → nothing, rc 0; a bare find would search the working
+# directory instead.
+wb_find() {
+  local sub="$1" dirs=()
+  shift
+  mapfile -t dirs < <(wb_dirs "$sub")
+  [ "${#dirs[@]}" -gt 0 ] || return 0
+  find "${dirs[@]}" "$@" 2>/dev/null || true
+}
+
 # The skill source sits beside this script in the dotfiles tree. Resolving it
 # from $0 keeps the path out of the script, so a moved checkout still works.
 skill_source() {
@@ -125,14 +149,13 @@ require_init() {
 # Over every checkout: an item that only exists in a sibling worktree has a
 # number too.
 highest_existing() {
-  local max=0 n roots=()
-  mapfile -t roots < <(all_roots)
+  local max=0 n
   while IFS= read -r f; do
     n=$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')
     [ -n "$n" ] || continue
     n=$((10#$n))
     [ "$n" -gt "$max" ] && max=$n
-  done < <(find "${roots[@]/%//$WB/items}" -name '[bfr]-*.md' 2>/dev/null)
+  done < <(wb_find items -name '[bfr]-*.md' < <(all_roots))
   echo "$max"
 }
 
@@ -502,21 +525,24 @@ cmd_new() {
   echo "leave it uncommitted; 'workbench start $id' moves it onto its branch" >&2
 }
 
+# The item file, over every checkout, in the order a copy is authoritative:
+# the item's own worktree first — the copy on its branch — then the main
+# checkout, which holds the merged copy. Every worktree cut after the merge
+# inherits that copy, so a sibling's is never the item's home: archive run
+# from one used to move the sibling's copy and leave main's open. Last the
+# current checkout and the rest, for an item created and not yet started —
+# it exists only where 'new' ran, and any worktree may run it.
 find_item() {
-  local roots=()
-  mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB/items}" -name "$1-*.md" -print -quit 2>/dev/null
-}
-
-# The same item, over every checkout, for callers that only read it: a
-# pre-merge names an item whose worktree need not be the one the sweep runs
-# from. Linked worktrees first, so the copy on the item's branch wins over an
-# older one in the main checkout.
-find_item_anywhere() {
-  local roots=() main
-  main=$(main_root)
-  mapfile -t roots < <(all_roots | grep -vxF "$main"; printf '%s\n' "$main")
-  find "${roots[@]/%//$WB/items}" -name "$1-*.md" -print -quit 2>/dev/null
+  local id="$1" b
+  wb_find items -name "$id-*.md" -print -quit < <(
+    {
+      while IFS= read -r b; do worktree_of "$b"; done \
+        < <(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+      main_root
+      repo_root
+      all_roots
+    } | awk 'NF && !seen[$0]++'
+  )
 }
 
 # The checkout an item file belongs to. find_item may return a path from the
@@ -583,6 +609,17 @@ worktree_of() {
       '
 }
 
+# worktree_of for a caller about to run git inside it. A worktree removed by
+# hand stays listed until 'git worktree prune', and git's own error for the
+# missing directory — "cannot change to …" — says nothing about that.
+live_worktree_of() {
+  local wt
+  wt=$(worktree_of "$1")
+  [ -z "$wt" ] || [ -d "$wt" ] \
+    || die "the worktree for $1 is gone but still listed: $wt; run 'git worktree prune', then retry"
+  printf '%s\n' "$wt"
+}
+
 # The squash commit is the whole point of the merge: the change lands on the
 # default branch as one commit whose only body is the trailer. Everything the
 # command checks exists to keep that commit honest — one branch, one item, one
@@ -634,7 +671,7 @@ cmd_merge() {
   [ -z "$(git -C "$root" status --porcelain --untracked-files=no)" ] \
     || die "$root has uncommitted changes; the squash commit would absorb them"
 
-  wt=$(worktree_of "$branch")
+  wt=$(live_worktree_of "$branch")
   if [ -n "$wt" ]; then
     local dirt
     dirt=$(git -C "$wt" status --porcelain --untracked-files=all)
@@ -673,8 +710,11 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
   # and a commit hook can refuse. Either failure would leave the main index
   # half-squashed, the one state promised above never to leave, so both are
   # undone the way 'merge --abort' would.
-  git -C "$root" merge --squash --quiet "$branch" >/dev/null \
-    || { unsquash "$root"; die "the squash stopped; $root is restored — rebase $branch onto $main in its worktree, then retry"; }
+  # Captured, not silenced: --quiet still leaves "Automatic merge went well"
+  # on stderr, which is noise on success and evidence on failure.
+  local squash
+  squash=$(git -C "$root" merge --squash --quiet "$branch" 2>&1) \
+    || { printf '%s\n' "$squash" >&2; unsquash "$root"; die "the squash stopped; $root is restored — rebase $branch onto $main in its worktree, then retry"; }
   git -C "$root" commit --quiet -m "$subject" -m "Item: $id" \
     || { unsquash "$root"; die "the squash commit was refused; $root is restored and nothing was removed"; }
 
@@ -693,7 +733,7 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
   # The item file rode along in the squash, so read its status from the copy
   # now on the default branch.
   local item
-  item=$(find "$root/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null)
+  item=$(wb_find items -name "$id-*.md" -print -quit <<< "$root")
   case "$item" in
     */archive/*) echo "$id is already archived" >&2 ;;
     *)
@@ -711,6 +751,20 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
 
 item_status() {
   sed -n 's/^status: *//p' "$1" | head -1
+}
+
+# The status a listing shows. Archiving leaves the status line alone, so a
+# plain 'open' under archive/ means verified and shipped; the unproved
+# statuses say so themselves.
+shown_status() {
+  local st
+  st=$(item_status "$1")
+  case "$1" in */archive/*) [ "$st" = open ] && st=archived ;; esac
+  printf '%s\n' "$st"
+}
+
+item_id() {
+  basename "$1" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p'
 }
 
 # Undo a squash that did not reach its commit. The tracked tree was verified
@@ -761,7 +815,7 @@ retire_branch() {
   local id="$1" branch="$2" path="$3" main root wt other item_re
   main=$(default_branch)
   root=$(main_root)
-  wt=$(worktree_of "$branch")
+  wt=$(live_worktree_of "$branch")
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
 
   if [ -n "$wt" ]; then
@@ -796,7 +850,7 @@ cmd_archive() {
 
   # Over every checkout: an unreproduced item that was started lives only in
   # its worktree, while archive is run from the main checkout.
-  path=$(find_item_anywhere "$id")
+  path=$(find_item "$id")
   [ -n "$path" ] || die "no item matching '$id'"
 
   case "$path" in
@@ -884,11 +938,12 @@ item_title() {
   sed -n '1s/^# [bfr]-[0-9]* — //p' "$1"
 }
 
-# Every item file, open or archived, over both checkouts.
+# Every item file, open or archived, over both checkouts. Archived copies
+# first: a worktree cut before an archive still carries the open copy, and a
+# first-hit lookup by id must land on the record, not the leftover.
 all_items() {
-  local roots=()
-  mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB/items}" -name '[bfr]-*.md' 2>/dev/null
+  wb_find items -name '[bfr]-*.md' < <(wb_roots) \
+    | awk '/\/archive\// { print; next } { rest = rest $0 "\n" } END { printf "%s", rest }'
 }
 
 # One index line per item: date, status, title. The date is the commit that
@@ -897,13 +952,10 @@ all_items() {
 # item sorts first rather than last.
 index_line() {
   local f="$1" id date status
-  id=$(basename "$f" | sed -n 's/^\([bfr]-[0-9]\{1,\}\)-.*/\1/p')
-  status=$(item_status "$f")
+  id=$(item_id "$f")
+  status=$(shown_status "$f")
   case "$f" in
     */archive/*)
-      # Archiving leaves the status line alone, so a plain 'open' here means
-      # verified and shipped; the unproved statuses say so themselves.
-      [ "$status" = open ] && status=archived
       local sha
       sha=$(sed -n 's/^commit: *//p' "$f" | tail -1)
       date=$(git log -1 --format=%cs "$sha" -- 2>/dev/null || true) ;;
@@ -995,10 +1047,21 @@ cmd_find() {
     mapfile -t files < <(all_items)
   fi
 
-  local w kept=() seen=()
+  # One line per id, not per copy: from a sibling worktree cut before an
+  # archive, all_items yields its open copy and main's archived one. The
+  # archive/ path wins — it is the record — else the first hit keeps its label.
+  local w kept=() order=() id
+  declare -A pick=()
   for f in ${files+"${files[@]}"}; do
-    for w in ${seen+"${seen[@]}"}; do [ "$w" = "$f" ] && continue 2; done
-    seen+=("$f")
+    id=$(item_id "$f")
+    if [ -z "${pick[$id]+x}" ]; then
+      order+=("$id"); pick[$id]=$f
+    else
+      case "$f" in */archive/*) case "${pick[$id]}" in */archive/*) ;; *) pick[$id]=$f ;; esac ;; esac
+    fi
+  done
+  for id in ${order+"${order[@]}"}; do
+    f=${pick[$id]}
     for w in ${words+"${words[@]}"}; do
       grep -qi -- "$w" "$f" || continue 2
     done
@@ -1017,7 +1080,7 @@ cmd_find() {
       unreproduced*|unverified*) printf '0\t' ;;
       *) printf '1\t' ;;
     esac
-    printf '%s\t' "$(basename "$f" | sed -n 's/^[bfr]-\([0-9]\{1,\}\)-.*/\1/p')"
+    printf '%s\t' "$(item_id "$f" | sed 's/^[bfr]-//')"
     index_line "$f" ${label[$f]+"${label[$f]}"}
   done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
 
@@ -1039,9 +1102,7 @@ cmd_find() {
 # no item list to maintain, since the items name it themselves with an
 # optional 'milestone:' line, and no obligation for any item to name one.
 find_milestone() {
-  local roots=()
-  mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB/milestones}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+  wb_find milestones -maxdepth 1 -name "$1.md" -print -quit < <(wb_roots)
 }
 
 write_milestone() {
@@ -1075,7 +1136,7 @@ milestone_items() {
       */archive/*) printf 'archived\t%s\n' "$(basename "$f" .md)" ;;
       *) printf 'open\t%s\n' "$(basename "$f" .md)" ;;
     esac
-  done < <(all_items)
+  done < <(all_items) | sort -t "$(printf '\t')" -k2,2 -k1,1 | awk -F '\t' '!seen[$2]++'
 }
 
 cmd_milestone() {
@@ -1122,9 +1183,7 @@ $open"
 # --- watch ------------------------------------------------------------------
 
 find_watch() {
-  local roots=()
-  mapfile -t roots < <(wb_roots)
-  find "${roots[@]/%//$WB/watches}" -maxdepth 1 -name "$1.md" -print -quit 2>/dev/null
+  wb_find watches -maxdepth 1 -name "$1.md" -print -quit < <(wb_roots)
 }
 
 # The contract a watch shift runs under. It is the whole authority for what
@@ -1183,14 +1242,16 @@ EOF
 # An item file lives on its branch, so the copy in a worktree and the copy in
 # the main checkout are the same item at two points in its life and their
 # status lines can legitimately disagree. Print one line per copy that
-# disagrees, labelled, rather than picking one and hiding the other.
+# disagrees, labelled, rather than picking one and hiding the other. A copy
+# under archive/ takes part as 'archived': a worktree cut before the archive
+# still carries the open copy, and main's record is the other side of that.
 status_lines() {
   local name="$1" d f st where seen=() pairs=() prev
   shift
   for d in "$@"; do
-    f=$(find "$d" -name "$name" -print -quit 2>/dev/null)
+    f=$(find "$d" -name "$name" -print -quit 2>/dev/null || true)
     [ -n "$f" ] || continue
-    st=$(item_status "$f")
+    st=$(shown_status "$f")
     where=$(basename "$(item_root "$f")")
     for prev in ${seen+"${seen[@]}"}; do
       [ "$prev" = "$st" ] && continue 2
@@ -1211,15 +1272,14 @@ status_lines() {
 }
 
 cmd_status() {
-  local roots=() dirs=()
+  local dirs=()
   require_init
   # Every checkout: an item on a sibling worktree's branch is in flight too.
-  mapfile -t roots < <(all_roots)
-  dirs=("${roots[@]/%//$WB/items}")
+  mapfile -t dirs < <(wb_dirs items < <(all_roots))
 
   local names=() name
-  mapfile -t names < <(find "${dirs[@]}" -path '*/archive/*' -prune -o \
-    -name '[bfr]-*.md' -print 2>/dev/null | sed 's|.*/||' | sort -u)
+  mapfile -t names < <(wb_find items -path '*/archive/*' -prune -o \
+    -name '[bfr]-*.md' -print < <(all_roots) | sed 's|.*/||' | sort -u)
 
   echo "open items"
   if [ "${#names[@]}" -eq 0 ]; then
@@ -1231,7 +1291,7 @@ cmd_status() {
   # Progress is derived from the items that name the milestone, so there is
   # nothing to keep in step by hand and nothing an unattached item owes it.
   local ms=() m
-  mapfile -t ms < <(find "${roots[@]/%//$WB/milestones}" -maxdepth 1 -name '*.md' 2>/dev/null \
+  mapfile -t ms < <(wb_find milestones -maxdepth 1 -name '*.md' < <(all_roots) \
     | sed 's|.*/||; s|\.md$||' | sort -u)
   if [ "${#ms[@]}" -gt 0 ]; then
     echo
@@ -1276,7 +1336,7 @@ cmd_status() {
   # first: the same file in two checkouts is one item. Cause and repair:
   # references/git.md, "Duplicate IDs across machines".
   local dupes
-  dupes=$(find "${dirs[@]}" -name '[bfr]-*-*.md' -print 2>/dev/null \
+  dupes=$(wb_find items -name '[bfr]-*-*.md' -print < <(all_roots) \
     | sed 's|.*/||' | sort -u \
     | sed -n 's|^\([bfr]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
   if [ -n "$dupes" ]; then
@@ -1293,10 +1353,9 @@ cmd_status() {
   #                      review-check failed and left the baseline for a re-run
   #   report only        checked, waiting for triage
   #   baseline only      the report went without 'review-drop'
-  local reports=() name all=()
-  mapfile -t all < <(all_roots)
+  local reports=() name
   mapfile -t reports < <({
-    find "${all[@]/%//$WB/reviews}" -maxdepth 1 -name '*.md' 2>/dev/null | sed 's|.*/||'
+    wb_find reviews -maxdepth 1 -name '*.md' < <(all_roots) | sed 's|.*/||'
     find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
   } | sort -u)
   if [ "${#reports[@]}" -gt 0 ]; then
@@ -1319,18 +1378,17 @@ cmd_status() {
   fi
 }
 
-# Every checkout of the repository. Reports are untracked and stay in the
-# checkout the sweep ran in, so unlike items — which wb_roots covers — a report
-# can sit in any worktree, and only the full list finds it.
+# Every checkout of the repository, a removed-by-hand one included until it is
+# pruned; wb_dirs drops those. Reports are untracked and stay in the checkout
+# the sweep ran in, so unlike milestones and watches — which wb_roots covers —
+# a report can sit in any worktree, and only the full list finds it.
 all_roots() {
   git worktree list --porcelain | sed -n 's/^worktree //p'
 }
 
 # A report by bare name or path, searched over every checkout.
 find_report() {
-  local roots=()
-  mapfile -t roots < <(all_roots)
-  find "${roots[@]/%//$WB/reviews}" -maxdepth 1 -name "$(basename "$1")" -print -quit 2>/dev/null
+  wb_find reviews -maxdepth 1 -name "$(basename "$1")" -print -quit < <(all_roots)
 }
 
 # A report holds findings when something other than the heading, the date
@@ -1733,7 +1791,7 @@ cmd_review() {
   # the skeleton says so, below.
   local item='' branch='' branches=''
   if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bfr]-[0-9]+$ ]]; then
-    item=$(find_item_anywhere "$scope")
+    item=$(find_item "$scope")
     [ -z "$item" ] || root=$(item_root "$item")
     # Several branches carrying the id is merge's to refuse; the sweep must
     # still return a report, so the first one's manifest and a note.
@@ -1885,6 +1943,14 @@ write_manifest() {
       printf '     %s\n' "${guides[@]}"
       echo '-->'
     } >> "$report"
+  fi
+
+  # A pre-merge whose branch has no diff against the default branch — the
+  # item file not yet committed — would get a skeleton with no manifest and
+  # no note, and review-check nothing to hold the report to. Say why.
+  if [ -n "$branch" ] && [ "${#files[@]}" -eq 0 ]; then
+    printf '\n<!-- %s carries no commits beyond %s: no manifest, so nothing for\n     review-check to hold the report to. Commit the item file on the branch,\n     then reopen this review. -->\n' "$branch" "$(default_branch)" >> "$report"
+    return 0
   fi
 
   [ "${#files[@]}" -gt 0 ] || return 0

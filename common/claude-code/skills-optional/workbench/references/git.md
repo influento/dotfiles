@@ -53,7 +53,13 @@ check evidence — that is the pre-merge review's question, see
 A pre-merge report lives untracked in the worktree, so it counts as
 uncommitted there: `workbench review-drop` it after triage, before merging.
 
-Needs git 2.38 or later: the conflict check is `merge-tree --write-tree`.
+Needs git 2.38 or later: the conflict check is `merge-tree --write-tree`. Also
+GNU coreutils, findutils and sed (`date -r`, `find -printf`, `chmod
+--reference`, `sed -i`): Linux, or macOS with the GNU tools first on `PATH`.
+
+A worktree deleted by hand (`rm -rf .worktrees/<branch>`) stays in `git
+worktree list` until `git worktree prune`; `merge` and `archive` say so and
+stop until it is run. Lookups skip it meanwhile.
 
 Every item merges this way. Housekeeping goes straight to the main branch
 (SKILL.md, rule 1).

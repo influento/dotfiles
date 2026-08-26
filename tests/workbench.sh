@@ -330,6 +330,53 @@ cp workbench/items/archive/b-002-ghost.md workbench/items/bugs/b-002-again.md
 run "status flags duplicate ids" 0 "DUPLICATE IDS" "$WB" status
 rm workbench/items/bugs/b-002-again.md
 
+# --- lookups over every worktree --------------------------------------------
+# A detached worktree with no workbench/, an item created in a sibling, a
+# pre-merge before the item commit, a worktree removed by hand, and archive
+# run from a sibling that inherited the merged copy.
+
+new_repo roots
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+git worktree add -q --detach "$TMP/roots-plain" HEAD   # lacks workbench/ entirely
+"$WB" new bug "one" >/dev/null 2>&1
+run "status with a detached worktree present" 0 "b-001-one" "$WB" status
+run "archive with a detached worktree present reports, not dies" 1 "no evidence recorded" "$WB" archive b-001
+"$WB" start b-001 >/dev/null 2>&1
+ids=$(cd .worktrees/b-001-one && "$WB" new bug "from sibling" 2>/dev/null)
+run "start finds an item created in another worktree" 0 "moved .* onto the branch" "$WB" start "$ids"
+check "the sibling's copy moved, not copied" [ ! -e ".worktrees/b-001-one/workbench/items/bugs/$ids-from-sibling.md" ]
+
+report=$("$WB" review pre-merge b-001 2>/dev/null)
+check "pre-merge on a branch with no commits says so" grep -q 'b-001-one carries no commits beyond main' "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+( cd .worktrees/b-001-one && git add -A && git commit -qm item )
+rm -rf .worktrees/b-001-one
+run "status survives a worktree removed by hand" 0 "b-001-one" "$WB" status
+run "merge names the unpruned worktree" 1 "git worktree prune" "$WB" merge b-001 "one"
+git worktree prune
+echo diverge >> README && git commit -qam diverge
+run "merge after prune" 0 "merged b-001" "$WB" merge b-001 "one"
+( cd ".worktrees/$ids-from-sibling" && git add -A && git commit -qm item )
+echo diverge >> README && git commit -qam diverge2
+out=$("$WB" merge "$ids" "two" 2>&1)
+check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic merge' <<< "$out")" -eq 0 ]
+
+# archive from a sibling worktree: main's copy is the item's home
+fill_evidence workbench/items/bugs/b-001-one.md "run" "ok"
+idy=$("$WB" new bug "sibling" 2>/dev/null); "$WB" start "$idy" >/dev/null 2>&1
+check "setup: the sibling inherited b-001's merged copy" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
+check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-sibling" && "$WB" find --grep 'crash\|one' 2>/dev/null | grep -c '^b-001 ')" -eq 1 ]
+run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
+check "main's copy is in the archive" [ -f workbench/items/archive/b-001-one.md ]
+check "the sibling's copy is untouched" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
+run "status labels main's archived copy" 0 "b-001-one +archived +\[in roots\]" "$WB" status
+run "status labels the sibling's stale open copy" 0 "b-001-one +open +\[in $idy-sibling\]" "$WB" status
+run "find --grep from a sibling lists an archived item once, as archived" 0 "^b-001 .*archived" \
+  bash -c "cd .worktrees/$idy-sibling && '$WB' find --grep one | grep -c '^b-001 ' | grep -qx 1 && '$WB' find --grep one"
+run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" \
+  bash -c "cd .worktrees/$idy-sibling && '$WB' find workbench/items/bugs/b-001-one.md | grep -c '^b-001 ' | grep -qx 1 && '$WB' find workbench/items/bugs/b-001-one.md"
+
 # --- worktree cut before the init commit ------------------------------------
 
 new_repo early
