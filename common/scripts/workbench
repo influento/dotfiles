@@ -188,6 +188,8 @@ next_id() {
   seen=$(highest_existing)
   current=0
   [ -f "$seq_file" ] && current=$(cat "$seq_file")
+  # A garbled counter is rebuilt from the tree, not tripped over.
+  [[ "$current" =~ ^[0-9]+$ ]] || current=0
   [ "$seen" -gt "$current" ] && current=$seen
   current=$((current + 1))
   printf '%s\n' "$current" > "$seq_file"
@@ -279,7 +281,7 @@ skill_hash() {
   f=$(find "$1" -type l -print -quit)
   [ -z "$f" ] || die "$f is a symlink; skill sources hold files only"
   {
-    find "$1" -type f ! -path '*/__pycache__/*' ! -name '*-workspace' ! -name "$STAMP" -printf '%P\0' \
+    find "$1" -type f ! -path '*/__pycache__/*' ! -name "$STAMP" -printf '%P\0' \
       | LC_ALL=C sort -z \
       | while IFS= read -r -d '' f; do printf '%s\0' "$f"; cat "$1/$f"; done
   } | sha256sum | cut -c1-12
@@ -473,6 +475,11 @@ if not isinstance(data, dict):
     print("  .claude/settings.json is not a JSON object; left alone")
     sys.exit(0)
 changed = []
+# The settings are committed, so a clone on a machine without the CLI opens
+# with them too: guarded, the hook and status line stay quiet there instead
+# of failing every session. A bare command from an earlier init is upgraded.
+HOOK = "command -v workbench >/dev/null && workbench status || true"
+LINE = "command -v workbench >/dev/null && workbench statusline || true"
 allow = data.setdefault("permissions", {}).setdefault("allow", [])
 if "Bash(workbench:*)" not in allow:
     allow.append("Bash(workbench:*)")
@@ -485,16 +492,25 @@ if starts is None:
     starts = hooks["SessionStart"] = []
 if not isinstance(starts, list):
     print("  hooks.SessionStart is not a list in .claude/settings.json; left alone")
-elif not any(isinstance(h, dict) and str(h.get("command", "")).startswith("workbench status")
-             for grp in starts if isinstance(grp, dict)
-             for h in grp.get("hooks", []) if isinstance(grp.get("hooks"), list)):
-    starts.append({"hooks": [{"type": "command", "command": "workbench status"}]})
-    changed.append("hooks.SessionStart += workbench status")
+else:
+    ours = [h for grp in starts if isinstance(grp, dict)
+            for h in grp.get("hooks", []) if isinstance(grp.get("hooks"), list)
+            if isinstance(h, dict) and "workbench status" in str(h.get("command", ""))]
+    if not ours:
+        starts.append({"hooks": [{"type": "command", "command": HOOK}]})
+        changed.append("hooks.SessionStart += workbench status")
+    for h in ours:
+        if h.get("command") == "workbench status":
+            h["command"] = HOOK
+            changed.append("hooks.SessionStart: workbench status now guarded on PATH")
 line = data.get("statusLine")
 if line is None:
-    data["statusLine"] = {"type": "command", "command": "workbench statusline"}
+    data["statusLine"] = {"type": "command", "command": LINE}
     changed.append("statusLine = workbench statusline")
-elif not isinstance(line, dict) or line.get("command") != "workbench statusline":
+elif isinstance(line, dict) and line.get("command") == "workbench statusline":
+    line["command"] = LINE
+    changed.append("statusLine: workbench statusline now guarded on PATH")
+elif not isinstance(line, dict) or "workbench statusline" not in str(line.get("command", "")):
     print("  statusLine is already set in .claude/settings.json; left alone")
 if mem:
     cur = data.get("autoMemoryDirectory")
@@ -512,8 +528,19 @@ if changed:
     for c in changed:
         print("  .claude/settings.json: " + c)
 PY
-  if [ -f "$root/.claude/settings.local.json" ] && grep -q '"autoMemoryDirectory"' "$root/.claude/settings.local.json"; then
-    echo "  settings.local.json also sets autoMemoryDirectory, and it wins over settings.json; keep one"
+  # A local override is how a clone at another path points memory into its
+  # own tree, so only one that repeats the project value is worth a word.
+  if [ -f "$root/.claude/settings.local.json" ]; then
+    python3 - "$root/.claude" <<'PY'
+import json, os, sys
+def get(name):
+    try:
+        return json.load(open(os.path.join(sys.argv[1], name))).get("autoMemoryDirectory")
+    except Exception:
+        return None
+if get("settings.local.json") and get("settings.local.json") == get("settings.json"):
+    print("  settings.local.json sets autoMemoryDirectory to the same path as settings.json; the local one is redundant")
+PY
   fi
 }
 
@@ -568,8 +595,8 @@ setup_checklist() {
   fi
 
   echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>' — a top-level /rename would shadow Claude Code's own"
-  echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three"
-  echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree and clone; its edits land on the main checkout, commit them as housekeeping"
+  echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
+  echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
   echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
   echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
   echo "  milestones        optional, big-picture only — 'workbench milestone \"<title>\"' when there is one, now or later; items need not name one"
@@ -798,8 +825,8 @@ cmd_new() {
 # The item file, over every checkout, in the order a copy is authoritative:
 # the item's own worktree first — the copy on its branch — then the main
 # checkout, which holds the merged copy. Every worktree cut after the merge
-# inherits that copy, so a sibling's is never the item's home: archive run
-# from one used to move the sibling's copy and leave main's open. Last the
+# inherits that copy, so a sibling's is never the item's home — archive run
+# from one must move main's copy, or main's stays open. Last the
 # current checkout and the rest, for an item created and not yet started —
 # it exists only where 'new' ran, and any worktree may run it.
 find_item() {
@@ -822,28 +849,81 @@ item_root() {
   printf '%s\n' "${1%/"$WB"/items/*}"
 }
 
+# The branch an item is on, if any: a local one, else one only fetched from
+# origin — the item file lives on the branch, so on another machine that ref
+# is the only trace of a started item.
+item_branch() {
+  local b
+  b=$(git for-each-ref --format='%(refname:short)' "refs/heads/$1-*")
+  [ -n "$b" ] || b=$(git for-each-ref --format='%(refname:short)' "refs/remotes/origin/$1-*")
+  case "$b" in
+    *$'\n'*) die "several branches match $1-*:"$'\n'"$b" ;;
+  esac
+  printf '%s\n' "$b"
+}
+
 cmd_start() {
-  local id="${1:-}" path branch root wt
+  local id="${1:-}" path='' branch root='' wt ref
   [ -n "$id" ] || usage
   require_id "$id"
   require_init
 
+  # Closed items first, before any ref is consulted: merge deletes the local
+  # branch but never origin's, so on another machine the ref outlives the
+  # merge and the archive, and resuming from it would cut a worktree on a
+  # stale branch for a finished item. The trailer on the default branch is
+  # the signal merge itself uses.
   path=$(find_item "$id")
-  [ -n "$path" ] || die "no item matching '$id'"
   case "$path" in
     */items/archive/*) die "$id is already archived" ;;
   esac
+  ref=$(item_branch "$id")
+  local main prior
+  main=$(default_branch)
+  prior=$(git -C "$(main_root)" log "$main" --grep="^Item: $id\$" --format=%h -1)
+  if [ -n "$prior" ]; then
+    case "$ref" in
+      origin/*) die "$id is already merged as $prior; $ref is a leftover — 'git push origin --delete ${ref#origin/}' removes it" ;;
+      ?*) die "$id is already merged as $prior; $ref is a leftover — 'git branch -D $ref' removes it" ;;
+      *) die "$id is already merged as $prior" ;;
+    esac
+  fi
 
-  branch=$(basename "$path" .md)
-  root=$(item_root "$path")
-  # Always under the main checkout and off the default branch. Run from inside
-  # another item's worktree, the new one would otherwise nest under it — and
-  # vanish with it at that item's merge — and start from that item's commits.
-  wt="$(main_root)/.worktrees/$branch"
+  # A started item has its file on its branch and nowhere else, so once its
+  # worktree is gone — removed by hand, or never cut here because the branch
+  # was fetched from another machine — no checkout holds the file and only
+  # the ref says the item exists. Resume from the ref: a worktree for the
+  # branch, nothing to move.
+  if [ -n "$ref" ]; then
+    branch="${ref#origin/}"
+    local at
+    at=$(worktree_of "$branch")
+    if [ -n "$at" ]; then
+      [ -d "$at" ] || die "$branch's worktree $at was removed by hand; run 'git worktree prune', then retry"
+      die "$id is already started; its worktree is $at"
+    fi
+    wt="$(main_root)/.worktrees/$branch"
+    [ -e "$wt" ] && die "worktree already exists: $wt"
+    case "$ref" in
+      origin/*) git worktree add --quiet --track -b "$branch" "$wt" "$ref" ;;
+      *) git worktree add --quiet "$wt" "$branch" ;;
+    esac
+    echo "resumed $branch in $wt" >&2
+  else
+    [ -n "$path" ] || die "no item matching '$id'"
 
-  [ -e "$wt" ] && die "worktree already exists: $wt"
+    branch=$(basename "$path" .md)
+    root=$(item_root "$path")
+    # Always under the main checkout and off the default branch. Run from
+    # inside another item's worktree, the new one would otherwise nest under
+    # it — and vanish with it at that item's merge — and start from that
+    # item's commits.
+    wt="$(main_root)/.worktrees/$branch"
 
-  git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
+    [ -e "$wt" ] && die "worktree already exists: $wt"
+
+    git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
+  fi
   # The skills are tracked copies, so a committed .claude/ is in the new
   # checkout already; uncommitted, it is not, and a session opened there
   # has no commands, hook or status line.
@@ -856,7 +936,7 @@ cmd_start() {
   # is named: its squash would otherwise land this file on the default branch
   # under the wrong trailer, and this item's own merge would then collide.
   local rel="${path#"$root"/}"
-  if [ ! -e "$wt/$rel" ]; then
+  if [ -z "$ref" ] && [ ! -e "$wt/$rel" ]; then
     mkdir -p "$(dirname "$wt/$rel")"
     if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
       cp "$path" "$wt/$rel"
@@ -944,24 +1024,23 @@ cmd_merge() {
   on=$(git -C "$root" symbolic-ref -q --short HEAD || true)
   [ "$on" = "$main" ] || die "$root has '${on:-a detached HEAD}' checked out, not $main; the squash lands there"
 
-  # A dirty main checkout would bleed into the squash commit: anything staged
-  # goes in with it, and the index is about to be rewritten. Unstaged edits do
-  # not — the commit takes the index — and the one place they are expected is
-  # the memory store when it lives in the tree, written by every worktree
-  # session all day. Those alone are tolerated; the rest is refused as before.
-  local dirt mem_rel
-  dirt=$(git -C "$root" status --porcelain --untracked-files=no)
-  mem_rel=$(memory_dir_setting)
-  case "$mem_rel" in "$root"/*) mem_rel="${mem_rel#"$root"/}" ;; *) mem_rel= ;; esac
-  if [ -n "$dirt" ] && [ -n "$mem_rel" ]; then
-    dirt=$(printf '%s\n' "$dirt" | awk -v mem="$mem_rel/" '
-      !(substr($0, 1, 2) ~ /^ [MD]$/ && index(substr($0, 4), mem) == 1)')
-  fi
-  [ -z "$dirt" ] || die "$root has uncommitted changes; the squash commit would absorb them"
+  # Anything staged on main would go into the squash commit, so it is
+  # refused. An unstaged edit would not: the commit takes the index, the
+  # squash refuses to overwrite a modified file before writing anything, and
+  # the reset that undoes a stopped squash keeps it. So those are tolerated —
+  # the memory store in the tree is written by every session all day — with
+  # one exception: git protects a modified file but not a missing one, so an
+  # unstaged deletion of a file the branch touches would be quietly restored,
+  # staged, and lost. Refused too.
+  local dirt gone
+  dirt=$(git -C "$root" status --porcelain --untracked-files=no | grep -v '^ M' || true)
+  gone=$(printf '%s\n' "$dirt" | grep '^ D' | sed 's/^...//' || true)
+  [ -z "$gone" ] || die "$root has an uncommitted deletion the squash would undo; commit or restore it first:
+$(printf '%s\n' "$gone" | sed 's/^/  /')"
+  [ -z "$dirt" ] || die "$root has staged changes; the squash commit would absorb them"
 
   wt=$(live_worktree_of "$branch")
   if [ -n "$wt" ]; then
-    local dirt
     dirt=$(git -C "$wt" status --porcelain --untracked-files=all)
     if [ -n "$dirt" ]; then
       # A pre-merge report sits untracked in the worktree, so it is the usual
@@ -1004,14 +1083,20 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
   squash=$(git -C "$root" merge --squash --quiet "$branch" 2>&1) \
     || {
       printf '%s\n' "$squash" >&2; unsquash "$root"
-      # The one dirt tolerated above is an unstaged memory edit on main; when
-      # the branch touches the same file, git stops here to protect it, and
-      # the way forward is to commit that edit, not to rebase.
+      # The dirt tolerated above is an unstaged edit on main; when the branch
+      # touches the same file, git stops here to protect it, and the way
+      # forward is to commit or discard that edit, not to rebase.
       if grep -q 'overwritten by merge' <<< "$squash"; then
-        die "the squash stopped; $root is restored — an uncommitted memory edit on $main is in the way; commit it as housekeeping, then retry"
+        die "the squash stopped; $root is restored — an uncommitted edit on $main is in the way of the branch; commit or discard it, then retry"
       fi
       die "the squash stopped; $root is restored — rebase $branch onto $main in its worktree, then retry"
     }
+  # Content that reached main by another route squashes to nothing, and the
+  # commit would refuse with a message about staging; name the state instead.
+  if git -C "$root" diff --cached --quiet; then
+    unsquash "$root"
+    die "$branch changes nothing on $main — everything on it is already there; archive the item instead, or 'git branch -D $branch' if it is done with"
+  fi
   git -C "$root" commit --quiet -m "$subject" -m "Item: $id" \
     || { unsquash "$root"; die "the squash commit was refused; $root is restored and nothing was removed"; }
 
@@ -1064,10 +1149,11 @@ item_id() {
   basename "$1" | sed -n 's/^\([bfrx]-[0-9]\{1,\}\)-.*/\1/p'
 }
 
-# Undo a squash that did not reach its commit. The tracked tree was verified
-# clean before the squash began, so --merge restores exactly that and leaves
-# untracked files — an item not yet started — alone. The message file a
-# stopped squash leaves would otherwise seed the next commit's message.
+# Undo a squash that did not reach its commit. Nothing was staged before the
+# squash began, and --merge keeps what is unstaged — the edits merge
+# tolerates on main — and leaves untracked files, an item not yet started,
+# alone. The message file a stopped squash leaves would otherwise seed the
+# next commit's message.
 unsquash() {
   git -C "$1" reset -q --merge || echo "workbench: reset --merge failed; run it by hand in $1" >&2
   rm -f "$(git -C "$1" rev-parse --absolute-git-dir)/SQUASH_MSG"
@@ -1410,7 +1496,7 @@ cmd_statusline() {
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     [ -n "$(git branch --list "$(item_id "$name")-*")" ] || awaiting=$((awaiting + 1))
-  done < <(grep -rl '^status: awaiting' ${dirs[@]+"${dirs[@]}"} 2>/dev/null | sed 's|.*/||' | sort -u)
+  done < <([ "${#dirs[@]}" -eq 0 ] || grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sed 's|.*/||' | sort -u)
   [ "$awaiting" -eq 0 ] || out="$out · $awaiting awaiting"
   reports=$({
     wb_find reviews -maxdepth 1 -name '*.md' < <(all_roots 2>/dev/null) | sed 's|.*/||'
@@ -1477,14 +1563,20 @@ cmd_find() {
   done
   [ "${#paths[@]}" -gt 0 ] || [ "${#words[@]}" -gt 0 ] || usage
 
-  # Paths are taken as the shell gives them, relative to the cwd, while every
-  # git call below is pinned to the root — so make them root-relative here,
-  # which is also how item text names them.
-  local prefix p
+  # Paths are taken as the shell gives them, relative to the cwd or absolute,
+  # while every git call below is pinned to the root — so make them
+  # root-relative here, which is also how item text names them. An absolute
+  # path outside this checkout stays as it is and matches nothing.
+  local prefix top p i
   prefix=$(git rev-parse --show-prefix 2>/dev/null || true)
+  top=$(git rev-parse --show-toplevel 2>/dev/null || true)
   for ((i = 0; i < ${#paths[@]}; i++)); do
     p="${paths[$i]}"
-    case "$p" in /*) ;; *) paths[i]="$prefix${p#./}" ;; esac
+    case "$p" in
+      "$top"/*) paths[i]="${p#"$top"/}" ;;
+      /*) ;;
+      *) paths[i]="$prefix${p#./}" ;;
+    esac
   done
 
   local files=() f ids=() id items
@@ -1554,7 +1646,7 @@ cmd_find() {
   for id in ${order+"${order[@]}"}; do
     f=${pick[$id]}
     for w in ${words+"${words[@]}"}; do
-      grep -qi -- "$w" "$f" || continue 2
+      grep -qiF -- "$w" "$f" || continue 2
     done
     kept+=("$f")
   done
@@ -1810,7 +1902,7 @@ cmd_status() {
   # 'awaiting' is chosen at pre-merge, so an item still on its branch carries
   # it too; that one is in flight and listed above, not merged.
   local h
-  mapfile -t hits < <(grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u \
+  mapfile -t hits < <([ "${#dirs[@]}" -eq 0 ] || grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u \
     | while IFS= read -r h; do
         [ -n "$(git branch --list "$(basename "$h" | sed -n 's/^\([bfrx]-[0-9]\{1,\}\)-.*/\1/p')-*")" ] || printf '%s\n' "$h"
       done)
@@ -1854,6 +1946,17 @@ cmd_status() {
     echo "skills edited by hand under .claude/skills/ — move the edit into the source; 'workbench init --force' overwrites"
     echo "  $edited"
   fi
+  # The memory setting is a path, committed: a clone laid out differently
+  # from the one init ran in points at a store that is not in its tree.
+  local mem
+  mem=$(memory_dir_setting)
+  case "$mem" in
+    "$(main_root)/.claude/memory" | "") ;;
+    */.claude/memory)
+      echo
+      echo "memory: autoMemoryDirectory points at $mem, not this checkout's .claude/memory — the setting was written for a clone at another path; override it here in .claude/settings.local.json"
+      ;;
+  esac
 
   # Reports are untracked and live per checkout; baselines live in the shared
   # git directory. Classify each name over the union of both, from every
