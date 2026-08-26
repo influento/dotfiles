@@ -15,7 +15,8 @@ still a backlog line here, and is not argued with.
 1. If it is not one obvious sentence — its meaning needs a criterion to be
    clear, or it is an area rather than a thing — say which "Sizing" row it
    is instead, and stop for the user's answer.
-2. Append the sentence as one line to `workbench/BACKLOG.md`, in the
-   user's words, no id, no elaboration. Backlog edits are housekeeping and
-   go straight to the main branch; do not commit unless asked.
+2. `workbench idea "<sentence>"` — the user's words, no id, no elaboration.
+   It appends to the main checkout's `workbench/BACKLOG.md` wherever it
+   runs, so from a worktree the line does not ride that item's squash.
+   Backlog edits are housekeeping; do not commit unless asked.
 3. Reply with the line as written. Nothing else.

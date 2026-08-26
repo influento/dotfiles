@@ -41,6 +41,17 @@ fill_evidence() {
   printf '\n```\n$ %s\n%s\n```\n' "$2" "$3" >> "$1"
 }
 set_status() { sed -i "s/^status: .*/status: $2/" "$1"; }
+# crit <path> — fill the criterion (a research item's Scope) so start accepts it.
+crit() { sed -i '/^## \(How to confirm\|Scope\)/a\
+\
+agreed with the user' "$1"; }
+# newc <class> <title> [opts] — new, with the criterion filled; prints the id.
+newc() {
+  local id
+  id=$("$WB" new "$@" 2>/dev/null) || return 1
+  crit "$(find workbench/items -name "$id-*.md" -print -quit)"
+  printf '%s\n' "$id"
+}
 
 new_repo() {
   local d="$TMP/$1"
@@ -81,6 +92,9 @@ check "new allocates b-001" [ "$id" = b-001 ]
 item=workbench/items/bugs/b-001-crash-on-save.md
 check "new writes the item file" [ -f "$item" ]
 
+run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
+check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
+crit "$item"
 run "start" 0 "moved $item onto the branch" "$WB" start b-001
 wt=.worktrees/b-001-crash-on-save
 check "start moves the item into the worktree" [ -f "$wt/$item" ]
@@ -123,7 +137,7 @@ check "find README does not list b-001" not_listed b-001 README
 
 # Text match: an unproved item names a path in prose; a bare word inside a
 # longer one must not hit.
-id2=$("$WB" new bug "handler lost" 2>/dev/null)
+id2=$(newc bug "handler lost")
 item2=workbench/items/bugs/$id2-handler-lost.md
 # shellcheck disable=SC2016
 printf '\nthe handler lives in resources/api and is unreproduced; see `lib/util.go`,\nthe loop at lib/loop.go:12, and cfg/main.toml.\n' >> "$item2"
@@ -268,7 +282,7 @@ for r in "$w1" "$w1b" "$w2"; do "$WB" review-drop --force "$r" >/dev/null 2>&1 |
 
 # --- status, find, milestones, adopt ------------------------------------------
 
-idl=$("$WB" new feature "later" 2>/dev/null)          # unstarted, in main
+idl=$(newc feature "later")          # unstarted, in main
 printf '\ntouches src.txt when it lands\n' >> "workbench/items/features/$idl-later.md"
 run "find lists an open unstarted item by text, as open" 0 "$idl .*open" "$WB" find src.txt
 "$WB" start "$idl" >/dev/null 2>&1
@@ -279,8 +293,8 @@ run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "'
 run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"
 
 # start from inside another item's worktree: the file is copied, the branch named
-idi=$("$WB" new bug "inner" 2>/dev/null) && "$WB" start "$idi" >/dev/null 2>&1
-idn=$(cd ".worktrees/$idi-inner" && "$WB" new bug "nested" 2>/dev/null && git add -A && git commit -qm 'nested on inner')
+idi=$(newc bug "inner") && "$WB" start "$idi" >/dev/null 2>&1
+idn=$(cd ".worktrees/$idi-inner" && newc bug "nested" && git add -A && git commit -qm 'nested on inner')
 run "start from another worktree copies an item committed there" 0 "copied .* also committed on $idi-inner" bash -c "cd .worktrees/$idi-inner && '$WB' start $idn"
 check "the nested worktree sits under the main checkout" [ -d ".worktrees/$idn-nested" ]
 check "the copy is on the nested branch" [ -f ".worktrees/$idn-nested/workbench/items/bugs/$idn-nested.md" ]
@@ -327,6 +341,8 @@ ritem=workbench/items/research/$idx-netcode.md
 check "new research writes under items/research" [ -f "$ritem" ]
 check "the research template carries the state grammar" grep -q 'state: -> milestone <slug>' "$ritem"
 run "archive --discard refuses a non-research id" 1 "for research items" "$WB" archive b-001 --discard
+run "start refuses research with an empty Scope" 1 "$idx's 'Scope' is empty" "$WB" start "$idx"
+crit "$ritem"
 "$WB" start "$idx" >/dev/null 2>&1
 rwt=.worktrees/$idx-netcode
 ritem=$rwt/$ritem
@@ -340,6 +356,8 @@ research_item "$ritem" "$idx" "" "" "-> backlog"
 run "archive names a concept without a state" 1 "concepts without a state line" "$WB" archive "$idx"
 research_item "$ritem" "$idx" "" "-> f-999"
 run "archive refuses a state naming a missing item" 1 "names 'f-999', which is not an item" "$WB" archive "$idx"
+research_item "$ritem" "$idx" "" "-> b-1"
+run "archive refuses a state naming a short id" 1 "names 'b-1'; write it as b-001" "$WB" archive "$idx"
 research_item "$ritem" "$idx" "" "-> milestone nope"
 run "archive refuses a state naming a missing milestone" 1 "names milestone 'nope', which does not exist" "$WB" archive "$idx"
 research_item "$ritem" "$idx" "" "later"
@@ -415,14 +433,14 @@ report=$("$WB" review memory 2>/dev/null)
 echo new > .claude/memory/new.md
 run "a memory sweep baselines the in-tree store" 1 "new.md" "$WB" review-check "$report"
 rm .claude/memory/new.md; "$WB" review-drop "$report" >/dev/null 2>&1
-"$WB" new bug "one" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
+newc bug "one" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-one && echo fix > src.txt && git add -A && git commit -qm fix )
 echo learned >> .claude/memory/MEMORY.md
 run "merge tolerates unstaged memory edits on main" 0 "merged b-001" "$WB" merge b-001 "one"
 check "the memory edit stayed out of the squash" bash -c "! git show --stat --format= HEAD | grep -q MEMORY.md"
 check "the memory edit is still pending" [ -n "$(git status --porcelain .claude/memory)" ]
 git add -A && git commit -qm memory
-"$WB" new bug "two" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
+newc bug "two" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
 ( cd .worktrees/b-002-two && echo fix2 > src2.txt && git add -A && git commit -qm fix2 )
 echo staged >> .claude/memory/MEMORY.md && git add .claude/memory/MEMORY.md
 run "merge refuses staged memory edits" 1 "staged changes" "$WB" merge b-002 "two"
@@ -433,7 +451,7 @@ check "the README edit stayed out of the squash" bash -c "! git show --stat --fo
 check "the README edit is still pending" [ -n "$(git status --porcelain README)" ]
 git checkout -q README
 # an unstaged deletion is the one edit git would not protect from the squash
-"$WB" new bug "three" >/dev/null 2>&1; "$WB" start b-003 >/dev/null 2>&1
+newc bug "three" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-three && echo touched >> README && git add -A && git commit -qm touch )
 rm README
 run "merge refuses an unstaged deletion on main" 1 "uncommitted deletion the squash would undo" "$WB" merge b-003 "three"
@@ -520,7 +538,7 @@ new_repo fail
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
 
 # dirty main
-"$WB" new bug "one" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
+newc bug "one" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-one && echo a >> README && git add -A && git commit -qm a )
 echo dirty >> README
 run "merge stops when the branch touches a file edited on main" 1 "an uncommitted edit on main is in the way of the branch" "$WB" merge b-001 "one"
@@ -546,7 +564,7 @@ run "merge refuses a conflicting branch" 1 "conflicts with main" "$WB" merge b-0
 check "conflict leaves main untouched" [ -z "$(git log --grep='^Item:' --format=%h)" ]
 
 # unreproduced retire: nothing but the item on the branch
-"$WB" new bug "ghost" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
+newc bug "ghost" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
 set_status .worktrees/b-002-ghost/workbench/items/bugs/b-002-ghost.md unreproduced
 run "archive retires an unreproduced branch" 0 "retired b-002-ghost" "$WB" archive b-002
 check "retire removes the worktree" [ ! -e .worktrees/b-002-ghost ]
@@ -554,7 +572,7 @@ check "retire deletes the branch" [ -z "$(git branch --list b-002-ghost)" ]
 check "retired item is archived on main" [ -f workbench/items/archive/b-002-ghost.md ]
 
 # unreproduced retire refuses when the branch carries work
-"$WB" new bug "notghost" >/dev/null 2>&1; "$WB" start b-003 >/dev/null 2>&1
+newc bug "notghost" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-notghost && echo w > work.txt && git add -A && git commit -qm w )
 set_status .worktrees/b-003-notghost/workbench/items/bugs/b-003-notghost.md unreproduced
 run "archive refuses to retire a branch with work" 1 "carries work beyond the item file" "$WB" archive b-003
@@ -565,7 +583,7 @@ run "status flags duplicate ids" 0 "DUPLICATE IDS" "$WB" status
 rm workbench/items/bugs/b-002-again.md
 
 # content already on main by another route squashes to nothing
-idd=$("$WB" new bug "dup" 2>/dev/null); "$WB" start "$idd" >/dev/null 2>&1
+idd=$(newc bug "dup"); "$WB" start "$idd" >/dev/null 2>&1
 ( cd ".worktrees/$idd-dup" && echo same > same.txt && git add -A && git commit -qm same )
 cp ".worktrees/$idd-dup/same.txt" . && cp ".worktrees/$idd-dup/workbench/items/bugs/$idd-dup.md" workbench/items/bugs/
 git add -A && git commit -qm 'same by hand'
@@ -574,8 +592,8 @@ check "the empty squash left main clean" [ -z "$(git status --porcelain --untrac
 
 # another item's file committed on the branch would ride the squash under
 # the wrong trailer
-idh=$("$WB" new bug "host" 2>/dev/null); "$WB" start "$idh" >/dev/null 2>&1
-idg=$(cd ".worktrees/$idh-host" && "$WB" new feature "guest" 2>/dev/null && git add -A && git commit -qm 'two items')
+idh=$(newc bug "host"); "$WB" start "$idh" >/dev/null 2>&1
+idg=$(cd ".worktrees/$idh-host" && newc feature "guest" && git add -A && git commit -qm 'two items')
 run "merge refuses a branch carrying another item's file" 1 "carries another item's file" "$WB" merge "$idh" "host"
 check "the refusal names the guest file" bash -c "'$WB' merge $idh host 2>&1 | grep -q '^  workbench/items/features/$idg-guest.md$'"
 check "the refusal does not name the host's own file" bash -c "! '$WB' merge $idh host 2>&1 | grep -q '$idh-host.md'"
@@ -592,11 +610,11 @@ check "the squash carries only the host's item" bash -c "! git show --stat --for
 new_repo roots
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
 git worktree add -q --detach "$TMP/roots-plain" HEAD   # lacks workbench/ entirely
-"$WB" new bug "one" >/dev/null 2>&1
+newc bug "one" >/dev/null
 run "status with a detached worktree present" 0 "b-001-one" "$WB" status
 run "archive with a detached worktree present reports, not dies" 1 "no evidence recorded" "$WB" archive b-001
 "$WB" start b-001 >/dev/null 2>&1
-ids=$(cd .worktrees/b-001-one && "$WB" new bug "from sibling" 2>/dev/null)
+ids=$(cd .worktrees/b-001-one && newc bug "from sibling")
 run "start finds an item created in another worktree" 0 "moved .* onto the branch" "$WB" start "$ids"
 check "the sibling's copy moved, not copied" [ ! -e ".worktrees/b-001-one/workbench/items/bugs/$ids-from-sibling.md" ]
 
@@ -618,7 +636,7 @@ check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic mer
 
 # archive from a sibling worktree: main's copy is the item's home
 fill_evidence workbench/items/bugs/b-001-one.md "run" "ok"
-idy=$("$WB" new bug "sibling" 2>/dev/null); "$WB" start "$idy" >/dev/null 2>&1
+idy=$(newc bug "sibling"); "$WB" start "$idy" >/dev/null 2>&1
 check "setup: the sibling inherited b-001's merged copy" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
 check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-sibling" && "$WB" find --grep one 2>/dev/null | grep -c '^b-001 ')" -eq 1 ]
 run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
@@ -638,11 +656,14 @@ run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" 
 
 new_repo home/resume
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
-"$WB" new bug "gone" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
+newc bug "gone" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-gone && echo w > work.txt && git add -A && git commit -qm work )
 run "start on a started item names its worktree" 1 "already started; its worktree is" "$WB" start b-001
+( cd .worktrees/b-001-gone && sed -i '/^agreed with the user$/d' workbench/items/bugs/b-001-gone.md && git commit -qam 'criterion gone' )
 git worktree remove .worktrees/b-001-gone
 run "start resumes a branch whose worktree was removed" 0 "resumed b-001-gone" "$WB" start b-001
+run "resume notes an empty criterion rather than refusing" 1 "already started" "$WB" start b-001
+check "the resume printed the note" bash -c "git worktree remove .worktrees/b-001-gone && '$WB' start b-001 2>&1 | grep -q \"note: b-001's 'How to confirm' is empty\""
 check "the resumed worktree holds the branch" [ "$(git -C .worktrees/b-001-gone symbolic-ref --short HEAD)" = b-001-gone ]
 check "the item file is there, from the branch" [ -f .worktrees/b-001-gone/workbench/items/bugs/b-001-gone.md ]
 check "the work is there" [ -f .worktrees/b-001-gone/work.txt ]
@@ -691,13 +712,26 @@ git add -A && git commit -qm 'awaiting on main'
 report=$("$WB" review memory 2>/dev/null)
 run "statusline counts awaiting items and reports" 0 '^wb: 1 open · 1 awaiting · 1 report$' bash -c "$(declare -f session); session '$PWD' | sed 's/\"display_name\":\"Opus\"/\"display_name\":\"\"/' | '$WB' statusline"
 "$WB" review-drop "$report" >/dev/null 2>&1
-"$WB" new bug "abs" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
+newc bug "abs" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
 ( cd .worktrees/b-002-abs && echo a >> README && git add -A && git commit -qm a )
 "$WB" merge b-002 "abs" >/dev/null 2>&1
 check "find by a relative path lists the item" bash -c "'$WB' find README | grep -q '^b-002 '"
 check "find by an absolute path lists the item" bash -c "'$WB' find '$PWD/README' | grep -q '^b-002 '"
 check "find by an absolute path outside the repo lists nothing" not_listed b-002 /nonexistent/README
 check "find --grep is a fixed string" not_listed b-002 --grep 'a.s'
+
+# --- ideas land on the main checkout --------------------------------------
+
+new_repo idea
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+run "idea appends a bullet to the backlog" 0 "workbench/BACKLOG.md$" "$WB" idea "batch the saves"
+check "the line is there, as a bullet" grep -qx -- '- batch the saves' workbench/BACKLOG.md
+run "idea refuses a newline" 1 "one line" "$WB" idea $'two\nlines'
+run "idea takes one argument" 2 "usage" "$WB" idea two words
+newc bug "host" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
+run "idea from a worktree writes to the main checkout" 0 "^$PWD/workbench/BACKLOG.md$" bash -c "cd .worktrees/b-001-host && '$WB' idea 'from the worktree'"
+check "the worktree's backlog is untouched" bash -c "! grep -q 'from the worktree' .worktrees/b-001-host/workbench/BACKLOG.md"
+check "main's backlog has both lines" [ "$(grep -c '^- ' workbench/BACKLOG.md)" -eq 2 ]
 
 # --- find's cap, and citations that name a file without its path ------------
 
@@ -721,7 +755,7 @@ run "a basename with a known extension and no such file is bogus" 1 "cites other
 
 new_repo early
 "$WB" init >/dev/null           # left uncommitted: main has no workbench/
-"$WB" new bug "early" >/dev/null 2>&1
+newc bug "early" >/dev/null
 run "start notes an uncommitted .claude" 0 "lacks the workbench commands" "$WB" start b-001
 [ ! -d .worktrees/b-001-early/workbench/reviews ] || fail "setup: reviews/ unexpectedly present"
 report=$("$WB" review pre-merge b-001 2>/dev/null) || true

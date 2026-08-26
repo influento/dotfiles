@@ -30,6 +30,13 @@ system. Then read the report's tail: the shift so far lives there, not in you.
    times in one shift: stop recovering, mark the entry `ESCALATED`, notify as
    stated, return.
 
+## What the report is never given
+
+A `Write`. The tool is in the sweep's set for the other reasons, and
+`review-check` tolerates changes during a watch, so nothing but this line
+stops a rewrite — which drops what earlier ticks recorded. Append through
+Bash; `sed -i` touches the liveness line alone.
+
 ## What a shift never does
 
 It never fixes. Not a bounds check, not a config line, not with a green test,

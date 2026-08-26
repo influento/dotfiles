@@ -106,7 +106,7 @@ its source; `workbench init` refreshes it, and never edit the copy itself.
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file
 workbench new rename "shard to region" # same, for a vocabulary change
-workbench start b-038                  # branch + worktree for it
+workbench start b-038                  # branch + worktree; refuses while the criterion is empty
 workbench merge b-038 "<subject>"      # after the pre-merge review: squash, trailer, cleanup
 ```
 
@@ -140,7 +140,7 @@ the work, and not tidiness.
 | what changes and how to confirm it | an item | `workbench new bug\|feature\|rename` |
 | the done-criterion, but not yet the items that reach it | a milestone | `workbench milestone`; items attach as they become describable |
 | an area — cannot yet say what will be true when it is done, or how it fits, or both | research | `workbench new research` |
-| one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line |
+| one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 The rows are read from the item down: whatever fits the item row is an
 item, however small (rule 1). The idea row is the one the agent never

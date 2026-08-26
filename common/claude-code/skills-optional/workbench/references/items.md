@@ -4,7 +4,7 @@
 
 | State | Where | Notes |
 |---|---|---|
-| idea | one line in `workbench/BACKLOG.md` | no ID, no file |
+| idea | one line in `workbench/BACKLOG.md`, `workbench idea "<sentence>"` — written to the main checkout wherever it runs | no ID, no file |
 | open | `workbench/items/bugs/`, `features/`, `renames/` or `research/` | freely editable |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
