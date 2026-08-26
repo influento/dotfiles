@@ -49,7 +49,7 @@ This is the one place the status rules live; the other references link here.
 | Gate | Asks | Passes with |
 |---|---|---|
 | merge (`workbench merge`) | has everything that *can* be verified now been verified? — the pre-merge review's question; the command checks no evidence | `open` with evidence, or `awaiting` / `unverified` once the user has chosen it at pre-merge |
-| archive (`workbench archive`) | has the criterion been satisfied? | `open` with evidence recorded; `unreproduced` and `unverified` without |
+| archive (`workbench archive`) | has the criterion been satisfied? — the command checks only that a fenced block sits under Evidence, not what it shows | `open` with evidence recorded; `unreproduced` and `unverified` without |
 | archive, research | has every concept reached a terminal state that names something real, and is the Outcome written? | `open`, no evidence block; the branch retired, `--discard` if it carried prototypes |
 
 Research never passes the merge gate: there is nothing to ship, and what it

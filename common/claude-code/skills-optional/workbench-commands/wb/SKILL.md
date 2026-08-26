@@ -17,8 +17,9 @@ unchecked, duplicate ids. Name what is actionable now; omit what is not.
 **An id** — pick that item up:
 
 1. Find its worktree with `git worktree list`; enter it. If it has none,
-   say so — an unstarted item is started with `workbench start <id>`, an
-   archived one is read, never reopened.
+   say so — `workbench start <id>` cuts one, for an unstarted item and for
+   a started one whose worktree is gone (removed, or its branch only fetched
+   from another machine); an archived one is read, never reopened.
 2. Read the item file. For research, **Next** is the entry point; for a bug
    or feature, the criterion and whatever Root cause or Evidence already
    holds.

@@ -80,10 +80,12 @@ fact. One question settles it:
 Technical facts about the project belong in the repository, not in memory.
 
 Memory lives in the tree: `workbench init` points `autoMemoryDirectory` at
-`.claude/memory/`, tracked, one store for every worktree and clone. That
-changes where memory is, not what goes in it. Every session writes there
-through the main checkout, so its edits show up as unstaged changes on the
-default branch; commit them as housekeeping. `workbench merge` tolerates
+`.claude/memory/`, tracked, one store for every worktree — and for every clone
+at the same path under `~`, since the setting is a path; `workbench status`
+warns in a clone laid out differently, where `.claude/settings.local.json`
+overrides it. That changes where memory is, not what goes in it. Every
+session writes there through the main checkout, so its edits show up as
+unstaged changes on the default branch; commit them as housekeeping. `workbench merge` tolerates
 them unstaged and refuses them staged.
 
 Auditing memory for facts that have drifted, or that should have been repository

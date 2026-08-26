@@ -5,6 +5,9 @@
 One branch per item, named after it. `workbench start` creates the branch off
 the default branch and its worktree together, under `.worktrees/<branch>` in
 the main checkout — wherever it is run from. There is no branch-only path.
+A branch that exists without a worktree — removed by hand, or only fetched
+from another machine — is resumed by the same command: it cuts the worktree
+for the branch and moves nothing.
 
 ## The item file lives on the branch
 
@@ -44,7 +47,8 @@ and would tempt a reader to use it instead of opening the item, which is the
 contract. The subject describes the change, not the item's title.
 
 The command refuses, before touching anything, when the main checkout is not on
-the default branch or has uncommitted changes, the worktree has uncommitted
+the default branch, has staged changes or an uncommitted deletion (an unstaged
+edit stays out of the squash and is tolerated), the worktree has uncommitted
 changes, the branch conflicts with the default branch (rebase it in the
 worktree first), or the default branch already carries the trailer. It does not
 check evidence — that is the pre-merge review's question, see

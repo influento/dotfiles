@@ -62,11 +62,13 @@ check "no /rename is rendered" [ ! -e .claude/skills/rename ]
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
-check "init writes the session hook" grep -q '"workbench status"' .claude/settings.json
-check "init writes the status line" grep -q '"workbench statusline"' .claude/settings.json
+check "init writes the session hook" grep -q 'workbench status ||' .claude/settings.json
+check "the hook is guarded on PATH" grep -q '"command -v workbench >/dev/null && workbench status || true"' .claude/settings.json
+check "init writes the status line" grep -q '"command -v workbench >/dev/null && workbench statusline || true"' .claude/settings.json
 run "init is idempotent" 0 "workbench ready" "$WB" init
 check "unchanged copies are not re-rendered" bash -c "! '$WB' init 2>&1 | grep -q 'rendered .claude'"
-check "the hook is not duplicated" [ "$(grep -c '"workbench status"' .claude/settings.json)" -eq 1 ]
+check "the hook is not duplicated" [ "$(grep -c 'workbench status ||' .claude/settings.json)" -eq 1 ]
+check "the status line is not reported as foreign" bash -c "! '$WB' init 2>&1 | grep -q 'statusLine is already set'"
 run "status is quiet while the copies are current" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
 session() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"}}' "$1"; }
 run "statusline with nothing in flight" 0 '^\[Opus\] wb: nothing in flight$' bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
@@ -373,7 +375,7 @@ new_repo settings
 mkdir -p .claude && echo '{"statusLine":{"type":"command","command":"echo mine"}}' > .claude/settings.json
 run "init leaves a user statusLine alone" 0 "statusLine is already set" "$WB" init
 check "the user statusLine survives" grep -q '"echo mine"' .claude/settings.json
-check "the hook is still added beside it" grep -q '"workbench status"' .claude/settings.json
+check "the hook is still added beside it" grep -q 'workbench status ||' .claude/settings.json
 echo 'not json' > .claude/settings.json
 run "init leaves invalid settings alone" 0 "not valid JSON; left alone" "$WB" init
 check "invalid settings are untouched" grep -qx 'not json' .claude/settings.json
@@ -381,7 +383,13 @@ check "invalid settings are untouched" grep -qx 'not json' .claude/settings.json
 echo '{"statusLine":"echo hi","hooks":{"SessionStart":["odd"]}}' > .claude/settings.json
 run "init survives a non-object statusLine" 0 "statusLine is already set" "$WB" init
 check "the string statusLine survives" grep -q '"echo hi"' .claude/settings.json
-check "the hook is added beside a non-object SessionStart entry" grep -q '"workbench status"' .claude/settings.json
+check "the hook is added beside a non-object SessionStart entry" grep -q 'workbench status ||' .claude/settings.json
+# a bare command from an earlier init is upgraded in place, once
+echo '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"workbench status"}]}]},"statusLine":{"type":"command","command":"workbench statusline"}}' > .claude/settings.json
+run "init guards a bare hook from an earlier init" 0 "workbench status now guarded on PATH" "$WB" init
+check "the bare hook is gone" bash -c "! grep -q '\"workbench status\"' .claude/settings.json"
+check "the bare status line is gone" bash -c "! grep -q '\"workbench statusline\"' .claude/settings.json"
+check "the upgraded hook is the only one" [ "$(grep -c 'workbench status ||' .claude/settings.json)" -eq 1 ]
 check "init reached the checklist" bash -c "'$WB' init | grep -q 'decide these with the user'"
 
 # --- memory in the tree -------------------------------------------------------
@@ -408,11 +416,21 @@ git add -A && git commit -qm memory
 "$WB" new bug "two" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
 ( cd .worktrees/b-002-two && echo fix2 > src2.txt && git add -A && git commit -qm fix2 )
 echo staged >> .claude/memory/MEMORY.md && git add .claude/memory/MEMORY.md
-run "merge refuses staged memory edits" 1 "uncommitted changes" "$WB" merge b-002 "two"
+run "merge refuses staged memory edits" 1 "staged changes" "$WB" merge b-002 "two"
 git reset -q && git checkout -q .claude/memory/MEMORY.md
 echo other >> README
-run "merge still refuses other unstaged dirt" 1 "uncommitted changes" "$WB" merge b-002 "two"
+run "merge tolerates any unstaged edit on main" 0 "merged b-002" "$WB" merge b-002 "two"
+check "the README edit stayed out of the squash" bash -c "! git show --stat --format= HEAD | grep -q README"
+check "the README edit is still pending" [ -n "$(git status --porcelain README)" ]
 git checkout -q README
+# an unstaged deletion is the one edit git would not protect from the squash
+"$WB" new bug "three" >/dev/null 2>&1; "$WB" start b-003 >/dev/null 2>&1
+( cd .worktrees/b-003-three && echo touched >> README && git add -A && git commit -qm touch )
+rm README
+run "merge refuses an unstaged deletion on main" 1 "uncommitted deletion the squash would undo" "$WB" merge b-003 "three"
+check "the refusal names the file" bash -c "'$WB' merge b-003 three 2>&1 | grep -q '^  README'"
+git checkout -q README
+run "merge goes through once the file is back" 0 "merged b-003" "$WB" merge b-003 "three"
 
 # --- rendered copies: migration from links, staleness, templates ------------
 
@@ -496,8 +514,12 @@ new_repo fail
 "$WB" new bug "one" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-one && echo a >> README && git add -A && git commit -qm a )
 echo dirty >> README
-run "merge refuses a dirty main" 1 "uncommitted changes; the squash commit would absorb them" "$WB" merge b-001 "one"
+run "merge stops when the branch touches a file edited on main" 1 "an uncommitted edit on main is in the way of the branch" "$WB" merge b-001 "one"
+check "the stopped squash left main clean" [ -z "$(git -C . status --porcelain --untracked-files=no | grep -v '^ M README')" ]
 git checkout -q README
+git add README 2>/dev/null; echo staged >> README && git add README
+run "merge refuses staged dirt on main" 1 "staged changes; the squash commit would absorb them" "$WB" merge b-001 "one"
+git reset -q && git checkout -q README
 
 # generic dirt beyond the item file
 ( cd .worktrees/b-001-one && echo more >> README )
@@ -532,6 +554,14 @@ run "archive refuses to retire a branch with work" 1 "carries work beyond the it
 cp workbench/items/archive/b-002-ghost.md workbench/items/bugs/b-002-again.md
 run "status flags duplicate ids" 0 "DUPLICATE IDS" "$WB" status
 rm workbench/items/bugs/b-002-again.md
+
+# content already on main by another route squashes to nothing
+idd=$("$WB" new bug "dup" 2>/dev/null); "$WB" start "$idd" >/dev/null 2>&1
+( cd ".worktrees/$idd-dup" && echo same > same.txt && git add -A && git commit -qm same )
+cp ".worktrees/$idd-dup/same.txt" . && cp ".worktrees/$idd-dup/workbench/items/bugs/$idd-dup.md" workbench/items/bugs/
+git add -A && git commit -qm 'same by hand'
+run "merge names a branch that changes nothing" 1 "changes nothing on main" "$WB" merge "$idd" "dup"
+check "the empty squash left main clean" [ -z "$(git status --porcelain --untracked-files=no)" ]
 
 # --- lookups over every worktree --------------------------------------------
 # A detached worktree with no workbench/, an item created in a sibling, a
@@ -569,7 +599,7 @@ check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic mer
 fill_evidence workbench/items/bugs/b-001-one.md "run" "ok"
 idy=$("$WB" new bug "sibling" 2>/dev/null); "$WB" start "$idy" >/dev/null 2>&1
 check "setup: the sibling inherited b-001's merged copy" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
-check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-sibling" && "$WB" find --grep 'crash\|one' 2>/dev/null | grep -c '^b-001 ')" -eq 1 ]
+check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-sibling" && "$WB" find --grep one 2>/dev/null | grep -c '^b-001 ')" -eq 1 ]
 run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
 check "main's copy is in the archive" [ -f workbench/items/archive/b-001-one.md ]
 check "the sibling's copy is untouched" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
@@ -579,6 +609,74 @@ run "find --grep from a sibling lists an archived item once, as archived" 0 "^b-
   bash -c "cd .worktrees/$idy-sibling && '$WB' find --grep one | grep -c '^b-001 ' | grep -qx 1 && '$WB' find --grep one"
 run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" \
   bash -c "cd .worktrees/$idy-sibling && '$WB' find workbench/items/bugs/b-001-one.md | grep -c '^b-001 ' | grep -qx 1 && '$WB' find workbench/items/bugs/b-001-one.md"
+
+# --- resume: a branch without a worktree ------------------------------------
+# The item file lives on the branch, so once the worktree is gone no checkout
+# holds it; start must find the ref. Locally after a worktree remove, and on
+# another machine where the branch is only fetched.
+
+new_repo home/resume
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+"$WB" new bug "gone" >/dev/null 2>&1; "$WB" start b-001 >/dev/null 2>&1
+( cd .worktrees/b-001-gone && echo w > work.txt && git add -A && git commit -qm work )
+run "start on a started item names its worktree" 1 "already started; its worktree is" "$WB" start b-001
+git worktree remove .worktrees/b-001-gone
+run "start resumes a branch whose worktree was removed" 0 "resumed b-001-gone" "$WB" start b-001
+check "the resumed worktree holds the branch" [ "$(git -C .worktrees/b-001-gone symbolic-ref --short HEAD)" = b-001-gone ]
+check "the item file is there, from the branch" [ -f .worktrees/b-001-gone/workbench/items/bugs/b-001-gone.md ]
+check "the work is there" [ -f .worktrees/b-001-gone/work.txt ]
+check "no copy appeared on main" [ ! -e workbench/items/bugs/b-001-gone.md ]
+rm -rf .worktrees/b-001-gone
+run "start on a worktree removed by hand says to prune" 1 "git worktree prune" "$WB" start b-001
+git worktree prune
+run "start resumes after the prune" 0 "resumed b-001-gone" "$WB" start b-001
+git branch -q b-001-other main
+run "start refuses when several branches match" 1 "several branches match b-001" "$WB" start b-001
+git branch -qD b-001-other
+# a second machine: the branch exists only on origin
+git clone -q --bare . "$TMP/resume-origin"
+git clone -q "$TMP/resume-origin" "$TMP/home/resume-clone" 2>/dev/null
+cd "$TMP/home/resume-clone"
+check "setup: the clone has no local item branch" [ -z "$(git branch --list 'b-001-*')" ]
+run "status in a clone at another path warns about the memory setting" 0 "autoMemoryDirectory points at .*resume/.claude/memory, not this checkout" "$WB" status
+run "start resumes a branch only on origin" 0 "resumed b-001-gone" "$WB" start b-001
+check "the branch now exists locally" [ -n "$(git branch --list b-001-gone)" ]
+check "it tracks origin" [ "$(git -C .worktrees/b-001-gone rev-parse --abbrev-ref '@{upstream}')" = origin/b-001-gone ]
+check "the item file came with it" [ -f .worktrees/b-001-gone/workbench/items/bugs/b-001-gone.md ]
+run "status at the same path as init is quiet about memory" 0 "" bash -c "cd '$TMP/home/resume' && ! '$WB' status | grep -q autoMemoryDirectory"
+# the local override status suggests is not nagged about; a redundant one is
+echo '{"autoMemoryDirectory":"~/resume-clone/.claude/memory"}' > .claude/settings.local.json
+run "status is quiet once the clone overrides the memory path" 0 "" bash -c "! '$WB' status | grep -q autoMemoryDirectory"
+check "init does not nag about a differing local override" bash -c "! '$WB' init 2>&1 | grep -q 'the local one is redundant'"
+echo '{"autoMemoryDirectory":"~/resume/.claude/memory"}' > .claude/settings.local.json
+run "init names a local override that repeats the project value" 0 "the local one is redundant" "$WB" init
+rm .claude/settings.local.json
+# origin's ref outlives the merge and the archive; neither may be resumed
+"$WB" merge b-001 "gone" >/dev/null 2>&1
+check "setup: origin still has the branch after the merge" [ -n "$(git branch -r --list origin/b-001-gone)" ]
+run "start refuses a merged item whose ref is left on origin" 1 "already merged as [0-9a-f]+; origin/b-001-gone is a leftover" "$WB" start b-001
+check "no worktree was cut for it" [ ! -e .worktrees/b-001-gone ]
+fill_evidence workbench/items/bugs/b-001-gone.md "run" "ok"
+"$WB" archive b-001 >/dev/null 2>&1
+run "start refuses an archived item whose ref is left on origin" 1 "already archived" "$WB" start b-001
+
+# --- statusline with awaiting items and reports, find by absolute path ------
+
+new_repo sl
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+"$WB" new bug "waits" >/dev/null 2>&1
+set_status workbench/items/bugs/b-001-waits.md 'awaiting — the next release'
+git add -A && git commit -qm 'awaiting on main'
+report=$("$WB" review memory 2>/dev/null)
+run "statusline counts awaiting items and reports" 0 '^wb: 1 open · 1 awaiting · 1 report$' bash -c "$(declare -f session); session '$PWD' | sed 's/\"display_name\":\"Opus\"/\"display_name\":\"\"/' | '$WB' statusline"
+"$WB" review-drop "$report" >/dev/null 2>&1
+"$WB" new bug "abs" >/dev/null 2>&1; "$WB" start b-002 >/dev/null 2>&1
+( cd .worktrees/b-002-abs && echo a >> README && git add -A && git commit -qm a )
+"$WB" merge b-002 "abs" >/dev/null 2>&1
+check "find by a relative path lists the item" bash -c "'$WB' find README | grep -q '^b-002 '"
+check "find by an absolute path lists the item" bash -c "'$WB' find '$PWD/README' | grep -q '^b-002 '"
+check "find by an absolute path outside the repo lists nothing" not_listed b-002 /nonexistent/README
+check "find --grep is a fixed string" not_listed b-002 --grep 'a.s'
 
 # --- worktree cut before the init commit ------------------------------------
 

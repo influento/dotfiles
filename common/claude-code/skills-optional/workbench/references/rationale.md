@@ -44,11 +44,11 @@ An item is dated by its commit and reachable from any file through the
 trailer; a memory entry is neither. That is the whole argument, and it holds
 whether or not the store is versioned.
 
-It used to have two more legs — memory was machine-local, and keyed to the
-checkout's path so a worktree got a store of its own — and `init` removes
-both by pointing `autoMemoryDirectory` at `.claude/memory/` in the tree: one
-store, committed, shared by every worktree and clone. What that buys is sync
-and a diff. What it does not buy is review, which is why the `memory` sweep
+Two more legs — memory that is machine-local, and keyed to the checkout's
+path so a worktree gets a store of its own — `init` removes by pointing
+`autoMemoryDirectory` at `.claude/memory/` in the tree: one store, committed,
+shared by every worktree and every clone at the same path. What that buys is
+sync and a diff. What it does not buy is review, which is why the `memory` sweep
 reason exists.
 
 ## Why `rename` is a class and `refactor` is not
