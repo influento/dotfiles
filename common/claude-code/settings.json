@@ -11,6 +11,8 @@
       "Agent",
       "WebSearch",
       "WebFetch",
+      "Bash(pacman:*)",
+      "Bash(pgrep:*)",
       "Bash(sudo pacman:*)",
       "Bash(yay:*)",
       "Bash(auto-update:*)"
