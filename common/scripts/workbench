@@ -31,15 +31,14 @@ usage:
                                        (--force overwrites a copy edited by hand)
   workbench adopt                      init, then survey an existing project
   workbench new <bug|feature|rename|research> "<title>" [--milestone <slug>]
-                                       allocate an id, write the file
+                                       allocate an id, write the file, commit it on the default branch
   workbench idea "<sentence>"          one backlog line, on the main checkout wherever it runs
   workbench call <id|-> "<question>"   one line in DECISIONS.md: a call that is the user's, parked
   workbench find [<path>...] [--grep <word>]... [--all]
                                        items that touched these paths, newest first
   workbench milestone "<title>"        open a big-picture goal under workbench/milestones/
   workbench milestone archive <slug>   close it, once its items are archived and evidence is in
-  workbench start <id> [--copy]        create the branch and worktree for an item
-                                       (refuses an item file committed on the default branch; --copy carries it anyway)
+  workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench merge <id> "<subject>" [--no-review]
                                        squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status, and a passed pre-merge review
@@ -82,8 +81,9 @@ main_root() {
   git worktree list --porcelain | sed -n '1s/^worktree //p'
 }
 
-# Both checkouts that may hold items: the current one, because an item file
-# lives on its branch, and the main one, which holds everything merged.
+# Both checkouts that may hold items: the main one, which holds every item
+# from 'new' onward, and the current one, whose branch carries the copy an
+# item is edited in — or an item written by hand and not yet landed.
 wb_roots() {
   local cur main
   cur=$(repo_root)
@@ -851,7 +851,12 @@ cmd_new() {
     [ -n "$(find_milestone "$milestone")" ] || die "no milestone named '$milestone'"
   fi
 
-  root=$(repo_root)
+  # The file lands on the default branch, wherever this runs — created in a
+  # worktree it would otherwise ride that item's squash under its trailer —
+  # so the main checkout must hold that branch. Checked before an id is
+  # spent on a refusal.
+  root=$(main_root)
+  require_main_checked_out "$root"
   slug=$(slugify "$title")
   [ -n "$slug" ] || die "title produced an empty slug"
 
@@ -873,18 +878,47 @@ cmd_new() {
       && mv "$path.tmp" "$path"
   fi
 
+  land_item "$path" "new $id: $title"
+
   echo "$id"
   echo "$path" >&2
-  echo "leave it uncommitted; 'workbench start $id' moves it onto its branch" >&2
+  echo "committed on $(default_branch); fill it, then 'workbench start $id'" >&2
+}
+
+# The main checkout holds the default branch, or a commit meant for it would
+# land elsewhere.
+require_main_checked_out() {
+  local main on
+  main=$(default_branch)
+  on=$(git -C "$1" symbolic-ref -q --short HEAD || true)
+  [ "$on" = "$main" ] || die "$1 has '${on:-a detached HEAD}' checked out, not $main; the item commit lands there"
+}
+
+# An item file is on the default branch from the moment it exists: 'new'
+# lands the template, 'start' lands whatever was written since — the
+# criterion — and from then on main's copy stands until the branch's copy
+# overwrites it at merge. Only this path goes into the commit: with a
+# pathspec, commit takes the file as it is in the tree and leaves the rest
+# of the index alone, so a session's other pending edits on main stay where
+# they were. Nothing pending, nothing committed.
+land_item() {
+  local path="$1" msg="$2" root
+  root=$(main_root)
+  require_main_checked_out "$root"
+  git -C "$root" add -- "$path"
+  git -C "$root" diff --cached --quiet -- "$path" && return 0
+  git -C "$root" commit --quiet -m "$msg" -- "$path" \
+    || die "the commit for ${path#"$root"/} was refused — a hook, or a merge in progress on $(default_branch); the file is staged in $root"
+  echo "committed ${path#"$root"/} on $(default_branch)" >&2
 }
 
 # The item file, over every checkout, in the order a copy is authoritative:
-# the item's own worktree first — the copy on its branch — then the main
-# checkout, which holds the merged copy. Every worktree cut after the merge
-# inherits that copy, so a sibling's is never the item's home — archive run
-# from one must move main's copy, or main's stays open. Last the
-# current checkout and the rest, for an item created and not yet started —
-# it exists only where 'new' ran, and any worktree may run it.
+# the item's own worktree first — the copy on its branch, the one edited —
+# then the main checkout, which holds the item as it started and, once
+# merged, as it ended. Every worktree cut after that inherits main's copy, so
+# a sibling's is never the item's home — archive run from one must move
+# main's copy, or main's stays open. Last the current checkout and the rest,
+# for an item written by hand and not yet landed.
 find_item() {
   local id="$1" b
   wb_find items -name "$id-*.md" -print -quit < <(
@@ -906,8 +940,8 @@ item_root() {
 }
 
 # The branch an item is on, if any: a local one, else one only fetched from
-# origin — the item file lives on the branch, so on another machine that ref
-# is the only trace of a started item.
+# origin — on another machine that ref may be the only trace that an item
+# was started.
 item_branch() {
   local b
   b=$(git for-each-ref --format='%(refname:short)' "refs/heads/$1-*")
@@ -919,15 +953,10 @@ item_branch() {
 }
 
 cmd_start() {
-  local id="${1:-}" path='' branch root='' wt ref copy=0
+  local id="${1:-}" path='' branch root='' wt ref
   [ -n "$id" ] || usage
   shift
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --copy) copy=1; shift ;;
-      *) usage ;;
-    esac
-  done
+  [ $# -eq 0 ] || usage
   id=$(require_id "$id")
   require_init
 
@@ -952,11 +981,10 @@ cmd_start() {
     esac
   fi
 
-  # A started item has its file on its branch and nowhere else, so once its
-  # worktree is gone — removed by hand, or never cut here because the branch
-  # was fetched from another machine — no checkout holds the file and only
-  # the ref says the item exists. Resume from the ref: a worktree for the
-  # branch, nothing to move.
+  # A started item is edited on its branch, so once its worktree is gone —
+  # removed by hand, or never cut here because the branch was fetched from
+  # another machine — the ref is where the work is. Resume from it: a
+  # worktree for the branch, nothing to commit.
   if [ -n "$ref" ]; then
     branch="${ref#origin/}"
     local at
@@ -972,8 +1000,8 @@ cmd_start() {
       *) git worktree add --quiet "$wt" "$branch" ;;
     esac
     echo "resumed $branch in $wt" >&2
-    # The file is on the branch, so it is readable only now; the branch
-    # exists already, so this is a note rather than a refusal.
+    # The branch exists already, so an empty criterion is a note rather
+    # than a refusal.
     local f
     f=$(find "$wt/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null || true)
     if [ -n "$f" ] && ! section_filled "$f" "$(criterion_heading "$id")"; then
@@ -984,53 +1012,51 @@ cmd_start() {
 
     branch=$(basename "$path" .md)
     root=$(item_root "$path")
-    # An item file committed on the branch it was created on stays there
-    # when this one is cut, and from then on two copies of one item diverge:
-    # the default branch shows the item as in flight and 'status' lists both.
-    # Refused before anything is cut, since the repair is one 'git rm'.
-    if [ "$copy" -eq 0 ] && git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-      die "${path#"$root"/} is committed on $(git -C "$root" rev-parse --abbrev-ref HEAD); an item file lives on its own branch only. 'git rm --cached' it there and commit as housekeeping, then start again — or 'start $id --copy' to carry a copy anyway"
-    fi
+    local rel="${path#"$root"/}" mainr
+    mainr=$(main_root)
     # Rule 2, held here because this is where code begins: the criterion —
     # a research item's Scope — is written and agreed before the branch is
-    # cut. A template comment alone does not count.
+    # cut. A template comment alone does not count. Before anything moves.
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
+    # An item is on the default branch from 'new' onward; one written by hand,
+    # or by an older workbench, sits untracked in whatever checkout it was
+    # written in, and is brought to the main checkout to land with the rest.
+    # Committed on another checkout's branch it is refused: it would reach the
+    # default branch twice, now and again under that branch's squash.
+    if [ "$root" != "$mainr" ]; then
+      ! git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1 \
+        || die "$rel is committed on $(git -C "$root" rev-parse --abbrev-ref HEAD), not on $(default_branch); 'git rm' it there and commit, then start again"
+      [ ! -e "$mainr/$rel" ] || die "$rel is both in $root and in $mainr; keep one"
+      mkdir -p "$(dirname "$mainr/$rel")"
+      mv "$path" "$mainr/$rel"
+      # 'new' may have created the class directory just for this file.
+      # Relative, so the walk up stops at the checkout rather than the root.
+      (cd "$root" && rmdir -p --ignore-fail-on-non-empty "$(dirname "$rel")" 2>/dev/null) || true
+      echo "moved $rel from $(basename "$root") to the main checkout" >&2
+      path="$mainr/$rel"
+      root="$mainr"
+    fi
     # Always under the main checkout and off the default branch. Run from
     # inside another item's worktree, the new one would otherwise nest under
     # it — and vanish with it at that item's merge — and start from that
     # item's commits.
-    wt="$(main_root)/.worktrees/$branch"
+    wt="$mainr/.worktrees/$branch"
 
     [ -e "$wt" ] && die "worktree already exists: $wt"
 
+    # What was written since 'new' — the criterion — is where the branch
+    # starts from, so it lands on the default branch first. From here on
+    # main's copy stands as the item started; the branch's is the one edited.
+    land_item "$path" "start $id"
     git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
+    echo "started $branch in $wt" >&2
   fi
   # The skills are tracked copies, so a committed .claude/ is in the new
   # checkout already; uncommitted, it is not, and a session opened there
   # has no commands, hook or status line.
   [ -d "$wt/.claude/skills/workbench" ] \
     || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
-
-  # The item file lives on its branch, so a new one is not on the default
-  # branch and the fresh worktree lacks it; carry it over. Untracked, it moves.
-  # Already committed on another item's branch, it is copied and that branch
-  # is named: its squash would otherwise land this file on the default branch
-  # under the wrong trailer, and this item's own merge would then collide.
-  local rel="${path#"$root"/}"
-  if [ -z "$ref" ] && [ ! -e "$wt/$rel" ]; then
-    mkdir -p "$(dirname "$wt/$rel")"
-    if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-      cp "$path" "$wt/$rel"
-      echo "copied $rel onto the branch; it is also committed on $(git -C "$root" rev-parse --abbrev-ref HEAD) — remove it there before that branch merges" >&2
-    else
-      mv "$path" "$wt/$rel"
-      # 'new' may have created the class directory just for this file.
-      # Relative, so the walk up stops at the checkout rather than the root.
-      (cd "$root" && rmdir -p --ignore-fail-on-non-empty "$(dirname "$rel")" 2>/dev/null) || true
-      echo "moved $rel onto the branch" >&2
-    fi
-  fi
 
   # The dispatch line for a composing session: stdout stays the path, which
   # the skills read; the line goes where a person reads.
@@ -1094,10 +1120,9 @@ cmd_merge() {
   root=$(main_root)
   main=$(default_branch)
 
-  # The branch is what merges, and it carries the ID, so resolve it directly:
-  # the item file lives on the branch and is invisible to find_item from the
-  # main checkout. The archive is still consulted — an archived item's branch
-  # is a leftover, not work to merge.
+  # The branch is what merges, and it carries the ID, so resolve it directly.
+  # The archive is still consulted — an archived item's branch is a
+  # leftover, not work to merge.
   case "$(find_item "$id")" in
     */items/archive/*) die "$id is already archived" ;;
   esac
@@ -1111,11 +1136,12 @@ cmd_merge() {
   esac
 
   # The merge gate asks whether everything verifiable was verified, and the
-  # item file on the branch is the only witness. An 'open' item with no
-  # evidence block would merge as a claim nobody made; one that cannot be
-  # verified yet says so with 'awaiting — <trigger>' or 'unverified —
-  # <trigger>'. Read from the branch, not the checkout: the file may sit
-  # uncommitted in the worktree, and that is refused further down.
+  # item file on the branch is the only witness — main's copy is the item as
+  # it started. An 'open' item with no evidence block would merge as a claim
+  # nobody made; one that cannot be verified yet says so with 'awaiting —
+  # <trigger>' or 'unverified — <trigger>'. Read from the branch, not the
+  # checkout: the file may sit edited and uncommitted in the worktree, and
+  # that is refused further down.
   local item_on_branch tmp st
   item_on_branch=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
     | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
@@ -1183,14 +1209,15 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
         die "$wt still holds a review report; triage it, then 'workbench review-drop' it before merging:
 $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
       fi
-      # The item file is the one a fresh branch always has uncommitted —
-      # 'start' moved it in untracked — so name it rather than say "changes".
+      # The item file is the one edit a worker is likeliest to leave
+      # uncommitted — evidence pasted, not yet committed — so name it rather
+      # than say "changes".
       local only
       only=$(printf '%s\n' "$dirt" | sed 's/^...//')
       if [ "$(printf '%s\n' "$only" | wc -l)" -eq 1 ]; then
         case "$only" in
           "$WB/items/"*"/$id-"*.md)
-            die "$only is not committed on the branch; commit it, then retry" ;;
+            die "$only is edited and not committed on the branch; commit it, then retry" ;;
           node_modules)
             # A symlinked node_modules is not a directory to git, so the
             # usual 'node_modules/' ignore does not cover it.
@@ -1201,17 +1228,27 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
     fi
   fi
 
-  # Another item's file committed on this branch — created here, or copied
-  # in by 'start' — would land on the default branch in this squash, under
+  # Another item's file changed on this branch — written there by hand, or
+  # edited there — would land on the default branch in this squash, under
   # this item's trailer, and that item's own merge would then collide. Any
   # class: ids share one sequence. Not the archive, a record move that
-  # carries its own SHA and reaches a branch only by hand.
+  # carries its own SHA and reaches a branch only by hand. A three-dot diff,
+  # so items landed on the default branch since the cut are not in it.
   local foreign
   foreign=$(git -C "$root" diff --name-only "$main...$branch" \
     | grep -E "^$WB/items/[^/]+/[bfrx]-[0-9]+-[^/]*\.md\$" \
     | grep -v -e "^$WB/items/archive/" -e "/$id-" || true)
   [ -z "$foreign" ] || die "$branch carries another item's file; 'git rm' it here — after 'workbench start <id>' for that item if it is not started — then retry:
 $(printf '%s\n' "$foreign" | sed 's/^/  /')"
+
+  # The item is edited on its branch only, and main's copy stands as it
+  # started until the squash overwrites it. The squash is a three-way merge,
+  # so a main-side edit in a hunk the branch never touched would merge in
+  # silently — a criterion changed under evidence recorded against the old
+  # one. Refused outright: three-dot, so the copy is compared with the cut.
+  if [ -n "$item_on_branch" ] && ! git -C "$root" diff --quiet "$branch...$main" -- "$item_on_branch"; then
+    die "$main's copy of $id changed since $branch was cut; the item is edited on its branch only — revert it on $main, then retry"
+  fi
 
   git -C "$root" merge-base --is-ancestor "$branch" "$main" \
     && die "$branch has nothing $main does not already have"
@@ -1268,8 +1305,8 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   rm -f "$mark" "$(git_common_dir)/review-holds/$id"
 
   echo "merged $id as $sha on $main"
-  # The item file rode along in the squash, so read its status from the copy
-  # now on the default branch.
+  # The branch's copy of the item file overwrote main's in the squash, so
+  # read its status from the default branch.
   local item
   item=$(wb_find items -name "$id-*.md" -print -quit <<< "$root")
   case "$item" in
@@ -1307,7 +1344,7 @@ item_id() {
 
 # Undo a squash that did not reach its commit. Nothing was staged before the
 # squash began, and --merge keeps what is unstaged — the edits merge
-# tolerates on main — and leaves untracked files, an item not yet started,
+# tolerates on main — and leaves untracked files, a report or scratch,
 # alone. The message file a stopped squash leaves would otherwise seed the
 # next commit's message.
 unsquash() {
@@ -1374,7 +1411,7 @@ known_status() {
 }
 
 # An unreproduced bug that was started has a branch holding nothing but its
-# item file — there was nothing to fix — and a worktree the file was moved
+# item file — there was nothing to fix — and a worktree the file was edited
 # into. Archiving it means bringing the file back to the main checkout and
 # dropping both. Only when the item is all the branch holds: anything else is
 # work, and work merges or is discarded by hand, never here. The item file is
@@ -1418,11 +1455,29 @@ $hint"
     dropped=1
   fi
 
-  # The worktree may already be gone by hand, leaving the item in the main
-  # checkout: then the copy is already where it needs to be.
-  local rel="${path#"$(item_root "$path")"/}"
+  # Main's copy is the item as it started; the branch's is the item as it
+  # ends, and that is the one archived. From the worktree when there is one
+  # — a status set there and not yet committed counts, as above — else from
+  # the branch itself, since the worktree gone by hand leaves find_item on
+  # main's stale copy.
+  local rel
+  if [ -n "$wt" ]; then
+    rel="${path#"$(item_root "$path")"/}"
+  else
+    rel=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
+      | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+    [ -n "$rel" ] || die "$branch carries no item file for $id; nothing to archive from it"
+  fi
+  # Overwritten, not merged — so a main-side edit since the cut would be
+  # lost without a word. Refused, as merge refuses it.
+  git -C "$root" diff --quiet "$branch...$main" -- "$rel" \
+    || die "$main's copy of $id changed since $branch was cut; the item is edited on its branch only — revert it on $main, then retry"
   mkdir -p "$root/$(dirname "$rel")"
-  [ "$path" = "$root/$rel" ] || cp "$path" "$root/$rel"
+  if [ -n "$wt" ]; then
+    [ "$path" = "$root/$rel" ] || cp "$path" "$root/$rel"
+  else
+    git -C "$root" show "$branch:$rel" > "$root/$rel"
+  fi
   # --force only because of the item file just copied out; everything else
   # was verified clean above.
   [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
@@ -1550,14 +1605,42 @@ cmd_archive() {
     *) [ "$discard" -eq 0 ] || die "--discard is for research items; $id merges or is retired as it is" ;;
   esac
 
-  # Over every checkout: an unreproduced item that was started lives only in
-  # its worktree, while archive is run from the main checkout.
+  # Over every checkout: a started item is edited in its worktree, while
+  # archive is run from the main checkout.
   path=$(find_item "$id")
-  [ -n "$path" ] || die "no item matching '$id'"
-
   case "$path" in
     */items/archive/*) die "$id is already archived" ;;
   esac
+
+  local main branch
+  main=$(default_branch)
+  branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+  case "$branch" in
+    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
+  esac
+  # Started with the worktree gone — removed, or never cut on this machine —
+  # the branch's copy is the item and main's is the item as it started; the
+  # checks below read the branch's. A worktree removed by hand and not yet
+  # pruned reads the same way, and retire_branch says to prune.
+  local tmp='' wt on_branch
+  if [ -n "$branch" ]; then
+    wt=$(worktree_of "$branch")
+    if [ -z "$wt" ] || [ ! -d "$wt" ]; then
+      on_branch=$(git ls-tree -r --name-only "$branch" -- "$WB/items" \
+        | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+      if [ -n "$on_branch" ]; then
+        tmp=$(mktemp)
+        # Every refusal below would otherwise leave it behind.
+        # shellcheck disable=SC2064
+        trap "rm -f '$tmp'" EXIT
+        git show "$branch:$on_branch" > "$tmp"
+        path=$tmp
+      fi
+    fi
+  fi
+  # After the branch read: an item on its branch alone — started under an
+  # older workbench, worktree gone — has no copy in any checkout.
+  [ -n "$path" ] || die "no item matching '$id'"
 
   local status
   status=$(item_status "$path")
@@ -1603,12 +1686,6 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   # would record 'commit: none' for good while the squash commit arrives
   # later. The one branch that legitimately never merges is an unreproduced
   # bug's; that one is retired here.
-  local main branch
-  main=$(default_branch)
-  branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
-  case "$branch" in
-    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
-  esac
   if [ -n "$branch" ]; then
     case "$id:$status" in
       x-*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
@@ -1691,28 +1768,26 @@ cmd_statusline() {
     [bfrx]-[0-9]*-*) out="$out on $(item_id "$here") ·" ;;
   esac
 
-  mapfile -t names < <(wb_find items -path '*/archive/*' -prune -o \
-    -name '[bfrx]-*.md' -print < <(all_roots 2>/dev/null) | sed 's|.*/||' | sort -u)
+  mapfile -t names < <(open_names)
   n=${#names[@]}
   if [ "$n" -eq 0 ]; then
     out="$out nothing in flight"
   else
     out="$out $n open"
+    # The copy on the item's own branch is the one edited; main's is the
+    # item as it started, and stands in only when there is no worktree.
+    local own
     for name in "${names[@]}"; do
       case "$name" in x-*) ;; *) continue ;; esac
-      f=$(wb_find items -name "$name" -print -quit < <(all_roots 2>/dev/null))
+      own=$(worktree_of "${name%.md}")
+      f=$(wb_find items -name "$name" -print -quit < <(printf '%s\n' "$own"; main_root; all_roots 2>/dev/null))
       [ -n "$f" ] || continue
       out="$out · $(item_id "$name") $(concept_summary "$f" | sed 's/ of / \/ /; s/ concepts open//; s/no concepts yet/0 concepts/')"
     done
   fi
 
-  local awaiting=0 reports dirs=()
-  mapfile -t dirs < <(wb_dirs items < <(all_roots 2>/dev/null))
-  # By name, not path: the same item sits in every checkout that inherited it.
-  while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    [ -n "$(git branch --list "$(item_id "$name")-*")" ] || awaiting=$((awaiting + 1))
-  done < <([ "${#dirs[@]}" -eq 0 ] || grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sed 's|.*/||' | sort -u)
+  local awaiting reports
+  awaiting=$(awaiting_on_main | grep -c . || true)
   [ "$awaiting" -eq 0 ] || out="$out · $awaiting awaiting"
   reports=$({
     wb_find reviews -maxdepth 1 -name '*.md' < <(all_roots 2>/dev/null) | sed 's|.*/||'
@@ -1874,14 +1949,18 @@ cmd_find() {
     # An open item on a sibling branch has no commit on the default branch
     # either, and it is the hit that matters most — work about to collide
     # with this. Matched by text like the unproved ones, and shown as its own
-    # class, since a text match can be wrong where a trailer cannot.
-    local r
+    # class, since a text match can be wrong where a trailer cannot. Only the
+    # item the sibling's branch is named for: every other file there is
+    # main's copy, inherited.
+    local r here
     while IFS= read -r r; do
+      here=$(item_id "$(git -C "$r" symbolic-ref -q --short HEAD 2>/dev/null || true)")
+      [ -n "$here" ] || continue
       while IFS= read -r f; do
         for p in "${res[@]}"; do
           if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="on-branch"; break; fi
         done
-      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name '[bfrx]-*.md' -print 2>/dev/null)
+      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name "$here-*.md" -print 2>/dev/null)
     done < <(all_roots | grep -vxF -f <(wb_roots))
     # An open item here or in the main checkout has no commit on the path
     # either — created and not started, or started and not merged — and the
@@ -2088,61 +2167,59 @@ EOF
 
 # In-flight work is branches plus items merged as 'awaiting', which have no
 # branch left. Both halves are needed; neither alone is the answer.
-# An item file lives on its branch, so the copy in a worktree and the copy in
-# the main checkout are the same item at two points in its life and their
-# status lines can legitimately disagree. Print one line per copy that
-# disagrees, labelled, rather than picking one and hiding the other. A copy
-# under archive/ takes part as 'archived': a worktree cut before the archive
-# still carries the open copy, and main's record is the other side of that.
+#
+# One line per item: from its own worktree when the branch has one — that is
+# where the item is edited — else from the main checkout. Every worktree
+# inherits main's copies, so a copy in a sibling is not a second item and is
+# not counted, and an item archived on main whose open copy still sits in a
+# worktree cut before the archive is archived, not open. Only an item on no
+# branch and not on main — untracked in a sibling, written by hand or by an
+# older workbench — is shown from where it is, and labelled.
 status_lines() {
-  local name="$1" d f st where seen=() pairs=() prev
+  local name="$1" f='' st own started='' where='' mainr d tmp=''
   shift
-  # One line per item. The copy on the item's own branch is the item; a copy
-  # elsewhere is main's, or a sibling worktree's inherited from main, and
-  # neither is edited once the branch exists. Main's copy stands in when there
-  # is no branch; a sibling's is never shown as the item, only counted.
-  local own others=0
+  mainr=$(main_root)
   own=$(worktree_of "${name%.md}")
   if [ -n "$own" ] && [ -d "$own" ]; then
-    f=$(find "$own/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
-  else
-    f=$(find "$(main_root)/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
+    f=$(find "$own/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+    started='   started'
   fi
-  if [ -n "$f" ]; then
-    st=$(shown_status "$f")
-    case "$name" in x-*) st="$st   $(concept_summary "$f")" ;; esac
-    for d in "$@"; do
-      case "$d" in "$(dirname "$f")"*|"${f%/$WB/items/*}/$WB/items"*) continue ;; esac
-      [ -n "$(find "$d" -name "$name" -print -quit 2>/dev/null)" ] && others=$((others + 1))
-    done
-    case "$f" in
-      */archive/*) [ "$others" -gt 0 ] && printf '  %-34s %s   (%s stale open copies in other worktrees)\n' "${name%.md}" "$st" "$others" ;;
-      *) printf '  %-34s %s%s\n' "${name%.md}" "$st" "$([ "$others" -gt 0 ] && printf '   (+%s copies elsewhere)' "$others")" ;;
-    esac
-    return 0
-  fi
-  for d in "$@"; do
-    f=$(find "$d" -name "$name" -print -quit 2>/dev/null || true)
-    [ -n "$f" ] || continue
-    st=$(shown_status "$f")
-    case "$name" in x-*) st="$st   $(concept_summary "$f")" ;; esac
-    where=$(basename "$(item_root "$f")")
-    for prev in ${seen+"${seen[@]}"}; do
-      [ "$prev" = "$st" ] && continue 2
-    done
-    seen+=("$st")
-    pairs+=("$st|$where")
-  done
-  # Label only when the copies disagree, and then label every one of them —
-  # an unlabelled first line next to a labelled second reads as authoritative.
-  local pair
-  for pair in ${pairs+"${pairs[@]}"}; do
-    if [ "${#pairs[@]}" -gt 1 ]; then
-      printf '  %-34s %s   [in %s]\n' "${name%.md}" "${pair%%|*}" "${pair##*|}"
-    else
-      printf '  %-34s %s\n' "${name%.md}" "${pair%%|*}"
+  if [ -z "$f" ]; then
+    [ -z "$(find "$mainr/$WB/items/archive" -name "$name" -print -quit 2>/dev/null)" ] || return 0
+    f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
+    # A branch with no worktree — removed by hand, or only fetched from
+    # another machine — is started too; 'start' resumes it.
+    [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/${name%.md}")" ] || started='   started'
+    if [ -n "$f" ] && ! git -C "$mainr" ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+      where="   [not committed — 'workbench start' lands it]"
     fi
-  done
+  fi
+  if [ -z "$f" ]; then
+    for d in "$@"; do
+      f=$(find "$d" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+      [ -z "$f" ] || break
+    done
+    if [ -n "$f" ]; then
+      where="   [in $(basename "$(item_root "$f")"), not on $(default_branch)]"
+    elif [ -n "$started" ]; then
+      # On its branch alone: read from there, and say so.
+      local on_branch
+      on_branch=$(git -C "$mainr" ls-tree -r --name-only "${name%.md}" -- "$WB/items" 2>/dev/null \
+        | grep -F "/$name" | grep -v '/archive/' | head -1 || true)
+      [ -n "$on_branch" ] || return 0
+      tmp=$(mktemp)
+      git -C "$mainr" show "${name%.md}:$on_branch" > "$tmp"
+      f=$tmp
+      where="   [on its branch only; 'workbench start' resumes it]"
+    else
+      return 0
+    fi
+  fi
+  # Read, then remove: a temp file must not outlive a failed read.
+  st=$(shown_status "$f" || true)$started
+  case "$name" in x-*) st="$st   $(concept_summary "$f" || true)" ;; esac
+  [ -z "$tmp" ] || rm -f "$tmp"
+  printf '  %-34s %s%s\n' "${name%.md}" "$st" "$where"
 }
 
 cmd_status() {
@@ -2152,8 +2229,7 @@ cmd_status() {
   mapfile -t dirs < <(wb_dirs items < <(all_roots))
 
   local names=() name
-  mapfile -t names < <(wb_find items -path '*/archive/*' -prune -o \
-    -name '[bfrx]-*.md' -print < <(all_roots) | sed 's|.*/||' | sort -u)
+  mapfile -t names < <(open_names)
 
   echo "open items"
   if [ "${#names[@]}" -eq 0 ]; then
@@ -2184,18 +2260,15 @@ cmd_status() {
     || echo "  (none)"
 
   # Merged and open: invisible to 'git branch', so nothing but a grep or a
-  # sweep surfaces one whose trigger never fired. Report the file that actually
-  # matched, never a re-lookup that may land on the other checkout's copy.
+  # sweep surfaces one whose trigger never fired. Merged means on the default
+  # branch, so main's copies are the ones read; a worktree's copy of one is
+  # inherited from there.
   echo
   echo "merged, still awaiting a trigger"
   local hits=()
   # 'awaiting' is chosen at pre-merge, so an item still on its branch carries
   # it too; that one is in flight and listed above, not merged.
-  local h
-  mapfile -t hits < <([ "${#dirs[@]}" -eq 0 ] || grep -rl '^status: awaiting' "${dirs[@]}" 2>/dev/null | sort -u \
-    | while IFS= read -r h; do
-        [ -n "$(git branch --list "$(basename "$h" | sed -n 's/^\([bfrx]-[0-9]\{1,\}\)-.*/\1/p')-*")" ] || printf '%s\n' "$h"
-      done)
+  mapfile -t hits < <(awaiting_on_main)
   if [ "${#hits[@]}" -eq 0 ]; then
     echo "  (none)"
   else
@@ -2228,25 +2301,6 @@ cmd_status() {
     done
   fi
   [ "$limbo" -eq 1 ] || echo "  (none)"
-
-  # An item file committed on the default branch before its branch was cut:
-  # 'start' refuses it, and every worktree cut meanwhile inherits a copy.
-  local tracked=()
-  for name in "${names[@]}"; do
-    mid=$(item_id "$name")
-    [ -n "$mid" ] || continue
-    [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$mid-*")" ] || continue
-    f=$(find "$mainr/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
-    [ -n "$f" ] || continue
-    git -C "$mainr" ls-files --error-unmatch "$f" >/dev/null 2>&1 || continue
-    [ -n "$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1 2>/dev/null)" ] && continue
-    tracked+=("${name%.md}")
-  done
-  if [ "${#tracked[@]}" -gt 0 ]; then
-    echo
-    echo "committed on $mainb before start — 'git rm --cached' each and commit as housekeeping; the file stays and moves onto its branch at start"
-    printf '  %s\n' "${tracked[@]}"
-  fi
 
   # Calls parked for the user; each names the item that holds the reasoning.
   local calls
@@ -2331,6 +2385,36 @@ cmd_status() {
       fi
     done
   fi
+}
+
+# Item names in flight, over every checkout, once each — an item is in the
+# main checkout and in every worktree cut since it landed — and without those
+# the main checkout has archived: a worktree cut before an archive keeps the
+# open copy, and that copy is not an item.
+# A branch named like an item whose file is in no checkout — started under
+# an older workbench, worktree gone — is an item too, and is listed from the
+# branch.
+open_names() {
+  local archived
+  archived=$(find "$(main_root)/$WB/items/archive" -name '[bfrx]-*.md' 2>/dev/null | sed 's|.*/||')
+  {
+    wb_find items -path '*/archive/*' -prune -o -name '[bfrx]-*.md' -print < <(all_roots 2>/dev/null) | sed 's|.*/||'
+    git for-each-ref --format='%(refname:short).md' 'refs/heads/[bfrx]-*' | grep -E '^[bfrx]-[0-9]+-'
+  } | sort -u \
+    | { if [ -n "$archived" ]; then grep -vxF -f <(printf '%s\n' "$archived") || true; else cat; fi; }
+}
+
+# Items merged as 'awaiting' — on the default branch, so read from the main
+# checkout — whose branch is gone: one still on its branch is in flight.
+awaiting_on_main() {
+  local mainr h
+  mainr=$(main_root)
+  [ -d "$mainr/$WB/items" ] || return 0
+  grep -rl '^status: awaiting' "$mainr/$WB/items" --exclude-dir=archive 2>/dev/null | sort \
+    | while IFS= read -r h; do
+        [ -n "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$(item_id "$h")-*")" ] || printf '%s\n' "$h"
+      done
+  return 0
 }
 
 # Every checkout of the repository, a removed-by-hand one included until it is
@@ -2869,8 +2953,9 @@ date: $(date +%Y-%m-%d)
      delete it before returning. -->
 EOF
 
-  # A pre-merge's item file lives on its branch — in that item's worktree,
-  # not necessarily where the sweep runs. Name it, or say it was not found:
+  # A pre-merge reads the item as its branch has it — in that item's
+  # worktree, not necessarily where the sweep runs. Name it, or say it was
+  # not found:
   # a missing item is the sweep's to report back, so it gets a skeleton with
   # the note rather than a refusal.
   if [ "$reason" = pre-merge ]; then
@@ -2973,10 +3058,10 @@ write_manifest() {
   fi
 
   # A pre-merge whose branch has no diff against the default branch — the
-  # item file not yet committed — would get a skeleton with no manifest and
-  # no note, and review-check nothing to hold the report to. Say why.
+  # work not yet committed — would get a skeleton with no manifest and no
+  # note, and review-check nothing to hold the report to. Say why.
   if [ -n "$branch" ] && [ "${#files[@]}" -eq 0 ]; then
-    printf '\n<!-- %s carries no commits beyond %s: no manifest, so nothing for\n     review-check to hold the report to. Commit the item file on the branch,\n     then reopen this review. -->\n' "$branch" "$(default_branch)" >> "$report"
+    printf '\n<!-- %s carries no commits beyond %s: no manifest, so nothing for\n     review-check to hold the report to. Commit the work on the branch — the\n     item file with its evidence among it — then reopen this review. -->\n' "$branch" "$(default_branch)" >> "$report"
     return 0
   fi
 
@@ -2989,7 +3074,14 @@ write_manifest() {
   {
     echo
     if [ -n "$branch" ]; then
-      echo "<!-- changed on the branch: ${#files[@]} files, the item file among them. Name each"
+      # The item is edited on the branch, so an item file not in the diff
+      # means the evidence was never written there — worth a line of its own.
+      if printf '%s\n' "${files[@]}" | grep -qE "^$WB/items/[^/]+/[bfrx]-[0-9]+-[^/]*\.md\$"; then
+        echo "<!-- changed on the branch: ${#files[@]} files, the item file among them. Name each"
+      else
+        echo "<!-- changed on the branch: ${#files[@]} files, and the item file is not among them:"
+        echo '     the branch holds no evidence and merge will refuse it. Name each'
+      fi
       echo '     one the sweep covered, or the directory when a whole directory was;'
       echo '     review-check lists any the report never mentions:'
     else

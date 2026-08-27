@@ -45,12 +45,23 @@ set_status() { sed -i "s/^status: .*/status: $2/" "$1"; }
 crit() { sed -i '/^## \(How to confirm\|Scope\)/a\
 \
 agreed with the user' "$1"; }
+mainroot() { git worktree list --porcelain | sed -n '1s/^worktree //p'; }
 # newc <class> <title> [opts] — new, with the criterion filled; prints the id.
+# The file is on the main checkout wherever this runs, so it is found there.
 newc() {
   local id
   id=$("$WB" new "$@" 2>/dev/null) || return 1
-  crit "$(find workbench/items -name "$id-*.md" -print -quit)"
+  crit "$(find "$(mainroot)/workbench/items" -name "$id-*.md" -print -quit)"
   printf '%s\n' "$id"
+}
+# ready <worktree> — evidence on the branch's own item, committed, so merge's
+# gate passes; the review gate is skipped with --no-review where it is not
+# the subject.
+ready() {
+  local f
+  f=$(find "$1/workbench/items" -name "$(git -C "$1" symbolic-ref --short HEAD).md" -print -quit)
+  fill_evidence "$f" "run" "ok"
+  ( cd "$1" && git add -A && git commit -qm ready )
 }
 
 new_repo() {
@@ -87,18 +98,31 @@ run "statusline outside a workbench project is silent" 0 "" bash -c "$(declare -
 check "statusline outside a workbench project prints nothing" [ -z "$(session "$HOME" | "$WB" statusline)" ]
 git add -A && git commit -qm 'workbench init'
 
+git checkout -q -b side
+run "new refuses when the main checkout is off the default branch" 1 "has 'side' checked out, not main" "$WB" new bug "nope"
+check "the refusal spent no id" [ -z "$(find workbench/items -name '*.md')" ]
+git checkout -q main
 id=$("$WB" new bug "crash on save" 2>/dev/null)
 check "new allocates b-001" [ "$id" = b-001 ]
 item=workbench/items/bugs/b-001-crash-on-save.md
 check "new writes the item file" [ -f "$item" ]
+check "new commits it on main" [ "$(git log -1 --format=%s)" = "new b-001: crash on save" ]
+check "new leaves the tree clean" [ -z "$(git status --porcelain)" ]
+run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-001
+printf '\nTBD\n' >> "$item"
+run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
+git checkout -q "$item"
 
 run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
 check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
 crit "$item"
-run "start" 0 "moved $item onto the branch" "$WB" start b-001
+run "start" 0 "started b-001-crash-on-save in" "$WB" start b-001
 wt=.worktrees/b-001-crash-on-save
-check "start moves the item into the worktree" [ -f "$wt/$item" ]
-check "start leaves no copy on main" [ ! -e "$item" ]
+check "start lands the criterion on main first" [ "$(git log -1 --format=%s)" = "start b-001" ]
+check "the branch carries the item" [ -f "$wt/$item" ]
+check "main keeps its copy" [ -f "$item" ]
+check "main is clean after start" [ -z "$(git status --porcelain)" ]
+run "status marks a started item" 0 "b-001-crash-on-save +open +started" "$WB" status
 run "statusline names the worktree's item" 0 '^\[Opus\] wb: on b-001 · 1 open$' bash -c "$(declare -f session); session '$PWD/$wt' | '$WB' statusline"
 for short in b-1 b-01 b-0001; do
   run "start reads $short as b-001" 1 "b-001 is already started; its worktree is .*/$wt$" "$WB" start "$short"
@@ -106,27 +130,34 @@ done
 run "start refuses a bare letter" 1 "is not an item id" "$WB" start b
 run "new validates the class before --milestone" 1 "class must be" "$WB" new bogus "t" --milestone nope
 
-run "merge names the uncommitted item file" 1 "$item is not committed on the branch" "$WB" merge b-001 "fix crash"
-
 ( cd "$wt" && mkdir -p sub && echo fix > src.txt && echo x > sub/x.txt && git add -A && git commit -qm wip )
+run "merge refuses an open item with no evidence on the branch" 1 "open with no evidence under '## Evidence' on b-001-crash-on-save" "$WB" merge b-001 "fix crash"
+report=$("$WB" review pre-merge b-001)
+check "pre-merge notes an item file the branch never touched" grep -q 'the item file is not among them' "$report"
+"$WB" review-drop --force "$report" >/dev/null 2>&1
+fill_evidence "$wt/$item" "make test" "ok"
+( cd "$wt" && git commit -qam evidence )
+run "merge refuses without a passed pre-merge review" 1 "no passed pre-merge review" "$WB" merge b-001 "fix crash"
 
 report=$("$WB" review pre-merge b-001)
 check "review pre-merge writes the skeleton in the worktree" [ -f "$report" ]
 check "pre-merge manifest names the item file" grep -q 'changed on the branch: 3 files, the item file among them' "$report"
 run "review-check fails on unstated coverage" 1 "never named in the report" "$WB" review-check "$report"
 printf '\ncovered: src.txt, sub/, %s\nno findings\n' "$item" >> "$report"
-run "review-check passes once coverage is named" 0 "^clean:" "$WB" review-check "$report"
+run "review-check refuses a pre-merge without a verdict" 1 "no 'verdict:' line" "$WB" review-check "$report"
+printf 'verdict: merge\n' >> "$report"
+run "review-check passes once coverage and verdict are in" 0 "^verdict: merge — recorded" "$WB" review-check "$report"
 run "merge refuses while a report stands" 1 "still holds a review report" "$WB" merge b-001 "fix crash"
 run "review-drop" 0 "deleted" "$WB" review-drop "$report"
+echo note >> "$wt/$item"
+run "merge names an edited, uncommitted item file" 1 "$item is edited and not committed on the branch" "$WB" merge b-001 "fix crash"
+( cd "$wt" && git checkout -q "$item" )
 run "merge" 0 "merged b-001" "$WB" merge b-001 "fix crash"
 check "squash carries the trailer" grep -qx 'Item: b-001' <(git log -1 --format=%B)
-check "item file lands on main" [ -f "$item" ]
+check "the branch's copy overwrote main's" grep -q '^\$ make test' "$item"
 check "worktree removed" [ ! -e "$wt" ]
+run "status no longer marks it started" 0 "b-001-crash-on-save +open$" "$WB" status
 
-run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-001
-printf '\nTBD\n' >> "$item"
-run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
-fill_evidence "$item" "make test" "ok"
 run "archive takes a short id" 0 "archived b-001" "$WB" archive b-01
 git add -A && git commit -qm 'archive b-001'
 
@@ -161,7 +192,7 @@ run "find --grep without a word is usage" 2 "usage" "$WB" find --grep
 "$WB" milestone "Big goal" >/dev/null 2>&1
 id3=$("$WB" new feature "under goal" --milestone big-goal 2>/dev/null)
 check "new --milestone writes the line after status" grep -qx 'milestone: big-goal' "workbench/items/features/$id3-under-goal.md"
-rm "workbench/items/features/$id3-under-goal.md"
+git rm -q "workbench/items/features/$id3-under-goal.md" && git commit -qm "drop $id3"
 
 run "status" 0 "" "$WB" status
 
@@ -289,15 +320,35 @@ run "find lists an open unstarted item by text, as open" 0 "$idl .*open" "$WB" f
 set_status ".worktrees/$idl-later/workbench/items/features/$idl-later.md" "awaiting — next deploy"
 run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p' | grep -q '(none)'"
 ( cd ".worktrees/$idl-later" && git add -A && git commit -qm later )
-"$WB" merge "$idl" "later" >/dev/null 2>&1
+"$WB" merge "$idl" "later" --no-review >/dev/null 2>&1
 run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"
 
-# start from inside another item's worktree: the file is copied, the branch named
+# new from inside another item's worktree lands on main, and start cuts the
+# new worktree under the main checkout
 idi=$(newc bug "inner") && "$WB" start "$idi" >/dev/null 2>&1
-idn=$(cd ".worktrees/$idi-inner" && newc bug "nested" && git add -A && git commit -qm 'nested on inner')
-run "start from another worktree copies an item committed there" 0 "copied .* also committed on $idi-inner" bash -c "cd .worktrees/$idi-inner && '$WB' start $idn"
+idn=$(cd ".worktrees/$idi-inner" && newc bug "nested")
+check "new from a worktree writes to the main checkout" [ -f "workbench/items/bugs/$idn-nested.md" ]
+check "new from a worktree commits on main" [ "$(git log -1 --format=%s)" = "new $idn: nested" ]
+check "the worktree it ran in has no copy" [ ! -e ".worktrees/$idi-inner/workbench/items/bugs/$idn-nested.md" ]
+run "start from another worktree" 0 "started $idn-nested in" bash -c "cd .worktrees/$idi-inner && '$WB' start $idn"
 check "the nested worktree sits under the main checkout" [ -d ".worktrees/$idn-nested" ]
-check "the copy is on the nested branch" [ -f ".worktrees/$idn-nested/workbench/items/bugs/$idn-nested.md" ]
+check "the nested branch carries the item" [ -f ".worktrees/$idn-nested/workbench/items/bugs/$idn-nested.md" ]
+# an item written by hand in a worktree, untracked: the criterion is checked
+# before it moves, and start moves it to the main checkout when it passes
+idw=$("$WB" new bug "in worktree" 2>/dev/null)
+git rm -q --cached "workbench/items/bugs/$idw-in-worktree.md" && git commit -qm 'untracked'
+mv "workbench/items/bugs/$idw-in-worktree.md" ".worktrees/$idi-inner/workbench/items/bugs/"
+run "start refuses an empty criterion before moving a worktree file" 1 "'How to confirm' is empty" "$WB" start "$idw"
+check "the file did not move" [ -f ".worktrees/$idi-inner/workbench/items/bugs/$idw-in-worktree.md" ]
+crit ".worktrees/$idi-inner/workbench/items/bugs/$idw-in-worktree.md"
+run "start moves a hand-written worktree file to main and lands it" 0 "moved workbench/items/bugs/$idw-in-worktree.md from $idi-inner to the main checkout" "$WB" start "$idw"
+check "it is committed on main" git ls-files --error-unmatch "workbench/items/bugs/$idw-in-worktree.md"
+# an item written by hand, untracked on main, is landed by start
+idh=$(newc bug "by hand")
+git rm -q --cached "workbench/items/bugs/$idh-by-hand.md" && git commit -qm 'untracked by hand'
+run "status labels an uncommitted item" 0 "$idh-by-hand +open +\[not committed" "$WB" status
+run "start lands an untracked item" 0 "committed workbench/items/bugs/$idh-by-hand.md on main" "$WB" start "$idh"
+check "the hand-written item is tracked now" git ls-files --error-unmatch "workbench/items/bugs/$idh-by-hand.md"
 
 # status report labels
 r1=$(sweep); r2=$(sweep); rm "$r2"
@@ -310,7 +361,7 @@ for r in "$r1" "$r2" "$r3"; do "$WB" review-drop "$r" >/dev/null 2>&1 || true; d
 # milestone archive
 id5=$("$WB" new feature "under goal too" --milestone big-goal 2>/dev/null)
 run "milestone archive refuses with open items" 1 "still has open items" "$WB" milestone archive big-goal
-rm -f "workbench/items/features/$id5-under-goal-too.md"
+git rm -q "workbench/items/features/$id5-under-goal-too.md" && git commit -qm "drop $id5"
 run "milestone archive refuses without evidence" 1 "no evidence recorded" "$WB" milestone archive big-goal
 fill_evidence workbench/milestones/big-goal.md "make release" "ok"
 run "milestone archive" 0 "archived milestone big-goal" "$WB" milestone archive big-goal
@@ -347,9 +398,9 @@ crit "$ritem"
 rwt=.worktrees/$idx-netcode
 ritem=$rwt/$ritem
 run "merge refuses research" 1 "never merges" "$WB" merge "$idx" "netcode"
-run "status shows a research item with no concepts" 0 "$idx-netcode +open +no concepts yet" "$WB" status
+run "status shows a research item with no concepts" 0 "$idx-netcode +open +started +no concepts yet" "$WB" status
 research_item "$ritem" "$idx" "" "open" "-> backlog"
-run "status counts open concepts" 0 "$idx-netcode +open +1 of 2 concepts open" "$WB" status
+run "status counts open concepts" 0 "$idx-netcode +open +started +1 of 2 concepts open" "$WB" status
 run "statusline counts open concepts" 0 "wb: .* · $idx 1 / 2" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
 run "archive refuses with an open concept" 1 "still has open concepts" "$WB" archive "$idx"
 research_item "$ritem" "$idx" "" "" "-> backlog"
@@ -435,29 +486,32 @@ run "a memory sweep baselines the in-tree store" 1 "new.md" "$WB" review-check "
 rm .claude/memory/new.md; "$WB" review-drop "$report" >/dev/null 2>&1
 newc bug "one" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-one && echo fix > src.txt && git add -A && git commit -qm fix )
+ready .worktrees/b-001-one
 echo learned >> .claude/memory/MEMORY.md
-run "merge tolerates unstaged memory edits on main" 0 "merged b-001" "$WB" merge b-001 "one"
+run "merge tolerates unstaged memory edits on main" 0 "merged b-001" "$WB" merge b-001 "one" --no-review
 check "the memory edit stayed out of the squash" bash -c "! git show --stat --format= HEAD | grep -q MEMORY.md"
 check "the memory edit is still pending" [ -n "$(git status --porcelain .claude/memory)" ]
 git add -A && git commit -qm memory
 newc bug "two" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
 ( cd .worktrees/b-002-two && echo fix2 > src2.txt && git add -A && git commit -qm fix2 )
+ready .worktrees/b-002-two
 echo staged >> .claude/memory/MEMORY.md && git add .claude/memory/MEMORY.md
-run "merge refuses staged memory edits" 1 "staged changes" "$WB" merge b-002 "two"
+run "merge refuses staged memory edits" 1 "staged changes" "$WB" merge b-002 "two" --no-review
 git reset -q && git checkout -q .claude/memory/MEMORY.md
 echo other >> README
-run "merge tolerates any unstaged edit on main" 0 "merged b-002" "$WB" merge b-002 "two"
+run "merge tolerates any unstaged edit on main" 0 "merged b-002" "$WB" merge b-002 "two" --no-review
 check "the README edit stayed out of the squash" bash -c "! git show --stat --format= HEAD | grep -q README"
 check "the README edit is still pending" [ -n "$(git status --porcelain README)" ]
 git checkout -q README
 # an unstaged deletion is the one edit git would not protect from the squash
 newc bug "three" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-three && echo touched >> README && git add -A && git commit -qm touch )
+ready .worktrees/b-003-three
 rm README
-run "merge refuses an unstaged deletion on main" 1 "uncommitted deletion the squash would undo" "$WB" merge b-003 "three"
-check "the refusal names the file" bash -c "'$WB' merge b-003 three 2>&1 | grep -q '^  README'"
+run "merge refuses an unstaged deletion on main" 1 "uncommitted deletion the squash would undo" "$WB" merge b-003 "three" --no-review
+check "the refusal names the file" bash -c "'$WB' merge b-003 three --no-review 2>&1 | grep -q '^  README'"
 git checkout -q README
-run "merge goes through once the file is back" 0 "merged b-003" "$WB" merge b-003 "three"
+run "merge goes through once the file is back" 0 "merged b-003" "$WB" merge b-003 "three" --no-review
 
 # --- rendered copies: migration from links, staleness, templates ------------
 
@@ -529,6 +583,8 @@ mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.
 run "adopt" 0 "/workbench-review adopt" "$WB" adopt
 check "adopt keeps CLAUDE.md a symlink" [ -L CLAUDE.md ]
 check "adopt writes the block through the link" grep -q 'workbench:start' docs/CLAUDE.md
+run "adopt refuses with the first adopt uncommitted" 1 "commit them as the last pre-adoption commit" "$WB" adopt
+git add -A && git commit -qm adopt
 run "adopt is idempotent" 0 "refreshed the workbench block" "$WB" adopt
 check "the block is not duplicated" [ "$(grep -c 'workbench:start' docs/CLAUDE.md)" -eq 1 ]
 
@@ -540,27 +596,36 @@ new_repo fail
 # dirty main
 newc bug "one" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
 ( cd .worktrees/b-001-one && echo a >> README && git add -A && git commit -qm a )
+ready .worktrees/b-001-one
 echo dirty >> README
-run "merge stops when the branch touches a file edited on main" 1 "an uncommitted edit on main is in the way of the branch" "$WB" merge b-001 "one"
+run "merge stops when the branch touches a file edited on main" 1 "an uncommitted edit on main is in the way of the branch" "$WB" merge b-001 "one" --no-review
 check "the stopped squash left main clean" [ -z "$(git -C . status --porcelain --untracked-files=no | grep -v '^ M README')" ]
 git checkout -q README
 git add README 2>/dev/null; echo staged >> README && git add README
-run "merge refuses staged dirt on main" 1 "staged changes; the squash commit would absorb them" "$WB" merge b-001 "one"
+run "merge refuses staged dirt on main" 1 "staged changes; the squash commit would absorb them" "$WB" merge b-001 "one" --no-review
 git reset -q && git checkout -q README
 
 # generic dirt beyond the item file
 ( cd .worktrees/b-001-one && echo more >> README )
-run "merge names generic dirt generically" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one"
+run "merge names generic dirt generically" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one" --no-review
 ( cd .worktrees/b-001-one && git checkout -q README )
 
 # the item file plus a stray .md: not the item-only case
-( cd .worktrees/b-001-one && git rm -q --cached workbench/items/bugs/b-001-one.md && git commit -qm untrack && echo n > notes.md )
-run "merge with item file and a stray .md is generic" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one"
-( cd .worktrees/b-001-one && rm notes.md && git add -A && git commit -qm retrack )
+( cd .worktrees/b-001-one && echo n > notes.md && echo e >> workbench/items/bugs/b-001-one.md )
+run "merge with item file and a stray .md is generic" 1 "has uncommitted changes; commit or discard" "$WB" merge b-001 "one" --no-review
+( cd .worktrees/b-001-one && rm notes.md && git checkout -q workbench/items/bugs/b-001-one.md )
+
+# main's copy edited after start, in a hunk the branch never touched: a
+# three-way merge would take it silently, so it is refused before that
+sed -i '1a\
+edited on main' workbench/items/bugs/b-001-one.md && git commit -qm 'edited on main after start' -- workbench/items/bugs/b-001-one.md
+run "merge refuses when main's copy of the item moved since the cut" 1 "main's copy of b-001 changed since b-001-one was cut" "$WB" merge b-001 "one" --no-review
+check "the refusal touched nothing" [ -z "$(git log --grep='^Item:' --format=%h)" ]
+git checkout -q HEAD~1 -- workbench/items/bugs/b-001-one.md && git commit -qm 'main back' -- workbench/items/bugs/b-001-one.md
 
 # conflicting branch
 echo b >> README && git commit -qam b
-run "merge refuses a conflicting branch" 1 "conflicts with main" "$WB" merge b-001 "one"
+run "merge refuses a conflicting branch" 1 "conflicts with main" "$WB" merge b-001 "one" --no-review
 check "conflict leaves main untouched" [ -z "$(git log --grep='^Item:' --format=%h)" ]
 
 # unreproduced retire: nothing but the item on the branch
@@ -576,30 +641,76 @@ newc bug "notghost" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-notghost && echo w > work.txt && git add -A && git commit -qm w )
 set_status .worktrees/b-003-notghost/workbench/items/bugs/b-003-notghost.md unreproduced
 run "archive refuses to retire a branch with work" 1 "carries work beyond the item file" "$WB" archive b-003
+# retire overwrites main's copy, so a main-side edit since the cut is refused
+# rather than lost
+idr=$(newc bug "retire-guard"); "$WB" start "$idr" >/dev/null 2>&1
+set_status ".worktrees/$idr-retire-guard/workbench/items/bugs/$idr-retire-guard.md" unreproduced
+echo kept >> "workbench/items/bugs/$idr-retire-guard.md" && git commit -qm 'main moved' -- "workbench/items/bugs/$idr-retire-guard.md"
+run "archive refuses to retire over a main copy that moved" 1 "main's copy of $idr changed since $idr-retire-guard was cut" "$WB" archive "$idr"
+check "main's copy still holds its edit" grep -qx kept "workbench/items/bugs/$idr-retire-guard.md"
+git checkout -q HEAD~1 -- "workbench/items/bugs/$idr-retire-guard.md" && git commit -qm 'main back' -- "workbench/items/bugs/$idr-retire-guard.md"
+run "archive retires once main's copy is back" 0 "retired $idr-retire-guard" "$WB" archive "$idr"
+git add -A && git commit -qm "archive $idr"
+# an item on its branch alone — started under an older workbench, so never
+# on main at the cut — with the worktree gone: archive reads the branch, the
+# guard above does not fire, and no temp file is left behind on a refusal
+# branch_only <id> <slug> <status> — the old-model shape: an item file that
+# exists on its branch and nowhere else, worktree already gone.
+branch_only() {
+  local f="workbench/items/bugs/$1-$2.md"
+  git rm -q "$f" && git commit -qm "old-model shape for $1" -- "$f"
+  git worktree add -q -b "$1-$2" ".worktrees/$1-$2" main
+  git show "HEAD~1:$f" > ".worktrees/$1-$2/$f"
+  crit ".worktrees/$1-$2/$f"; set_status ".worktrees/$1-$2/$f" "$3"
+  ( cd ".worktrees/$1-$2" && git add -A && git commit -qm 'item on the branch alone' )
+  git worktree remove ".worktrees/$1-$2"
+}
+ido=$("$WB" new bug "old-model" 2>/dev/null); branch_only "$ido" old-model unreproduced
+idb=$("$WB" new bug "bogus-status" 2>/dev/null); branch_only "$idb" bogus-status nonsense
+check "setup: neither item is in any checkout" [ -z "$(find . -name "$ido-*.md" -o -name "$idb-*.md")" ]
+run "status lists a branch-only item, from its branch" 0 "$ido-old-model +unreproduced +started +\[on its branch only" "$WB" status
+before=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)
+run "archive refuses a bogus status read from the branch" 1 "has 'status: nonsense', which is not a status" "$WB" archive "$idb"
+check "the refusal left no temp file behind" [ "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)" -eq "$before" ]
+git branch -qD "$idb-bogus-status"
+run "archive reads a branch-only item when the worktree is gone" 0 "retired $ido-old-model" "$WB" archive "$ido"
+check "the archived copy is the branch's" grep -q '^status: unreproduced' "workbench/items/archive/$ido-old-model.md"
+check "the archive left no temp file behind" [ "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)" -eq "$before" ]
+git add -A && git commit -qm "archive $ido"
 
 # duplicate ids
 cp workbench/items/archive/b-002-ghost.md workbench/items/bugs/b-002-again.md
 run "status flags duplicate ids" 0 "DUPLICATE IDS" "$WB" status
 rm workbench/items/bugs/b-002-again.md
 
-# content already on main by another route squashes to nothing
+# the branch's item copied onto main by hand is main's copy moving since the
+# cut, and is refused as such; the work copied by hand alone is tolerated,
+# and the squash then carries the item file only
 idd=$(newc bug "dup"); "$WB" start "$idd" >/dev/null 2>&1
 ( cd ".worktrees/$idd-dup" && echo same > same.txt && git add -A && git commit -qm same )
+ready ".worktrees/$idd-dup"
 cp ".worktrees/$idd-dup/same.txt" . && cp ".worktrees/$idd-dup/workbench/items/bugs/$idd-dup.md" workbench/items/bugs/
-git add -A && git commit -qm 'same by hand'
-run "merge names a branch that changes nothing" 1 "changes nothing on main" "$WB" merge "$idd" "dup"
-check "the empty squash left main clean" [ -z "$(git status --porcelain --untracked-files=no)" ]
+git add -A && git commit -qm 'same by hand' -- same.txt "workbench/items/bugs/$idd-dup.md"
+run "merge refuses the branch's item copied onto main by hand" 1 "main's copy of $idd changed since $idd-dup was cut" "$WB" merge "$idd" "dup" --no-review
+check "the refusal left main clean" [ -z "$(git status --porcelain --untracked-files=no)" ]
+git checkout -q HEAD~1 -- "workbench/items/bugs/$idd-dup.md" && git commit -qm 'item back' -- "workbench/items/bugs/$idd-dup.md"
+run "merge with the work already on main carries the item alone" 0 "merged $idd" "$WB" merge "$idd" "dup" --no-review
+check "the squash holds only the item file" [ "$(git show --stat --format= HEAD | grep -c '|')" -eq 1 ]
 
-# another item's file committed on the branch would ride the squash under
-# the wrong trailer
+# another item's file written on the branch would ride the squash under the
+# wrong trailer; one landed on main since the cut is not on the branch
 idh=$(newc bug "host"); "$WB" start "$idh" >/dev/null 2>&1
-idg=$(cd ".worktrees/$idh-host" && newc feature "guest" && git add -A && git commit -qm 'two items')
-run "merge refuses a branch carrying another item's file" 1 "carries another item's file" "$WB" merge "$idh" "host"
-check "the refusal names the guest file" bash -c "'$WB' merge $idh host 2>&1 | grep -q '^  workbench/items/features/$idg-guest.md$'"
-check "the refusal does not name the host's own file" bash -c "! '$WB' merge $idh host 2>&1 | grep -q '$idh-host.md'"
+ready ".worktrees/$idh-host"
+idg=$(newc feature "guest")
+check "an item landed after the cut is not on the branch" [ -z "$(git diff --name-only "main...$idh-host" | grep guest)" ]
+cp "workbench/items/features/$idg-guest.md" ".worktrees/$idh-host/workbench/items/features/"
+( cd ".worktrees/$idh-host" && git add -A && git commit -qm 'guest by hand' )
+run "merge refuses a branch carrying another item's file" 1 "carries another item's file" "$WB" merge "$idh" "host" --no-review
+check "the refusal names the guest file" bash -c "'$WB' merge $idh host --no-review 2>&1 | grep -q '^  workbench/items/features/$idg-guest.md$'"
+check "the refusal does not name the host's own file" bash -c "! '$WB' merge $idh host --no-review 2>&1 | grep -q '$idh-host.md'"
 check "nothing landed on main" [ -z "$(git log --grep="^Item: $idh" --format=%h)" ]
 ( cd ".worktrees/$idh-host" && git rm -q "workbench/items/features/$idg-guest.md" && git commit -qm 'guest off' )
-run "merge goes through once the file is off the branch" 0 "merged $idh" "$WB" merge "$idh" "host"
+run "merge goes through once the file is off the branch" 0 "merged $idh" "$WB" merge "$idh" "host" --no-review
 check "the squash carries only the host's item" bash -c "! git show --stat --format= HEAD | grep -q guest"
 
 # --- lookups over every worktree --------------------------------------------
@@ -615,23 +726,23 @@ run "status with a detached worktree present" 0 "b-001-one" "$WB" status
 run "archive with a detached worktree present reports, not dies" 1 "no evidence recorded" "$WB" archive b-001
 "$WB" start b-001 >/dev/null 2>&1
 ids=$(cd .worktrees/b-001-one && newc bug "from sibling")
-run "start finds an item created in another worktree" 0 "moved .* onto the branch" "$WB" start "$ids"
-check "the sibling's copy moved, not copied" [ ! -e ".worktrees/b-001-one/workbench/items/bugs/$ids-from-sibling.md" ]
+run "start an item created from another worktree" 0 "started $ids-from-sibling in" "$WB" start "$ids"
+check "the worktree it was created from has no copy" [ ! -e ".worktrees/b-001-one/workbench/items/bugs/$ids-from-sibling.md" ]
 
 report=$("$WB" review pre-merge b-001 2>/dev/null)
 check "pre-merge on a branch with no commits says so" grep -q 'b-001-one carries no commits beyond main' "$report"
 "$WB" review-drop "$report" >/dev/null 2>&1
 
-( cd .worktrees/b-001-one && git add -A && git commit -qm item )
+ready .worktrees/b-001-one
 rm -rf .worktrees/b-001-one
-run "status survives a worktree removed by hand" 0 "b-001-one" "$WB" status
-run "merge names the unpruned worktree" 1 "git worktree prune" "$WB" merge b-001 "one"
+run "status survives a worktree removed by hand" 0 "b-001-one +open +started" "$WB" status
+run "merge names the unpruned worktree" 1 "git worktree prune" "$WB" merge b-001 "one" --no-review
 git worktree prune
 echo diverge >> README && git commit -qam diverge
-run "merge after prune" 0 "merged b-001" "$WB" merge b-001 "one"
-( cd ".worktrees/$ids-from-sibling" && git add -A && git commit -qm item )
+run "merge after prune" 0 "merged b-001" "$WB" merge b-001 "one" --no-review
+ready ".worktrees/$ids-from-sibling"
 echo diverge >> README && git commit -qam diverge2
-out=$("$WB" merge "$ids" "two" 2>&1)
+out=$("$WB" merge "$ids" "two" --no-review 2>&1)
 check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic merge' <<< "$out")" -eq 0 ]
 
 # archive from a sibling worktree: main's copy is the item's home
@@ -642,17 +753,18 @@ check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-si
 run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
 check "main's copy is in the archive" [ -f workbench/items/archive/b-001-one.md ]
 check "the sibling's copy is untouched" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
-run "status labels main's archived copy" 0 "b-001-one +archived +\[in roots\]" "$WB" status
-run "status labels the sibling's stale open copy" 0 "b-001-one +open +\[in $idy-sibling\]" "$WB" status
+run "status does not list the sibling's stale copy of an archived item" 0 "" bash -c "! '$WB' status | grep -q b-001-one"
+run "statusline counts the two real items, not the stale copy" 0 "wb: 2 open$" bash -c "$(declare -f session); session '$PWD' | sed 's/\"display_name\":\"Opus\"/\"display_name\":\"\"/' | '$WB' statusline"
 run "find --grep from a sibling lists an archived item once, as archived" 0 "^b-001 .*archived" \
   bash -c "cd .worktrees/$idy-sibling && '$WB' find --grep one | grep -c '^b-001 ' | grep -qx 1 && '$WB' find --grep one"
 run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" \
   bash -c "cd .worktrees/$idy-sibling && '$WB' find workbench/items/bugs/b-001-one.md | grep -c '^b-001 ' | grep -qx 1 && '$WB' find workbench/items/bugs/b-001-one.md"
 
 # --- resume: a branch without a worktree ------------------------------------
-# The item file lives on the branch, so once the worktree is gone no checkout
-# holds it; start must find the ref. Locally after a worktree remove, and on
-# another machine where the branch is only fetched.
+# The item is edited on its branch, so once the worktree is gone main's copy
+# is the item as it started and the ref holds the work; start must find the
+# ref. Locally after a worktree remove, and on another machine where the
+# branch is only fetched.
 
 new_repo home/resume
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
@@ -667,7 +779,7 @@ check "the resume printed the note" bash -c "git worktree remove .worktrees/b-00
 check "the resumed worktree holds the branch" [ "$(git -C .worktrees/b-001-gone symbolic-ref --short HEAD)" = b-001-gone ]
 check "the item file is there, from the branch" [ -f .worktrees/b-001-gone/workbench/items/bugs/b-001-gone.md ]
 check "the work is there" [ -f .worktrees/b-001-gone/work.txt ]
-check "no copy appeared on main" [ ! -e workbench/items/bugs/b-001-gone.md ]
+check "main's copy is the item as it started" grep -q '^agreed with the user$' workbench/items/bugs/b-001-gone.md
 rm -rf .worktrees/b-001-gone
 run "start on a worktree removed by hand says to prune" 1 "git worktree prune" "$WB" start b-001
 git worktree prune
@@ -694,7 +806,9 @@ echo '{"autoMemoryDirectory":"~/resume/.claude/memory"}' > .claude/settings.loca
 run "init names a local override that repeats the project value" 0 "the local one is redundant" "$WB" init
 rm .claude/settings.local.json
 # origin's ref outlives the merge and the archive; neither may be resumed
-"$WB" merge b-001 "gone" >/dev/null 2>&1
+ready .worktrees/b-001-gone
+"$WB" merge b-001 "gone" --no-review >/dev/null 2>&1
+check "setup: b-001 merged in the clone" [ -n "$(git log --grep='^Item: b-001$' --format=%h)" ]
 check "setup: origin still has the branch after the merge" [ -n "$(git branch -r --list origin/b-001-gone)" ]
 run "start refuses a merged item whose ref is left on origin" 1 "already merged as [0-9a-f]+; origin/b-001-gone is a leftover" "$WB" start b-001
 check "no worktree was cut for it" [ ! -e .worktrees/b-001-gone ]
@@ -714,7 +828,8 @@ run "statusline counts awaiting items and reports" 0 '^wb: 1 open · 1 awaiting 
 "$WB" review-drop "$report" >/dev/null 2>&1
 newc bug "abs" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
 ( cd .worktrees/b-002-abs && echo a >> README && git add -A && git commit -qm a )
-"$WB" merge b-002 "abs" >/dev/null 2>&1
+ready .worktrees/b-002-abs
+"$WB" merge b-002 "abs" --no-review >/dev/null 2>&1
 check "find by a relative path lists the item" bash -c "'$WB' find README | grep -q '^b-002 '"
 check "find by an absolute path lists the item" bash -c "'$WB' find '$PWD/README' | grep -q '^b-002 '"
 check "find by an absolute path outside the repo lists nothing" not_listed b-002 /nonexistent/README
@@ -761,8 +876,8 @@ run "start notes an uncommitted .claude" 0 "lacks the workbench commands" "$WB" 
 report=$("$WB" review pre-merge b-001 2>/dev/null) || true
 check "review pre-merge creates reviews/ when the branch lacks it" [ -f "$report" ]
 "$WB" review-drop "$report" >/dev/null 2>&1
-# The worktree's whole workbench/ is untracked here; the item must still be
-# seen as the one file it is, not as the directory.
+# The worktree's workbench/ holds nothing tracked but the item; the item must
+# still be seen as the one file it is, not as the directory.
 set_status .worktrees/b-001-early/workbench/items/bugs/b-001-early.md unreproduced
 run "archive retires a branch whose workbench/ is untracked" 0 "retired b-001-early" "$WB" archive b-001
 
