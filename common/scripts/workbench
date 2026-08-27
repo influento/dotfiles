@@ -2229,6 +2229,25 @@ cmd_status() {
   fi
   [ "$limbo" -eq 1 ] || echo "  (none)"
 
+  # An item file committed on the default branch before its branch was cut:
+  # 'start' refuses it, and every worktree cut meanwhile inherits a copy.
+  local tracked=()
+  for name in "${names[@]}"; do
+    mid=$(item_id "$name")
+    [ -n "$mid" ] || continue
+    [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$mid-*")" ] || continue
+    f=$(find "$mainr/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+    [ -n "$f" ] || continue
+    git -C "$mainr" ls-files --error-unmatch "$f" >/dev/null 2>&1 || continue
+    [ -n "$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1 2>/dev/null)" ] && continue
+    tracked+=("${name%.md}")
+  done
+  if [ "${#tracked[@]}" -gt 0 ]; then
+    echo
+    echo "committed on $mainb before start — 'git rm --cached' each and commit as housekeeping; the file stays and moves onto its branch at start"
+    printf '  %s\n' "${tracked[@]}"
+  fi
+
   # Calls parked for the user; each names the item that holds the reasoning.
   local calls
   calls=$(open_calls)
