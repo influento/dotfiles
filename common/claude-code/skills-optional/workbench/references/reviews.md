@@ -1,10 +1,15 @@
 # Reviews
 
-A review is a deliberate sweep that produces a report. It is not part of
-finishing an item, and it is not tracked work — it is how work gets found.
+A review is a deliberate sweep that produces a report. It is not tracked work
+— it is how work gets found — and one of them, `pre-merge`, is the gate every
+item passes on its way to `workbench merge`.
 
 Run one with `/workbench-review <reason> ["scope"]`, which forks so the sweep's
-reading stays out of the main context. A scope is paths or words, quoted when
+reading stays out of the main context: the fork starts with none of the
+conversation, so the reviewer has never seen the reasoning that produced the
+code, and that is the point. The agent invokes it at the gates SKILL.md
+"Review sweeps" names, and the user at any other time; the baseline and
+`review-check` hold either way. A scope is paths or words, quoted when
 it has spaces; paths get a manifest, words do not. It is substituted inside a
 double-quoted shell argument, so a quote, backtick, `$` or backslash in it
 aborts the skill with no message.
@@ -27,7 +32,7 @@ nothing in the tree has its extension, and for a bogus citation otherwise.
 | Reason | When |
 |---|---|
 | `sweep` | periodically, on demand, over an area — looking for bugs, improvements, cleanup, and for `awaiting` items whose trigger never fired |
-| `pre-merge` | a chunk of work is finished and about to merge. Scope is the item id; the sweep is rooted at the item's worktree wherever it is invoked from, and the files the branch changed are its manifest |
+| `pre-merge` | an item is finished and about to merge. Scope is the item id; the sweep is rooted at the item's worktree wherever it is invoked from, and the files the branch changed are its manifest. A clean `review-check` records the branch commit it read, and `workbench merge` refuses without that record on the branch's last commit — a branch that moved after the review is unreviewed again. `merge --no-review` is the user's override |
 | `docs` | audit documents against the code they describe, and the vocabulary of recent items against `workbench/GLOSSARY.md` |
 | `memory` | audit the agent's stored memory for facts that belong in the repo, or are stale |
 | `adopt` | bringing an existing project in — see [adopt.md](adopt.md) |
@@ -47,6 +52,17 @@ before being promoted.
 
 **Never create items automatically from a report.** Only findings that survive
 triage become items, using `workbench new`.
+
+Unattended, the agent triages a pre-merge alone, and every finding gets one
+of four dispositions and nothing else: fixed on the branch before merge, when
+it is inside the item's criterion — then the review runs again, since the
+branch moved; a bug item, when it is outside; a backlog line, when it is an
+idea; or one line under the item's Evidence saying why it stands. A finding
+that the criterion is not met, or that a step is a guard, stops the merge —
+the item goes back to work, or takes `awaiting`/`unverified` with ` (agent)`.
+No finding disappears between the report and `review-drop`. Sweeps other
+than pre-merge wait for the user: their findings are a report under
+`workbench/reviews/`, and `status` says "awaiting triage".
 
 ## What a sweep may write
 

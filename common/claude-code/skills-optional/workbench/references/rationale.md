@@ -114,6 +114,49 @@ gets an item, since the requests that most need the rule are the ones that look
 like small favours. So the obligation sits in `CLAUDE.md`, which is always in
 context, and the detail stays here, loaded only once the rule has fired.
 
+## Why the agent invokes the pre-merge review itself
+
+The sweep was user-only at first, so that a review meant a person had asked
+for one. That held until a session ran twenty hours with nobody there: it
+merged forty-six times, and the gate that reads the item against its
+evidence fired zero times, because the one thing the agent could not do was
+start it. Every defect that gate exists to catch — a guard in the criterion
+field, a criterion reworded to the number the code produced, a vocabulary
+drift — was in the archive by morning.
+
+The fork is a fresh context by construction — `context: fork` starts the
+subagent with the skill's text and none of the conversation — so the
+reviewer has never seen the reasoning behind the code it reads, whoever
+started it. The baseline is taken by the skill's preprocessed block before
+the fork's first turn, and that block runs on a model invocation as on a
+slash command. So the proof that the sweep changed nothing holds either
+way; what the user-only rule bought was timing, and timing is now the
+gates in SKILL.md "Review sweeps". A clean pre-merge records the branch
+commit it read, and `merge` asks for that record: the review cannot be
+skipped, and cannot be stale.
+
+What stays the user's is every other reason. A sweep the agent starts
+because the code "looks like it needs one" is a cost nobody chose, and the
+findings would wait for triage anyway.
+
+## Why an absent user's decisions are marked rather than made
+
+The statuses `awaiting` and `unverified`, a research concept's terminal
+state, a parked call — each is the user's because it is a claim about what
+the project accepts as done, and the agent's incentive at that moment runs
+the other way. Unattended, the agent used to have two choices: stop, or
+decide and say so in prose. It chose prose — "what this did not prove" as a
+section, "the operator call lapsed" as a heading, a two-hundred-word line in
+the backlog — and the result was decisions that were made in fact and
+recorded nowhere a grep could find.
+
+The ` (agent)` marker and `DECISIONS.md` are the third choice: the decision
+is made in the one form the tools read — the status line, the state line —
+and marked as provisional in the same place, with a one-line index the user
+reads first on return. Confirming is deleting the marker. The backlog goes
+back to being ideas, milestones go back to being goals, and nothing that is
+a question is written as a paragraph.
+
 ## Why the sweep's contract is not enforced by a hook
 
 "Write exactly one file" reads like something a `PreToolUse` hook should hold,

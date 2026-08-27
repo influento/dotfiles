@@ -1,15 +1,18 @@
 ---
 name: workbench-review
-description: Run a workbench review sweep in a forked context and return the report path.
+description: Run a workbench review sweep in a fresh forked context and return the report path. Invoke at the gates the workbench skill names — pre-merge before every 'workbench merge', sweep when a milestone's items are all archived, memory when .claude/memory changed — and otherwise only when the user asks.
 argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
 arguments: reason scope
-disable-model-invocation: true
+# Model-invocable on purpose: 'workbench merge' refuses without a passed
+# pre-merge, and an unattended session has to be able to reach it. The fork
+# is a fresh context either way, and the baseline below is taken before its
+# first turn whoever started it: references/rationale.md, "Why the agent
+# invokes the pre-merge review itself".
 context: fork
 agent: general-purpose
-# background: false is load-bearing twice over. A backgrounded fork runs with the
-# narrower background-subagent tool set, which may not include the write this
-# sweep exists to perform; and the report path must come back in the invoking
-# turn so triage happens in the same sitting. Do not restore the default.
+# background: false is load-bearing: the report path must come back in the
+# invoking turn, so review-check and triage follow in the same sitting and a
+# worker's review loop stays one step. Do not restore the default.
 background: false
 # The sweep's entire tool set; it also pre-approves the two preprocessed
 # blocks below. No Edit, Bash bare: references/rationale.md, "Why the sweep's
@@ -29,7 +32,7 @@ items, not `BACKLOG.md`, not `GLOSSARY.md`. Helper scripts, captured output,
 probes: `workbench/scratch/<report>/`, which the skeleton names; it is ignored
 by git and deleted with the report. If a finding is trivially fixable, record
 the fix as a suggestion in the report — never apply it. Findings become items
-only after the user triages them, and that happens outside this fork.
+only after triage, and that happens outside this fork.
 
 ## Report
 
@@ -81,5 +84,9 @@ ${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
    Run whatever you need to *observe* — tests, greps, builds. Running a command
    is not modifying the tree; committing, editing, or fixing is.
 
-3. Return **only the report path** as your final message. The invoking turn
+3. For `pre-merge`, end the report with its verdict line as the rules say —
+   `verdict: merge` or `verdict: hold — <what must change>` — last line, nothing
+   after it.
+
+4. Return **only the report path** as your final message. The invoking turn
    needs it and nothing else.

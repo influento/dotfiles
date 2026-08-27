@@ -22,5 +22,6 @@ The `workbench` skill's rules apply — "Sizing", "Research", and
    as a log. Propose a terminal state for any concept that reached one —
    `-> <id>`, `-> milestone <slug>`, `-> backlog`, `dropped — <why>` — and
    let the user confirm; spawn what they confirm right then, its **Why**
-   citing this id. End by writing **Next**: where the following session
+   citing this id. Unattended, write the state with ` (agent)` appended
+   and `workbench call <id>` it; spawn only what the state names. End by writing **Next**: where the following session
    picks up.

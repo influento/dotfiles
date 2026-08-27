@@ -42,7 +42,7 @@ resolve position from the client rather than the frame
 Item: f-037
 ```
 
-**Nothing else goes in the message.** A body would be a second source of truth
+A merge that skipped the review gate carries a second trailer, `Review: skipped`, and nothing else ever does — `git log --grep="Review: skipped"` lists every one. **Nothing else goes in the message.** A body would be a second source of truth
 and would tempt a reader to use it instead of opening the item, which is the
 contract. The subject describes the change, not the item's title.
 

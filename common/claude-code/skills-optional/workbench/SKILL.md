@@ -37,8 +37,11 @@ idea (workbench/BACKLOG.md line)
 2. **The criterion is written before the code, and it is the contract.**
    Evidence is matched against the criterion, never against a test. Run it
    before writing anything: **a criterion that passes on the unchanged tree is
-   not a criterion.** Detail on
-   [verification.md](references/verification.md).
+   not a criterion.** The field holds commands and expected results and
+   nothing else: no rationale, no guard ("still does what it did", "behaviour
+   unchanged"), no typecheck or build step, no "by inspection". A criterion
+   the evidence cannot meet is recorded as **missed**, never reworded to fit.
+   Detail on [verification.md](references/verification.md).
 
 3. **Nothing is archived without verified evidence.** Merging is a separate
    gate and asks only whether everything verifiable was verified, so an item may
@@ -65,6 +68,20 @@ idea (workbench/BACKLOG.md line)
    existed — no "formerly", no "removed in favour of", no inline changelog.
    Git already stores it.
 
+8. **An item has the template's sections and no others.** No "For the
+   operator", no "Decisions this took", no "What this did not prove", no
+   dated appendix; `archive` refuses them. What did not get proved is one
+   line under Evidence. A question that is the user's goes to
+   `workbench/DECISIONS.md` through `workbench call`, one line, and the
+   reasoning stays in the item. The fields hold what the reader needs to
+   judge the claim — a root cause, a criterion, its output — and not the
+   reasoning that produced the code; that is in the code, or in the commit.
+
+9. **Some decisions are the user's, and an absent user does not transfer
+   them.** Entering `awaiting` or `unverified`, closing a research concept,
+   confirming a sizing, answering a parked call: when nobody is there to
+   decide, "Unattended runs" below says what to do instead of deciding.
+
 ## Setting up
 
 `workbench init` and `workbench adopt` end with a checklist headed
@@ -79,6 +96,26 @@ settle alone. Three rules the list does not carry:
   is a complete answer
 
 `workbench watch` prints its own next steps for the same reason.
+
+## Unattended runs
+
+A session may run for hours with nobody answering. The loop does not change;
+what changes is what happens at a gate that is the user's:
+
+| Gate | Unattended, do this |
+|---|---|
+| sizing needs confirming | take the item row when it fits; for anything else, `workbench call - "<question>"` and move to work that is describable |
+| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the pre-merge review reads it again |
+| merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` yourself, and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
+| a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
+| research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
+| pre-merge review | run it yourself — `/workbench-review pre-merge <id>` — then `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
+
+`(agent)` is what the user greps for when they return: every provisional
+decision, in the file that holds it, plus the one-line index in
+`DECISIONS.md`. The user confirms by deleting the marker, or overrules by
+editing the item. Nothing else records that a decision was provisional —
+not the backlog, not a milestone, not a memory entry.
 
 ## Commands
 
@@ -165,7 +202,10 @@ each entry: *could this go green and merge while the others are still red?*
 
 An item that could ship in halves costs a long-lived branch, one giant squash
 and a pre-merge review that must hold everything at once; two items that only
-make sense together cannot each satisfy a criterion. Backlog lines are raw
+make sense together cannot each satisfy a criterion. One rule applied to N
+files — every driver reports itself, every table moves under `src/` — is one
+item with one criterion over the set, not N items proving one sentence each,
+and not one item now and its twin twenty minutes later. Backlog lines are raw
 material: any number may fold into one item and one may split, and nothing
 records which lines fed which.
 
@@ -178,8 +218,10 @@ no item owes one. Suggest one when the fit is obvious; never ask for one.
 [milestones.md](references/milestones.md).
 
 `workbench status` answers what is in flight: open items, items merged and still
-`awaiting` a trigger, and any duplicate IDs. Run it rather than reconstructing
-the answer from `git branch`, which cannot see the merged ones.
+`awaiting` a trigger, items merged and still `open` — a fault, see
+"Unattended runs" — calls waiting in `DECISIONS.md`, and any duplicate IDs.
+Run it rather than reconstructing the answer from `git branch`, which cannot
+see the merged ones.
 
 ## Research
 
@@ -201,8 +243,18 @@ exist, or the branch carries prototypes not yet dropped with `--discard`.
 
 ## Review sweeps
 
-`/workbench-review <reason> ["scope"]` runs the sweep in a forked context and
-returns the report path. It is user-invoked only — never start one unasked.
+`/workbench-review <reason> ["scope"]` runs the sweep in a forked context —
+a fresh one, with none of this conversation in it — and returns the report
+path. Three gates invoke it, whoever is driving:
+
+| Gate | Invoke |
+|---|---|
+| an item is about to merge | `/workbench-review pre-merge <id>` — `workbench merge` refuses without a passed one on the branch's last commit |
+| a milestone's items are all archived | `/workbench-review sweep "<the paths it moved>"` before `milestone archive` |
+| `.claude/memory/` changed this session | `/workbench-review memory` before the session ends |
+
+Any other sweep is the user's to ask for — `sweep`, `docs`, `adopt`,
+`watch` — never started because the code looks like it needs one.
 
 The fork writes the report, and scratch under `workbench/scratch/` that git
 never sees — nothing tracked. When it returns with the path, prove that before
@@ -215,6 +267,46 @@ workbench review-check <report-path>
 A failure names what went wrong; say so and do not triage until the user has
 seen it. A pass proves the contract held, never that the work was done — what
 it checks and where it stops are in [rationale.md](references/rationale.md).
+
+**Triage.** With the user when there is one. Without one, each finding gets
+exactly one of: fixed inside the item before merge, when it is within the
+item's criterion; `workbench new bug` when it is outside it; a `BACKLOG.md`
+line when it is an idea; or a one-line reason in the item's Evidence why it
+stands. No finding is dropped silently, and a finding that says the criterion
+is not met stops the merge. Then `workbench review-drop`.
+
+## Composing — one session dispatches, workers work
+
+A session that dispatches items to workers never edits code. It runs
+`status`, sizes with the user, `new`, agrees the criterion, `start`, and hands
+the item off with the line `start` prints; when a worker reports ready it
+reads the item — not the diff — decides `awaiting`/`unverified` if the item
+needs one, and runs `merge` and `archive`. One merge at a time: two squashes
+into one index collide. Workers are the `wb-worker` agent under
+`.claude/agents/`, rendered by `init`: one item, in its worktree, never
+`merge`. Under agent teams, the composer is the lead and each started item is
+a task a teammate claims; workers that touch one path talk to each other,
+and `find`'s `on-branch` line says who that is.
+
+**The review loop.** A worker finishes, then:
+
+```
+/workbench-review pre-merge <id>      a fresh reviewer, every time
+workbench review-check <report>       merge → recorded; hold → counted
+  hold:  fix on the branch, review-drop, review again
+  merge: review-drop, report ready
+```
+
+The reviewer never sees the worker's context or the last round's report, so
+each round catches what the previous one did not. Three holds and the worker
+stops: `workbench call <id>` with the standing finding, and the merge is the
+user's — `merge --no-review` is their override. What the reviewer holds on is
+in the sweep skill's `rules/pre-merge.md`; a worker does not argue with a
+hold in the item, it fixes or it asks.
+
+Resources a worker may hold — a live client, an account — are named in the
+dispatch line, and a worker without one does not take one. Items that need
+the same resource run one at a time.
 
 ## Watching a running app
 

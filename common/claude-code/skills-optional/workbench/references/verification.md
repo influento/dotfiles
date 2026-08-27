@@ -33,9 +33,13 @@ three things that otherwise look fine:
 
 | Looks like a criterion | Why it is not |
 |---|---|
-| "behaviour is unchanged" | a no-op passes it |
+| "behaviour is unchanged", "every command still does what it did" | a no-op passes it |
 | "the module is cleaner", "the API is more consistent" | nothing runs, so nothing can fail |
 | a rename count taken over the wrong scope | already 0 before the work |
+| `tsc` is clean, the build passes, the import check passes | wiring; green before the work, and rule 5 keeps it out unless a criterion needs it |
+| "verified by reading the function", "by inspection" | nothing ran. Reading is how a root cause is found, not how a claim is proved |
+| a script written for this item, run once and deleted | rule 5 — and nobody can run the evidence again |
+| a line-count or grep-count bound chosen after the diff | a number the diff was going to move; it discriminates only when the RED count was measured first and written in |
 
 Something that must hold *afterwards* but already holds *now* is a
 **preservation guard**, not a criterion. Guards are real and worth recording —
@@ -43,12 +47,26 @@ the suite still green, a fixture still byte-identical — but they belong in
 Evidence beside the criterion, never in the criterion field. An item whose only
 check is a guard has no contract.
 
+**A criterion the evidence cannot meet is missed, not amended.** Record the
+miss under Evidence with the number it reached, and let the pre-merge review
+decide whether the item ships with it. Rewriting the criterion to the number
+the code produced is the criterion-after-code the whole rule exists to
+prevent, and a criterion "corrected before the evidence was run" because it
+was never run RED is the same thing a step earlier.
+
 ## Form
 
 A criterion is a **description** of how to verify. Use a command when a real
 tool already covers it. It may be a list; whether a list is one item or a
 milestone with an item per slice is decided by SKILL.md, "Sizing", before the
 item is written.
+
+The field holds the steps and their expected results, with the RED value
+measured now written beside each — `grep -c … (31 today) → 0`. Nothing
+else: why the steps prove it belongs in the root cause or the Why, and a
+paragraph of design inside the criterion is what made items twice their
+length. If a step needs a sentence of rationale to be understood, the step
+is wrong.
 
 Never write a script whose only purpose is to satisfy a criterion. Real tooling
 that does real work and happens to prove something is right; a test harness
@@ -63,7 +81,11 @@ eyes — visual, subjective, or in-world judgements.
 
 Record the actual output, not a summary of it, in a fenced block — `archive`
 refuses an Evidence section without one. "Tests pass" is not evidence; the
-command and its output are.
+command and its output are. A table typed by hand — `RED 31 → GREEN 0`,
+`clean`, `-> yes` — is a summary, whatever the fence around it: paste the
+command and what it printed, and let the reader do the arithmetic. One line
+of prose per block, at most, saying which criterion step it settles; the
+interpretation of the numbers is not the reader's problem to be spared.
 
 An item may mix automatable and manual parts. Test what is testable, have the
 user verify the rest, record both.
@@ -107,8 +129,12 @@ Reading the code is not verification. Running it against a synthesised event is.
 
 What each status lets merge and archive do is in [items.md](items.md), "What
 each gate asks". Entering either state is the user's decision at pre-merge,
-once the agent has shown what it verified and what it could not. It is never
-the agent's own call, which is what keeps it exceptional.
+once the agent has shown what it verified and what it could not. Unattended,
+the agent enters it with ` (agent)` and a `DECISIONS.md` line — the
+decision is still the user's, made visible for when they return — and what
+it never does instead is merge the item as plain `open`, or write "what this
+did not prove" as a section and call that honesty. The status is the honest
+form; a section is a status nobody can grep.
 
 ## Tests
 

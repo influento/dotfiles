@@ -32,7 +32,21 @@ line may follow it — see [milestones.md](milestones.md).
 | `unverified — <trigger>` | yes | yes | as `awaiting`, but no bound can be named for the trigger |
 
 The trigger goes in the status line rather than in prose so that these can be
-found by grep — see [git.md](git.md) for what is in flight.
+found by grep — see [git.md](git.md) for what is in flight. Those four are
+the whole set — `archive` refuses any other word, `done` included. An
+archived item keeps `open`; under `archive/` that reads as verified and
+shipped.
+
+A status entered with nobody to decide it carries ` (agent)` at the end —
+`awaiting — the next deploy (agent)` — and a line in `DECISIONS.md` points
+at it (SKILL.md, "Unattended runs"). The user confirms by deleting the
+marker. `merge` and `archive` read the status the same with or without it;
+only `status` and grep tell them apart.
+
+**Merged and still `open`, with no branch, is not a state.** It is an item
+that merged with its criterion unrun and did not say so. `workbench status`
+lists it under its own heading; the repair is to archive it or give it the
+status it needed at merge.
 
 A research item is `open` until archived and nothing else: the other statuses
 qualify a claim about code, and research makes none.
@@ -48,8 +62,8 @@ This is the one place the status rules live; the other references link here.
 
 | Gate | Asks | Passes with |
 |---|---|---|
-| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the pre-merge review's question; the command checks no evidence | `open` with evidence, or `awaiting` / `unverified` once the user has chosen it at pre-merge |
-| archive (`workbench archive`) | has the criterion been satisfied? — the command checks only that a fenced block sits under Evidence, not what it shows | `open` with evidence recorded; `unreproduced` and `unverified` without |
+| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the pre-merge review's question; the command checks that a review passed on the branch's last commit, and that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen at pre-merge — by the user, or by the agent with ` (agent)` when nobody is there |
+| archive (`workbench archive`) | has the criterion been satisfied? — the command checks that a fenced block sits under Evidence itself, that the status is one of the four, and that no heading outside the template is present; not what the evidence shows | `open` with evidence recorded; `unreproduced` and `unverified` without |
 | archive, research | has every concept reached a terminal state that names something real, and is the Outcome written? | `open`, no evidence block; the branch retired, `--discard` if it carried prototypes |
 
 Research never passes the merge gate: there is nothing to ship, and what it
@@ -60,7 +74,9 @@ nothing claims success until the criterion runs. `awaiting` is then the only
 in-flight state with no branch — `workbench status` reports it beside the
 branches. An `unreproduced` bug's branch never merges; `workbench archive`
 retires it, provided it carries nothing but the item file. Entering `awaiting`
-or `unverified` is the user's decision, never the agent's.
+or `unverified` is the user's decision; unattended, the agent enters it
+provisionally with ` (agent)` and a `DECISIONS.md` line, and never merges an
+item as plain `open` with its criterion unrun (SKILL.md, "Unattended runs").
 
 ## Bug items
 
@@ -135,7 +151,11 @@ Every concept ends in exactly one line, and archive reads them:
 
 Which terminal state, and whether one item or several, is the "Sizing" rule.
 The agent proposes; **the user confirms every terminal state**, as with
-`awaiting`. An item or milestone is spawned the moment its concept is
+`awaiting` — unattended, the state is written with ` (agent)` appended and
+a `DECISIONS.md` line, and `archive` waits for the marker to go. `dropped`
+means will not be pursued; a concept that was answered ends `-> <id>`,
+`-> backlog`, or is folded into the concept its answer serves — never
+`dropped`. An item or milestone is spawned the moment its concept is
 describable, while the research stays open — the spawned item runs the normal
 loop on its own branch. A prototype worth keeping is copied into that item's
 worktree by hand; the research branch is never a base for anything.

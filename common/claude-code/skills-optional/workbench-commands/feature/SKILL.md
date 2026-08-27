@@ -21,5 +21,6 @@ The `workbench` skill's rules apply; load it if it is not in context.
    change and read an item only if its line matches.
 4. Draft **How to confirm it works** — the list from step 1 — run it on the
    unchanged tree so it is seen failing, and bring it to the user. Nothing
-   else happens until the criterion is agreed.
+   else happens until the criterion is agreed — unattended, `workbench call
+   <id>` it in one line and proceed; the pre-merge review reads it again.
 5. `workbench start <id>`, then work in the worktree it prints.
