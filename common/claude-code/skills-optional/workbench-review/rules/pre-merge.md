@@ -6,8 +6,9 @@ the item file there and, when the two differ, the root. Every path is relative
 to that root — prefix Bash commands with `cd <root> &&`, give Read, Grep and
 Glob absolute paths under it. `review-check` resolves every citation against
 it, and the files the branch changed are the manifest: name each one you
-covered. The item file is among them — the branch carries it — so read it and
-name it; the checks below are made against it. Check:
+covered. The item file is among them when the branch edited it, and it must
+have: evidence is written on the branch, and the skeleton says when it is
+missing. Read it and name it; the checks below are made against it. Check:
 
 - the criterion is genuinely satisfied by the evidence recorded — the output
   pasted, not a table typed; each step settled by a block, not by a sentence

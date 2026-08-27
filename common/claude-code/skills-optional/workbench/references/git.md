@@ -9,22 +9,41 @@ A branch that exists without a worktree — removed by hand, or only fetched
 from another machine — is resumed by the same command: it cuts the worktree
 for the branch and moves nothing.
 
-## The item file lives on the branch
+## The item file is on the default branch from the start
 
-It is created wherever you happen to be and stays uncommitted until
-`workbench start` moves it onto its branch; committed early on another item's
-branch, it would ride that item's squash under the wrong trailer. From there
-it is edited during the work as the root cause and evidence are filled in,
-and merges with its change.
+`workbench new` writes the file into the main checkout wherever it runs and
+commits it there, as `new <id>: <title>` — so the main checkout must have the
+default branch checked out, and `new` refuses otherwise, before spending an
+id. Written in a worktree instead, it would ride that item's squash under the
+wrong trailer. The criterion is filled in on main's copy; `workbench start`
+commits that too, as `start <id>`, and cuts the branch from it — so the
+branch carries the item as agreed, and the default branch shows every item
+from the moment it exists.
 
-A consequence: the main branch cannot show what is in flight, only what is
-archived. `git branch` lists in-flight work, because branch names carry the ID
-and slug. This is accepted, not a problem to solve.
+From `start` on the item is edited **on its branch only**: root cause,
+evidence, status. Main's copy stands as the item started and is never edited
+while the branch exists: `merge` and `archive` compare it with the cut and
+refuse if it moved — the squash is a three-way merge, and a main-side edit in
+a hunk the branch never touched would otherwise merge in silently, a
+criterion changed under evidence recorded against the old one. At merge the
+branch's copy replaces main's in the same commit as the code, which is what
+keeps evidence and the change together and main free of half-written items.
 
-The exception is an item merged as `awaiting`: it has no branch left, so
-in-flight is branches **plus** that status. `workbench status` reports both
-halves; do not reconstruct it. Which statuses merge and which archive:
-[items.md](items.md), "What each gate asks".
+So the default branch tells the whole story: an item file with no branch and
+no trailer is open and not started; with a branch, started — `workbench
+status` marks it so; with a trailer and no branch, merged; under `archive/`,
+done. Every worktree inherits main's copies, so a sibling's copy of an item is
+not a second item; only the copy on the item's own branch is edited.
+
+The one thing the default branch cannot show is an item merged as `awaiting`:
+it has no branch left, so in-flight is branches **plus** that status.
+`workbench status` reports both halves; do not reconstruct it. Which statuses
+merge and which archive: [items.md](items.md), "What each gate asks".
+
+An item written by hand, untracked, is landed by `start` the same way —
+moved to the main checkout first if it was written in a worktree, once the
+criterion check has passed. One committed on another item's branch is
+refused: it would reach the default branch twice.
 
 ## Merging
 
@@ -104,8 +123,8 @@ archive` resolves the branch as `git config workbench.main`, then
 
 The command refuses while the item's branch still exists — archived first, the
 item would record `commit: none` for good while the squash commit arrives
-later. Two branches never merge, and `archive` retires those itself: the item
-comes back to the main checkout, the worktree and branch go. An `unreproduced`
+later. Two branches never merge, and `archive` retires those itself: the branch's
+copy of the item replaces main's, the worktree and branch go. An `unreproduced`
 bug's holds nothing but the item file — nothing to fix — and anything else on
 it is work, which merges or is discarded by hand. A research item's may hold
 prototypes, throwaway by definition; `archive --discard` drops them, naming

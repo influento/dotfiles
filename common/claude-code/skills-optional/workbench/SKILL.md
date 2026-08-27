@@ -15,8 +15,10 @@ read code at all — items and command output are the only channel they have.
 research     workbench/items/research/<id>-<slug>.md, on its own branch —
              a scope not yet understood; ends by spawning the rows below
 idea (workbench/BACKLOG.md line)
-  -> item      workbench/items/{bugs,features,renames}/<id>-<slug>.md
-  -> branch    <id>-<slug>, in its own worktree under .worktrees/
+  -> item      workbench/items/{bugs,features,renames}/<id>-<slug>.md,
+               committed on the default branch as it is created
+  -> branch    <id>-<slug>, in its own worktree under .worktrees/; the item
+               is edited there from now on, main's copy stands as agreed
   -> work      root cause / implementation
   -> evidence  criterion filled in with real output
   -> merge     workbench merge: squash, commit trailer "Item: <id>"
@@ -141,14 +143,18 @@ its source; `workbench init` refreshes it, and never edit the copy itself.
 ## Starting work
 
 ```bash
-workbench new bug "frozen coords"      # allocates id, writes the file
+workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
 workbench new rename "shard to region" # same, for a vocabulary change
-workbench start b-038                  # branch + worktree; refuses while the criterion is empty
+workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion is empty
 workbench merge b-038 "<subject>"      # after the pre-merge review: squash, trailer, cleanup
 ```
 
 IDs are allocated from a counter shared by every worktree, so any worktree may
-create an item. Never hand-pick an ID.
+create an item; the file lands in the main checkout wherever `new` runs.
+Never hand-pick an ID. `new` commits on the default branch, so the main
+checkout must have it checked out. Between `new` and `start` the item is
+edited on main; after `start`, only in its worktree — `merge` and `archive`
+refuse if main's copy of a started item moved.
 
 ## What came before
 

@@ -5,10 +5,13 @@
 | State | Where | Notes |
 |---|---|---|
 | idea | one line in `workbench/BACKLOG.md`, `workbench idea "<sentence>"` — written to the main checkout wherever it runs | no ID, no file |
-| open | `workbench/items/bugs/`, `features/`, `renames/` or `research/` | freely editable |
+| open | `workbench/items/bugs/`, `features/`, `renames/` or `research/`, committed on the default branch by `workbench new` | freely editable on main until started |
+| started | the same file, on its own branch `<id>-<slug>` in `.worktrees/` — `workbench status` marks it `started` | edited on the branch only; main's copy stands as the item started, until the squash overwrites it |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
-An open item may already have merged. See "Statuses" below.
+An open item may already have merged. See "Statuses" below. Where the file
+lives at each step, and why: [git.md](git.md), "The item file is on the
+default branch from the start".
 
 Promoting an idea to an item means deleting its line from `workbench/BACKLOG.md` and
 writing the item file. That act is where the thinking happens — it is the gate,
