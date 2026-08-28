@@ -90,11 +90,13 @@ check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/setti
 check "init writes the session hook" grep -q 'workbench status ||' .claude/settings.json
 check "the hook is guarded on PATH" grep -q '"command -v workbench >/dev/null && workbench status || true"' .claude/settings.json
 check "init writes the status line" grep -q '"command -v workbench >/dev/null && workbench statusline || true"' .claude/settings.json
+check "init turns agent teams on" grep -q '"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"' .claude/settings.json
 run "init is idempotent" 0 "workbench ready" "$WB" init
 check "unchanged copies are not re-rendered" bash -c "! '$WB' init 2>&1 | grep -q 'rendered .claude'"
 check "the hook is not duplicated" [ "$(grep -c 'workbench status ||' .claude/settings.json)" -eq 1 ]
 check "the status line is not reported as foreign" bash -c "! '$WB' init 2>&1 | grep -q 'statusLine is already set'"
 run "status is quiet while the copies are current" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
+check "status is quiet about the teams flag when set" bash -c "! '$WB' status | grep -q 'agent teams'"
 session() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"}}' "$1"; }
 run "statusline with nothing in flight" 0 '^\[Opus\] wb: nothing in flight$' bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
 run "statusline outside a workbench project is silent" 0 "" bash -c "$(declare -f session); session '$HOME' | '$WB' statusline"
@@ -465,6 +467,12 @@ run "status no longer lists it" 0 "" bash -c "! '$WB' status | grep -q $idx-netc
 new_repo settings
 mkdir -p .claude && echo '{"statusLine":{"type":"command","command":"echo mine"}}' > .claude/settings.json
 run "init leaves a user statusLine alone" 0 "statusLine is already set" "$WB" init
+python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));d['env']={'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS':'0'};json.dump(d,open(p,'w'))"
+run "init leaves a teams opt-out alone" 0 "" bash -c "! '$WB' init | grep -q AGENT_TEAMS"
+check "the opt-out survives" grep -q '"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0"' .claude/settings.json
+check "status does not nag about an opt-out" bash -c "! '$WB' status | grep -q 'agent teams'"
+python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));del d['env'];json.dump(d,open(p,'w'))"
+run "status names a missing teams flag" 0 "agent teams: env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set" "$WB" status
 check "the user statusLine survives" grep -q '"echo mine"' .claude/settings.json
 check "the hook is still added beside it" grep -q 'workbench status ||' .claude/settings.json
 echo 'not json' > .claude/settings.json
