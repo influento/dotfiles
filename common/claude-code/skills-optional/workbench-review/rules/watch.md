@@ -27,8 +27,10 @@ system. Then read the report's tail: the shift so far lives there, not in you.
    signature, and a hypothesis **labelled as a hypothesis**. `workbench find`
    on the paths the failure names, once.
 8. **Escalate** as the contract says — typically the same signature three
-   times in one shift: stop recovering, mark the entry `ESCALATED`, notify as
-   stated, return.
+   times in one shift: stop recovering, mark the entry `ESCALATED`, run the
+   notification command the contract gives, return. You have no notification
+   tool; a contract that says "notify" without a Bash command cannot be
+   followed, and the entry should say so.
 
 ## What the report is never given
 

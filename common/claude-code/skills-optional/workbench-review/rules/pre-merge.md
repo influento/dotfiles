@@ -25,7 +25,7 @@ missing. Read it and name it; the checks below are made against it. Check:
 - the root cause is stated, for a bug, and is a mechanism
 - only the template's headings are present — no "For the operator", no
   "What this did not prove", no dated appendix; `archive` will refuse them
-- the status is one of the four, with a trigger when it needs one; an item
+- the status is one of the five, with a trigger or a why when it needs one — `abandoned` never reaches a merge; an item
   about to merge as plain `open` has a fenced block under Evidence
 - no script was written to satisfy a step and then deleted, and no scratch
   file is cited that the tree does not hold

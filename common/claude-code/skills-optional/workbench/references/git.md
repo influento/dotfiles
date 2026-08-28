@@ -85,7 +85,7 @@ worktree list` until `git worktree prune`; `merge` and `archive` say so and
 stop until it is run. Lookups skip it meanwhile.
 
 Every item merges this way. Housekeeping goes straight to the main branch
-(SKILL.md, rule 1).
+(SKILL.md, "Domain work is an item").
 
 ## Traceability
 
@@ -127,7 +127,8 @@ later. Two branches never merge, and `archive` retires those itself: the branch'
 copy of the item replaces main's, the worktree and branch go. An `unreproduced`
 bug's holds nothing but the item file — nothing to fix — and anything else on
 it is work, which merges or is discarded by hand. A research item's may hold
-prototypes, throwaway by definition; `archive --discard` drops them, naming
+prototypes, throwaway by definition, and an `abandoned` item's whatever was
+built before the user dropped it; `archive --discard` drops those, naming
 each, and without the flag the command refuses and says so.
 
 The move is left uncommitted; the command prints the commit to make.

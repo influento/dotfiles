@@ -165,12 +165,16 @@ inside a forked context, and the sweep is a fork by design, so the hook would
 never run. Declaring one would be worse than declaring nothing: the contract
 would read as enforced while nothing checked it.
 
-The tool set narrows the fork instead — no `Edit`, no subagents, no web — but
-`Bash` has to stay so the sweep can build, test and grep, and `Bash` can write
-through a redirect. So the tool set removes the convenient path and nothing
-more. `workbench review-check` is the only thing that actually proves the
-contract held, which is why it is run on every returned report rather than only
-on a suspicious one.
+The tool set narrows the fork instead — no `Edit`, no subagents, no web. It
+is the `wb-reviewer` agent's `tools:` that does this, not the skill's
+`allowed-tools`: a fork takes its agent's tool set and nothing else, while
+`allowed-tools` only pre-approves what is listed and removes nothing (both
+probed on Claude Code 2.1.248; the docs say the second, and were once read to
+say the opposite). `Bash` has to stay so the sweep can build, test and grep,
+and `Bash` can write through a redirect. So the tool set removes the
+convenient path and nothing more. `workbench review-check` is the only thing
+that actually proves the contract held, which is why it is run on every
+returned report rather than only on a suspicious one.
 
 It can prove it because the baseline predates the fork's first turn: the
 skill's preprocessed block records the tree — status plus content hashes, since

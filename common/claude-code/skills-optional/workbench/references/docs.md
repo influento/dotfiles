@@ -94,7 +94,7 @@ documents, is a review reason — see [reviews.md](reviews.md).
 
 ## Deleting means deleting
 
-SKILL.md rule 7. All of these are violations:
+SKILL.md's rule of that name. All of these are violations:
 
 ```
 ~~The old retry logic used a fixed 3s delay~~

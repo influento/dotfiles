@@ -9,14 +9,22 @@ arguments: reason scope
 # first turn whoever started it: references/rationale.md, "Why the agent
 # invokes the pre-merge review itself".
 context: fork
-agent: general-purpose
+# The agent is what bounds the sweep's tools: a fork takes its agent's
+# 'tools:' and nothing else (probed on 2.1.248), and 'allowed-tools' below
+# only pre-approves. Rendered by 'workbench init' with the other agents:
+# references/rationale.md, "Why the sweep's contract is not enforced by a
+# hook".
+agent: wb-reviewer
 # background: false is load-bearing: the report path must come back in the
 # invoking turn, so review-check and triage follow in the same sitting and a
-# worker's review loop stays one step. Do not restore the default.
+# worker's review loop stays one step. Do not restore the default. Needs
+# Claude Code 2.1.218 or later, where the field exists.
 background: false
-# The sweep's entire tool set; it also pre-approves the two preprocessed
-# blocks below. No Edit, Bash bare: references/rationale.md, "Why the sweep's
-# contract is not enforced by a hook".
+# Pre-approval for the two preprocessed blocks below — Bash for the scripts,
+# the rest so the fork's first turn is not a prompt. It restricts nothing;
+# the agent does. '$reason' and '$scope' inside those blocks are substituted
+# from 'arguments:' by the skill preprocessor — observed behaviour the docs
+# do not describe; references/reviews.md carries the injection caveat.
 allowed-tools: Read, Glob, Grep, Bash, Write
 ---
 

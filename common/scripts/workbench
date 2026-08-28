@@ -43,7 +43,7 @@ usage:
                                        squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status, and a passed pre-merge review
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
-                                       --discard drops a research branch's prototypes
+                                       --discard drops what a research or abandoned branch carries
   workbench status                     in flight, duplicate ids, reports
   workbench statusline                 one line for the Claude Code status line; reads the session JSON on stdin
   workbench watch "<title>"            write the contract a watch shift runs under
@@ -533,10 +533,12 @@ elif "Bash(workbench:*)" not in allow:
     allow.append("Bash(workbench:*)")
     changed.append("permissions.allow += Bash(workbench:*)")
 hooks = data.setdefault("hooks", {})
-starts = hooks.get("SessionStart") if isinstance(hooks, dict) else "odd"
-if starts is None:
+starts = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+if isinstance(hooks, dict) and starts is None:
     starts = hooks["SessionStart"] = []
-if not isinstance(starts, list):
+if not isinstance(hooks, dict):
+    print("  hooks is not an object in .claude/settings.json; left alone")
+elif not isinstance(starts, list):
     print("  hooks.SessionStart is not a list in .claude/settings.json; left alone")
 else:
     ours = [h for grp in starts if isinstance(grp, dict)
@@ -1017,6 +1019,7 @@ cmd_start() {
     # Rule 2, held here because this is where code begins: the criterion —
     # a research item's Scope — is written and agreed before the branch is
     # cut. A template comment alone does not count. Before anything moves.
+    require_closed_fences "$id" "$path"
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
     # An item is on the default branch from 'new' onward; one written by hand,
@@ -1148,6 +1151,7 @@ cmd_merge() {
   if [ -n "$item_on_branch" ]; then
     tmp=$(mktemp)
     git -C "$root" show "$branch:$item_on_branch" > "$tmp"
+    closed_fences "$tmp" || { rm -f "$tmp"; die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"; }
     st=$(item_status "$tmp")
     known_status "$st" || { rm -f "$tmp"; die "$id has 'status: $st' on $branch, which is not a status"; }
     case "$st" in
@@ -1157,6 +1161,7 @@ cmd_merge() {
           *) rm -f "$tmp"; die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
         esac ;;
       unreproduced*) rm -f "$tmp"; die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
+      abandoned*) rm -f "$tmp"; die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
       *)
         has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
     esac
@@ -1375,8 +1380,29 @@ default_branch() {
 # A fenced block under '## Evidence' itself — up to the next '## ', not to the
 # end of the file. Evidence parked under a sibling heading left this section
 # empty while the gate still passed.
+# An item with its fenced blocks emptied: evidence is pasted output, and
+# pasted output holds '## ' lines — a markdown diff, a script's comments —
+# that would otherwise read as headings, end a section early, or count as a
+# concept. The fence lines themselves stay, so a block is still seen.
+without_fences() {
+  awk '/^[[:space:]]*```/ { inside = !inside; print; next } !inside' "$1"
+}
+
+# An odd number of fence lines: everything after the last one is inside a
+# block to every scan above, so a criterion reads as empty and a section as
+# missing with nothing to say why. Named at the gates, before those scans.
+closed_fences() {
+  local n
+  n=$(grep -c '^[[:space:]]*```' "$1" || true)
+  [ $((n % 2)) -eq 0 ]
+}
+
+require_closed_fences() {
+  closed_fences "$2" || die "$1 has an unclosed \`\`\` fence; close it, then retry"
+}
+
 has_evidence() {
-  sed -n '/^## Evidence/,/^## /p' "$1" \
+  without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
     | tail -n +2 | grep -v '^## ' \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
     | grep -q '^[[:space:]]*```'
@@ -1398,14 +1424,14 @@ template_headings() {
 # '## ' headings in the file that the class template does not have.
 foreign_headings() {
   local id="$1" path="$2"
-  comm -23 <(sed -n 's/^## //p' "$path" | sort -u) <(template_headings "$id" | sort -u)
+  comm -23 <(without_fences "$path" | sed -n 's/^## //p' | sort -u) <(template_headings "$id" | sort -u)
 }
 
 # The statuses items.md defines, and nothing else: 'done' slipped into an
 # archive once and every listing showed it beside 'archived'.
 known_status() {
   case "$1" in
-    open|awaiting*|unverified*|unreproduced*) return 0 ;;
+    open|awaiting*|unverified*|unreproduced*|abandoned*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1429,8 +1455,9 @@ retire_branch() {
   root=$(main_root)
   wt=$(live_worktree_of "$branch")
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
-  case "$id" in
+  case "$id:$(item_status "$path")" in
     x-*) hint="research never merges: 'workbench archive $id --discard' drops it; a prototype worth keeping goes into the item it spawned first" ;;
+    *:abandoned*) hint="an abandoned item never merges: 'workbench archive $id --discard' drops the work, naming each file" ;;
     *) hint="merge $id, or remove the worktree and branch yourself, then archive" ;;
   esac
 
@@ -1494,12 +1521,12 @@ $hint"
 # The first '## ' section of an item, comments stripped: Why for a feature,
 # What was seen for a bug, The term for a rename, Scope for research.
 lead_section() {
-  awk '/^## / { n++ } n == 1' "$1" | tail -n +2 \
+  without_fences "$1" | awk '/^## / { n++ } n == 1' | tail -n +2 \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
 }
 
 section_filled() {
-  sed -n "/^## $2/,/^## /p" "$1" | tail -n +2 | grep -v '^## ' \
+  without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' | grep -q '[^[:space:]]'
 }
 
@@ -1515,7 +1542,7 @@ criterion_heading() {
 # state empty when the concept has no 'state:' line. The last 'state:' line
 # under a heading wins, so a rewritten concept need not delete the old one.
 concept_states() {
-  sed -n '/^## Concepts/,/^## /p' "$1" \
+  without_fences "$1" | sed -n '/^## Concepts/,/^## /p' \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
     | awk '
         /^## / { next }
@@ -1600,10 +1627,6 @@ cmd_archive() {
   done
   id=$(require_id "$id")
   require_init
-  case "$id" in
-    x-*) ;;
-    *) [ "$discard" -eq 0 ] || die "--discard is for research items; $id merges or is retired as it is" ;;
-  esac
 
   # Over every checkout: a started item is edited in its worktree, while
   # archive is run from the main checkout.
@@ -1642,10 +1665,26 @@ cmd_archive() {
   # older workbench, worktree gone — has no copy in any checkout.
   [ -n "$path" ] || die "no item matching '$id'"
 
+  require_closed_fences "$id" "$path"
   local status
   status=$(item_status "$path")
   known_status "$status" \
-    || die "$id has 'status: $status', which is not a status; the archive takes 'open' (with evidence), 'unreproduced', or 'unverified — <trigger>'"
+    || die "$id has 'status: $status', which is not a status; the archive takes 'open' (with evidence), 'unreproduced', 'unverified — <trigger>' or 'abandoned — <why>'"
+  # A status entered unattended is provisional until the user deletes the
+  # marker; the archive is the locked record and takes no provisional
+  # decision — as research_gate refuses a concept state carrying it.
+  case "$status" in
+    *"(agent)"*) die "$id's 'status: $status' was entered unattended; confirm it by deleting the '(agent)' marker, or change it, then archive" ;;
+  esac
+  # --discard drops what a branch carries beyond the item: a research item's
+  # prototypes, or an abandoned item's half-built work. Anything else on a
+  # branch is work that merges.
+  if [ "$discard" -eq 1 ]; then
+    case "$id:$status" in
+      x-*|*:abandoned*) ;;
+      *) die "--discard is for research and abandoned items; $id merges or is retired as it is" ;;
+    esac
+  fi
 
   # The file is locked once archived, so its shape is checked on the way in:
   # only the headings the class template wrote. A section the template did
@@ -1675,20 +1714,31 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
           *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
         esac ;;
       unreproduced*) ;;
+      abandoned*)
+        # The why is the record — 'find' surfaces it on the paths the item
+        # named — and shipped work is not abandoned: with the trailer on the
+        # default branch the item merged, and it is archived as what it is.
+        case "$status" in
+          *—*|*" - "*) ;;
+          *) die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream" ;;
+        esac
+        local shipped
+        shipped=$(git -C "$(main_root)" log "$(default_branch)" --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
+        [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
       *)
         if ! has_evidence "$path"; then
-          die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger>)"
+          die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger> / abandoned — <why>)"
         fi ;;
     esac
   fi
 
   # A branch still standing means the item has not merged, and archiving now
   # would record 'commit: none' for good while the squash commit arrives
-  # later. The one branch that legitimately never merges is an unreproduced
-  # bug's; that one is retired here.
+  # later. The branches that legitimately never merge — an unreproduced
+  # bug's, an abandoned item's, research — are retired here.
   if [ -n "$branch" ]; then
     case "$id:$status" in
-      x-*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
+      x-*|*:abandoned*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
       *:unreproduced*) path=$(retire_branch "$id" "$branch" "$path") ;;
       *) die "$id still has branch $branch; merge it first — archive records the squash commit" ;;
     esac
@@ -1935,13 +1985,16 @@ cmd_find() {
     done
     # An unproved item has no commit on the path, so the trailer cannot find
     # it; it names the path in its own text, and that is the link used here.
+    # An abandoned one is the same detector — "this was tried and dropped,
+    # here is why" — matched the same way, but not flagged first below: it
+    # is a decision, not an unproved claim.
     # Matched on path boundaries: a scope of 'src' or 'api' as a bare
     # substring would hit every item using the word in any sense, and those
     # false hits would then sort to the top as flagged.
     local res=()
     for p in "${paths[@]}"; do res+=("$(path_re "$p")"); done
     while IFS= read -r f; do
-      case "$(item_status "$f")" in unreproduced*|unverified*) ;; *) continue ;; esac
+      case "$(item_status "$f")" in unreproduced*|unverified*|abandoned*) ;; *) continue ;; esac
       for p in "${res[@]}"; do
         if grep -qE -- "$p" "$f"; then files+=("$f"); break; fi
       done
@@ -2135,7 +2188,8 @@ write_watch() {
 ## Escalate
 
 <!-- When to stop recovering — e.g. the same failure 3 times in one shift —
-     and how to notify. Delete this comment. -->
+     and how to notify, as a command the shift can run through Bash: it has
+     no notification tool of its own. Delete this comment. -->
 EOF
 }
 
@@ -2294,13 +2348,39 @@ cmd_status() {
       [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$mid-*")" ] || continue
       f=$(find "$mainr/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
       [ -n "$f" ] || continue
-      case "$(item_status "$f")" in awaiting*|unverified*|unreproduced*) continue ;; esac
-      [ -n "$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1)" ] || continue
-      printf '  %-34s merged as %s\n' "${name%.md}" "$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1)"
+      local st sha
+      st=$(item_status "$f")
+      case "$st" in awaiting*|unverified*) continue ;; esac
+      sha=$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1)
+      [ -n "$sha" ] || continue
+      # Shipped work carrying a status that never merges: archive refuses
+      # it, so skipped here it would be the one combination nothing lists.
+      case "$st" in
+        unreproduced*|abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
+        *) printf '  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
+      esac
       limbo=1
     done
   fi
   [ "$limbo" -eq 1 ] || echo "  (none)"
+
+  # Decisions entered unattended, in the item files themselves — the marker
+  # is what the user greps for, and a DECISIONS.md line can go without it.
+  # From the copy that is the item: its branch's when it has one, else main's.
+  local prov=() pf pl
+  for name in "${names[@]}"; do
+    pf=$(item_copy "$name")
+    [ -n "$pf" ] || continue
+    while IFS= read -r pl; do
+      [ -n "$pl" ] || continue
+      prov+=("$(printf '%-34s %s' "${name%.md}" "$pl")")
+    done < <(without_fences "$pf" | grep -E '^(status:|state:).*\(agent\)' | sed 's/[[:space:]]*$//' || true)
+  done
+  if [ "${#prov[@]}" -gt 0 ]; then
+    echo
+    echo "provisional decisions (agent) — confirm by deleting the marker, or overrule in the item"
+    printf '  %s\n' "${prov[@]}"
+  fi
 
   # Calls parked for the user; each names the item that holds the reasoning.
   local calls
@@ -2402,6 +2482,23 @@ open_names() {
     git for-each-ref --format='%(refname:short).md' 'refs/heads/[bfrx]-*' | grep -E '^[bfrx]-[0-9]+-'
   } | sort -u \
     | { if [ -n "$archived" ]; then grep -vxF -f <(printf '%s\n' "$archived") || true; else cat; fi; }
+}
+
+# The copy of an item that is the item: on its branch when it has a worktree,
+# else in the main checkout — never a sibling's inherited copy. Empty for an
+# item archived on main or held on its branch alone.
+item_copy() {
+  local name="$1" own f='' mainr
+  mainr=$(main_root)
+  own=$(worktree_of "${name%.md}")
+  if [ -n "$own" ] && [ -d "$own" ]; then
+    f=$(find "$own/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+  fi
+  if [ -z "$f" ]; then
+    [ -z "$(find "$mainr/$WB/items/archive" -name "$name" -print -quit 2>/dev/null)" ] || return 0
+    f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
+  fi
+  [ -z "$f" ] || printf '%s\n' "$f"
 }
 
 # Items merged as 'awaiting' — on the default branch, so read from the main
@@ -2908,6 +3005,21 @@ cmd_review() {
     # still return a report, so the first one's manifest and a note.
     branches=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*")
     branch=${branches%%$'\n'*}
+    # The reviewer reads the tree while review-check records the branch
+    # commit, so a worktree with uncommitted changes can never yield a pass
+    # that merge accepts — one more round, guaranteed. Refused at open, the
+    # cheap end. Reports are untracked in reviews/ by design and stay out of
+    # this; a report still standing is refused on its own: the fresh
+    # reviewer must never see the last round's.
+    if [ -n "$item" ] && [ -n "$branch" ]; then
+      local dirt leftover
+      dirt=$(git -C "$root" status --porcelain --untracked-files=all | grep -v " $WB/reviews/" || true)
+      [ -z "$dirt" ] || die "$root has uncommitted changes; the review records the branch commit it read, so commit first — then review:
+$(printf '%s\n' "$dirt" | sed 's/^/  /')"
+      leftover=$(find "$root/$WB/reviews" -maxdepth 1 -name '*.md' -printf '%f\n' 2>/dev/null | sort || true)
+      [ -z "$leftover" ] || die "$root still holds a review report; a fresh reviewer never sees the last round's — 'workbench review-drop' it, then review:
+$(printf '%s\n' "$leftover" | sed 's/^/  /')"
+    fi
   fi
   stamp=$(date +%Y%m%d)
   slug=$(slugify "${scope:-$reason}")

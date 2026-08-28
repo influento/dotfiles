@@ -49,7 +49,9 @@ idea (workbench/BACKLOG.md line)
    gate and asks only whether everything verifiable was verified, so an item may
    ship while still open. Two statuses archive a statement of what was *not*
    proved instead of pretending: `unreproduced`, and `unverified` for a criterion
-   only a third party can settle. See [items.md](references/items.md).
+   only a third party can settle. A third, `abandoned — <why>`, archives a
+   decision: work the user dropped, never deleted. See
+   [items.md](references/items.md).
 
 4. **State the root cause before writing a fix.** The requirement exists to
    force the investigation, not to produce a sentence.
@@ -80,7 +82,7 @@ idea (workbench/BACKLOG.md line)
    reasoning that produced the code; that is in the code, or in the commit.
 
 9. **Some decisions are the user's, and an absent user does not transfer
-   them.** Entering `awaiting` or `unverified`, closing a research concept,
+   them.** Entering `awaiting`, `unverified` or `abandoned`, closing a research concept,
    confirming a sizing, answering a parked call: when nobody is there to
    decide, "Unattended runs" below says what to do instead of deciding.
 
@@ -110,6 +112,7 @@ what changes is what happens at a gate that is the user's:
 | criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the pre-merge review reads it again |
 | merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` yourself, and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
 | a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
+| the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
 | research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
 | pre-merge review | run it yourself — `/workbench-review pre-merge <id>` — then `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
 
@@ -186,7 +189,7 @@ the work, and not tidiness.
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 The rows are read from the item down: whatever fits the item row is an
-item, however small (rule 1). The idea row is the one the agent never
+item, however small ("Domain work is an item"). The idea row is the one the agent never
 proposes for something item-shaped — "crash on save" is a bug — since it is
 not a level of description but the user's decision to defer, reached only by
 the user saying so: `/idea`, or "backlog it". Nothing else in the rule

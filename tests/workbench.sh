@@ -81,6 +81,9 @@ for c in workbench workbench-review bug feature research idea wb; do
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
 check "no /rename is rendered" [ ! -e .claude/skills/rename ]
+check "init renders the reviewer agent" [ -f .claude/agents/wb-reviewer.md ]
+check "the review skill runs as that agent" grep -qx 'agent: wb-reviewer' .claude/skills/workbench-review/SKILL.md
+check "the agent's tools are the sweep's contract" grep -qx 'tools: Read, Glob, Grep, Bash, Write' .claude/agents/wb-reviewer.md
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
@@ -116,6 +119,9 @@ git checkout -q "$item"
 run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
 check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
 crit "$item"
+printf '\n%s\nunclosed\n' '```' >> "$item"
+run "start names an unclosed fence rather than an empty criterion" 1 "b-001 has an unclosed .* fence" "$WB" start b-001
+git checkout -q "$item" && crit "$item"
 run "start" 0 "started b-001-crash-on-save in" "$WB" start b-001
 wt=.worktrees/b-001-crash-on-save
 check "start lands the criterion on main first" [ "$(git log -1 --format=%s)" = "start b-001" ]
@@ -134,8 +140,13 @@ run "new validates the class before --milestone" 1 "class must be" "$WB" new bog
 run "merge refuses an open item with no evidence on the branch" 1 "open with no evidence under '## Evidence' on b-001-crash-on-save" "$WB" merge b-001 "fix crash"
 report=$("$WB" review pre-merge b-001)
 check "pre-merge notes an item file the branch never touched" grep -q 'the item file is not among them' "$report"
+run "review pre-merge refuses while a report stands" 1 "still holds a review report" "$WB" review pre-merge b-001
+check "the refusal names the report" bash -c "'$WB' review pre-merge b-001 2>&1 | grep -q '^  $(basename "$report")\$'"
 "$WB" review-drop --force "$report" >/dev/null 2>&1
-fill_evidence "$wt/$item" "make test" "ok"
+# pasted output holds '## ' lines: a heading to markdown, not to the item
+fill_evidence "$wt/$item" "make test" $'## not a heading\nok'
+run "review pre-merge refuses a dirty worktree" 1 "uncommitted changes; the review records the branch commit" "$WB" review pre-merge b-001
+check "the refusal names the file" bash -c "'$WB' review pre-merge b-001 2>&1 | grep -q '^   M $item'"
 ( cd "$wt" && git commit -qam evidence )
 run "merge refuses without a passed pre-merge review" 1 "no passed pre-merge review" "$WB" merge b-001 "fix crash"
 
@@ -157,8 +168,9 @@ check "squash carries the trailer" grep -qx 'Item: b-001' <(git log -1 --format=
 check "the branch's copy overwrote main's" grep -q '^\$ make test' "$item"
 check "worktree removed" [ ! -e "$wt" ]
 run "status no longer marks it started" 0 "b-001-crash-on-save +open$" "$WB" status
+run "status lists a merged item still open as a fault" 0 "b-001-crash-on-save +merged as [0-9a-f]+" bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
 
-run "archive takes a short id" 0 "archived b-001" "$WB" archive b-01
+run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "archived b-001" "$WB" archive b-01
 git add -A && git commit -qm 'archive b-001'
 
 run "find by path" 0 "b-001" "$WB" find src.txt
@@ -199,6 +211,9 @@ run "status" 0 "" "$WB" status
 # The skill's preprocessed block is fail-closed, so the wrapper must turn a
 # refusal into output with a zero exit.
 run "open.sh folds a refusal into stdout" 0 "^workbench: reason must be" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" bogus ""
+report=$("$WB" review docs 2>/dev/null)
+check "review docs opens a report" [ -f "$report" ] && [[ "$report" == *-docs.md ]]
+"$WB" review-drop "$report" >/dev/null 2>&1
 run "open.sh returns the path on success" 0 "/workbench/reviews/.*-sweep\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep ""
 "$WB" review-drop "$(command ls workbench/reviews/*-sweep.md)" >/dev/null 2>&1
 report=$(env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep "resize")
@@ -391,7 +406,7 @@ check "new research allocates x-" [ "${idx%%-*}" = x ]
 ritem=workbench/items/research/$idx-netcode.md
 check "new research writes under items/research" [ -f "$ritem" ]
 check "the research template carries the state grammar" grep -q 'state: -> milestone <slug>' "$ritem"
-run "archive --discard refuses a non-research id" 1 "for research items" "$WB" archive b-001 --discard
+run "archive --discard refuses an item that merges" 1 "for research and abandoned items" "$WB" archive "$idl" --discard
 run "start refuses research with an empty Scope" 1 "$idx's 'Scope' is empty" "$WB" start "$idx"
 crit "$ritem"
 "$WB" start "$idx" >/dev/null 2>&1
@@ -427,6 +442,8 @@ sed -i "/^## Root cause/a\\
 see also $idx-in-the-wrong-place" workbench/items/archive/b-001-crash-on-save.md
 run "archive refuses without an outcome" 1 "no outcome recorded" "$WB" archive "$idx"
 research_item "$ritem" "$idx" "became b-001 and a backlog line" "-> backlog" "-> b-001" "-> milestone big-goal" "dropped — too slow"
+printf '\n%s\n### pasted heading\n## pasted section\nstate: open\n%s\n' '```' '```' >> "$ritem"
+run "status ignores headings and states inside a fence" 0 "$idx-netcode +open +started +0 of 4 concepts open" "$WB" status
 ( cd "$rwt" && echo proto > proto.txt && git add -A && git commit -qm prototype )
 run "archive refuses to drop prototypes unasked" 1 "archive $idx --discard" "$WB" archive "$idx"
 check "the refusal names the prototype" bash -c "'$WB' archive $idx 2>&1 | grep -q proto.txt"
@@ -537,7 +554,7 @@ run "init refuses to remove an edited copy of a dropped skill" 1 "no longer a wo
 run "init --force removes it" 0 "removed .claude/skills/gone" "$WB" init --force
 run "adopt takes --force too" 0 "workbench ready" "$WB" adopt --force
 sed -i '1s/.*/000000000000/' .claude/skills/wb/GENERATED
-run "status flags a copy behind its source" 0 "behind their source" "$WB" status
+run "status lists skills behind their source" 0 "skills behind their source" "$WB" status
 run "init re-renders a stale copy" 0 "rendered .claude/skills/wb" "$WB" init
 run "status is quiet again" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
 # a copy edited by hand is named as such, and only --force overwrites it
@@ -815,6 +832,114 @@ check "no worktree was cut for it" [ ! -e .worktrees/b-001-gone ]
 fill_evidence workbench/items/bugs/b-001-gone.md "run" "ok"
 "$WB" archive b-001 >/dev/null 2>&1
 run "start refuses an archived item whose ref is left on origin" 1 "already archived" "$WB" start b-001
+
+# --- gates: calls, provisional (agent) decisions, the review mark, holds ------
+
+new_repo gates
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+run "call parks a question naming its item" 0 "workbench/DECISIONS.md$" "$WB" call b-001 "criterion: is the count right?"
+check "the call is one bullet with the id" grep -qx -- '- b-001: criterion: is the count right?' workbench/DECISIONS.md
+run "call takes - for no item" 0 "" "$WB" call - "which realm first?"
+check "the id-less call is a bullet" grep -qx -- '- which realm first?' workbench/DECISIONS.md
+run "call refuses a newline" 1 "a call is one line" "$WB" call - $'a\nb'
+run "call refuses an essay" 1 "one question under" "$WB" call - "$(printf 'x%.0s' $(seq 1 301))"
+run "status lists calls waiting on the user" 0 "calls waiting on the user" "$WB" status
+check "status prints the call lines" bash -c "'$WB' status | grep -q '^  b-001: criterion: is the count right?$'"
+git checkout -q workbench/DECISIONS.md
+
+newc bug "unattended" >/dev/null; "$WB" start b-001 >/dev/null 2>&1
+wt=.worktrees/b-001-unattended
+( cd "$wt" && echo w > w.txt && git add -A && git commit -qm w )
+set_status "$wt/workbench/items/bugs/b-001-unattended.md" 'awaiting — the next deploy (agent)'
+( cd "$wt" && git commit -qam provisional )
+run "status lists a provisional status" 0 "provisional decisions \(agent\)" "$WB" status
+check "the provisional line names the item and the status" bash -c "'$WB' status | grep -q '^  b-001-unattended  *status: awaiting — the next deploy (agent)$'"
+check "main's as-started copy is not what status reads" bash -c "! grep -q '(agent)' workbench/items/bugs/b-001-unattended.md"
+run "merge accepts a provisional awaiting" 0 "merged b-001" "$WB" merge b-001 "unattended" --no-review
+run "status still lists it, from main now" 0 "b-001-unattended  *status: awaiting — the next deploy \(agent\)" "$WB" status
+set_status workbench/items/bugs/b-001-unattended.md 'unverified — the next deploy (agent)'
+run "archive refuses a provisional status" 1 "was entered unattended; confirm it by deleting the '\(agent\)' marker" "$WB" archive b-001
+set_status workbench/items/bugs/b-001-unattended.md 'unverified — the next deploy'
+run "archive takes it once confirmed" 0 "archived b-001" "$WB" archive b-001
+git add -A && git commit -qm 'archive b-001'
+
+newc bug "reviewed" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
+wt=.worktrees/b-002-reviewed
+( cd "$wt" && echo r > r.txt && git add -A && git commit -qm w ); ready "$wt"
+report=$("$WB" review pre-merge b-002)
+printf '\ncovered: r.txt, workbench/items/bugs/b-002-reviewed.md\nverdict: merge\n' >> "$report"
+run "review-check records a merge verdict against the branch commit" 0 "verdict: merge — recorded for b-002 at $(git -C "$wt" rev-parse --short HEAD)" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+( cd "$wt" && echo more >> r.txt && git commit -qam more )
+run "merge refuses a review that read an older commit" 1 "read an older commit of b-002-reviewed" "$WB" merge b-002 "reviewed"
+for n in 1 2 3; do
+  report=$("$WB" review pre-merge b-002)
+  printf '\ncovered: r.txt, workbench/items/bugs/b-002-reviewed.md\nverdict: hold — the count is wrong\n' >> "$report"
+  out=$("$WB" review-check "$report" 2>&1)
+  [ "$n" -lt 3 ] && check "hold $n is counted" grep -q "hold $n of 3 for b-002" <<< "$out"
+  "$WB" review-drop "$report" >/dev/null 2>&1
+done
+check "the third hold says to stop and call" grep -q "three holds: stop, 'workbench call b-002" <<< "$out"
+run "merge refuses after holds" 1 "no passed pre-merge review" "$WB" merge b-002 "reviewed"
+
+# --- abandoned: the one exit for work the user drops --------------------------
+
+new_repo drop
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+# an unproved item naming the path, older than the abandoned one below
+idu=$(newc bug "unproved"); printf '\nsee src/realm.ts\n' >> "workbench/items/bugs/$idu-unproved.md"
+set_status "workbench/items/bugs/$idu-unproved.md" 'unverified — a third party'
+"$WB" archive "$idu" >/dev/null 2>&1; git add -A && git commit -qm "archive $idu"
+# never started: on main only
+idn=$(newc feature "never started"); fn=workbench/items/features/$idn-never-started.md
+set_status "$fn" abandoned
+run "archive refuses abandoned without a why" 1 "'abandoned' must say why" "$WB" archive "$idn"
+set_status "$fn" 'abandoned — superseded by the realm rewrite'
+run "archive takes an abandoned item never started" 0 "archived $idn at none" "$WB" archive "$idn"
+check "it records no commit" grep -qx 'commit: none' "workbench/items/archive/$idn-never-started.md"
+git add -A && git commit -qm "archive $idn"
+# started, with half-built work on the branch
+idh=$(newc feature "half built"); "$WB" start "$idh" >/dev/null 2>&1
+wt=.worktrees/$idh-half-built; fh=$wt/workbench/items/features/$idh-half-built.md
+( cd "$wt" && echo half > half.txt && git add -A && git commit -qm half )
+printf '\ntouches src/realm.ts\n' >> "$fh"
+set_status "$fh" 'abandoned — not worth finishing'
+( cd "$wt" && git commit -qam abandon && echo more > scratch.txt )
+run "merge refuses an abandoned item" 1 "abandoned and never merges" "$WB" merge "$idh" "half" --no-review
+run "archive refuses to drop the work unasked" 1 "archive $idh --discard" "$WB" archive "$idh"
+check "the refusal names the uncommitted scratch" bash -c "'$WB' archive $idh 2>&1 | grep -q scratch.txt"
+( cd "$wt" && rm scratch.txt )
+check "the refusal names the committed work once the scratch is gone" bash -c "'$WB' archive $idh 2>&1 | grep -q half.txt"
+( cd "$wt" && echo more > scratch.txt )
+rc=0; out=$("$WB" archive "$idh" --discard 2>&1) || rc=$?
+check "--discard retires an abandoned branch" [ "$rc" -eq 0 ]
+check "--discard names the committed work" grep -q half.txt <<< "$out"
+check "--discard names the uncommitted scratch" grep -q scratch.txt <<< "$out"
+check "the worktree and branch are gone" bash -c "[ ! -e '$wt' ] && [ -z \"\$(git branch --list '$idh-half-built')\" ]"
+check "the archived copy carries the why" grep -q '^status: abandoned — not worth finishing' "workbench/items/archive/$idh-half-built.md"
+git add -A && git commit -qm "archive $idh"
+run "find lists an abandoned item by the path it named" 0 "^$idh .*abandoned — not worth finishing" "$WB" find src/realm.ts
+check "the unproved item still sorts first, though older" bash -c "'$WB' find src/realm.ts | head -1 | grep -q '^$idu '"
+# --discard stays refused where nothing is ever dropped
+idg=$(newc bug "ghost"); "$WB" start "$idg" >/dev/null 2>&1
+set_status ".worktrees/$idg-ghost/workbench/items/bugs/$idg-ghost.md" unreproduced
+run "--discard is refused for an unreproduced bug" 1 "for research and abandoned items" "$WB" archive "$idg" --discard
+"$WB" archive "$idg" >/dev/null 2>&1; git add -A && git commit -qm "archive $idg"
+# shipped work is not abandoned
+ids=$(newc bug "shipped"); "$WB" start "$ids" >/dev/null 2>&1
+( cd ".worktrees/$ids-shipped" && echo s > s.txt && git add -A && git commit -qm s ); ready ".worktrees/$ids-shipped"
+"$WB" merge "$ids" "shipped" --no-review >/dev/null 2>&1
+set_status "workbench/items/bugs/$ids-shipped.md" 'abandoned — changed my mind'
+run "archive refuses abandoned on merged work" 1 "shipped work is not abandoned" "$WB" archive "$ids"
+run "status lists merged-then-abandoned as a fault, not silence" 0 "$ids-shipped +merged as [0-9a-f]+, yet 'abandoned — changed my mind' — archive will refuse" \
+  bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
+# research never takes it; a provisional one is unarchivable
+idx=$(newc research "area"); "$WB" start "$idx" >/dev/null 2>&1
+set_status ".worktrees/$idx-area/workbench/items/research/$idx-area.md" 'abandoned — no'
+run "research refuses abandoned" 1 "stays 'open' until archived" "$WB" archive "$idx"
+idp=$(newc feature "unattended drop")
+set_status "workbench/items/features/$idp-unattended-drop.md" 'abandoned — looked pointless (agent)'
+run "archive refuses a provisional abandoned" 1 "entered unattended" "$WB" archive "$idp"
 
 # --- statusline with awaiting items and reports, find by absolute path ------
 
