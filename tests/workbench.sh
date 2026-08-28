@@ -160,6 +160,18 @@ run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-
 printf '\nTBD\n' >> "$item"
 run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
 git checkout -q "$item"
+# a repeated template heading is not a foreign one, so the set comparison
+# collapsed it and a second '## Evidence' went into the archive unremarked
+printf '\n## Evidence\n\nand again\n' >> "$item"
+run "archive refuses a repeated heading" 1 "twice" "$WB" archive b-001
+git checkout -q "$item"
+# '~~~' opens a fence in markdown too, and it is what gets reached for when the
+# pasted output itself holds backticks. Read as prose it is not evidence at all,
+# so an item whose only evidence is fenced that way could never be archived.
+idt=$(newc bug "tilde-fence")
+printf '\n~~~\n$ make test\nok\n~~~\n' >> "workbench/items/bugs/$idt-tilde-fence.md"
+run "archive takes evidence fenced with ~~~" 0 "archived $idt" "$WB" archive "$idt"
+git add -A && git commit -qm "archive $idt"
 
 run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
 check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
@@ -1365,6 +1377,9 @@ r5=$(newc feature "drop")
 "$WB" round "$r5" 5 0 >/dev/null
 run "two after five stop" 0 "next: gate" "$WB" round "$r5" 2 0
 run "round wants counts" 1 "fixed and stands are counts" "$WB" round "$r" many 0
+# concatenated, "" and "3" read as the single count "3" and passed
+run "round wants both counts, not their concatenation" 1 "fixed and stands are counts" "$WB" round "$r" "" 3
+run "and rejects an empty second count too" 1 "fixed and stands are counts" "$WB" round "$r" 3 ""
 run "round wants three arguments" 2 "usage" "$WB" round "$r" 1
 
 # a repo name tmux could not target

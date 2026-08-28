@@ -1529,7 +1529,7 @@ default_branch() {
 # that would otherwise read as headings, end a section early, or count as a
 # concept. The fence lines themselves stay, so a block is still seen.
 without_fences() {
-  awk '/^[[:space:]]*```/ { inside = !inside; print; next } !inside' "$1"
+  awk '/^[[:space:]]*(```|~~~)/ { inside = !inside; print; next } !inside' "$1"
 }
 
 # An odd number of fence lines: everything after the last one is inside a
@@ -1537,7 +1537,7 @@ without_fences() {
 # missing with nothing to say why. Named at the gates, before those scans.
 closed_fences() {
   local n
-  n=$(grep -c '^[[:space:]]*```' "$1" || true)
+  n=$(grep -cE '^[[:space:]]*(```|~~~)' "$1" || true)
   [ $((n % 2)) -eq 0 ]
 }
 
@@ -1549,7 +1549,7 @@ has_evidence() {
   without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
     | tail -n +2 | grep -v '^## ' \
     | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
-    | grep -q '^[[:space:]]*```'
+    | grep -qE '^[[:space:]]*(```|~~~)'
 }
 
 # The '## ' headings a class may carry, in the order the template writes them.
@@ -1569,6 +1569,13 @@ template_headings() {
 foreign_headings() {
   local id="$1" path="$2"
   comm -23 <(without_fences "$path" | sed -n 's/^## //p' | sort -u) <(template_headings "$id" | sort -u)
+}
+
+# A heading the template does have, but twice. foreign_headings compares sets,
+# so a repeat collapses and passes it — and a second '## Evidence' splits the
+# record in two, with the gates reading only as far as the first one.
+repeated_headings() {
+  without_fences "$1" | sed -n 's/^## //p' | sort | uniq -d
 }
 
 # The statuses items.md defines, and nothing else: 'done' slipped into an
@@ -1838,6 +1845,9 @@ cmd_archive() {
   local extra
   extra=$(foreign_headings "$id" "$path")
   [ -z "$extra" ] || die "$id carries sections its template does not have; fold them into the template's sections or delete them:
+$(printf '%s\n' "$extra" | sed 's/^/  ## /')"
+  extra=$(repeated_headings "$path")
+  [ -z "$extra" ] || die "$id carries these sections twice; the gates read only as far as the first, so fold each pair into one:
 $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
 
   # Research has one status and a structural gate; the unproved statuses
@@ -2268,8 +2278,16 @@ for path in sys.argv[1:]:
       printf -v "h_${k//./_}" '%s' "${vals[$i]:-}"; i=$((i + 1))
     done
   else
+    # No python3: a first-match scan, not a greedy one. 'sed s/.*"key".*/' is
+    # greedy, so it took the *last* occurrence of the key — and since the name
+    # is used without its path prefix, a nested copy inside 'tool_input' won
+    # over the top-level field the caller asked for. Matching the first
+    # occurrence puts the outer field back in front, which is where the hook
+    # payload always writes it.
     for k in $HOOK_FIELDS; do
-      printf -v "h_${k//./_}" '%s' "$(printf '%s' "$hook_input" | sed -n "s/.*\"${k##*.}\": *\"\([^\"]*\)\".*/\1/p" | head -1)"
+      printf -v "h_${k//./_}" '%s' "$(printf '%s' "$hook_input" \
+        | grep -o "\"${k##*.}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
+        | head -1 | sed 's/^[^:]*:[[:space:]]*"//; s/"$//')"
     done
   fi
 }
@@ -2441,7 +2459,10 @@ cmd_round() {
   local id="${1:-}" fixed="${2:-}" stands="${3:-}"
   [ -n "$id" ] || usage
   [ $# -eq 3 ] || usage
-  case "$fixed$stands" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
+  # Each on its own: concatenated, an empty count borrows the other's digits —
+  # '' and '3' read as the single count '3' and passed.
+  case "$fixed" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
+  case "$stands" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
   id=$(require_id "$id")
   local path
   path=$(find_item "$id")
