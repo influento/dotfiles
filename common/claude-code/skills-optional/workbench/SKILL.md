@@ -114,8 +114,8 @@ what changes is what happens at a gate that is the user's:
 | a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
 | research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
-| a question only the user can answer | `AskUserQuestion` is refused by the hook: `workbench call <id> "<the question, with options>"`, `blocked` to the lead when there is one, and move to work that is describable |
-| a permission not on the allow-list | refused by the hook the same way; park it, never work around it |
+| a question only the user can answer | `AskUserQuestion` is refused by the hook: `workbench call <id> "<the question, with options>"`, then `blocked — <the question>` to the lead and stop when there is one, or move to work that is describable when there is not |
+| a permission not on the allow-list | refused by the hook the same way — the refusal is what Claude Code sees, so the tool call never runs; park it, never work around it |
 | review | the dialog, then the gate, yourself — `/workbench-review pre-merge <id>`, `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
 
 `(agent)` is what the user greps for when they return: every provisional
@@ -126,7 +126,7 @@ not the backlog, not a milestone, not a memory entry.
 
 ## Commands
 
-`workbench init` renders five project-scoped skills. `/bug`, `/feature` and
+`workbench init` renders seven project-scoped skills: this one, `workbench-review`, and five thin commands. `/bug`, `/feature` and
 `/research` open an item of that class from a one-line description; `/idea`
 appends a backlog line; `/wb` reports what is in flight, with an id picks
 that item up where it was left, and with `rename <old> to <new>` opens a

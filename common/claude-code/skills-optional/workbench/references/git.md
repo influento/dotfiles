@@ -68,10 +68,16 @@ contract. The subject describes the change, not the item's title.
 The command refuses, before touching anything, when the main checkout is not on
 the default branch, has staged changes or an uncommitted deletion (an unstaged
 edit stays out of the squash and is tolerated), the worktree has uncommitted
-changes, the branch conflicts with the default branch (rebase it in the
-worktree first), or the default branch already carries the trailer. It does not
-check evidence — that is the pre-merge review's question, see
-[items.md](items.md), "What each gate asks". It does not push.
+changes or is locked, the branch conflicts with the default branch (rebase it in
+the worktree first), or the default branch already carries the trailer. It does
+not push.
+
+It reads the item file **from the branch**, and refuses when that copy is
+missing, has an unclosed fence, carries a status that is not one, says
+`awaiting` or `unverified` without naming a trigger, or is `open` with no fenced
+block under `## Evidence`. Those are structural questions — is there evidence at
+all — not whether the evidence shows what it claims, which is the pre-merge
+review's question; see [items.md](items.md), "What each gate asks".
 
 A pre-merge report lives untracked in the worktree, so it counts as
 uncommitted there: `workbench review-drop` it after triage, before merging.
