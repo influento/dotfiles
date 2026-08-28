@@ -87,7 +87,11 @@ in [glossary.md](glossary.md).
 `workbench adopt` ran `init`, which printed the setup checklist; go through
 it with the user after triage as SKILL.md "Setting up" describes, with the
 survey's findings on how the app runs and what goals it states feeding the
-milestone and watch lines.
+milestone and watch lines. `init` also merged the session hook, status line,
+`Bash(workbench:*)` allow rule, `autoMemoryDirectory` and
+`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"` into `.claude/settings.json`
+— all committed with the skills; the last is the one to set to `"0"` if the
+project should not run agent teams (SKILL.md, "Composing").
 
 ## Finish
 

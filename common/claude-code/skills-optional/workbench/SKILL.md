@@ -290,9 +290,13 @@ reads the item — not the diff — decides `awaiting`/`unverified` if the item
 needs one, and runs `merge` and `archive`. One merge at a time: two squashes
 into one index collide. Workers are the `wb-worker` agent under
 `.claude/agents/`, rendered by `init`: one item, in its worktree, never
-`merge`. Under agent teams, the composer is the lead and each started item is
-a task a teammate claims; workers that touch one path talk to each other,
-and `find`'s `on-branch` line says who that is.
+`merge`. Under agent teams — `init` sets
+`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` to `"1"` in the project's
+`.claude/settings.json`; `"0"` there opts out and survives re-runs — the
+composer is the lead and each started item is a task a teammate claims;
+workers that touch one path talk to each other, and `find`'s `on-branch`
+line says who that is. Without the flag the lead spawns `wb-worker` per item
+with the Agent tool and the loop is the same, minus worker-to-worker talk.
 
 **The review loop.** A worker finishes, then:
 
