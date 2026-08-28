@@ -3835,8 +3835,11 @@ cmd_review() {
     # commit, so a worktree with uncommitted changes can never yield a pass
     # that merge accepts — one more round, guaranteed. Refused at open, the
     # cheap end. Reports are untracked in reviews/ by design and stay out of
-    # this; a report still standing is refused on its own: the fresh
-    # reviewer must never see the last round's.
+    # the dirt check; a report still standing is refused just below, on its
+    # own terms — the fresh reviewer must never see the last round's — and
+    # again by merge, which will not squash a worktree that still holds one.
+    # Both refusals are pre-merge-only: they sit inside this guard, so every
+    # other reason opens a numbered sibling beside the leftover instead.
     if [ -n "$item" ] && [ -n "$branch" ]; then
       local dirt leftover
       dirt=$(git -C "$root" status --porcelain --untracked-files=all | grep -v " $WB/reviews/" || true)
