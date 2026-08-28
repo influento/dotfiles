@@ -10,7 +10,45 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export HOME="$TMP/home"  # no user gitconfig, hooks or aliases
-mkdir -p "$HOME"
+mkdir -p "$HOME" "$TMP/bin"
+export PATH="$TMP/bin:$PATH"
+# tmux, shimmed: every call is logged, windows live in a state directory, and
+# 'claude' is only ever a string inside a window's command. TMUX_SHIM_STATE
+# names the directory; the shim refuses to run without it.
+export TMUX_SHIM_STATE="$TMP/tmux"
+cat > "$TMP/bin/tmux" <<'SHIM'
+#!/usr/bin/env bash
+set -euo pipefail
+S=${TMUX_SHIM_STATE:?}
+mkdir -p "$S"; touch "$S/windows" "$S/sessions" "$S/log"
+printf '%s\n' "$*" >> "$S/log"
+cmd=$1; shift
+t='' n='' s='' F='' c=''; rest=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -t) t=${2#=}; shift 2 ;; -n) n=$2; shift 2 ;; -s) s=$2; shift 2 ;; -F) F=$2; shift 2 ;; -c) c=$2; shift 2 ;;
+    -d|-P|-dP|-p|';') shift ;;
+    *) rest+=("$1"); shift ;;
+  esac
+done
+next() { local k; k=$(( $(cat "$S/counter" 2>/dev/null || echo 0) + 1 )); echo "$k" > "$S/counter"; echo "$k"; }
+win_by_pane() { grep -P "^@${1#%}\t" "$S/windows" | cut -f1; }
+case "$cmd" in
+  -V) echo "tmux shim" ;;
+  has-session) grep -qx "$t" "$S/sessions" ;;
+  new-session) echo "$s" >> "$S/sessions"; k=$(next); printf '@%s\t%s\t%s\n' "$k" "$s" "$n" >> "$S/windows"; echo "@$k" ;;
+  new-window) grep -qx "$t" "$S/sessions" || { echo "no session $t" >&2; exit 1; }
+    k=$(next); printf '@%s\t%s\t%s\n' "$k" "$t" "$n" >> "$S/windows"; echo "@$k" ;;
+  list-windows) grep -P "\t$t\t" "$S/windows" | cut -f1 || true ;;
+  kill-window) grep -vP "^$t\t" "$S/windows" > "$S/windows.tmp" || true; mv "$S/windows.tmp" "$S/windows" ;;
+  rename-window) awk -F'\t' -v w="$t" -v name="${rest[0]}" 'BEGIN{OFS="\t"} $1==w {$3=name} {print}' "$S/windows" > "$S/windows.tmp"; mv "$S/windows.tmp" "$S/windows" ;;
+  display-message) case "$t" in %*) w=$(win_by_pane "$t") ;; *) w=$t ;; esac
+    case "${rest[0]}" in '#{window_id}') [ -n "$w" ] && echo "$w" ;; '#{window_name}') grep -P "^$w\t" "$S/windows" | cut -f3 ;; esac ;;
+  switch-client|select-window|attach) ;;
+  *) echo "shim: unhandled $cmd" >&2; exit 1 ;;
+esac
+SHIM
+chmod +x "$TMP/bin/tmux"
 
 fails=0 checks=0
 pass() { checks=$((checks + 1)); echo "ok   $1"; }
@@ -81,22 +119,27 @@ for c in workbench workbench-review bug feature research idea wb; do
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
 check "no /rename is rendered" [ ! -e .claude/skills/rename ]
-check "init renders the reviewer agent" [ -f .claude/agents/wb-reviewer.md ]
-check "the review skill runs as that agent" grep -qx 'agent: wb-reviewer' .claude/skills/workbench-review/SKILL.md
-check "the agent's tools are the sweep's contract" grep -qx 'tools: Read, Glob, Grep, Bash, Write' .claude/agents/wb-reviewer.md
+for a in wb-worker wb-reviewer wb-gate; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
+check "the review skill runs as the gate" grep -qx 'agent: wb-gate' .claude/skills/workbench-review/SKILL.md
+check "the gate's tools are the sweep's contract" grep -qx 'tools: Read, Glob, Grep, Bash, Write' .claude/agents/wb-gate.md
+check "the reviewer edits nothing" grep -qx 'tools: Read, Glob, Grep, Bash' .claude/agents/wb-reviewer.md
+check "the worker can spawn its reviewer, ask, and message the lead" bash -c "grep '^tools: ' .claude/agents/wb-worker.md | grep -q 'Agent,' && grep '^tools: ' .claude/agents/wb-worker.md | grep -q AskUserQuestion"
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
 check "init writes the session hook" grep -q 'workbench status ||' .claude/settings.json
 check "the hook is guarded on PATH" grep -q '"command -v workbench >/dev/null && workbench status || true"' .claude/settings.json
 check "init writes the status line" grep -q '"command -v workbench >/dev/null && workbench statusline || true"' .claude/settings.json
-check "init turns agent teams on" grep -q '"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"' .claude/settings.json
+check "init does not set the agent-teams flag" bash -c "! grep -q AGENT_TEAMS .claude/settings.json"
+check "init writes the signal hooks" grep -q 'workbench signal working || true' .claude/settings.json
+check "init writes the gate hooks unguarded by || true" grep -q '"! command -v workbench >/dev/null || workbench gate ask"' .claude/settings.json
+check "the ask gate matches AskUserQuestion" bash -c "python3 -c \"import json;d=json.load(open('.claude/settings.json'));print([g.get('matcher') for g in d['hooks']['PreToolUse']])\" | grep -q AskUserQuestion"
 run "init is idempotent" 0 "workbench ready" "$WB" init
 check "unchanged copies are not re-rendered" bash -c "! '$WB' init 2>&1 | grep -q 'rendered .claude'"
 check "the hook is not duplicated" [ "$(grep -c 'workbench status ||' .claude/settings.json)" -eq 1 ]
 check "the status line is not reported as foreign" bash -c "! '$WB' init 2>&1 | grep -q 'statusLine is already set'"
 run "status is quiet while the copies are current" 0 "" bash -c "! '$WB' status | grep -q 'behind their source'"
-check "status is quiet about the teams flag when set" bash -c "! '$WB' status | grep -q 'agent teams'"
+check "the signal hooks are not duplicated" [ "$(grep -c 'workbench signal working' .claude/settings.json)" -eq 3 ]
 session() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"}}' "$1"; }
 run "statusline with nothing in flight" 0 '^\[Opus\] wb: nothing in flight$' bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
 run "statusline outside a workbench project is silent" 0 "" bash -c "$(declare -f session); session '$HOME' | '$WB' statusline"
@@ -470,9 +513,9 @@ run "init leaves a user statusLine alone" 0 "statusLine is already set" "$WB" in
 python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));d['env']={'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS':'0'};json.dump(d,open(p,'w'))"
 run "init leaves a teams opt-out alone" 0 "" bash -c "! '$WB' init | grep -q AGENT_TEAMS"
 check "the opt-out survives" grep -q '"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0"' .claude/settings.json
-check "status does not nag about an opt-out" bash -c "! '$WB' status | grep -q 'agent teams'"
-python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));del d['env'];json.dump(d,open(p,'w'))"
-run "status names a missing teams flag" 0 "agent teams: env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set" "$WB" status
+python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));d['env']={'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS':'1','KEEP':'x'};json.dump(d,open(p,'w'))"
+run "init removes the teams flag it once set" 0 "AGENT_TEAMS removed" "$WB" init
+check "the flag is gone and the rest of env stays" bash -c "! grep -q AGENT_TEAMS .claude/settings.json && grep -q '\"KEEP\"' .claude/settings.json"
 check "the user statusLine survives" grep -q '"echo mine"' .claude/settings.json
 check "the hook is still added beside it" grep -q 'workbench status ||' .claude/settings.json
 echo 'not json' > .claude/settings.json
@@ -1013,6 +1056,203 @@ check "review pre-merge creates reviews/ when the branch lacks it" [ -f "$report
 # still be seen as the one file it is, not as the directory.
 set_status .worktrees/b-001-early/workbench/items/bugs/b-001-early.md unreproduced
 run "archive retires a branch whose workbench/ is untracked" 0 "retired b-001-early" "$WB" archive b-001
+
+# --- sessions: lead, workers, cap, signals, gates, mode, open, round -------
+
+new_repo sessions
+rm -rf "$TMUX_SHIM_STATE"
+run "init" 0 "workbench ready" "$WB" init
+git add -A && git commit -qm 'workbench init'
+tlog() { cat "$TMUX_SHIM_STATE/log"; }
+title_of() { grep -P "^$1\t" "$TMUX_SHIM_STATE/windows" | cut -f3; }
+reg_of() { grep -lP "^worker\t$1\t" .git/workbench/sessions/@* | xargs -n1 basename; }
+hook() { printf '{"session_id":"%s","cwd":"%s","permission_mode":"acceptEdits","tool_name":"%s","tool_input":{"to":"%s","command":"rm x"},"agent_type":"%s","message":"needs a decision"}' "${1:-sid-1}" "${2:-$PWD}" "${3:-Bash}" "${4:-}" "${5:-}"; }
+export -f tlog title_of reg_of hook
+
+s1=$(newc bug "one")
+run "start without a lead is git-only" 0 "started $s1" "$WB" start "$s1"
+check "no window was opened" bash -c "! tlog | grep -q new-window"
+run "open without a lead refuses" 1 "no tmux session wb-sessions; 'workbench lead' starts it" "$WB" open "$s1"
+run "mode defaults to attended" 0 '^attended$' "$WB" mode
+git config workbench.mode unattended
+run "gate ask, unattended, refuses a session working alone" 2 "move to work that is describable" bash -c "hook | '$WB' gate ask"
+run "gate permission, unattended, denies a session working alone" 0 '"decision":"deny"' bash -c "hook | '$WB' gate permission"
+git config workbench.mode attended
+run "gate ask, attended, is quiet for a session working alone" 0 "" bash -c "hook | '$WB' gate ask"
+
+run "lead creates the tmux session" 0 "started wb-sessions: window lead runs wb-sessions-lead" env TMUX=x "$WB" lead
+check "the lead session is named for the repo" grep -qx wb-sessions "$TMUX_SHIM_STATE/sessions"
+check "the lead runs claude under its session name" bash -c "tlog | grep -q 'claude -n wb-sessions-lead'"
+check "the lead window is registered" grep -qP '^lead\t-\t' .git/workbench/sessions/@1
+check "lead switches this client to its window" bash -c "tlog | grep -q '^switch-client -t @1'"
+
+s2=$(newc bug "two")
+run "start under a lead opens a worker window" 0 "opened window $s2 in wb-sessions" env TMUX=x "$WB" start "$s2"
+w2=$(reg_of "$s2"); p2="%${w2#@}"
+check "the window is named by the item id" [ "$(title_of "$w2")" = "$s2" ]
+check "the worker runs claude as the wb-worker agent under its name" bash -c "tlog | grep -q 'claude -n wb-sessions-$s2 --agent wb-worker'"
+check "the dispatch names the lead and the mode" bash -c "tlog | grep -q 'lead: wb-sessions-lead — mode: attended'"
+check "the worker window opens in the worktree" bash -c "tlog | grep -q -- '-c $PWD/.worktrees/$s2-two '"
+s3=$(newc bug "three")
+n=$(tlog | grep -c new-window)
+run "start --no-open opens nothing" 0 "started $s3" "$WB" start "$s3" --no-open
+check "no window for --no-open" [ "$(tlog | grep -c new-window)" -eq "$n" ]
+run "status shows the sessions header" 0 'sessions: wb-sessions · mode attended · workers 3/5' "$WB" status
+run "status shows a started item with no session" 0 "$s3-.*\[no session\]" "$WB" status
+run "status shows a worker opening" 0 "$s2-.*\[opening\]" "$WB" status
+
+git config workbench.maxWorkers 3
+s4=$(newc bug "four")
+run "start refuses at maxWorkers" 1 "3 started .$s1 $s2 $s3.; finish or archive one, or 'git config workbench.maxWorkers 4'" "$WB" start "$s4"
+check "the refused item has no branch" bash -c "! git branch --list '$s4-*' | grep -q ."
+run "at the cap, a started item is refused as started, not as one too many" 1 "$s2 is already started; its worktree is" "$WB" start "$s2"
+git config workbench.maxWorkers 4
+run "a raised cap admits it" 0 "opened window $s4" "$WB" start "$s4"
+
+# signals, from a pane the registry knows
+run "the lead's session start records its permission mode" 0 "" bash -c "hook sid-lead | TMUX_PANE=%1 '$WB' signal start"
+check "the lead row carries it" grep -qP "\tacceptEdits$" .git/workbench/sessions/@1
+w4=$(reg_of "$s4"); p4="%${w4#@}"
+run "a start without a permission mode leaves the slot open" 0 "" bash -c "printf '{\"session_id\":\"sid-4\"}' | TMUX_PANE=$p4 '$WB' signal start"
+check "the slot is -" grep -qP "\tsid-4\tworking\t-$" ".git/workbench/sessions/$w4"
+run "the first tool call fills it" 0 "" bash -c "hook sid-4 | TMUX_PANE=$p4 '$WB' signal working"
+check "from the hook input" grep -qP "\tsid-4\tworking\tacceptEdits$" ".git/workbench/sessions/$w4"
+check "workers before that took no permission mode" bash -c "! tlog | grep -q -- '--permission-mode'"
+run "signal start records the session" 0 "" bash -c "hook sid-2 | TMUX_PANE=$p2 '$WB' signal start"
+check "the registry holds the session id, state and permission mode" grep -qxP "worker\t$s2\tsid-2\tworking\tacceptEdits" ".git/workbench/sessions/$w2"
+check "the title is the bare id while working" [ "$(title_of "$w2")" = "$s2" ]
+run "signal needs-you" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal needs-you"
+check "needs-you titles the window with ?" [ "$(title_of "$w2")" = "? $s2" ]
+run "signal working with the question tool changes nothing" 0 "" bash -c "hook sid-2 '$PWD' AskUserQuestion | TMUX_PANE=$p2 '$WB' signal working"
+check "the ? stays until the answer" [ "$(title_of "$w2")" = "? $s2" ]
+run "signal working after a plain tool" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+check "back to the bare id" [ "$(title_of "$w2")" = "$s2" ]
+run "signal asked to the reviewer is ignored" 0 "" bash -c "hook sid-2 '$PWD' SendMessage reviewer | TMUX_PANE=$p2 '$WB' signal asked"
+check "no ↑ for a reviewer message" [ "$(title_of "$w2")" = "$s2" ]
+run "signal asked to the lead by name" 0 "" bash -c "hook sid-2 '$PWD' SendMessage wb-sessions-lead | TMUX_PANE=$p2 '$WB' signal asked"
+check "↑ for a message to the lead" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "signal stopped keeps asked" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal stopped"
+check "stopped after asking stays ↑" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "a session start on compaction changes nothing" 0 "" bash -c "printf '{\"session_id\":\"sid-2\",\"source\":\"compact\"}' | TMUX_PANE=$p2 '$WB' signal start"
+check "still ↑ after compacting" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "the lead replying to a worker is not asking" 0 "" bash -c "hook sid-lead '$PWD' SendMessage uds:/run/w.sock | TMUX_PANE=%1 '$WB' signal asked"
+check "the lead's title is untouched" [ "$(title_of @1)" = "lead" ]
+run "signal working" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+run "signal asked to a socket address" 0 "" bash -c "hook sid-2 '$PWD' SendMessage uds:/run/x.sock | TMUX_PANE=$p2 '$WB' signal asked"
+check "↑ for a reply to the lead's socket" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "signal review" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal review"
+check "⟳ while a reviewer runs" [ "$(title_of "$w2")" = "⟳ $s2" ]
+run "a reviewer's own tool calls do not end the review" 0 "" bash -c "hook sid-2 '$PWD' Bash '' wb-reviewer | TMUX_PANE=$p2 '$WB' signal working"
+check "still ⟳" [ "$(title_of "$w2")" = "⟳ $s2" ]
+run "a turn that ends with the reviewer in the background stays in review" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal stopped"
+check "still ⟳ after stopping" [ "$(title_of "$w2")" = "⟳ $s2" ]
+run "signal working after the review" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+wt2="$PWD/.worktrees/$s2-two"
+run "signal stopped with nothing to show" 0 "" bash -c "hook sid-2 '$wt2' | TMUX_PANE=$p2 '$WB' signal stopped"
+check "· for a turn that ended on nothing" [ "$(title_of "$w2")" = "· $s2" ]
+"$WB" call "$s2" "which colour?" >/dev/null
+run "signal stopped with an open call" 0 "" bash -c "hook sid-2 '$wt2' | TMUX_PANE=$p2 '$WB' signal stopped"
+check "! for a parked call" [ "$(title_of "$w2")" = "! $s2" ]
+sed -i "/^- $s2: /d" workbench/DECISIONS.md
+mkdir -p .git/review-passed && git -C "$wt2" rev-parse HEAD > ".git/review-passed/$s2"
+run "signal stopped with a passed review" 0 "" bash -c "hook sid-2 '$wt2' | TMUX_PANE=$p2 '$WB' signal stopped"
+check "✓ when the review mark matches the branch" [ "$(title_of "$w2")" = "✓ $s2" ]
+run "status shows the worker's state" 0 "$s2-.*\[ready\]" "$WB" status
+run "statusline carries mode, cap and the flagged workers" 0 " · attended · 4/4 workers · ✓ $s2$" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+n=$(tlog | grep -c rename-window)
+run "a pane the registry does not know is left alone" 0 "" bash -c "hook | TMUX_PANE=%99 '$WB' signal needs-you"
+check "no rename for a stranger" [ "$(tlog | grep -c rename-window)" -eq "$n" ]
+run "signal end" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal end"
+check "ended is recorded" grep -qP "\tended\t" ".git/workbench/sessions/$w2"
+run "signal working" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+
+# gates, by mode
+run "gate ask, attended, lets the question through" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' gate ask"
+check "and flags the window" [ "$(title_of "$w2")" = "? $s2" ]
+run "gate permission, attended, prints nothing" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' gate permission"
+check "gate permission printed nothing" [ -z "$(hook | TMUX_PANE=$p2 "$WB" gate permission)" ]
+run "mode unattended names the live workers to tell" 0 "tell wb-sessions-$s2: mode is now unattended" "$WB" mode unattended
+run "mode reads back" 0 '^unattended$' "$WB" mode
+run "gate ask, unattended, refuses" 2 '"permissionDecision":"deny"' bash -c "hook | TMUX_PANE=$p2 '$WB' gate ask"
+run "the refusal says where to park it" 2 "workbench call <id>" bash -c "hook | TMUX_PANE=$p2 '$WB' gate ask"
+run "gate permission, unattended, denies" 0 '"decision":"deny"' bash -c "hook | TMUX_PANE=$p2 '$WB' gate permission"
+run "the mode is the project's: a stranger's window is refused too" 2 "then send the lead" bash -c "hook | TMUX_PANE=%99 '$WB' gate ask"
+git config workbench.maxWorkers 9
+s5=$(newc bug five)
+run "start under unattended dispatches the mode" 0 "dispatch: wb-worker $s5 in .* — resources: account, client" "$WB" start "$s5" --resources "account, client"
+check "the dispatch says unattended" bash -c "tlog | grep -q 'mode: unattended'"
+check "the dispatch names the resources granted" bash -c "tlog | tail -1 | grep -q -- '— resources: account, client — lead:'"
+check "workers take the lead's permission mode" bash -c "tlog | tail -1 | grep -q -- '--permission-mode acceptEdits --agent wb-worker'"
+run "start wants a value after --resources" 2 "usage" "$WB" start "$(newc bug six-b)" --resources
+w5=$(reg_of "$s5")
+tmux kill-window -t "$w5"
+run "open reopens a window whose session never registered, fresh" 0 "reopened $s5$" env TMUX=x "$WB" open "$s5"
+check "fresh means the agent and the dispatch line again, no resume" bash -c "tlog | grep -- '--agent wb-worker .$s5 in .* — resources: none — lead: wb-sessions-lead' | grep -qv -- --resume"
+run "mode rejects other words" 2 "usage" "$WB" mode sometimes
+"$WB" mode attended >/dev/null
+
+# open
+run "open switches to a live window" 0 "" env TMUX=x "$WB" open "$s2"
+check "switch-client targeted it" bash -c "tlog | grep -q '^switch-client -t $w2$'"
+run "open lead" 0 "" env TMUX=x "$WB" open lead
+check "the lead's window was targeted" bash -c "tlog | grep -q '^switch-client -t @1$'"
+tmux kill-window -t "$w2"
+run "open reopens a window that is gone, resuming the session" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
+check "claude was resumed by id" bash -c "tlog | grep -q -- '--resume sid-2'"
+check "the resumed worker is still the wb-worker agent" bash -c "tlog | grep -q -- '--agent wb-worker --resume sid-2$'"
+check "the old registry file is gone" [ ! -e ".git/workbench/sessions/$w2" ]
+w2=$(reg_of "$s2")
+check "the item is registered under its new window" [ -n "$w2" ]
+run "open refuses an item that is not started" 1 "is not started; 'workbench start" "$WB" open "$(newc bug six)"
+run "open outside tmux attaches" 0 "" env -u TMUX "$WB" open "$s2"
+check "attach was called, exactly" bash -c "tlog | grep -q '^attach -t =wb-sessions'"
+
+# merge closes the window
+ready "$wt2"
+run "merge without review" 0 "merged $s2" "$WB" merge "$s2" "two done" --no-review
+check "merge killed the worker's window" bash -c "tlog | grep -q '^kill-window -t $w2$'"
+check "and dropped its registry file" [ ! -e ".git/workbench/sessions/$w2" ]
+check "the window is gone from tmux" bash -c "! tmux list-windows -t wb-sessions | grep -qx '$w2'"
+
+# round: the review dialog's accountant
+r=$(newc feature "rounds")
+f=$(find workbench/items -name "$r-*.md")
+run "round one always asks for a second" 0 "next: review again — a new reviewer, round 2" "$WB" round "$r" 5 2
+check "the item records it under status" grep -qx "rounds: r1 5/2 · again" "$f"
+check "rounds sits right after the status line" bash -c "grep -A1 '^status: ' '$f' | grep -q '^rounds: '"
+run "a clean second round stops" 0 "next: gate — /workbench-review pre-merge $r" "$WB" round "$r" 0 0
+check "the line accumulates" grep -qx "rounds: r1 5/2 · r2 0/0 · stop" "$f"
+r=$(newc feature "tail")
+"$WB" round "$r" 4 0 >/dev/null
+run "as many fixes as before continues" 0 "next: review again" "$WB" round "$r" 4 0
+run "three fixes continue even when fewer" 0 "next: review again" "$WB" round "$r" 3 0
+run "a small declining tail stops" 0 "next: gate" "$WB" round "$r" 1 0
+r=$(newc feature "cap")
+for _ in 1 2 3 4; do "$WB" round "$r" 5 0 >/dev/null; done
+run "the fifth round parks it" 0 "next: call — 5 rounds and still finding" "$WB" round "$r" 5 0
+check "the decision is recorded" grep -q " · call$" "$(find workbench/items -name "$r-*.md")"
+r2=$(newc feature "tail")
+run "a clean first round still gets a second" 0 "next: review again" "$WB" round "$r2" 0 0
+run "one fix after a clean round is a tail" 0 "next: gate" "$WB" round "$r2" 1 0
+r3=$(newc feature "trickle")
+"$WB" round "$r3" 1 0 >/dev/null
+run "one fix a round does not go on" 0 "next: gate" "$WB" round "$r3" 1 0
+r4=$(newc feature "pair")
+"$WB" round "$r4" 2 0 >/dev/null
+run "two fixes after two continue" 0 "next: review again" "$WB" round "$r4" 2 0
+r5=$(newc feature "drop")
+"$WB" round "$r5" 5 0 >/dev/null
+run "two after five stop" 0 "next: gate" "$WB" round "$r5" 2 0
+run "round wants counts" 1 "fixed and stands are counts" "$WB" round "$r" many 0
+run "round wants three arguments" 2 "usage" "$WB" round "$r" 1
+
+# a repo name tmux could not target
+new_repo "dot.ted"
+"$WB" init >/dev/null 2>&1
+rm -rf "$TMUX_SHIM_STATE"
+run "without a lead, --resources still reaches the dispatch line" 0 "dispatch: wb-worker .* — resources: account$" "$WB" start "$(newc bug "held")" --resources account
+run "lead names the session without tmux's separators" 0 "started wb-dot-ted: window lead runs wb-dot-ted-lead" env TMUX=x "$WB" lead
+check "and targets it exactly" bash -c "tlog | grep -q -- '-t =wb-dot-ted'"
 
 echo
 echo "$checks checks, $fails failed"

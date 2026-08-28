@@ -40,6 +40,11 @@ missing. Read it and name it; the checks below are made against it. Check:
   the agent's; report what could be verified, do not decide
 - the item is one item: a rule applied to N files is not N items, and a
   bug found and fixed inside a feature branch is a bug item
+- the review dialog ran before you: `rounds:` under the status line holds
+  two rounds or more and ends `stop` (`call` only with a call parked for the
+  item in `DECISIONS.md`), and every finding that stands has its one-line
+  reason under Evidence. A branch that came to the gate straight from the
+  code is a finding that stops the merge
 
 The three most often missed: a guard standing in a criterion slot, a
 discovered fact left out of the item whose work found it, and a test that

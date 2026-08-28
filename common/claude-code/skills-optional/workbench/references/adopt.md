@@ -88,10 +88,10 @@ in [glossary.md](glossary.md).
 it with the user after triage as SKILL.md "Setting up" describes, with the
 survey's findings on how the app runs and what goals it states feeding the
 milestone and watch lines. `init` also merged the session hook, status line,
-`Bash(workbench:*)` allow rule, `autoMemoryDirectory` and
-`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"` into `.claude/settings.json`
-— all committed with the skills; the last is the one to set to `"0"` if the
-project should not run agent teams (SKILL.md, "Composing").
+`Bash(workbench:*)` allow rule, `autoMemoryDirectory` and the signal and
+gate hooks into `.claude/settings.json` — all committed with the skills.
+Whether items run as worker sessions is decided by running `workbench
+lead`, not by a setting (SKILL.md, "Lead and workers").
 
 ## Finish
 

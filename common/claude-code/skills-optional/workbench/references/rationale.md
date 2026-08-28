@@ -166,7 +166,7 @@ never run. Declaring one would be worse than declaring nothing: the contract
 would read as enforced while nothing checked it.
 
 The tool set narrows the fork instead — no `Edit`, no subagents, no web. It
-is the `wb-reviewer` agent's `tools:` that does this, not the skill's
+is the `wb-gate` agent's `tools:` that does this, not the skill's
 `allowed-tools`: a fork takes its agent's tool set and nothing else, while
 `allowed-tools` only pre-approves what is listed and removes nothing (both
 probed on Claude Code 2.1.248; the docs say the second, and were once read to
@@ -279,3 +279,31 @@ running system only as the contract lists, the repository never. The
 morning's item carries the fix, through the same gates as by day, and the
 shift's whole value is that the evidence for it was captured before the
 restart destroyed it.
+
+## Why workers are sessions, not subagents
+
+A subagent worker dies with the session that spawned it and with its
+`/clear`; its questions come back through the lead, in the lead's words, and
+the user answers there — every decision on five items funnelled through one
+window, relayed twice. A worker that is a session of its own in a tmux window
+outlives the lead, is resumed by id when its window is gone, and takes the
+user's answer where the question arose. The lead keeps what it had: the
+workbench commands, the merges, one message per worker event. What replaced
+the agent-teams flag is `workbench lead` plus the hooks: the window title is
+the only signal a person needs, and the mode switch reaches a running session
+through the hooks rather than a restart. Only windows workbench opened are
+in its registry, so a window the user made is never renamed or killed.
+
+## Why the review dialog is a subagent and the gate a fork
+
+They answer different questions. The dialog asks whether the code is good,
+which is argued: a reviewer that remembers what it said, that can be shown
+evidence and yield, or hold and say why. So it is spawned with the `Agent`
+tool — a fresh context that never sees the worker's reasoning — and kept by
+its id across the exchange. The gate asks whether the item is what it claims,
+which is checked, not argued: criterion met by pasted output, no step
+reworded, template only. A fresh fork each time, that never sees the
+previous report, and a worker that fixes or asks. Merging the two would make
+the gate persuadable, and the record of what was once persuaded away is what
+`review-check` and `rounds:` exist to keep.
+

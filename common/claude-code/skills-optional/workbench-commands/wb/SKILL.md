@@ -1,7 +1,7 @@
 ---
 name: wb
-description: Show what is in flight in workbench, pick up an item by id where it was left, or open a rename item for a domain term.
-argument-hint: "[<item id> | rename <old term> to <new term>]"
+description: Show what is in flight in workbench, pick up an item by id where it was left, open a session's window, switch the mode, start the lead, or open a rename item for a domain term.
+argument-hint: "[<item id> | open <id|lead> | mode [attended|unattended] | lead | rename <old term> to <new term>]"
 disable-model-invocation: true
 ---
 
@@ -20,13 +20,28 @@ or left unchecked, duplicate ids. Name what is actionable now; omit what is not.
 1. `workbench start <id>`. Unstarted, it cuts the branch and worktree;
    started with the worktree gone (removed, or its branch only fetched from
    another machine), it cuts the worktree again; already started, it refuses
-   and names the worktree. Enter the worktree it names. Archived, it
-   refuses — an archived item is read, never reopened.
+   and names the worktree. Archived, it refuses — an archived item is read,
+   never reopened. Under a lead (`status` shows a `sessions:` line) it also
+   opens the item's worker in its own window and says `opened window <id>`:
+   report that and stop — the worker works it, not you. Otherwise enter the
+   worktree it names.
 2. Read the item file. For research, **Next** is the entry point; for a bug
    or feature, the criterion and whatever Root cause or Evidence already
    holds.
 3. State in two lines where the work stands and what you will do next, and
    wait for the user. Change nothing before that.
+
+**`open <id|lead>`** — `workbench open <id|lead>`: switches to that
+session's window, reopening it resumed if it is gone. Report the line it
+prints, nothing more.
+
+**`mode [attended|unattended]`** — `workbench mode <which>`; with no word,
+`workbench mode` and report it. Setting `unattended` prints one `tell
+<name>: …` line per live worker: send each that line with `SendMessage`,
+then say you did. Setting `attended` the same.
+
+**`lead`** — `workbench lead`. It opens the tmux session and the lead's
+window; report the line it prints.
 
 **`rename <old> to <new>`** — open a rename item (the skill's glossary
 reference applies):

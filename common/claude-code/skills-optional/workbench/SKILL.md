@@ -114,7 +114,9 @@ what changes is what happens at a gate that is the user's:
 | a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
 | research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
-| pre-merge review | run it yourself — `/workbench-review pre-merge <id>` — then `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
+| a question only the user can answer | `AskUserQuestion` is refused by the hook: `workbench call <id> "<the question, with options>"`, `blocked` to the lead when there is one, and move to work that is describable |
+| a permission not on the allow-list | refused by the hook the same way; park it, never work around it |
+| review | the dialog, then the gate, yourself — `/workbench-review pre-merge <id>`, `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
 
 `(agent)` is what the user greps for when they return: every provisional
 decision, in the file that holds it, plus the one-line index in
@@ -281,38 +283,81 @@ line when it is an idea; or a one-line reason in the item's Evidence why it
 stands. No finding is dropped silently, and a finding that says the criterion
 is not met stops the merge. Then `workbench review-drop`.
 
-## Composing — one session dispatches, workers work
+## Lead and workers — one session dispatches, sessions work
 
-A session that dispatches items to workers never edits code. It runs
-`status`, sizes with the user, `new`, agrees the criterion, `start`, and hands
-the item off with the line `start` prints; when a worker reports ready it
-reads the item — not the diff — decides `awaiting`/`unverified` if the item
-needs one, and runs `merge` and `archive`. One merge at a time: two squashes
-into one index collide. Workers are the `wb-worker` agent under
-`.claude/agents/`, rendered by `init`: one item, in its worktree, never
-`merge`. Under agent teams — `init` sets
-`env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` to `"1"` in the project's
-`.claude/settings.json`; `"0"` there opts out and survives re-runs — the
-composer is the lead and each started item is a task a teammate claims;
-workers that touch one path talk to each other, and `find`'s `on-branch`
-line says who that is. Without the flag the lead spawns `wb-worker` per item
-with the Agent tool and the loop is the same, minus worker-to-worker talk.
+`workbench lead` opens tmux session `wb-<repo>` with the **lead** in window
+0: a session in the main checkout, named `wb-<repo>-lead`, that never edits
+code. It runs `status`, sizes with the user, `new`, agrees the criterion,
+`start` — and under a lead, `start` opens the item's **worker**: a Claude
+session of its own in its own window, named by the item id, running the
+`wb-worker` agent from `.claude/agents/` with the dispatch line as its first
+prompt — `start <id> --resources "account, client"` names what the worker
+may hold; without it, none, and a resource it turns out to need is a
+`needs:` line to the lead. Up to `workbench.maxWorkers` (5) items may be started at once,
+sessions alive or not; `start` refuses past that. Without a lead, `start` is
+the git-only command it always was and the session that ran it works the
+item itself.
 
-**The review loop.** A worker finishes, then:
+The user talks to any session in its window; `workbench open <id|lead>` goes
+there, and reopens a closed one resumed where it stopped. The window title
+says what the session needs, set by the hooks `init` merged: `b-038` working
+· `? b-038` needs a person · `↑ b-038` reported to the lead · `⟳ b-038` a
+reviewer is running · `✓ b-038` ready · `! b-038` parked a call · `· b-038`
+stopped on nothing. `status` shows the same beside each started item,
+`statusline` the flags. Only windows workbench opened are ever renamed or
+closed.
+
+**Mode.** `workbench mode` is `attended` or `unattended`, per project and
+live: the hooks read it on every call, so a switch reaches running sessions.
+Attended, a worker asks the user in its own window, and the lead never hears
+of decisions that are the user's. Unattended, `AskUserQuestion` and any
+permission not on the allow-list are refused by the hooks with where to put
+the question instead — `workbench call`, then `blocked` to the lead. The
+mode is the project's, so a session working an item alone is refused the
+same way. After
+`workbench mode unattended` the lead sends each live worker the line the
+command prints.
+
+**What reaches the lead.** Self-contained messages, one `SendMessage` each,
+after which the worker stops — the reply wakes it: `ready` (gate passed,
+report dropped); `blocked — <one question, with options>` (a parked call,
+three gate holds, a dialog nobody yields on); `needs: <resource>`; and
+`overlap: <path> with <id>` when `find` says another started item touches a
+path — the lead reads that branch itself and sequences the two or orders a
+rebase. Workers never message each other. At `start` the lead subscribes to
+the worker's idle notice (`SendMessage` with `notify_when_idle`), so one that
+stops without reporting surfaces too. On any message the lead runs `status`
+and reads the item — not the transcript, not the diff — decides
+`awaiting`/`unverified` if the item needs one, and runs `merge` and
+`archive`; `merge` closes the worker's window. One merge at a time: two
+squashes into one index collide. Messages from several workers interleave in
+the lead's context, so each carries its item id and all it needs; the item
+file is the memory.
+
+**The review loop.** Every item, lead or no lead — the work is done, then:
 
 ```
-/workbench-review pre-merge <id>      a fresh reviewer, every time
+review dialog                         a wb-reviewer spawned with the Agent tool, never forked
+  findings → answered by number → each ends fixed / stands / withdrawn
+  workbench round <id> <fixed> <stands>   again → a new reviewer · gate → below · call → park it
+/workbench-review pre-merge <id>      the gate: a fresh wb-gate fork, every time
 workbench review-check <report>       merge → recorded; hold → counted
   hold:  fix on the branch, review-drop, review again
   merge: review-drop, report ready
 ```
 
-The reviewer never sees the worker's context or the last round's report, so
-each round catches what the previous one did not. Three holds and the worker
+The dialog is where judgement is argued: the reviewer keeps its context
+across the exchange, and a finding that stands gets one line under Evidence
+saying why. Round two always runs; `round` decides the rest by count —
+another while the last round fixed three or more, or as many as the round
+before it (two at least); one fix after a clean round is a tail, not a
+trend; five at most — and records `rounds:` on the item, which the gate
+reads. The
+gate is not argued with: it checks the item against its evidence and the
+template (`rules/pre-merge.md`), never sees the worker's context or the
+last report, and holds only on what must change. Three holds and the worker
 stops: `workbench call <id>` with the standing finding, and the merge is the
-user's — `merge --no-review` is their override. What the reviewer holds on is
-in the sweep skill's `rules/pre-merge.md`; a worker does not argue with a
-hold in the item, it fixes or it asks.
+user's — `merge --no-review` is their override.
 
 Resources a worker may hold — a live client, an account — are named in the
 dispatch line, and a worker without one does not take one. Items that need

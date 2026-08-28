@@ -14,7 +14,7 @@ context: fork
 # only pre-approves. Rendered by 'workbench init' with the other agents:
 # references/rationale.md, "Why the sweep's contract is not enforced by a
 # hook".
-agent: wb-reviewer
+agent: wb-gate
 # background: false is load-bearing: the report path must come back in the
 # invoking turn, so review-check and triage follow in the same sitting and a
 # worker's review loop stays one step. Do not restore the default. Needs
