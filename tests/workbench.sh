@@ -55,6 +55,11 @@ fails=0 checks=0
 pass() { checks=$((checks + 1)); echo "ok   $1"; }
 fail() { checks=$((checks + 1)); fails=$((fails + 1)); echo "FAIL $1" >&2; }
 # check <label> <cmd...> — passes when the command succeeds.
+# Everything after the label is one command. 'check "l" [ a ] && [ b ]' does NOT
+# pass both: the shell ends the check at [ a ] and runs [ b ] outside it, where
+# a failure is invisible — set -e exempts a false && at the end of a list. Four
+# checks were built that way and asserted half of what they read as. More than
+# one condition goes in a 'bash -c'.
 check() { local label="$1"; shift; if "$@"; then pass "$label"; else fail "$label"; fi; }
 # not_listed <id> <find-args...> — the index must not carry the id.
 not_listed() { local id="$1"; shift; ! "$WB" find "$@" 2>/dev/null | grep -q "$id"; }
@@ -126,7 +131,7 @@ new_repo loop
 run "init" 0 "workbench ready" "$WB" init
 run "init outside ~ says to set the memory path by hand" 0 "not under ~" "$WB" init
 for c in workbench workbench-review bug feature research idea wb; do
-  check "init renders /$c as a copy" [ -f ".claude/skills/$c/SKILL.md" ] && [ ! -L ".claude/skills/$c" ] && [ -f ".claude/skills/$c/GENERATED" ]
+  check "init renders /$c as a copy" bash -c "[ -f '.claude/skills/$c/SKILL.md' ] && [ ! -L '.claude/skills/$c' ] && [ -f '.claude/skills/$c/GENERATED' ]"
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
 check "no /rename is rendered" [ ! -e .claude/skills/rename ]
@@ -285,7 +290,14 @@ run "status" 0 "" "$WB" status
 # refusal into output with a zero exit.
 run "open.sh folds a refusal into stdout" 0 "^workbench: reason must be" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" bogus ""
 report=$("$WB" review docs 2>/dev/null)
-check "review docs opens a report" [ -f "$report" ] && [[ "$report" == *-docs.md ]]
+check "review docs opens a report" bash -c "[ -f '$report' ] && [[ '$report' == *-docs.md ]]"
+# The leftover refusal above is pre-merge's alone — it sits inside the item-and-
+# branch guard. Every other reason opens a numbered sibling beside the standing
+# report rather than refusing, which is easy to misread as a global rule from
+# either side. Pin the asymmetry so neither half moves unnoticed.
+second=$("$WB" review docs 2>/dev/null)
+check "a second docs review opens a sibling, not a refusal" bash -c "[ -f '$second' ] && [[ '$second' == *-docs.2.md ]]"
+"$WB" review-drop "$second" >/dev/null 2>&1
 "$WB" review-drop "$report" >/dev/null 2>&1
 run "open.sh returns the path on success" 0 "/workbench/reviews/.*-sweep\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep ""
 "$WB" review-drop "$(command ls workbench/reviews/*-sweep.md)" >/dev/null 2>&1
@@ -676,7 +688,7 @@ mkdir -p .claude/skills/foreign && printf 'x\nx\nmade elsewhere\n' > .claude/ski
 run "init replaces an old link with a copy" 0 "skills/wb: link replaced by a copy" "$WB" init
 check "a foreign GENERATED file is not a workbench stamp" [ -f .claude/skills/foreign/GENERATED ]
 rm -rf .claude/skills/foreign
-check "the copy is no longer a link" [ ! -L .claude/skills/wb ] && [ -f .claude/skills/wb/GENERATED ]
+check "the copy is no longer a link" bash -c "[ ! -L .claude/skills/wb ] && [ -f .claude/skills/wb/GENERATED ]"
 check "init drops the old ignore lines" bash -c "! grep -q 'claude/skills' .gitignore"
 check "init keeps settings.local.json ignored" grep -qx '.claude/settings.local.json' .gitignore
 check "init keeps .worktrees/ ignored" grep -qx '.worktrees/' .gitignore
