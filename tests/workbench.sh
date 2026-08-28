@@ -4,6 +4,7 @@
 # Run: bash tests/workbench.sh
 set -euo pipefail
 
+SELF=$(readlink -f "$0")  # every check runs from a temp repo, so paths here must be absolute
 WB=$(readlink -f "$(dirname "$0")/../common/scripts/workbench")
 OPEN=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/open.sh")
 RULES=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/rules.sh")
@@ -297,6 +298,14 @@ check "review docs opens a report" bash -c "[ -f '$report' ] && [[ '$report' == 
 # either side. Pin the asymmetry so neither half moves unnoticed.
 second=$("$WB" review docs 2>/dev/null)
 check "a second docs review opens a sibling, not a refusal" bash -c "[ -f '$second' ] && [[ '$second' == *-docs.2.md ]]"
+# The note on 'check' is advisory and this shape has already shipped twice in
+# code neither review wrote, so the suite asserts it about itself: a check whose
+# command is a bare test bracket followed by &&, ||, ; or a pipe ends at the
+# bracket, and everything after it runs outside the check. Quoted patterns
+# holding those operators are untouched — the bracket must be the argument.
+check "no check call asserts only its first condition" \
+  bash -c '! grep -nE "^\s*check \"[^\"]*\" \[[^]]*\] *(&&|\|\||;|\|)" "'"$SELF"'"'
+
 "$WB" review-drop "$second" >/dev/null 2>&1
 "$WB" review-drop "$report" >/dev/null 2>&1
 run "open.sh returns the path on success" 0 "/workbench/reviews/.*-sweep\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep ""
