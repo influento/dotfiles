@@ -177,9 +177,9 @@ root cause, where it belongs. Detail in [items.md](references/items.md).
 ## Sizing — the same call every time
 
 Which level a piece of work gets is settled by one question: **how well can
-it be described right now?** Answer it, name the row, and let the user
-confirm. Past decisions are relied on, so the row decides — not the size of
-the work, and not tidiness.
+it be described right now?** Name the row and let the user confirm. The row
+decides — not the size of the work, and not tidiness — because past
+decisions are relied on.
 
 | It can be described as | It is | Lives as |
 |---|---|---|
@@ -188,18 +188,15 @@ the work, and not tidiness.
 | an area — cannot yet say what will be true when it is done, or how it fits, or both | research | `workbench new research` |
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
-The rows are read from the item down: whatever fits the item row is an
-item, however small ("Domain work is an item"). The idea row is the one the agent never
-proposes for something item-shaped — "crash on save" is a bug — since it is
-not a level of description but the user's decision to defer, reached only by
-the user saying so: `/idea`, or "backlog it". Nothing else in the rule
-defers.
+Read the rows from the item down: whatever fits the item row is an item
+("Domain work is an item"). The idea row is the one the agent never proposes
+for something item-shaped — "crash on save" is a bug. It is not a level of
+description but the user's decision to defer, reached only by the user
+saying so: `/idea`, or "backlog it". Nothing else in the rule defers.
 
-Research is a scope, not a large idea: it holds many concepts, and each one
-ends at a row above or is dropped — including another research item, when an
-area turns out to be two. A milestone is not a large feature: its
-done-criterion is at the level of the project, and a feature too big for one
-criterion is a milestone with an item per slice.
+Research is a scope, not a large idea: many concepts, each ending at a row
+above, as another research item when an area turns out to be two, or dropped. A milestone is not a large feature: its done-criterion is at the
+level of the project.
 
 **One item or several.** Draft the whole criteria list first, then ask of
 each entry: *could this go green and merge while the others are still red?*
