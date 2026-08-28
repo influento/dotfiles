@@ -20,6 +20,9 @@ IDEA_MAX=200
 CALL_MAX=300
 # Pre-merge rounds before the worker stops and asks.
 REVIEW_HOLDS=3
+# Started items at once — work a person or the lead can still account for.
+# 'git config workbench.maxWorkers' overrides.
+WB_MAX_WORKERS=5
 
 usage() {
   # Help asked for goes to stdout; help printed because a call was wrong is
@@ -38,7 +41,14 @@ usage:
                                        items that touched these paths, newest first
   workbench milestone "<title>"        open a big-picture goal under workbench/milestones/
   workbench milestone archive <slug>   close it, once its items are archived and evidence is in
-  workbench start <id>                 commit the item as it stands, create its branch and worktree
+  workbench start <id> [--no-open] [--resources "<list>"]
+                                       commit the item as it stands, create its branch and worktree;
+                                       under 'workbench lead', open its worker session in a tmux window,
+                                       holding the resources named
+  workbench lead                       the lead session: tmux session wb-<repo>, window 0, main checkout
+  workbench open <id|lead>             switch to a session's window; reopen it, resumed, when it is gone
+  workbench mode [attended|unattended] show or set who answers a session's questions; live for every session
+  workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
   workbench merge <id> "<subject>" [--no-review]
                                        squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status, and a passed pre-merge review
@@ -50,6 +60,8 @@ usage:
   workbench review-check <report>      prove a sweep changed nothing tracked
   workbench review-drop [--force] <report>  delete a report, its baseline and scratch
   workbench review <reason> [scope]    open a report; run by the sweep skill, not by hand
+  workbench signal <state>             window title + session registry; run by the hooks, not by hand
+  workbench gate <ask|permission>      attended: flag the window; unattended: refuse, say where to park it
 
   reasons: sweep, pre-merge, docs, memory, adopt, watch
   state lives under workbench/
@@ -62,11 +74,17 @@ die() {
   exit 1
 }
 
+# Memoized, as is main_root: the hooks call both several times per tool
+# call, and a process never changes repository.
+GIT_COMMON_DIR=""
 git_common_dir() {
-  local d
-  d=$(git rev-parse --git-common-dir) || die "not inside a git repository"
-  # --git-common-dir may be relative to the current directory
-  (cd "$d" && pwd -P)
+  if [ -z "$GIT_COMMON_DIR" ]; then
+    local d
+    d=$(git rev-parse --git-common-dir) || die "not inside a git repository"
+    # --git-common-dir may be relative to the current directory
+    GIT_COMMON_DIR=$(cd "$d" && pwd -P)
+  fi
+  printf '%s\n' "$GIT_COMMON_DIR"
 }
 
 repo_root() {
@@ -77,8 +95,10 @@ repo_root() {
 # always. Not the parent of the common dir — that is no checkout at all for a
 # bare repository, and it followed the logical path where repo_root gives the
 # physical one, so a checkout reached through a symlink counted as two.
+MAIN_ROOT=""
 main_root() {
-  git worktree list --porcelain | sed -n '1s/^worktree //p'
+  [ -n "$MAIN_ROOT" ] || MAIN_ROOT=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+  printf '%s\n' "$MAIN_ROOT"
 }
 
 # Both checkouts that may hold items: the main one, which holds every item
@@ -491,7 +511,7 @@ ensure_settings() {
   root=$(repo_root)
   f="$root/.claude/settings.json"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', a SessionStart hook running 'workbench status', statusLine 'workbench statusline', env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS '1'"
+    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', a SessionStart hook running 'workbench status', statusLine 'workbench statusline', and the signal/gate hooks 'workbench help' lists under sessions"
     return 0
   fi
   mkdir -p "$root/.claude"
@@ -533,24 +553,56 @@ elif "Bash(workbench:*)" not in allow:
     allow.append("Bash(workbench:*)")
     changed.append("permissions.allow += Bash(workbench:*)")
 hooks = data.setdefault("hooks", {})
-starts = hooks.get("SessionStart") if isinstance(hooks, dict) else None
-if isinstance(hooks, dict) and starts is None:
-    starts = hooks["SessionStart"] = []
+# The session wiring: 'status' into context at session start, and the
+# signal/gate hooks that title a session's tmux window and route its
+# questions by mode. Each is matched by its exact command, so a re-run adds
+# nothing twice; a hook of ours under an older, unguarded command is upgraded.
+SIG = lambda c: "command -v workbench >/dev/null && workbench " + c + " || true"
+GATE = lambda c: "! command -v workbench >/dev/null || workbench " + c
+WANT = [
+    ("SessionStart", None, HOOK),
+    ("SessionStart", None, SIG("signal start")),
+    ("SessionEnd", None, SIG("signal end")),
+    ("PreToolUse", None, SIG("signal working")),
+    ("PreToolUse", "AskUserQuestion", GATE("gate ask")),
+    ("PermissionRequest", None, GATE("gate permission")),
+    ("PostToolUse", "AskUserQuestion", SIG("signal working")),
+    ("PostToolUse", "SendMessage", SIG("signal asked")),
+    ("SubagentStart", "wb-reviewer|wb-gate", SIG("signal review")),
+    ("SubagentStop", "wb-reviewer|wb-gate", SIG("signal working")),
+    ("Stop", None, SIG("signal stopped")),
+]
 if not isinstance(hooks, dict):
     print("  hooks is not an object in .claude/settings.json; left alone")
-elif not isinstance(starts, list):
-    print("  hooks.SessionStart is not a list in .claude/settings.json; left alone")
 else:
-    ours = [h for grp in starts if isinstance(grp, dict)
-            for h in grp.get("hooks", []) if isinstance(grp.get("hooks"), list)
-            if isinstance(h, dict) and "workbench status" in str(h.get("command", ""))]
-    if not ours:
-        starts.append({"hooks": [{"type": "command", "command": HOOK}]})
-        changed.append("hooks.SessionStart += workbench status")
-    for h in ours:
-        if h.get("command") == "workbench status":
-            h["command"] = HOOK
-            changed.append("hooks.SessionStart: workbench status now guarded on PATH")
+    for event, matcher, cmd in WANT:
+        groups = hooks.get(event)
+        if groups is None:
+            groups = hooks[event] = []
+        if not isinstance(groups, list):
+            print("  hooks." + event + " is not a list in .claude/settings.json; left alone")
+            continue
+        entries = [h for grp in groups if isinstance(grp, dict) and isinstance(grp.get("hooks"), list)
+                   for h in grp["hooks"] if isinstance(h, dict)]
+        bare = cmd.rsplit("workbench ", 1)[1].split(" ||")[0]
+        if any(h.get("command") == cmd for h in entries):
+            continue
+        ours = [h for h in entries if h.get("command") == "workbench " + bare]
+        if ours:
+            for h in ours:
+                h["command"] = cmd
+            changed.append("hooks." + event + ": workbench " + bare + " now guarded on PATH")
+            continue
+        # A matcher of "" or "*" is the bare group by another name.
+        home = next((grp for grp in groups if isinstance(grp, dict) and isinstance(grp.get("hooks"), list)
+                     and (None if grp.get("matcher") in ("", "*") else grp.get("matcher")) == matcher), None)
+        if home is None:
+            home = {"hooks": []}
+            if matcher is not None:
+                home["matcher"] = matcher
+            groups.append(home)
+        home["hooks"].append({"type": "command", "command": cmd})
+        changed.append("hooks." + event + (" (" + matcher + ")" if matcher else "") + " += workbench " + bare)
 line = data.get("statusLine")
 if line is None:
     data["statusLine"] = {"type": "command", "command": LINE}
@@ -560,15 +612,14 @@ elif isinstance(line, dict) and line.get("command") == "workbench statusline":
     changed.append("statusLine: workbench statusline now guarded on PATH")
 elif not isinstance(line, dict) or "workbench statusline" not in str(line.get("command", "")):
     print("  statusLine is already set in .claude/settings.json; left alone")
-# Agent teams: the composing session as lead, workers as teammates. The
-# flag is experimental and per project; set only when absent, so a "0" the
-# user wrote to go back to plain subagents survives every re-run.
-env = data.setdefault("env", {})
-if not isinstance(env, dict):
-    print("  env is not an object in .claude/settings.json; left alone")
-elif "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env:
-    env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-    changed.append("env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = 1 (agent teams; set it to \"0\" to opt out)")
+# Workers were agent-team teammates once, behind a flag init set to "1";
+# they are sessions now, so a "1" of ours goes. A "0" was the user's word.
+env = data.get("env")
+if isinstance(env, dict) and env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1":
+    del env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"]
+    if not env:
+        del data["env"]
+    changed.append("env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS removed — workers are sessions now, see 'workbench lead'")
 if mem:
     cur = data.get("autoMemoryDirectory")
     if cur is None:
@@ -655,6 +706,8 @@ setup_checklist() {
 
   echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>'"
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
+  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)). Without it one session works items itself"
+  echo "  mode              $(mode) — 'workbench mode unattended' before leaving: questions are refused by the hooks and parked, the lead told; live for every session"
   echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
   echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
   echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
@@ -964,10 +1017,16 @@ item_branch() {
 }
 
 cmd_start() {
-  local id="${1:-}" path='' branch root='' wt ref
+  local id="${1:-}" path='' branch root='' wt ref no_open=0 resources=none
   [ -n "$id" ] || usage
   shift
-  [ $# -eq 0 ] || usage
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --no-open) no_open=1; shift ;;
+      --resources) [ -n "${2:-}" ] || usage; resources=$2; shift 2 ;;
+      *) usage ;;
+    esac
+  done
   id=$(require_id "$id")
   require_init
 
@@ -991,6 +1050,15 @@ cmd_start() {
       *) die "$id is already merged as $prior" ;;
     esac
   fi
+
+  # The cap, before anything moves: started items, whether or not a session
+  # is alive for each — a dead one still holds work somebody has to close.
+  # This item is not counted against itself: started already, it is refused
+  # as such below, not as one too many.
+  local n max
+  n=$(started_items | grep -vxF -- "$id" | grep -c . || true)
+  max=$(max_workers)
+  [ "$n" -lt "$max" ] || die "$n started ($(started_items | grep -vxF -- "$id" | paste -sd' ' -)); finish or archive one, or 'git config workbench.maxWorkers $((max + 1))'"
 
   # A started item is edited on its branch, so once its worktree is gone —
   # removed by hand, or never cut here because the branch was fetched from
@@ -1071,8 +1139,16 @@ cmd_start() {
     || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
 
   # The dispatch line for a composing session: stdout stays the path, which
-  # the skills read; the line goes where a person reads.
-  echo "dispatch: wb-worker $id in $wt — resources: <none | account, client>" >&2
+  # the skills read; the line goes where a person reads. Under a lead, the
+  # worker is a session of its own, opened now with what --resources named.
+  if [ "$no_open" -eq 0 ] && have_tmux_session; then
+    echo "dispatch: wb-worker $id in $wt — resources: $resources" >&2
+    spawn_worker "$id" "$wt" "$resources"
+  elif [ "$resources" != none ]; then
+    echo "dispatch: wb-worker $id in $wt — resources: $resources" >&2
+  else
+    echo "dispatch: wb-worker $id in $wt — resources: <none | account, client>" >&2
+  fi
   echo "$wt"
 }
 
@@ -1317,6 +1393,7 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   [ -n "$wt" ] && git -C "$root" worktree remove "$wt"
   git -C "$root" branch -D --quiet "$branch"
   rm -f "$mark" "$(git_common_dir)/review-holds/$id"
+  close_session "$id"
 
   echo "merged $id as $sha on $main"
   # The branch's copy of the item file overwrote main's in the squash, so
@@ -1518,6 +1595,7 @@ $hint"
   # was verified clean above.
   [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
   git -C "$root" branch -D --quiet "$branch"
+  close_session "$id"
   if [ "$dropped" -eq 1 ]; then
     echo "retired $branch; its prototypes are gone" >&2
   else
@@ -1787,6 +1865,562 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
+# --- sessions ---------------------------------------------------------------
+#
+# A started item may run as its own Claude session in a tmux window: the lead
+# session in window 0 of 'wb-<repo>', one window per item, each named by its
+# item id and titled by the hooks below with what the session needs. None of
+# it runs unless 'workbench lead' created that tmux session; without it
+# 'start' is the git-only command it always was and one session works the
+# item itself.
+#
+# The registry — one file per window workbench itself opened, under the
+# shared git directory — is what makes rename and kill safe: a window the user
+# opened is never in it. Each file holds 'role id session_id state pmode';
+# the session id arrives from the SessionStart hook, so 'open' can resume the
+# exact conversation after the window is gone, and the lead's permission mode
+# is what its workers are spawned with — a peer's idle notice reaches the
+# lead only from the same permission class.
+
+# '.' and ':' are tmux's window and pane separators; a session named with
+# either cannot be targeted, even with '='.
+repo_slug() { basename "$(main_root)" | tr '.:' '--'; }
+tmux_session() { printf 'wb-%s\n' "$(repo_slug)"; }
+# $1: 'lead' or an item id.
+session_name() { printf 'wb-%s-%s\n' "$(repo_slug)" "$1"; }
+registry_dir() { printf '%s/workbench/sessions\n' "$(git_common_dir)"; }
+
+# Targets carry '=': tmux otherwise falls back to a prefix match, so repo
+# 'foo' would take 'wb-foo-bar' for its own session.
+have_tmux_session() {
+  command -v tmux >/dev/null 2>&1 && tmux has-session -t "=$(tmux_session)" 2>/dev/null
+}
+
+# 'attended' unless the project says otherwise. Read by the hooks on every
+# call, so 'workbench mode' reaches running sessions without a restart.
+mode() {
+  local m
+  m=$(git config --get workbench.mode 2>/dev/null || true)
+  case "$m" in unattended) echo unattended ;; *) echo attended ;; esac
+}
+
+max_workers() {
+  local n
+  n=$(git config --get workbench.maxworkers 2>/dev/null || true)
+  case "$n" in ''|*[!0-9]*) echo "$WB_MAX_WORKERS" ;; *) echo "$n" ;; esac
+}
+
+# Started items: branches with a worktree. What the cap counts, whether or
+# not a session is alive for them — a dead session still holds work someone
+# has to close.
+started_items() {
+  git worktree list --porcelain \
+    | sed -n 's|^branch refs/heads/\([bfrx]-[0-9]\{1,\}\)-.*|\1|p'
+}
+
+# --- registry: one file per window, atomic by rename, no shared lock ------
+
+# Prints 'window_id role id session_id state pmode' for a role or item id.
+registry_row() {
+  local d f role id sid state pmode
+  d=$(registry_dir)
+  [ -d "$d" ] || return 0
+  for f in "$d"/@*; do
+    [ -f "$f" ] || continue
+    IFS=$'\t' read -r role id sid state pmode < "$f" || true
+    if { [ "$1" = lead ] && [ "$role" = lead ]; } || { [ "$1" != lead ] && [ "$id" = "$1" ]; }; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(basename "$f")" "$role" "$id" "$sid" "$state" "$pmode"
+      return 0
+    fi
+  done
+}
+
+# Same, by window id; nothing for a window workbench did not open.
+registry_row_of_window() {
+  local f
+  f="$(registry_dir)/$1"
+  [ -f "$f" ] || return 0
+  printf '%s\t%s\n' "$1" "$(cat "$f")"
+}
+
+# registry_write <window_id> <role> <id> <session_id> <state> <pmode>
+registry_write() {
+  local d tmp
+  d=$(registry_dir)
+  mkdir -p "$d"
+  tmp=$(mktemp "$d/.tmp.XXXXXX")
+  printf '%s\t%s\t%s\t%s\t%s\n' "$2" "$3" "$4" "$5" "$6" > "$tmp"
+  mv -f "$tmp" "$d/$1"
+}
+
+registry_drop() {
+  local row
+  row=$(registry_row "$1")
+  [ -n "$row" ] || return 0
+  rm -f "$(registry_dir)/$(printf '%s' "$row" | cut -f1)"
+}
+
+window_alive() {
+  tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null | grep -qx "$1"
+}
+
+# The window this process runs in, when it is one of ours.
+own_window() {
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  local w
+  w=$(tmux display-message -p -t "$TMUX_PANE" '#{window_id}' 2>/dev/null || true)
+  [ -n "$w" ] && [ -f "$(registry_dir)/$w" ] && printf '%s\n' "$w"
+  return 0
+}
+
+# --- spawning --------------------------------------------------------------
+
+# The lead's permission mode, recorded when its session started; empty
+# before that, and the worker then takes Claude Code's default.
+lead_pmode() {
+  local row
+  row=$(registry_row lead)
+  [ -n "$row" ] || return 0
+  printf '%s\n' "$row" | cut -f6 | grep -vx -- '-' || true
+}
+
+# Single-quoted for a shell, and readable in 'ps' and the tmux log — %q
+# would turn the dispatch line's dash into an escape sequence.
+shell_quote() {
+  case "$1" in
+    ''|*[!A-Za-z0-9_./:@%+=-]*) printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# claude_cmd <name> <pmode> <resume> <agent> [prompt]: the command a window
+# runs. 'claude' exits, the window closes; the registry keeps the session
+# id, so 'open' brings the conversation back. --agent is per invocation,
+# not part of the session, so a resume carries it again; only the opening
+# prompt is dropped, the conversation already holds it.
+claude_cmd() {
+  local name="$1" pmode="$2" resume="$3" agent="$4"
+  shift 4
+  local cmd
+  cmd="claude -n $(shell_quote "$name")"
+  [ -z "$pmode" ] || cmd="$cmd --permission-mode $(shell_quote "$pmode")"
+  [ -z "$agent" ] || cmd="$cmd --agent $(shell_quote "$agent")"
+  if [ -n "$resume" ]; then
+    cmd="$cmd --resume $(shell_quote "$resume")"
+  else
+    local a
+    for a in "$@"; do cmd="$cmd $(shell_quote "$a")"; done
+  fi
+  printf '%s\n' "$cmd"
+}
+
+# spawn_window <role> <id> <name> <dir> <cmd> — a new window, registered.
+spawn_window() {
+  local role="$1" id="$2" name="$3" dir="$4" cmd="$5" wid
+  wid=$(tmux new-window -dP -F '#{window_id}' -t "=$(tmux_session)" -n "$name" -c "$dir" "$cmd") \
+    || die "tmux could not open a window in $(tmux_session)"
+  registry_write "$wid" "$role" "$id" "-" "opening" "-"
+  printf '%s\n' "$wid"
+}
+
+# dispatch_prompt <id> <worktree> [resources]: the worker's opening prompt,
+# everything it is given in one line the agent definition tells it how to
+# read.
+dispatch_prompt() {
+  printf '%s in %s — resources: %s — lead: %s — mode: %s\n' "$1" "$2" "${3:-none}" "$(session_name lead)" "$(mode)"
+}
+
+# spawn_worker <id> <worktree> [resources]
+spawn_worker() {
+  local id="$1" wt="$2" cmd
+  cmd=$(claude_cmd "$(session_name "$id")" "$(lead_pmode)" "" wb-worker "$(dispatch_prompt "$id" "$wt" "${3:-}")")
+  spawn_window worker "$id" "$id" "$wt" "$cmd" >/dev/null
+  echo "opened window $id in $(tmux_session)" >&2
+}
+
+# Close an item's window — merge and archive, once the worktree is gone.
+close_session() {
+  local row wid
+  row=$(registry_row "$1")
+  [ -n "$row" ] || return 0
+  wid=$(printf '%s' "$row" | cut -f1)
+  if command -v tmux >/dev/null 2>&1 && window_alive "$wid"; then
+    tmux kill-window -t "$wid" 2>/dev/null || true
+  fi
+  registry_drop "$1"
+}
+
+# --- lead / open / mode ----------------------------------------------------
+
+# Switch this client to a window, or attach when run outside tmux.
+go_to_window() {
+  if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "$1" 2>/dev/null || tmux select-window -t "$1"
+  else
+    tmux attach -t "=$(tmux_session)" \; select-window -t "$1" 2>/dev/null \
+      || echo "attach with: tmux attach -t $(tmux_session)" >&2
+  fi
+}
+
+cmd_lead() {
+  [ $# -eq 0 ] || usage
+  require_init
+  command -v tmux >/dev/null 2>&1 || die "tmux is not installed; the lead runs in a tmux session"
+  local root
+  root=$(main_root)
+  if ! have_tmux_session; then
+    local cmd wid
+    cmd=$(claude_cmd "$(session_name lead)" "" "$(registry_row lead | cut -f4 | grep -v '^-$' || true)" "")
+    wid=$(tmux new-session -dP -F '#{window_id}' -s "$(tmux_session)" -n lead -c "$root" "$cmd") \
+      || die "tmux could not create $(tmux_session)"
+    registry_write "$wid" lead - "-" "opening" "-"
+    echo "started $(tmux_session): window lead runs $(session_name lead) in $root" >&2
+  fi
+  cmd_open lead
+}
+
+cmd_open() {
+  local what="${1:-}"
+  [ -n "$what" ] || usage
+  [ $# -eq 1 ] || usage
+  require_init
+  have_tmux_session || die "no tmux session $(tmux_session); 'workbench lead' starts it"
+  local row wid sid dir name role
+  if [ "$what" = lead ]; then
+    role=lead; dir=$(main_root); name=lead
+  else
+    role=worker; name=$what
+    what=$(require_id "$what")
+    local ref
+    ref=$(item_branch "$what")
+    dir=$(worktree_of "${ref#origin/}")
+    [ -n "$dir" ] || die "$what is not started; 'workbench start $what' opens it"
+    [ -d "$dir" ] || die "$what is not started; 'workbench start $what' opens it"
+  fi
+  row=$(registry_row "$what")
+  if [ -n "$row" ]; then
+    wid=$(printf '%s' "$row" | cut -f1)
+    sid=$(printf '%s' "$row" | cut -f4)
+    if window_alive "$wid"; then
+      go_to_window "$wid"
+      return 0
+    fi
+    # The window is gone; the conversation is not. Resume it where it ran.
+    local cmd
+    [ "$sid" != "-" ] || sid=""
+    cmd=$(claude_cmd "$(session_name "$what")" "$(lead_pmode)" "$sid" wb-worker "$(dispatch_prompt "$what" "$dir")")
+    [ "$role" != lead ] || cmd=$(claude_cmd "$(session_name lead)" "" "$sid" "")
+    rm -f "$(registry_dir)/$wid"
+    wid=$(spawn_window "$role" "$what" "$name" "$dir" "$cmd")
+    echo "reopened $name$([ -n "$sid" ] && echo ", resuming $sid")" >&2
+    go_to_window "$wid"
+    return 0
+  fi
+  if [ "$role" = lead ]; then
+    wid=$(spawn_window lead - lead "$dir" "$(claude_cmd "$(session_name lead)" "" "" "")")
+  else
+    spawn_worker "$what" "$dir"
+    wid=$(registry_row "$what" | cut -f1)
+  fi
+  go_to_window "$wid"
+}
+
+cmd_mode() {
+  case "${1:-}" in
+    '')
+      mode
+      return 0 ;;
+    attended|unattended) ;;
+    *) usage ;;
+  esac
+  [ $# -eq 1 ] || usage
+  require_init
+  git config workbench.mode "$1"
+  echo "mode: $1"
+  # The hooks switch on their own; what does not is a worker mid-thought, so
+  # the lead tells each one. Live workers, by the name a message reaches.
+  local d f role id sid state pmode w
+  d=$(registry_dir)
+  [ -d "$d" ] || return 0
+  for f in "$d"/@*; do
+    [ -f "$f" ] || continue
+    IFS=$'\t' read -r role id sid state pmode < "$f" || true
+    w=$(basename "$f")
+    [ "$role" = worker ] || continue
+    [ "$state" != ended ] || continue
+    window_alive "$w" || continue
+    echo "  tell $(session_name "$id"): mode is now $1"
+  done
+}
+
+# --- signal / gate: the hooks ---------------------------------------------
+
+# The hook input, read once, and every field the hooks look at pulled in
+# one pass — a python3 per field is most of a hook's latency. Without
+# python3, a sed that takes the first string under the key's last segment.
+hook_input=""
+HOOK_FIELDS="session_id cwd permission_mode agent_type tool_name tool_input.to message source"
+h_session_id="" h_cwd="" h_permission_mode="" h_agent_type="" h_tool_name="" h_tool_input_to="" h_message="" h_source=""
+read_hook_input() {
+  hook_input=$(cat 2>/dev/null || true)
+  [ -n "$hook_input" ] || return 0
+  local k
+  if command -v python3 >/dev/null 2>&1; then
+    local out vals i=0
+    # shellcheck disable=SC2086
+    out=$(printf '%s' "$hook_input" | python3 -c '
+import json, re, sys
+d = json.load(sys.stdin)
+for path in sys.argv[1:]:
+    v = d
+    for k in path.split("."):
+        v = v.get(k) if isinstance(v, dict) else None
+    print(re.sub(r"\s+", " ", v) if isinstance(v, str) else "")' $HOOK_FIELDS 2>/dev/null) || return 0
+    mapfile -t vals <<< "$out"
+    for k in $HOOK_FIELDS; do
+      printf -v "h_${k//./_}" '%s' "${vals[$i]:-}"; i=$((i + 1))
+    done
+  else
+    for k in $HOOK_FIELDS; do
+      printf -v "h_${k//./_}" '%s' "$(printf '%s' "$hook_input" | sed -n "s/.*\"${k##*.}\": *\"\([^\"]*\)\".*/\1/p" | head -1)"
+    done
+  fi
+}
+
+# The window's title: the id, prefixed by what the session needs.
+state_prefix() {
+  case "$1" in
+    needs-you) echo '? ' ;;
+    asked) echo '↑ ' ;;
+    review) echo '⟳ ' ;;
+    ready) echo '✓ ' ;;
+    blocked) echo '! ' ;;
+    stopped) echo '· ' ;;
+    *) echo '' ;;
+  esac
+}
+
+# set_state <window_id> <role> <id> <sid> <state> <pmode>: record, and rename
+# the window when the title changes — a rename per tool call would be noise.
+set_state() {
+  local wid="$1" role="$2" id="$3" sid="$4" state="$5" pmode="$6" name title
+  registry_write "$wid" "$role" "$id" "$sid" "$state" "$pmode"
+  name=$id; [ "$role" != lead ] || name=lead
+  title="$(state_prefix "$state")$name"
+  [ "$(tmux display-message -p -t "$wid" '#{window_name}' 2>/dev/null)" = "$title" ] \
+    || tmux rename-window -t "$wid" "$title" 2>/dev/null || true
+}
+
+# What a stopped worker's turn ended on. The item file and the review mark
+# say it; the transcript is not consulted.
+stopped_state() {
+  local id="$1" dir="$2" prev="$3" branch mark
+  [ "$id" != "-" ] || { echo stopped; return 0; }
+  # A turn that ended asking the lead is still asking; one that ended with a
+  # reviewer running in the background is still in review.
+  case "$prev" in asked|review) echo "$prev"; return 0 ;; esac
+  branch=$(git -C "$dir" symbolic-ref -q --short HEAD 2>/dev/null || true)
+  mark="$(git_common_dir)/review-passed/$id"
+  if [ -f "$mark" ] && [ -n "$branch" ] && [ "$(cat "$mark")" = "$(git -C "$dir" rev-parse "$branch" 2>/dev/null)" ] \
+    && [ -z "$(find "$dir/$WB/reviews" -maxdepth 1 -name "*pre-merge-$id*.md" -print -quit 2>/dev/null)" ]; then
+    echo ready
+  elif grep -qs "^- $id: " "$(main_root)/$WB/DECISIONS.md"; then
+    echo blocked
+  else
+    echo stopped
+  fi
+}
+
+# workbench signal <start|end|working|needs-you|asked|review|stopped>
+# Run by the hooks 'init' merges; quiet and harmless anywhere else.
+cmd_signal() {
+  local what="${1:-}" wid row role id sid state pmode
+  [ -n "$what" ] || usage
+  [ $# -eq 1 ] || usage
+  read_hook_input
+  wid=$(own_window)
+  [ -n "$wid" ] || return 0
+  row=$(registry_row_of_window "$wid")
+  IFS=$'\t' read -r _ role id sid state pmode <<< "$row"
+  # The docs list permission_mode on every event; at SessionStart it is
+  # absent in practice (probed 2.1.250). The first tool call carries it,
+  # and the lead's is what its workers are spawned with.
+  if [ -n "$h_permission_mode" ] && [ "${pmode:--}" = "-" ]; then
+    pmode=$h_permission_mode
+    registry_write "$wid" "$role" "$id" "$sid" "$state" "$pmode"
+  fi
+  case "$what" in
+    start)
+      # SessionStart also fires on compaction, mid-turn: the session is
+      # whatever it was — asked, or in review — and stays so.
+      [ "$h_source" != compact ] || return 0
+      sid=$h_session_id; [ -n "$sid" ] || sid="-"
+      set_state "$wid" "$role" "$id" "$sid" working "$pmode" ;;
+    end)
+      set_state "$wid" "$role" "$id" "$sid" ended "$pmode" ;;
+    working)
+      # A reviewer's tool calls are the review, not the worker back at work;
+      # the question tool is the gate's to title.
+      case "$h_agent_type" in wb-reviewer|wb-gate) return 0 ;; esac
+      case "$h_tool_name" in AskUserQuestion) return 0 ;; esac
+      [ "$state" != working ] || return 0
+      set_state "$wid" "$role" "$id" "$sid" working "$pmode" ;;
+    needs-you)
+      set_state "$wid" "$role" "$id" "$sid" needs-you "$pmode"
+      if command -v notify-send >/dev/null 2>&1; then
+        local msg
+        msg=$h_message; [ -n "$msg" ] || msg=$h_tool_name
+        notify-send "workbench: $id needs you" "$msg" 2>/dev/null || true
+      fi ;;
+    asked)
+      # A worker's message to the lead. A reply copies the sender's socket
+      # address, a first message its name; the reviewer is neither, and the
+      # lead answering a worker is not asking. Hooks of one tool call run
+      # in parallel, so a SendMessage batched with another tool can have
+      # that tool's 'working' land after this — the worker agent sends
+      # its message alone and stops, which is what keeps ↑ on the window.
+      [ "$role" != lead ] || return 0
+      case "$h_tool_input_to" in
+        "$(session_name lead)"|uds:*) set_state "$wid" "$role" "$id" "$sid" asked "$pmode" ;;
+      esac ;;
+    review)
+      set_state "$wid" "$role" "$id" "$sid" review "$pmode" ;;
+    stopped)
+      # The lead between turns is just the lead.
+      if [ "$role" = lead ]; then
+        set_state "$wid" "$role" "$id" "$sid" idle "$pmode"
+      else
+        set_state "$wid" "$role" "$id" "$sid" "$(stopped_state "$id" "$h_cwd" "$state")" "$pmode"
+      fi ;;
+    *) usage ;;
+  esac
+}
+
+# workbench gate <ask|permission>
+# Attended: the session's own window, when it has one, says it needs
+# someone, and the prompt shows. Unattended: nobody is there to answer, so
+# the question is refused with where to put it instead — parked, and the
+# lead told when there is one. The mode is the project's, so a session
+# working alone is refused the same way; the window only matters for the
+# title.
+cmd_gate() {
+  local what="${1:-}" reason
+  [ -n "$what" ] || usage
+  [ $# -eq 1 ] || usage
+  read_hook_input
+  reason="unattended mode: nobody answers here. Park it — workbench call <id> \"<one question, with options>\" — then"
+  if [ -n "$(registry_row lead)" ]; then
+    reason="$reason send the lead ($(session_name lead)) 'blocked — <the question>' and stop."
+  else
+    reason="$reason move to work that is describable."
+  fi
+  case "$what" in
+    ask)
+      if [ "$(mode)" = unattended ]; then
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$(json_string "$reason")"
+        exit 2
+      fi
+      printf '%s' "$hook_input" | cmd_signal needs-you ;;
+    permission)
+      if [ "$(mode)" = unattended ]; then
+        printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":"deny","decisionReason":%s}}\n' "$(json_string "$reason")"
+        return 0
+      fi
+      printf '%s' "$hook_input" | cmd_signal needs-you ;;
+    *) usage ;;
+  esac
+}
+
+json_string() {
+  printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+}
+
+# --- round: the review dialog's accountant --------------------------------
+
+# workbench round <id> <fixed> <stands>
+# Records one round of the review dialog on the item — 'rounds: r1 5/2 ·
+# r2 2/0 · stop' under its status line — and says what comes next. The rule
+# is numeric so the worker cannot talk itself out of a third round or into
+# a sixth: round 2 always; another while the last round fixed three or
+# more, or as many as the round before it (two at least) — one fix after a
+# clean round is a tail, not a trend; the cap parks it.
+ROUND_CAP=5
+cmd_round() {
+  local id="${1:-}" fixed="${2:-}" stands="${3:-}"
+  [ -n "$id" ] || usage
+  [ $# -eq 3 ] || usage
+  case "$fixed$stands" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
+  id=$(require_id "$id")
+  local path
+  path=$(find_item "$id")
+  [ -n "$path" ] || die "no item matching '$id'"
+  grep -q '^status: ' "$path" || die "$path has no status line"
+  local line prev_fixed=0 k=1 entries decision
+  line=$(sed -n 's/^rounds: *//p' "$path" | head -1)
+  if [ -n "$line" ]; then
+    entries=$(printf '%s' "$line" | sed 's/ · \(stop\|call\|again\)$//')
+    k=$(( $(printf '%s' "$entries" | grep -o 'r[0-9]*' | wc -l) + 1 ))
+    prev_fixed=$(printf '%s' "$entries" | sed -n 's/.*r[0-9]* \([0-9]*\)\/[0-9]*$/\1/p')
+    [ -n "$prev_fixed" ] || prev_fixed=0
+    entries="$entries · r$k $fixed/$stands"
+  else
+    entries="r1 $fixed/$stands"
+  fi
+  if [ "$k" -eq 1 ]; then
+    decision=again
+  elif [ "$fixed" -lt 3 ] && [ "$fixed" -lt "$(( prev_fixed > 2 ? prev_fixed : 2 ))" ]; then
+    decision=stop
+  elif [ "$k" -ge "$ROUND_CAP" ]; then
+    decision=call
+  else
+    decision=again
+  fi
+  local tmp
+  tmp=$(mktemp)
+  if [ -n "$line" ]; then
+    sed "s|^rounds: .*|rounds: $entries · $decision|" "$path" > "$tmp"
+  else
+    awk -v r="rounds: $entries · $decision" '{ print } /^status: / && !done { print r; done = 1 }' "$path" > "$tmp"
+  fi
+  mv -f "$tmp" "$path"
+  echo "rounds: $entries"
+  case "$decision" in
+    again) echo "next: review again — a new reviewer, round $((k + 1))" ;;
+    stop) echo "next: gate — /workbench-review pre-merge $id" ;;
+    call) echo "next: call — $ROUND_CAP rounds and still finding; workbench call $id with the standing findings, then report blocked" ;;
+  esac
+}
+
+# What 'status' shows beside a started item, and 'statusline' as flags.
+session_state() {
+  local row wid state
+  row=$(registry_row "$1")
+  [ -n "$row" ] || { echo "no session"; return 0; }
+  wid=$(printf '%s' "$row" | cut -f1)
+  state=$(printf '%s' "$row" | cut -f5)
+  if window_alive "$wid"; then
+    printf '%s\n' "$state" | sed 's/needs-you/needs you/'
+  else
+    echo "no session — 'workbench open $1' resumes it"
+  fi
+}
+
+# ' · ? f-041 · ✓ b-038': every live worker not simply working.
+worker_flags() {
+  local d f role id sid state pmode w
+  d=$(registry_dir)
+  [ -d "$d" ] || return 0
+  for f in "$d"/@*; do
+    [ -f "$f" ] || continue
+    IFS=$'\t' read -r role id sid state pmode < "$f" || true
+    w=$(basename "$f")
+    [ "$role" = worker ] || continue
+    case "$state" in working|opening|ended) continue ;; esac
+    window_alive "$w" || continue
+    printf ' · %s%s' "$(state_prefix "$state")" "$id"
+  done
+}
+
 # --- statusline -------------------------------------------------------------
 
 # One line for the Claude Code status line. The harness pipes the session
@@ -1853,6 +2487,11 @@ cmd_statusline() {
     find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
   } | sort -u | grep -c . || true)
   [ "$reports" -eq 0 ] || out="$out · $reports report$([ "$reports" -eq 1 ] || echo s)"
+
+  # Under a lead: the mode, the cap, and every worker that is not just working.
+  if have_tmux_session; then
+    out="$out · $(mode) · $(started_items | grep -c . || true)/$(max_workers) workers$(worker_flags)"
+  fi
 
   printf '%s\n' "$out"
 }
@@ -2281,6 +2920,10 @@ status_lines() {
   # Read, then remove: a temp file must not outlive a failed read.
   st=$(shown_status "$f" || true)$started
   case "$name" in x-*) st="$st   $(concept_summary "$f" || true)" ;; esac
+  # Under a lead, what the item's session is doing.
+  if [ -n "$started" ] && have_tmux_session; then
+    st="$st   [$(session_state "$(item_id "$name")")]"
+  fi
   [ -z "$tmp" ] || rm -f "$tmp"
   printf '  %-34s %s%s\n' "${name%.md}" "$st" "$where"
 }
@@ -2294,6 +2937,10 @@ cmd_status() {
   local names=() name
   mapfile -t names < <(open_names)
 
+  if have_tmux_session; then
+    echo "sessions: $(tmux_session) · mode $(mode) · workers $(started_items | grep -c . || true)/$(max_workers)"
+    echo
+  fi
   echo "open items"
   if [ "${#names[@]}" -eq 0 ]; then
     echo "  (none)"
@@ -2442,14 +3089,6 @@ cmd_status() {
       echo "memory: autoMemoryDirectory points at $mem, not this checkout's .claude/memory — the setting was written for a clone at another path; override it here in .claude/settings.local.json"
       ;;
   esac
-
-  # The agents are rendered but teams are a flag init merges; a project set
-  # up before it existed has the one without the other until init runs again.
-  # A "0" is a decision and is not reported.
-  if [ -f "$(main_root)/.claude/agents/wb-worker.md" ] && [ -z "$(teams_flag_setting)" ]; then
-    echo
-    echo "agent teams: env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set in .claude/settings.json — run 'workbench init' (\"0\" there opts out)"
-  fi
 
   # Reports are untracked and live per checkout; baselines live in the shared
   # git directory. Classify each name over the union of both, from every
@@ -2671,25 +3310,6 @@ tree_snapshot() (
 # Where Claude Code keeps this project's memory when a setting says so:
 # 'autoMemoryDirectory', local settings over project over user, absolute or
 # '~/'-based by Claude Code's own rule. Empty when unset.
-# The value of the agent-teams flag from the project's settings, local
-# override first; empty when neither file sets it.
-teams_flag_setting() {
-  local f v
-  for f in "$(main_root)/.claude/settings.local.json" "$(main_root)/.claude/settings.json"; do
-    [ -f "$f" ] || continue
-    if command -v python3 >/dev/null 2>&1; then
-      v=$(python3 -c 'import json,sys
-try: print((json.load(open(sys.argv[1])).get("env") or {}).get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") or "")
-except Exception: print("")' "$f")
-    else
-      v=$(sed -n 's/.*"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" *: *"\([^"]*\)".*/\1/p' "$f" | head -1)
-    fi
-    [ -n "$v" ] || continue
-    printf '%s\n' "$v"
-    return 0
-  done
-}
-
 memory_dir_setting() {
   local f v
   for f in "$(main_root)/.claude/settings.local.json" "$(main_root)/.claude/settings.json" "${HOME%/}/.claude/settings.json"; do
@@ -3260,6 +3880,12 @@ case "${1:-}" in
   statusline) shift; cmd_statusline "$@" ;;
   review-check) shift; cmd_review_check "$@" ;;
   review-drop) shift; cmd_review_drop "$@" ;;
+  lead) shift; cmd_lead "$@" ;;
+  open) shift; cmd_open "$@" ;;
+  mode) shift; cmd_mode "$@" ;;
+  round) shift; cmd_round "$@" ;;
+  signal) shift; cmd_signal "$@" ;;
+  gate) shift; cmd_gate "$@" ;;
   help|-h|--help) usage 0 ;;
   *) usage ;;
 esac
