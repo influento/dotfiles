@@ -1016,6 +1016,27 @@ item_branch() {
   printf '%s\n' "$b"
 }
 
+# The squash commit carrying an item's trailer, or empty when none does.
+# $1 root, $2 branch, $3 id.
+#
+# Two things this centralises, and both are load-bearing. The '--' terminator:
+# without it a path named for the default branch — a 'main' file or directory —
+# makes the rev ambiguous and git exits 128, and the callers that swallowed
+# stderr read that fatal as "no commit carries the trailer", which is the exact
+# input they treat as benign. And a real git failure now dies rather than
+# returning empty, so "no commit" means no commit.
+#
+# The branch is a parameter because default_branch makes unpinned git calls;
+# resolving it in here would put back the very inconsistency this removes.
+# Callers must declare the variable on a preceding line: 'local sha=$(merged_sha
+# …)' takes local's own exit status and swallows the die below. The file has no
+# 'local x=$(…)' anywhere, and that is what keeps the loud half real.
+merged_sha() {
+  [ -n "$1" ] || die "merged_sha: no root"
+  git -C "$1" log "$2" --grep="^Item: $3\$" --format=%h -1 -- \
+    || die "git log failed looking for 'Item: $3' on $2"
+}
+
 cmd_start() {
   local id="${1:-}" path='' branch root='' wt ref no_open=0 resources=none
   [ -n "$id" ] || usage
@@ -1042,7 +1063,7 @@ cmd_start() {
   ref=$(item_branch "$id")
   local main prior
   main=$(default_branch)
-  prior=$(git -C "$(main_root)" log "$main" --grep="^Item: $id\$" --format=%h -1)
+  prior=$(merged_sha "$(main_root)" "$main" "$id")
   if [ -n "$prior" ]; then
     case "$ref" in
       origin/*) die "$id is already merged as $prior; $ref is a leftover — 'git push origin --delete ${ref#origin/}' removes it" ;;
@@ -1215,8 +1236,25 @@ cmd_merge() {
     */items/archive/*) die "$id is already archived" ;;
   esac
   local prior
-  prior=$(git -C "$root" log "$main" --grep="^Item: $id\$" --format=%h -1)
-  [ -z "$prior" ] || die "$main already carries 'Item: $id' at $prior"
+  prior=$(merged_sha "$root" "$main" "$id")
+  if [ -n "$prior" ]; then
+    # The trailer is on the default branch, so the squash landed. If the branch
+    # or its worktree is still here, the cleanup after that commit did not
+    # finish — and a bare "already carries" leaves the user with a merged item,
+    # two leftovers and nothing to run. Name them and hand over the commands.
+    local left_branch left_wt
+    left_branch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$id-*" | head -1)
+    left_wt=''
+    [ -z "$left_branch" ] || left_wt=$(worktree_of "$left_branch")
+    if [ -n "$left_branch" ]; then
+      die "$id is already merged as $prior, but the cleanup after that commit did not finish. Left behind:
+$([ -z "$left_wt" ] || printf '  worktree  %s\n' "$left_wt")  branch    $left_branch
+
+Finish it with:
+$([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_wt")  git -C $root branch -D $left_branch"
+    fi
+    die "$main already carries 'Item: $id' at $prior"
+  fi
   branch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
   [ -n "$branch" ] || die "no branch named $id-*; nothing to merge"
   case "$branch" in
@@ -1233,25 +1271,28 @@ cmd_merge() {
   local item_on_branch tmp st
   item_on_branch=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
     | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
-  if [ -n "$item_on_branch" ]; then
-    tmp=$(mktemp)
-    git -C "$root" show "$branch:$item_on_branch" > "$tmp"
-    closed_fences "$tmp" || { rm -f "$tmp"; die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"; }
-    st=$(item_status "$tmp")
-    known_status "$st" || { rm -f "$tmp"; die "$id has 'status: $st' on $branch, which is not a status"; }
-    case "$st" in
-      awaiting*|unverified*)
-        case "$st" in
-          *—*|*" - "*) ;;
-          *) rm -f "$tmp"; die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
-        esac ;;
-      unreproduced*) rm -f "$tmp"; die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
-      abandoned*) rm -f "$tmp"; die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
-      *)
-        has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
-    esac
-    rm -f "$tmp"
-  fi
+  # No copy on the branch is not "nothing to check": it is the witness missing,
+  # and every check below — fences, status, the trigger, evidence — would be
+  # skipped without a word. The item would merge as a claim nobody made.
+  [ -n "$item_on_branch" ] \
+    || die "$id has no item file on $branch; the branch copy is what the merge gate reads — restore it there, then retry"
+  tmp=$(mktemp)
+  git -C "$root" show "$branch:$item_on_branch" > "$tmp"
+  closed_fences "$tmp" || { rm -f "$tmp"; die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"; }
+  st=$(item_status "$tmp")
+  known_status "$st" || { rm -f "$tmp"; die "$id has 'status: $st' on $branch, which is not a status"; }
+  case "$st" in
+    awaiting*|unverified*)
+      case "$st" in
+        *—*|*" - "*) ;;
+        *) rm -f "$tmp"; die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
+      esac ;;
+    unreproduced*) rm -f "$tmp"; die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
+    abandoned*) rm -f "$tmp"; die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
+    *)
+      has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
+  esac
+  rm -f "$tmp"
 
   # The pre-merge review is the gate that reads the item against its
   # evidence, and it leaves no trace once dropped — so review-check writes one
@@ -1315,6 +1356,16 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
         esac
       fi
       die "$wt has uncommitted changes; commit or discard them first"
+    fi
+    # Removability is checked here, before anything lands, because the squash
+    # is not transactional: the commit is written first and the worktree
+    # removed after, so a removal that fails leaves the trailer on the default
+    # branch with the branch and worktree still standing. Dirt is covered
+    # above; a lock is the other refusal 'worktree remove' makes, and it is
+    # cheap to ask about now rather than halfway through.
+    if git -C "$root" worktree list --porcelain \
+      | awk -v w="$wt" '$1=="worktree" { m = ($2 == w) } m && $1=="locked" { found=1 } END { exit !found }'; then
+      die "the worktree $wt is locked, and merge removes it after the squash; 'git worktree unlock $wt' first, then retry"
     fi
   fi
 
@@ -1386,12 +1437,19 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   # never an ancestor of the commit — so the check it would have made is made
   # here instead: the commit just written is the one the trailer finds.
   local sha
-  sha=$(git -C "$root" log "$main" --grep="^Item: $id\$" --format=%h -1)
+  sha=$(merged_sha "$root" "$main" "$id")
   [ -n "$sha" ] && [ "$sha" = "$(git -C "$root" rev-parse --short HEAD)" ] \
     || die "the squash commit did not land on $main as expected; nothing removed"
 
-  [ -n "$wt" ] && git -C "$root" worktree remove "$wt"
-  git -C "$root" branch -D --quiet "$branch"
+  # Past this point the commit exists and cannot be taken back — 'unsquash' is
+  # a reset of the index and working tree, so it has nothing to say about a
+  # commit. A cleanup that fails therefore reports the half-state rather than
+  # dying bare; the guard at the top of this function repeats it on a re-run.
+  if [ -n "$wt" ] && ! git -C "$root" worktree remove "$wt"; then
+    die "merged $id as $sha on $main, but removing the worktree failed. $wt and the branch $branch are still here; finish with 'git -C $root worktree remove $wt' and 'git -C $root branch -D $branch'"
+  fi
+  git -C "$root" branch -D --quiet "$branch" \
+    || die "merged $id as $sha on $main, but the branch $branch could not be deleted; finish with 'git -C $root branch -D $branch'"
   rm -f "$mark" "$(git_common_dir)/review-holds/$id"
   close_session "$id"
 
@@ -1810,7 +1868,7 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
           *) die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream" ;;
         esac
         local shipped
-        shipped=$(git -C "$(main_root)" log "$(default_branch)" --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
+        shipped=$(merged_sha "$(main_root)" "$main" "$id")
         [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
       *)
         if ! has_evidence "$path"; then
@@ -1836,7 +1894,7 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   # and it lives there; HEAD would miss it from a worktree branched before the
   # merge, and --all (or HEAD from the item's own worktree) could hit a branch
   # commit that the squash then discards — a dangling SHA in the archive.
-  sha=$(git log "$main" --grep="^Item: $id\$" --format=%h -1 2>/dev/null || true)
+  sha=$(merged_sha "$(main_root)" "$main" "$id")
   # Never fall back to HEAD: HEAD is whatever the checkout happens to sit on,
   # and recording it would write a commit into the archive that did not
   # implement the item. An item with no trailer — an unreproduced bug — says so.
@@ -1845,6 +1903,12 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
     echo "no commit on $main carries 'Item: $id'; recorded as commit: none" >&2
   fi
 
+  # Assigned here and not earlier, deliberately: retire_branch above returns a
+  # new $path — main's copy, after it has removed the worktree — so a root taken
+  # before that call points at a directory that no longer exists. Anything above
+  # this line that needs the main checkout must say '$(main_root)', not '$root';
+  # 'git -C ""' is a silent no-op that resolves against the caller's cwd, so an
+  # empty $root would look like it worked.
   root=$(item_root "$path")
   local dest
   dest="$root/$WB/items/archive/$(basename "$path")"
@@ -1964,13 +2028,33 @@ window_alive() {
   tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null | grep -qx "$1"
 }
 
-# The window this process runs in, when it is one of ours.
+# The window this process runs in, when it is one of ours. A registry row is not
+# enough on its own: tmux hands out window ids from @0 again after a restart, so
+# a row left by a previous server can name a window that now belongs to another
+# session entirely — and every caller of this renames what it gets back. The
+# window must still be in *our* session, which is what window_alive asks.
 own_window() {
   [ -n "${TMUX_PANE:-}" ] || return 0
   local w
   w=$(tmux display-message -p -t "$TMUX_PANE" '#{window_id}' 2>/dev/null || true)
-  [ -n "$w" ] && [ -f "$(registry_dir)/$w" ] && printf '%s\n' "$w"
+  [ -n "$w" ] && [ -f "$(registry_dir)/$w" ] && window_alive "$w" && printf '%s\n' "$w"
   return 0
+}
+
+# Rows whose window is gone from our session: leftovers from a previous tmux
+# server, or a window the user closed by hand. Dropped when the lead starts,
+# which is the one moment the session is known to be the current one. Guarded by
+# the caller on have_tmux_session, so a session that is merely not running yet
+# never has its registry wiped.
+registry_prune() {
+  local d f live
+  d=$(registry_dir)
+  [ -d "$d" ] || return 0
+  live=$(tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null || true)
+  for f in "$d"/@*; do
+    [ -f "$f" ] || continue
+    printf '%s\n' "$live" | grep -qx "$(basename "$f")" || rm -f "$f"
+  done
 }
 
 # --- spawning --------------------------------------------------------------
@@ -2068,6 +2152,9 @@ cmd_lead() {
   command -v tmux >/dev/null 2>&1 || die "tmux is not installed; the lead runs in a tmux session"
   local root
   root=$(main_root)
+  # Before anything is opened: a session that outlived its tmux server leaves
+  # rows pointing at ids the new server has handed to someone else.
+  ! have_tmux_session || registry_prune
   if ! have_tmux_session; then
     local cmd wid
     cmd=$(claude_cmd "$(session_name lead)" "" "$(registry_row lead | cut -f4 | grep -v '^-$' || true)" "")
@@ -2323,7 +2410,12 @@ cmd_gate() {
       printf '%s' "$hook_input" | cmd_signal needs-you ;;
     permission)
       if [ "$(mode)" = unattended ]; then
-        printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":"deny","decisionReason":%s}}\n' "$(json_string "$reason")"
+        # PermissionRequest takes 'decision' as an object — behavior and, for a
+        # deny, message — and exit 2 is not honoured for this event, so the
+        # object is the only thing that can refuse. A string 'decision' parses
+        # as valid JSON and is then ignored, which reads exactly like an
+        # attended pass: the prompt shows and nobody is there to answer it.
+        printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":%s,"interrupt":false}}}\n' "$(json_string "$reason")"
         return 0
       fi
       printf '%s' "$hook_input" | cmd_signal needs-you ;;
@@ -3295,6 +3387,19 @@ tree_snapshot() (
     | while IFS= read -r -d '' f; do
         printf 'H %s %s\n' "$f" "$(sha256sum "$f" | cut -d' ' -f1)"
       done
+  # Ignored by design — 'ensure_gitignore' keeps it that way — so both scans
+  # above look straight past it. It is also where the project's permission
+  # allow-list lives and where autoMemoryDirectory can be overridden, so a
+  # sweep with Bash could widen what it is allowed to do, or move the memory
+  # store out from under the memory reason, and pass. Its own row type, because
+  # the refusal wants to say which file and why rather than read as a stray
+  # untracked write.
+  local s
+  while IFS= read -r s; do
+    [ -f "$s" ] || continue
+    printf 'P %s %s\n' "${s#"$PWD"/}" "$(sha256sum "$s" | cut -d' ' -f1)"
+  done < <(printf '%s\n' "$PWD/.claude/settings.local.json" \
+    "$(main_root)/.claude/settings.local.json" | awk '!seen[$0]++')
   if [ "${2:-}" = memory ]; then
     local d
     while IFS= read -r d; do
@@ -3379,6 +3484,17 @@ cmd_review_check() {
   [ "$untracked" -le "$SNAPSHOT_WARN" ] \
     || echo "hashing $untracked untracked files; ignore build output to make this quick" >&2
 
+  # A skip-worktree (S) or assume-unchanged (the status letter in lowercase)
+  # bit takes a tracked file out of both 'git status' and 'git diff HEAD', so
+  # the snapshot cannot see it change at all: the file becomes an editable
+  # blind spot for the whole sweep. Nothing workbench does sets these, so a bit
+  # standing here is either the sweep's doing or a hand-set flag the reviewer
+  # has to clear before the proof means anything.
+  local hidden
+  hidden=$(git -C "$root" ls-files -v | grep -E '^([a-z]|S) ' | sed 's/^..//' || true)
+  [ -z "$hidden" ] || die "these files are hidden from git by a skip-worktree or assume-unchanged bit, so the review baseline cannot see them change; clear them with 'git update-index --no-skip-worktree --no-assume-unchanged <file>', then review again:
+$(printf '%s\n' "$hidden" | sed 's/^/  /')"
+
   local now reason
   reason=$(sed -n 's/^R //p' "$base")
   now=$(tree_snapshot "$root" "$reason")
@@ -3395,9 +3511,14 @@ cmd_review_check() {
   local bad=0 changed=0 head_moved=0 watch=0 what
   # A file clean at open and edited since gains both a status line and a diff
   # hash; the status line names it, so its hash line stays quiet.
-  declare -A wadded=() sadded=()
+  declare -A wadded=() sadded=() padded=()
   while IFS= read -r line; do
-    case "$line" in "S "*) sadded[${line:5}]=1 ;; esac
+    case "$line" in
+      "S "*) sadded[${line:5}]=1 ;;
+      # A protected file that changed shows as both a removed and an added row;
+      # the added one carries the message, so the removal stays quiet.
+      "P "*) what=${line#P }; padded[${what% *}]=1 ;;
+    esac
   done <<< "$added"
   [ "$reason" != watch ] || watch=1
   while IFS= read -r line; do
@@ -3410,6 +3531,9 @@ cmd_review_check() {
              elif [ -z "${sadded[$what]:-}" ]; then echo "the sweep changed: $what" >&2; bad=1; fi ;;
       "T "*) if [ "$watch" -eq 1 ]; then head_moved=1; else echo "the sweep moved HEAD to ${line#T }" >&2; bad=1; fi ;;
       "H "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep wrote: ${line#H }" >&2; bad=1; fi ;;
+      "P "*) what=${line#P }; what=${what% *}
+             if [ "$watch" -eq 1 ]; then changed=1
+             else echo "the sweep changed: $what — git ignores it, but it carries this project's permission allow-list and memory path. If an 'always allow' was answered during the review, the permissions moved under it: put it back, or review again." >&2; bad=1; fi ;;
       "S ?? "*) [ "$watch" -eq 1 ] || { echo "unexpected change: ${line#S }" >&2; bad=1; } ;;  # its H line reports it
       "S "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "unexpected change: ${line#S }" >&2; bad=1; fi ;;
       *) echo "unexpected change: $line" >&2; bad=1 ;;
@@ -3426,6 +3550,10 @@ cmd_review_check() {
       "S ?? "*) [ "$watch" -eq 1 ] || bad=1 ;;   # its H line reports it
       "S "*) if [ "$watch" -eq 1 ]; then changed=1; else echo "the sweep reverted or staged: ${line#S }" >&2; bad=1; fi ;;
       "H "*) if [ "$watch" -eq 1 ]; then changed=1; else what=${line#H }; echo "the sweep removed: ${what% *}" >&2; bad=1; fi ;;
+      "P "*) what=${line#P }; what=${what% *}
+             [ -z "${padded[$what]:-}" ] || continue
+             if [ "$watch" -eq 1 ]; then changed=1
+             else echo "the sweep removed: $what, which carries this project's permission allow-list and memory path" >&2; bad=1; fi ;;
       *) echo "the sweep reverted or staged: $line" >&2; bad=1 ;;
     esac
   done <<< "$removed"
@@ -3518,10 +3646,21 @@ coverage, then re-run review-check; or review-drop --force to discard it."
   local pid verdict=''
   pid=$(printf '%s' "$name" | sed -n 's/^[0-9]*-pre-merge-\([bfrx]-[0-9]\{1,\}\)\(-.*\)\{0,1\}\(\.[0-9]*\)\{0,1\}\.md$/\1/p')
   if [ -n "$pid" ]; then
-    verdict=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" | sed -n 's/^verdict: *//p' | tail -1)
+    # pre-merge.md asks for the verdict as the last line with nothing after it,
+    # and that is read literally here: the last non-blank line of the report,
+    # comments stripped. Taking the last *matching* line instead let a verdict
+    # sit under prose that qualifies or contradicts it, which is the one place
+    # merge cannot afford ambiguity — it reads this line and nothing else.
+    local tail_line
+    tail_line=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" \
+      | grep -v '^[[:space:]]*$' | tail -1)
+    verdict=$(printf '%s' "$tail_line" | sed -n 's/^verdict: *//p')
     case "$verdict" in
       merge|merge\ *|hold\ *) ;;
-      "") die "$rel has no 'verdict:' line; a pre-merge ends with 'verdict: merge' or 'verdict: hold — <what must change>'" ;;
+      "") if sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" | grep -q '^verdict: '; then
+            die "$rel has a 'verdict:' line, but it must be the last line with nothing after it; move it to the end, then check again"
+          fi
+          die "$rel has no 'verdict:' line; a pre-merge ends with 'verdict: merge' or 'verdict: hold — <what must change>'" ;;
       *) die "$rel says 'verdict: $verdict'; it is 'merge' or 'hold — <what must change>'" ;;
     esac
   fi
@@ -3661,6 +3800,16 @@ cmd_review() {
     # still return a report, so the first one's manifest and a note.
     branches=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*")
     branch=${branches%%$'\n'*}
+    # A branch with no worktree is the one case where rooting silently lands on
+    # the wrong tree: item files live on the default branch from creation, so
+    # find_item above always resolves, and the reviewer, the baseline and
+    # review-check would then all agree on main while review-check stamps the
+    # pass on the branch commit — which nobody read. There is no inconsistency
+    # left for anything downstream to catch, so it is refused here. An item with
+    # no branch at all is a different thing and still reviews.
+    if [ -n "$branch" ] && [ -z "$(live_worktree_of "$branch")" ]; then
+      die "$scope's branch $branch has no worktree; a pre-merge must read the branch, not $(default_branch) — 'workbench start $scope' cuts one, or check $branch out in a worktree, then review"
+    fi
     # The reviewer reads the tree while review-check records the branch
     # commit, so a worktree with uncommitted changes can never yield a pass
     # that merge accepts — one more round, guaranteed. Refused at open, the

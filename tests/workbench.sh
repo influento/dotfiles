@@ -202,6 +202,11 @@ run "review-check fails on unstated coverage" 1 "never named in the report" "$WB
 printf '\ncovered: src.txt, sub/, %s\nno findings\n' "$item" >> "$report"
 run "review-check refuses a pre-merge without a verdict" 1 "no 'verdict:' line" "$WB" review-check "$report"
 printf 'verdict: merge\n' >> "$report"
+# 'the last line, and nothing after it': taking the last matching line instead
+# let a verdict be buried under prose that qualifies or contradicts it.
+printf '\nthough the caching is still worth a look before release.\n' >> "$report"
+run "review-check refuses a verdict that is not the last line" 1 "must be the last line" "$WB" review-check "$report"
+sed -i '/though the caching/d' "$report"
 run "review-check passes once coverage and verdict are in" 0 "^verdict: merge — recorded" "$WB" review-check "$report"
 run "merge refuses while a report stands" 1 "still holds a review report" "$WB" merge b-001 "fix crash"
 run "review-drop" 0 "deleted" "$WB" review-drop "$report"
@@ -294,6 +299,33 @@ report=$(sweep)
 git commit -q --allow-empty -m moved
 run "review-check catches HEAD moving" 1 "the sweep moved HEAD" "$WB" review-check "$report"
 git reset -q HEAD~1; "$WB" review-drop "$report" >/dev/null 2>&1
+
+# settings.local.json is ignored by design, so 'git status' and 'ls-files
+# --others --exclude-standard' both look straight past it — and it is where a
+# permission allow-list lives. A sweep with Bash could widen its own permissions
+# and pass.
+printf '.claude/settings.local.json\n' >> .gitignore
+git add .gitignore && git commit -qm "ignore local settings"
+mkdir -p .claude
+echo '{"permissions":{"allow":[]}}' > .claude/settings.local.json
+check "the local settings really are ignored here" git check-ignore -q .claude/settings.local.json
+report=$(sweep)
+echo '{"permissions":{"allow":["Bash"]}}' > .claude/settings.local.json
+run "review-check catches an edit to the local settings" 1 "the sweep changed: .claude/settings.local.json" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+report=$(sweep)
+rm .claude/settings.local.json
+run "review-check catches the local settings being removed" 1 "the sweep removed: .claude/settings.local.json" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
+
+# a skip-worktree or assume-unchanged bit hides a tracked file from both
+# 'status' and 'diff HEAD', so the baseline cannot see it change at all
+report=$(sweep)
+git update-index --skip-worktree README
+run "review-check refuses a skip-worktree bit" 1 "hidden from git by a skip-worktree" "$WB" review-check "$report"
+git update-index --no-skip-worktree README
+run "review-check passes once the bit is cleared" 0 "^clean:" "$WB" review-check "$report"
+"$WB" review-drop "$report" >/dev/null 2>&1
 
 report=$(sweep)
 printf '\nsee src.txt:999 and nowhere/at/all.go:3\n' >> "$report"
@@ -691,6 +723,13 @@ run "merge refuses when main's copy of the item moved since the cut" 1 "main's c
 check "the refusal touched nothing" [ -z "$(git log --grep='^Item:' --format=%h)" ]
 git checkout -q HEAD~1 -- workbench/items/bugs/b-001-one.md && git commit -qm 'main back' -- workbench/items/bugs/b-001-one.md
 
+# The branch copy of the item is the merge gate's only witness. Deleted, every
+# check it feeds — fences, status, the trigger, evidence — was skipped silently,
+# and the first sign was an archived item whose gate never ran.
+( cd .worktrees/b-001-one && git rm -q workbench/items/bugs/b-001-one.md && git commit -qm "drop the item" )
+run "merge refuses when the branch carries no item file" 1 "no item file on b-001-one" "$WB" merge b-001 "one" --no-review
+( cd .worktrees/b-001-one && git checkout -q HEAD~1 -- workbench/items/bugs/b-001-one.md && git commit -qm "restore the item" )
+
 # conflicting branch
 echo b >> README && git commit -qam b
 run "merge refuses a conflicting branch" 1 "conflicts with main" "$WB" merge b-001 "one" --no-review
@@ -709,6 +748,24 @@ newc bug "notghost" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-notghost && echo w > work.txt && git add -A && git commit -qm w )
 set_status .worktrees/b-003-notghost/workbench/items/bugs/b-003-notghost.md unreproduced
 run "archive refuses to retire a branch with work" 1 "carries work beyond the item file" "$WB" archive b-003
+# A pre-merge must read the branch. With the worktree gone, find_item falls
+# through to the main checkout — item files live there from creation — so the
+# reviewer, the baseline and review-check all agree on main and the pass is
+# stamped on a branch commit nobody read. Nothing downstream can catch that.
+git add -A && git commit -qm "settle the archive above"
+idw=$(newc bug "no-worktree"); "$WB" start "$idw" >/dev/null 2>&1
+( cd ".worktrees/$idw-no-worktree" && echo w > w.txt && git add -A && git commit -qm w )
+git worktree remove --force ".worktrees/$idw-no-worktree"
+run "pre-merge refuses a branch whose worktree is gone" 1 "has no worktree" "$WB" review pre-merge "$idw"
+check "and no report was opened" [ -z "$(find workbench/reviews -name "*$idw*" 2>/dev/null)" ]
+run "the refusal says how to get one" 1 "workbench start $idw" "$WB" review pre-merge "$idw"
+git branch -D "$idw-no-worktree" >/dev/null
+# an item with no branch at all still reviews: it is a reachable pre-merge input
+idnb=$(newc bug "never-started")
+report=$("$WB" review pre-merge "$idnb")
+check "pre-merge still opens for an item never started" [ -f "$report" ]
+"$WB" review-drop --force "$report" >/dev/null 2>&1
+
 # retire overwrites main's copy, so a main-side edit since the cut is refused
 # rather than lost
 idr=$(newc bug "retire-guard"); "$WB" start "$idr" >/dev/null 2>&1
@@ -719,6 +776,25 @@ check "main's copy still holds its edit" grep -qx kept "workbench/items/bugs/$id
 git checkout -q HEAD~1 -- "workbench/items/bugs/$idr-retire-guard.md" && git commit -qm 'main back' -- "workbench/items/bugs/$idr-retire-guard.md"
 run "archive retires once main's copy is back" 0 "retired $idr-retire-guard" "$WB" archive "$idr"
 git add -A && git commit -qm "archive $idr"
+
+# The squash is not transactional: cleanup after the commit can fail, and the
+# commit is already on main when it does. Refused before the commit where the
+# worktree cannot be removed, and a re-run of the half-finished state names what
+# was left rather than refusing with nowhere to go.
+idk=$(newc bug "locked"); "$WB" start "$idk" >/dev/null 2>&1
+( cd ".worktrees/$idk-locked" && echo l > l.txt && git add -A && git commit -qm l ); ready ".worktrees/$idk-locked"
+git worktree lock ".worktrees/$idk-locked"
+run "merge refuses a locked worktree" 1 "worktree .* is locked" "$WB" merge "$idk" "locked" --no-review
+check "and the refusal came before the commit" [ -z "$(git log --grep="^Item: $idk\$" --format=%h)" ]
+git worktree unlock ".worktrees/$idk-locked"
+run "merge takes it once unlocked" 0 "merged $idk" "$WB" merge "$idk" "locked" --no-review
+# the half-finished shape: the trailer is on main, the branch never went away
+git branch "$idk-locked" main
+run "a re-run names what cleanup left behind" 1 "cleanup after that commit did not finish" "$WB" merge "$idk" "locked" --no-review
+run "and gives the command that finishes it" 1 "branch -D $idk-locked" "$WB" merge "$idk" "locked" --no-review
+git branch -D "$idk-locked" >/dev/null
+run "with nothing left behind it is the plain refusal" 1 "already carries 'Item: $idk'" "$WB" merge "$idk" "locked" --no-review
+
 # an item on its branch alone — started under an older workbench, so never
 # on main at the cut — with the worktree gone: archive reads the branch, the
 # guard above does not fire, and no temp file is left behind on a refusal
@@ -984,6 +1060,12 @@ set_status "workbench/items/bugs/$ids-shipped.md" 'abandoned — changed my mind
 run "archive refuses abandoned on merged work" 1 "shipped work is not abandoned" "$WB" archive "$ids"
 run "status lists merged-then-abandoned as a fault, not silence" 0 "$ids-shipped +merged as [0-9a-f]+, yet 'abandoned — changed my mind' — archive will refuse" \
   bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
+# A path named for the default branch makes 'git log main' ambiguous. Swallowed,
+# the fatal reads as "no commit carries the trailer", so the refusal above turns
+# into a no-op and shipped work archives as abandoned with no trace.
+touch main && git add main && git commit -qm "a file named for the branch"
+run "and refuses it with a file named 'main' in the tree" 1 "shipped work is not abandoned" "$WB" archive "$ids"
+git rm -q main && git commit -qm "drop the file named for the branch"
 # research never takes it; a provisional one is unarchivable
 idx=$(newc research "area"); "$WB" start "$idx" >/dev/null 2>&1
 set_status ".worktrees/$idx-area/workbench/items/research/$idx-area.md" 'abandoned — no'
@@ -1067,7 +1149,30 @@ tlog() { cat "$TMUX_SHIM_STATE/log"; }
 title_of() { grep -P "^$1\t" "$TMUX_SHIM_STATE/windows" | cut -f3; }
 reg_of() { grep -lP "^worker\t$1\t" .git/workbench/sessions/@* | xargs -n1 basename; }
 hook() { printf '{"session_id":"%s","cwd":"%s","permission_mode":"acceptEdits","tool_name":"%s","tool_input":{"to":"%s","command":"rm x"},"agent_type":"%s","message":"needs a decision"}' "${1:-sid-1}" "${2:-$PWD}" "${3:-Bash}" "${4:-}" "${5:-}"; }
-export -f tlog title_of reg_of hook
+# The gates' JSON is a contract with Claude Code, not a string. A substring
+# match passes on a wrong shape — which is how a string-valued 'decision'
+# shipped, inert, past a green suite — so assert the documented objects:
+# PermissionRequest carries decision as an object with behavior/message, and
+# exit 2 is not honoured for it; PreToolUse carries the flat strings and is.
+deny_schema() {
+  python3 -c 'import json,sys
+d = json.load(sys.stdin)["hookSpecificOutput"]
+assert d["hookEventName"] == "PermissionRequest", d
+c = d["decision"]
+assert isinstance(c, dict), "decision must be an object, got %r" % (c,)
+assert c["behavior"] == "deny", c
+assert isinstance(c.get("message"), str) and c["message"], c
+assert "decisionReason" not in d and "verdict" not in c, d'
+}
+ask_schema() {
+  python3 -c 'import json,sys
+d = json.load(sys.stdin)["hookSpecificOutput"]
+assert d["hookEventName"] == "PreToolUse", d
+assert d["permissionDecision"] == "deny", d
+r = d["permissionDecisionReason"]
+assert isinstance(r, str) and r, r'
+}
+export -f tlog title_of reg_of hook deny_schema ask_schema
 
 s1=$(newc bug "one")
 run "start without a lead is git-only" 0 "started $s1" "$WB" start "$s1"
@@ -1076,7 +1181,8 @@ run "open without a lead refuses" 1 "no tmux session wb-sessions; 'workbench lea
 run "mode defaults to attended" 0 '^attended$' "$WB" mode
 git config workbench.mode unattended
 run "gate ask, unattended, refuses a session working alone" 2 "move to work that is describable" bash -c "hook | '$WB' gate ask"
-run "gate permission, unattended, denies a session working alone" 0 '"decision":"deny"' bash -c "hook | '$WB' gate permission"
+run "gate permission, unattended, denies a session working alone" 0 '"decision"' bash -c "hook | '$WB' gate permission"
+check "and the denial is the documented decision object" bash -c "hook | '$WB' gate permission | deny_schema"
 git config workbench.mode attended
 run "gate ask, attended, is quiet for a session working alone" 0 "" bash -c "hook | '$WB' gate ask"
 
@@ -1174,9 +1280,24 @@ check "gate permission printed nothing" [ -z "$(hook | TMUX_PANE=$p2 "$WB" gate 
 run "mode unattended names the live workers to tell" 0 "tell wb-sessions-$s2: mode is now unattended" "$WB" mode unattended
 run "mode reads back" 0 '^unattended$' "$WB" mode
 run "gate ask, unattended, refuses" 2 '"permissionDecision":"deny"' bash -c "hook | TMUX_PANE=$p2 '$WB' gate ask"
+check "the refusal is the documented PreToolUse shape" bash -c "{ hook | TMUX_PANE=$p2 '$WB' gate ask || true; } | ask_schema"
 run "the refusal says where to park it" 2 "workbench call <id>" bash -c "hook | TMUX_PANE=$p2 '$WB' gate ask"
-run "gate permission, unattended, denies" 0 '"decision":"deny"' bash -c "hook | TMUX_PANE=$p2 '$WB' gate permission"
+run "gate permission, unattended, denies" 0 '"decision"' bash -c "hook | TMUX_PANE=$p2 '$WB' gate permission"
+check "the denial is the documented decision object" bash -c "hook | TMUX_PANE=$p2 '$WB' gate permission | deny_schema"
 run "the mode is the project's: a stranger's window is refused too" 2 "then send the lead" bash -c "hook | TMUX_PANE=%99 '$WB' gate ask"
+
+# A tmux restart hands out window ids from @0 again, so a registry row can name
+# a window that now belongs to another session entirely. Adopting it by id alone
+# retitles a stranger's window.
+git config workbench.mode attended
+awk -F'\t' -v w="$w2" 'BEGIN{OFS="\t"} $1==w {$2="elsewhere"} {print}' "$TMUX_SHIM_STATE/windows" > "$TMUX_SHIM_STATE/w.t"
+mv "$TMUX_SHIM_STATE/w.t" "$TMUX_SHIM_STATE/windows"
+stale_title=$(title_of "$w2")
+run "a signal from a window in another session is not ours" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+check "and the stranger's window keeps its title" [ "$(title_of "$w2")" = "$stale_title" ]
+awk -F'\t' -v w="$w2" -v s="$(basename "$PWD")" 'BEGIN{OFS="\t"} $1==w {$2="wb-" s} {print}' "$TMUX_SHIM_STATE/windows" > "$TMUX_SHIM_STATE/w.t"
+mv "$TMUX_SHIM_STATE/w.t" "$TMUX_SHIM_STATE/windows"
+git config workbench.mode unattended
 git config workbench.maxWorkers 9
 s5=$(newc bug five)
 run "start under unattended dispatches the mode" 0 "dispatch: wb-worker $s5 in .* — resources: account, client" "$WB" start "$s5" --resources "account, client"
