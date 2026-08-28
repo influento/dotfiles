@@ -6,6 +6,7 @@ set -euo pipefail
 
 WB=$(readlink -f "$(dirname "$0")/../common/scripts/workbench")
 OPEN=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/open.sh")
+RULES=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/rules.sh")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -292,6 +293,36 @@ report=$(env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" sweep "resize")
 check "open.sh with a topic scope returns the path alone" [ -f "$report" ]
 check "the topic warning is in the skeleton" grep -q "scope 'resize' is not all paths" "$report"
 "$WB" review-drop "$report" >/dev/null 2>&1
+
+# rules.sh feeds the same fail-closed block, so a reason it cannot serve aborts
+# the sweep rather than sweeping without rules. The reason is already validated
+# by 'review' before it gets here, which is what makes that exit unreachable in
+# the real flow — and what makes the two lists drifting apart the actual risk:
+# a reason added to 'review' with no rules/ file would abort every sweep for it.
+# 'review bogus' exits non-zero and pipefail carries that to the assignment,
+# which under set -e would end the run here rather than fail a check.
+reasons=$("$WB" review bogus 2>&1 | sed -n 's/.*reason must be one of: //p' | tr -d ',' || true)
+# Non-empty, not a fixed count: a seventh reason with rules behind it is
+# growth, not drift, and should not fail here. What this guards is the loop
+# below going vacuous when the parse breaks — six checks would vanish and the
+# suite would still say it passed.
+check "the reason list is readable from review's refusal" [ -n "$reasons" ]
+for r in $reasons; do
+  run "rules.sh serves $r" 0 "^# " bash "$RULES" "$r"
+done
+# docs and memory audit against the documentation reference; adopt against both
+# that and the adoption one. The others must not carry them, or the sweep reads
+# rules it was never given.
+for r in docs memory; do
+  check "rules.sh appends the docs reference for $r" bash -c "bash '$RULES' $r | grep -qx '# Documentation'"
+done
+check "rules.sh appends both references for adopt" bash -c \
+  "bash '$RULES' adopt | grep -qx '# Adopting an existing project' && bash '$RULES' adopt | grep -qx '# Documentation'"
+for r in sweep pre-merge watch; do
+  check "rules.sh appends no reference for $r" bash -c "! bash '$RULES' $r | grep -qx '# Documentation'"
+done
+run "rules.sh refuses a reason it has no rules for" 2 "no rules for reason 'nope'" bash "$RULES" nope
+run "rules.sh refuses no reason at all" 2 "usage: rules.sh" bash "$RULES"
 
 # --- review-check catches what the sweep did --------------------------------
 # Each case opens a fresh report on a clean main, does what a sweep must not,
