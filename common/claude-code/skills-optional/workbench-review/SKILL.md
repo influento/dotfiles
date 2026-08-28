@@ -42,6 +42,19 @@ by git and deleted with the report. If a finding is trivially fixable, record
 the fix as a suggestion in the report — never apply it. Findings become items
 only after triage, and that happens outside this fork.
 
+## Rules for this reason
+
+Every `!` block here runs before the first turn, not when you read down to
+it, so this one comes first on purpose: it reads `$reason` and writes
+nothing. Opening the report is the step with side effects, and a reason with
+no rules behind it must abort before that happens — otherwise the skeleton
+and the baseline are already on disk when the abort comes, and the leftover
+has to be `review-drop`ed by hand.
+
+```!
+${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
+```
+
 ## Report
 
 The report already exists at the path below. It was created — and the tree's
@@ -63,12 +76,6 @@ That path holds a skeleton with the reason and date. `Read` it before you
 what earlier ticks recorded. Append through Bash instead —
 `cat >> "<report>" <<'EOF' … EOF`. The one in-place edit a watch makes is
 the liveness line, with `sed -i` on that line alone.
-
-## Rules for this reason
-
-```!
-${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
-```
 
 ## Steps
 
