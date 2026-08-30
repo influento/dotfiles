@@ -70,7 +70,16 @@ fail() { checks=$((checks + 1)); fails=$((fails + 1)); echo "FAIL $1" >&2; }
 # one condition goes in a 'bash -c'.
 check() { local label="$1"; shift; if "$@"; then pass "$label"; else fail "$label"; fi; }
 # not_listed <id> <find-args...> — the index must not carry the id.
-not_listed() { local id="$1"; shift; ! "$WB" find "$@" 2>/dev/null | grep -q "$id"; }
+# The grep reads a herestring, never a pipe: see the note on 'run' below. Here
+# the pipe was the dangerous direction — grep -q exits early on a match, so a
+# regression that DID list the id could be reported as a SIGPIPE and read as
+# "not listed", passing the check it was supposed to fail.
+not_listed() {
+  local id="$1" out
+  shift
+  out=$("$WB" find "$@" 2>/dev/null) || true
+  ! grep -q -- "$id" <<<"$out"
+}
 
 # run <label> <expected-rc> <pattern> <cmd...> — the pattern is grepped over
 # combined stdout+stderr; an empty pattern skips the grep.
@@ -81,7 +90,13 @@ run() {
   if [ "$rc" -ne "$want" ]; then
     fail "$label: rc=$rc, wanted $want"; printf '%s\n' "$out" | sed 's/^/     /' >&2; return
   fi
-  if [ -n "$pat" ] && ! printf '%s\n' "$out" | grep -qE -- "$pat"; then
+  # A herestring, not a pipe. 'set -o pipefail' is in effect, and grep -q exits
+  # the moment it matches — on a first-line match against more than PIPE_BUF
+  # (4096) bytes the write is still in flight, printf takes SIGPIPE, and the
+  # pipeline reports 141. The check then fails BECAUSE the pattern matched, and
+  # only sometimes: 'rules.sh serves adopt' (10,983 bytes, matching on line 1)
+  # did it in 54 of 400 tries.
+  if [ -n "$pat" ] && ! grep -qE -- "$pat" <<<"$out"; then
     fail "$label: output lacks /$pat/"; printf '%s\n' "$out" | sed 's/^/     /' >&2; return
   fi
   pass "$label"
