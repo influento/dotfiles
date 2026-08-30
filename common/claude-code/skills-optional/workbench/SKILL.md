@@ -357,7 +357,8 @@ gate is not argued with: it checks the item against its evidence and the
 template (`rules/pre-merge.md`), never sees the worker's context or the
 last report, and holds only on what must change. Three holds and the worker
 stops: `workbench call <id>` with the standing finding, and the merge is the
-user's — `merge --no-review` is their override.
+user's — `merge --no-review` is their override, and unattended the command
+refuses it: the mode says nobody is here to take it.
 
 Resources a worker may hold — a live client, an account — are named in the
 dispatch line, and a worker without one does not take one. Items that need

@@ -32,7 +32,7 @@ nothing in the tree has its extension, and for a bogus citation otherwise.
 | Reason | When |
 |---|---|
 | `sweep` | periodically, on demand, over an area — looking for bugs, improvements, cleanup, and for `awaiting` items whose trigger never fired |
-| `pre-merge` | an item is finished and about to merge. Scope is the item id; the sweep is rooted at the item's worktree wherever it is invoked from, and the files the branch changed are its manifest. A clean `review-check` records the branch commit it read, and `workbench merge` refuses without that record on the branch's last commit — a branch that moved after the review is unreviewed again. `merge --no-review` is the user's override |
+| `pre-merge` | an item is finished and about to merge. Scope is the item id; the sweep is rooted at the item's worktree wherever it is invoked from, and the files the branch changed are its manifest. A clean `review-check` records the branch commit it read, and `workbench merge` refuses without that record on the branch's last commit — a branch that moved after the review is unreviewed again. `merge --no-review` is the user's override, refused while the mode is `unattended` |
 | `docs` | audit documents against the code they describe, and the vocabulary of recent items against `workbench/GLOSSARY.md` |
 | `memory` | audit the agent's stored memory for facts that belong in the repo, or are stale |
 | `adopt` | bringing an existing project in — see [adopt.md](adopt.md) |
