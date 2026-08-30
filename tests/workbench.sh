@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# End-to-end tests for common/scripts/workbench, run in a throwaway repository.
+# End-to-end tests for the workbench CLI, run in a throwaway repository.
 # Plain bash, no framework: each check is an exit code and a grep on output.
 # Run: bash tests/workbench.sh
 set -euo pipefail
 
 SELF=$(readlink -f "$0")  # every check runs from a temp repo, so paths here must be absolute
-WB=$(readlink -f "$(dirname "$0")/../common/scripts/workbench")
+WB=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-cli/workbench")
 OPEN=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/open.sh")
 RULES=$(readlink -f "$(dirname "$0")/../common/claude-code/skills-optional/workbench-review/scripts/rules.sh")
 TMP=$(mktemp -d)
@@ -136,6 +136,12 @@ for c in workbench workbench-review bug feature research idea wb; do
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
 check "no /rename is rendered" [ ! -e .claude/skills/rename ]
+# The CLI is a sibling of the skills under skills-optional/, not a file inside
+# one, so render_skills' 'cp -RL' cannot vendor a 4000-line copy of it into
+# every opted-in project and skill_hash cannot count it — which would report
+# every project's copy stale on any CLI edit. Adding workbench-cli to
+# skill_sources fails this.
+check "init renders no copy of the CLI" [ ! -e .claude/skills/workbench-cli ]
 for a in wb-worker wb-reviewer wb-gate; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
 check "the review skill runs as the gate" grep -qx 'agent: wb-gate' .claude/skills/workbench-review/SKILL.md
 check "the gate's tools are the sweep's contract" grep -qx 'tools: Read, Glob, Grep, Bash, Write' .claude/agents/wb-gate.md
@@ -688,7 +694,7 @@ run "merge goes through once the file is back" 0 "merged b-003" "$WB" merge b-00
 # --- rendered copies: migration from links, staleness, templates ------------
 
 new_repo copies
-src_root=$(readlink -f "$(dirname "$WB")/../claude-code/skills-optional")
+src_root=$(readlink -f "$(dirname "$WB")/..")  # the CLI sits in skills-optional/workbench-cli/
 "$WB" init >/dev/null 2>&1
 rm -rf .claude/skills/wb && ln -s "$src_root/workbench-commands/wb" .claude/skills/wb
 printf '.claude/skills/workbench\n.claude/skills/wb\n.claude/skills/rename\n' >> .gitignore

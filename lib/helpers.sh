@@ -529,6 +529,16 @@ deploy_configs() {
         ensure_dir "${user_home}/.claude"
         link_config "${item}skills" "${user_home}/.claude/skills"
         merge_json_config "${item}settings.json" "${user_home}/.claude/settings.json"
+        # skills-optional/ is never deployed: a project opts into a skill by
+        # linking or rendering it itself. The workbench CLI is the one
+        # exception, because it is what does the opting in — 'workbench init'
+        # has to be runnable before any project can ask for the skill. It
+        # lives beside its skill rather than in common/scripts/ so the whole
+        # tool is one directory tree; that is why this case links a single
+        # file out of a directory the installer otherwise skips.
+        ensure_dir "${user_home}/.local/bin"
+        link_config "${item}skills-optional/workbench-cli/workbench" \
+          "${user_home}/.local/bin/workbench"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/
       scripts)
