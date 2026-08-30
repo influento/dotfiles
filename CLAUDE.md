@@ -76,7 +76,7 @@ Two consequences of merging rather than replacing:
 | `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
 | `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded) | all |
 | `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
-| `common/claude-code/skills-optional/workbench-cli/workbench` | `~/.local/bin/workbench` (per-project opt-in CLI; the one file deployed out of `skills-optional/`, because it is what opts a project in) | all |
+| `common/claude-code/workbench/bin/workbench` | `~/.local/bin/workbench` (the only file deployed out of `workbench/`, because it is what opts a project in) | all |
 | `server/scripts/*`                  | `~/.local/bin/*`                          | server      |
 | `server/systemd/user/`             | `~/.config/systemd/user/`                 | server      |
 | `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
@@ -169,7 +169,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
-| **workbench**        | `common/claude-code/skills-optional/workbench-cli/workbench` | Item-tracking workflow CLI, opted into per project; `init` renders the `workbench` / `workbench-review` skills plus the `/bug /feature /research /idea /wb` commands (`/wb rename` covers renames) as committed copies under `.claude/skills/` (stamped with source + copy hashes; `status` flags stale and hand-edited ones, `init --force` overwrites the latter) and merges a session hook + status line + allow rule + `autoMemoryDirectory` (memory tracked in the tree) + the signal/gate hooks into the project's `.claude/settings.json`. `workbench lead` opens tmux session `wb-<repo>` with the lead in window 0; each `start` then opens the item's worker as its own Claude session in its own window (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it may hold), titled by the hooks with what it needs (`?` needs you, `↑` asked the lead, `⟳` in review, `✓` ready, `!` parked a call); `open <id\|lead>` switches or resumes, `mode attended\|unattended` decides live whether questions go to the user in-window or are parked; `round` keeps the review dialog honest before the gate. Without a lead `start` is git-only |
+| **workbench**        | `common/claude-code/workbench/` | Item-tracking workflow CLI, opted into per project; `init` renders the `workbench` / `workbench-review` skills plus the `/bug /feature /research /idea /wb` commands (`/wb rename` covers renames) as committed copies under `.claude/skills/` (stamped with source + copy hashes; `status` flags stale and hand-edited ones, `init --force` overwrites the latter) and merges a session hook + status line + allow rule + `autoMemoryDirectory` (memory tracked in the tree) + the signal/gate hooks into the project's `.claude/settings.json`. `workbench lead` opens tmux session `wb-<repo>` with the lead in window 0; each `start` then opens the item's worker as its own Claude session in its own window (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it may hold), titled by the hooks with what it needs (`?` needs you, `↑` asked the lead, `⟳` in review, `✓` ready, `!` parked a call); `open <id\|lead>` switches or resumes, `mode attended\|unattended` decides live whether questions go to the user in-window or are parked; `round` keeps the review dialog honest before the gate. Without a lead `start` is git-only |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
@@ -279,7 +279,8 @@ Skills are split into two trees under `common/claude-code/`:
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `skills-optional/`| never deployed — opted into per project      | `workbench` + `workbench-review` + `workbench-agents/` (`wb-worker`, `wb-reviewer`, `wb-gate`) + `workbench-commands/` (`/bug /feature /research /idea /wb`; `workbench init` renders all of them as committed copies, not links) + `workbench-cli/` (the CLI itself — a sibling, not inside the skill, so `init`'s recursive copy never vendors it into a project and the staleness hash never counts it), `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
+| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: `bin/` (CLI), `skill/` + `review/` (the two skills, rendered as `workbench` and `workbench-review` — the source dir name is not the rendered name), `agents/` (`wb-worker`, `wb-reviewer`, `wb-gate`), `commands/` (`/bug /feature /research /idea /wb`), `tests/`. `workbench init` renders all of it into a project as committed copies, not links |
+| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
 `name` and `description` frontmatter is loaded into context at session start — the
@@ -325,8 +326,8 @@ worktrees and other clones carry them — see the `workbench` row above.
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/claude-code/skills-optional/workbench-cli/workbench common/claude-code/skills-optional/workbench-review/scripts/*.sh tests/*.sh`
-- Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for `workbench`, in a temp repo
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/claude-code/workbench/bin/workbench common/claude-code/workbench/review/scripts/*.sh common/claude-code/workbench/tests/*.sh`
+- Test: `bash common/claude-code/workbench/tests/workbench.sh` — end-to-end loop plus failure paths for `workbench`, in a temp repo
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
