@@ -2556,8 +2556,9 @@ worker_flags() {
 
 # One line for the Claude Code status line. The harness pipes the session
 # JSON in and runs this from wherever it sits, so the directory comes from
-# the JSON, not the cwd. Cheap by construction — file counts and one branch
-# lookup, never the full 'status' — since it runs on every repaint. Silent
+# the JSON, not the cwd. Cheaper than 'status' — no status_lines, no per-item
+# read — but not free: open_names, awaiting_on_main and, per research item,
+# concept_summary each shell out, and this runs on every repaint. Silent
 # outside a workbench project: the setting is per project, but a worktree
 # session inherits it while its own checkout may predate adoption.
 cmd_statusline() {
