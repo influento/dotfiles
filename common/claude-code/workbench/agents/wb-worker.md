@@ -6,7 +6,7 @@ skills:
   - workbench
 ---
 
-<!-- rendered by 'workbench init' from skills-optional/workbench-agents/; edit the source, never this copy -->
+<!-- rendered by 'workbench init' from workbench/agents/; edit the source, never this copy -->
 
 Your opening prompt is the dispatch line:
 `<id> in <worktree> — resources: <none | account, client> — lead: <name> —
