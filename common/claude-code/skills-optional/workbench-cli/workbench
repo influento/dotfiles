@@ -7,6 +7,13 @@ set -euo pipefail
 # from one sequence and numbers can never collide or repeat.
 
 WB=workbench
+# Never pipe into a reader that stops early — 'grep -q', 'grep -m', 'head'.
+# 'set -o pipefail' is on, and such a reader closes the pipe the moment it has
+# what it needs; if the writer is still sending (anything past a few KB) it
+# takes SIGPIPE, the pipeline reports 141, and the test reads as the OPPOSITE
+# of what the data says. Measured here: a 23KB unfenced section made
+# 'section_filled' report empty in 281 of 300 runs. Capture into a variable and
+# read a herestring, or use a reader that consumes all of its input.
 # The project-scoped commands, one thin skill each under skills-optional/
 # workbench-commands/. Rendered as committed copies by init, so the list
 # lives here. No /rename — a rename is '/wb rename'; why is in the skill's
@@ -1355,7 +1362,7 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
     if [ -n "$dirt" ]; then
       # A pre-merge report sits untracked in the worktree, so it is the usual
       # dirt here — and it wants dropping, not committing.
-      if ! printf '%s\n' "$dirt" | grep -qvE "^.. $WB/reviews/"; then
+      if ! grep -qvE "^.. $WB/reviews/" <<<"$dirt"; then
         die "$wt still holds a review report; triage it, then 'workbench review-drop' it before merging:
 $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
       fi
@@ -1565,10 +1572,13 @@ require_closed_fences() {
 }
 
 has_evidence() {
-  without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
+  local body
+  # 'grep -v' exits 1 when it filters everything out, which is an empty section,
+  # not an error — the herestring grep below settles it either way.
+  body=$(without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
     | tail -n +2 | grep -v '^## ' \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
-    | grep -qE '^[[:space:]]*(```|~~~)'
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d') || true
+  grep -qE '^[[:space:]]*(```|~~~)' <<<"$body"
 }
 
 # The '## ' headings a class may carry, in the order the template writes them.
@@ -1697,8 +1707,10 @@ lead_section() {
 }
 
 section_filled() {
-  without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' | grep -q '[^[:space:]]'
+  local body
+  body=$(without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
+    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d') || true
+  grep -q '[^[:space:]]' <<<"$body"
 }
 
 # The section that must be filled before an item starts: the criterion, whose
@@ -1778,7 +1790,9 @@ delete the '(agent)' marker once confirmed, then archive"
         [ -n "$(find_item "$target")" ] || die "$id: '$h' names '$target', which is not an item"
         # 'find --grep <research id>' promises to list what it spawned, so the
         # spawned item's opening section — a feature's Why — has to say so.
-        lead_section "$(find_item "$target")" | grep -qF "$id" \
+        local lead
+        lead=$(lead_section "$(find_item "$target")") || true
+        grep -qF "$id" <<<"$lead" \
           || die "$id: '$h' names '$target', whose first section does not cite $id — a spawned item says what it came from" ;;
       *) die "$id: '$h' has state '$s'; known states: open, -> <id>, -> milestone <slug>, -> backlog, dropped — <why>" ;;
     esac
@@ -2054,7 +2068,9 @@ registry_drop() {
 }
 
 window_alive() {
-  tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null | grep -qx "$1"
+  local ids
+  ids=$(tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null) || true
+  grep -qx "$1" <<<"$ids"
 }
 
 # The window this process runs in, when it is one of ours. A registry row is not
@@ -2082,7 +2098,7 @@ registry_prune() {
   live=$(tmux list-windows -t "=$(tmux_session)" -F '#{window_id}' 2>/dev/null || true)
   for f in "$d"/@*; do
     [ -f "$f" ] || continue
-    printf '%s\n' "$live" | grep -qx "$(basename "$f")" || rm -f "$f"
+    grep -qx "$(basename "$f")" <<<"$live" || rm -f "$f"
   done
 }
 
@@ -2854,8 +2870,8 @@ cmd_find() {
   shown=$total
   [ "$all" -eq 1 ] || [ "$total" -le "$FIND_CAP" ] || shown=$FIND_CAP
 
-  printf '%s\n' "$lines" | head -n "$shown" \
-    | awk -F '\t' '{ printf "%-6s  %-10s  %-28s  %s\n", $4, $3, $5, $6 }'
+  printf '%s\n' "$lines" \
+    | awk -F '\t' -v n="$shown" 'NR <= n { printf "%-6s  %-10s  %-28s  %s\n", $4, $3, $5, $6 }'
   if [ "$shown" -lt "$total" ]; then
     echo "… $((total - shown)) more; narrow with a path or --grep, or pass --all"
   fi
@@ -3324,9 +3340,10 @@ find_report() {
 # like has_evidence, because the baseline predates the skeleton and so holds
 # no hash to compare against.
 has_findings() {
-  sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$1" \
-    | grep -v -e '^# ' -e '^date: ' -e '^checked: ' \
-    | grep -q '[^[:space:]]'
+  local body
+  body=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$1" \
+    | grep -v -e '^# ' -e '^date: ' -e '^checked: ') || true
+  grep -q '[^[:space:]]' <<<"$body"
 }
 
 # The one removal path for a report, at either end of its life: an orphan left
@@ -3656,7 +3673,7 @@ or test run left behind counts too: ignore it or delete it, then re-run."
         mapfile -t cands < <(printf '%s\n' "$index" | grep -E "(^|/)$esc\$" || true)
         if [ "${#cands[@]}" -eq 0 ]; then
           esc=$(printf '%s' "${file##*.}" | sed 's/[][\\.*+?(){}|^$]/\\&/g')
-          if [[ "$file" == *.* ]] && printf '%s\n' "$index" | grep -qE "\\.$esc\$"; then
+          if [[ "$file" == *.* ]] && grep -qE "\\.$esc\$" <<<"$index"; then
             echo "cites $tok, and no $file is in the tree" >&2; bad=1
           fi
         else
@@ -3695,13 +3712,14 @@ coverage, then re-run review-check; or review-drop --force to discard it."
     # comments stripped. Taking the last *matching* line instead let a verdict
     # sit under prose that qualifies or contradicts it, which is the one place
     # merge cannot afford ambiguity — it reads this line and nothing else.
-    local tail_line
+    local tail_line stripped
     tail_line=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" \
       | grep -v '^[[:space:]]*$' | tail -1)
     verdict=$(printf '%s' "$tail_line" | sed -n 's/^verdict: *//p')
     case "$verdict" in
       merge|merge\ *|hold\ *) ;;
-      "") if sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" | grep -q '^verdict: '; then
+      "") stripped=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel")
+          if grep -q '^verdict: ' <<<"$stripped"; then
             die "$rel has a 'verdict:' line, but it must be the last line with nothing after it; move it to the end, then check again"
           fi
           die "$rel has no 'verdict:' line; a pre-merge ends with 'verdict: merge' or 'verdict: hold — <what must change>'" ;;
@@ -4040,7 +4058,7 @@ write_manifest() {
     if [ -n "$branch" ]; then
       # The item is edited on the branch, so an item file not in the diff
       # means the evidence was never written there — worth a line of its own.
-      if printf '%s\n' "${files[@]}" | grep -qE "^$WB/items/[^/]+/[bfrx]-[0-9]+-[^/]*\.md\$"; then
+      if grep -qE "^$WB/items/[^/]+/[bfrx]-[0-9]+-[^/]*\.md\$" <<<"$(printf '%s\n' "${files[@]}")"; then
         echo "<!-- changed on the branch: ${#files[@]} files, the item file among them. Name each"
       else
         echo "<!-- changed on the branch: ${#files[@]} files, and the item file is not among them:"

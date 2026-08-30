@@ -1500,6 +1500,23 @@ run "the refusal names the gate to run instead" 1 "/workbench-review pre-merge $
 git config workbench.mode attended
 run "and is the user's to take when they are here" 0 "merged $gi" "$WB" merge "$gi" "gated" --no-review
 
+# A long criterion, unfenced. 'section_filled' piped into 'grep -q', which stops
+# at the first non-blank byte it sees; under 'set -o pipefail' the writer was
+# still sending, took SIGPIPE, and the pipeline reported 141 — read as an empty
+# section. At this size it did that in 281 of 300 runs, so 'start' refused an
+# item whose criterion was filled in. Small sections never showed it: the writer
+# finishes before the reader exits.
+new_repo "bigsection"
+"$WB" init >/dev/null
+git add -A && git commit -qm wb
+bigid=$("$WB" new bug "long criterion" 2>/dev/null)
+bigf=$(find workbench/items -name "$bigid-*.md")
+{ echo; for i in $(seq 1 400); do echo "agreed with the user, line $i of a long agreed criterion"; done; } > "$TMP/bigcrit"
+sed -i "/^## How to confirm/r $TMP/bigcrit" "$bigf"
+check "the criterion is past the pipe buffer" [ "$(wc -c < "$bigf")" -gt 16384 ]
+git add -A && git commit -qm "long criterion"
+run "start takes an item whose criterion is long" 0 "started $bigid" "$WB" start "$bigid" --no-open
+
 # a repo name tmux could not target
 new_repo "dot.ted"
 "$WB" init >/dev/null 2>&1
