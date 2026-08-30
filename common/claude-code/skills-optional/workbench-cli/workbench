@@ -137,14 +137,18 @@ wb_find() {
   find "${dirs[@]}" "$@" 2>/dev/null || true
 }
 
-# The skill source sits beside this script in the dotfiles tree. Resolving it
-# from $0 keeps the path out of the script, so a moved checkout still works.
+# The skill sources are this script's siblings under skills-optional/ —
+# workbench/ and workbench-review/ are rendered as skills, workbench-agents/
+# and workbench-commands/ are consumed by init. This script lives in its own
+# sibling, workbench-cli/, so that 'cp -RL' in render_skills never vendors it
+# into a project and skill_hash never counts it. Resolving from $0 keeps the
+# path out of the script, so a moved checkout still works.
 skill_source() {
   local self
   # $0 is a bare name when found on PATH, so resolve it before following links
   self=$(command -v -- "$0") || die "cannot locate the workbench script"
   self=$(readlink -f "$self")
-  printf '%s\n' "${WORKBENCH_SKILL_SRC:-$(dirname "$self")/../claude-code/skills-optional/workbench}"
+  printf '%s\n' "${WORKBENCH_SKILL_SRC:-$(dirname "$self")/../workbench}"
 }
 
 slugify() {

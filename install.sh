@@ -152,6 +152,9 @@ fi
 # Ensure all shell scripts are executable
 find "${DOTFILES_DIR}" -name '*.sh' ! -name '*.tpl' -exec chmod +x {} +
 find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+# The workbench CLI lives with its skill, not in common/scripts/ — see the
+# claude-code case in deploy_configs.
+chmod +x "${DOTFILES_DIR}/common/claude-code/skills-optional/workbench-cli/workbench" 2>/dev/null || true
 if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
 fi
