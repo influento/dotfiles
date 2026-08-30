@@ -16,8 +16,8 @@ reason="${1:-}"
 
 here="$(dirname "$(readlink -f "$0")")"
 rules="$here/../rules"
-# the workbench skill's references, one level up out of review/
-refs="$here/../../skill/references"
+# the workbench skill's references, one level up out of workbench-review/
+refs="$here/../../workbench/references"
 
 [ -f "$rules/$reason.md" ] || { echo "rules.sh: no rules for reason '$reason'" >&2; exit 2; }
 
