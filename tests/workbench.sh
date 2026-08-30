@@ -1466,6 +1466,11 @@ ready "$gwt"
 # an unguarded init renders content identical to what the branch already has
 # whenever the source has not drifted, so a clean 'git status' proves nothing.
 run "init in a linked worktree is refused" 1 "run it in the main checkout" bash -c "cd '$PWD/$gwt' && '$WB' init"
+git config workbench.mode unattended
+run "merge --no-review is refused unattended" 1 "the mode is unattended" "$WB" merge "$gi" "gated" --no-review
+run "the refusal names the gate to run instead" 1 "/workbench-review pre-merge $gi" "$WB" merge "$gi" "gated" --no-review
+git config workbench.mode attended
+run "and is the user's to take when they are here" 0 "merged $gi" "$WB" merge "$gi" "gated" --no-review
 
 # a repo name tmux could not target
 new_repo "dot.ted"

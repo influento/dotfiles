@@ -1230,6 +1230,11 @@ cmd_merge() {
   case "$id" in
     x-*) die "$id is research and never merges; what it decided is spawned as items — 'workbench archive $id' retires the branch" ;;
   esac
+  # The gate is skippable only by the user, and 'unattended' is the project
+  # saying the user is not here. Nothing else stops a session reaching for it:
+  # 'Bash(workbench:*)' pre-approves the flag along with every other one.
+  [ "$no_review" -eq 0 ] || [ "$(mode)" = attended ] \
+    || die "$id: --no-review is the user's override and the mode is unattended; run the gate — '/workbench-review pre-merge $id', then 'workbench review-check' — or 'workbench call $id' and leave the merge to them"
 
   case "$subject" in
     *$'\n'*) die "the subject must be a single line" ;;
