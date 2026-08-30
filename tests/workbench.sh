@@ -1452,6 +1452,21 @@ chmod 644 "$rf"
 "$WB" round "$rp" 1 0 >/dev/null
 check "round leaves the item file's mode alone" bash -c "[ \"\$(stat -c %a '$rf')\" = 644 ]"
 
+# --no-review is the user's override, so an unattended session cannot take it,
+# and init writes tracked files that belong on the default branch.
+new_repo "gates"
+"$WB" init >/dev/null
+git add -A && git commit -qm wb
+gi=$(newc bug "gated")
+"$WB" start "$gi" --no-open >/dev/null 2>&1
+gwt=".worktrees/$(git branch --format='%(refname:short)' | grep "^$gi-")"
+ready "$gwt"
+# Before the merge below, which takes the worktree with it. A worktree is the
+# only place init can land its files on a branch, so the refusal is the test —
+# an unguarded init renders content identical to what the branch already has
+# whenever the source has not drifted, so a clean 'git status' proves nothing.
+run "init in a linked worktree is refused" 1 "run it in the main checkout" bash -c "cd '$PWD/$gwt' && '$WB' init"
+
 # a repo name tmux could not target
 new_repo "dot.ted"
 "$WB" init >/dev/null 2>&1

@@ -661,6 +661,16 @@ cmd_init() {
     esac
   done
   root=$(repo_root)
+  # The skills, the settings and the CLAUDE.md block are tracked files, and
+  # they are committed on the default branch. Run in a linked worktree, init
+  # writes them onto that item's branch, where they ride its squash under its
+  # trailer — the housekeeping-on-a-branch that 'land_item' and 'idea' avoid by
+  # always landing on the main checkout. 'status' prints "run 'workbench
+  # init'" from any checkout, so a worker session reaches this.
+  local mainr
+  mainr=$(main_root)
+  [ "$root" = "$mainr" ] \
+    || die "init writes tracked files that are committed on the default branch; run it in the main checkout: cd $mainr && workbench init"
 
   for d in items/bugs items/features items/renames items/research items/archive reviews; do
     mkdir -p "$root/$WB/$d"
