@@ -12,7 +12,14 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export HOME="$TMP/home"  # no user gitconfig, hooks or aliases
-mkdir -p "$HOME" "$TMP/bin"
+# The suite's own temp directory, not the machine's. Two checks below count
+# 'tmp.*' entries before and after a command to prove it leaks nothing; against
+# a shared /tmp any other process — an editor, a browser, a second run of this
+# suite, whose own $TMP is itself a /tmp/tmp.* — creating or reaping one in that
+# window flips the count and fails a check that has nothing to do with it.
+# Isolated, the count measures only what workbench leaves behind.
+export TMPDIR="$TMP/tmpdir"
+mkdir -p "$HOME" "$TMP/bin" "$TMPDIR"
 export PATH="$TMP/bin:$PATH"
 # tmux, shimmed: every call is logged, windows live in a state directory, and
 # 'claude' is only ever a string inside a window's command. TMUX_SHIM_STATE
