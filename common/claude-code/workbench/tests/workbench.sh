@@ -7,8 +7,8 @@ set -euo pipefail
 SELF=$(readlink -f "$0")  # every check runs from a temp repo, so paths here must be absolute
 # The suite lives inside the tool it tests, so every source is one hop up.
 WB=$(readlink -f "$(dirname "$0")/../bin/workbench")
-OPEN=$(readlink -f "$(dirname "$0")/../review/scripts/open.sh")
-RULES=$(readlink -f "$(dirname "$0")/../review/scripts/rules.sh")
+OPEN=$(readlink -f "$(dirname "$0")/../workbench-review/scripts/open.sh")
+RULES=$(readlink -f "$(dirname "$0")/../workbench-review/scripts/rules.sh")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -164,14 +164,12 @@ check "no /rename is rendered" [ ! -e .claude/skills/rename ]
 # opted-in project and skill_hash cannot count it — which would report every
 # project's copy stale on any CLI edit. Adding bin/ to skill_sources fails this.
 check "init renders no copy of the CLI" [ ! -e .claude/skills/bin ]
-# The rendered name is not the source directory's name. The sources are skill/
-# and review/ — the parent already says workbench — but a project's skills are
-# what Claude Code loads by name, so they must stay 'workbench' and
-# 'workbench-review'. Renaming a source directory must never rename a skill in
-# a project; emitting basenames from skill_sources fails this.
-check "the two skills render under their own names, not their sources'" bash -c \
-  "[ -f .claude/skills/workbench/SKILL.md ] && [ -f .claude/skills/workbench-review/SKILL.md ] \
-   && [ ! -e .claude/skills/skill ] && [ ! -e .claude/skills/review ]"
+# The source directories are named exactly as the skills they render to, so
+# this is the whole mapping: what is under .claude/skills/ is what Claude Code
+# loads by name, and the CLI's own messages ('/workbench-review pre-merge')
+# and its staleness regex both spell these two out.
+check "the two skills render under their own names" bash -c \
+  "[ -f .claude/skills/workbench/SKILL.md ] && [ -f .claude/skills/workbench-review/SKILL.md ]"
 for a in wb-worker wb-reviewer wb-gate; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
 check "the review skill runs as the gate" grep -qx 'agent: wb-gate' .claude/skills/workbench-review/SKILL.md
 check "the gate's tools are the sweep's contract" grep -qx 'tools: Read, Glob, Grep, Bash, Write' .claude/agents/wb-gate.md

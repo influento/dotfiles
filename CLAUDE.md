@@ -279,7 +279,7 @@ Skills are split into two trees under `common/claude-code/`:
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: `bin/` (CLI), `skill/` + `review/` (the two skills, rendered as `workbench` and `workbench-review` — the source dir name is not the rendered name), `agents/` (`wb-worker`, `wb-reviewer`, `wb-gate`), `commands/` (`/bug /feature /research /idea /wb`), `tests/`. `workbench init` renders all of it into a project as committed copies, not links |
+| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: `bin/` (CLI), `workbench/` + `workbench-review/` (the two skills — every source dir here is named exactly as the skill it renders to), `agents/` (`wb-worker`, `wb-reviewer`, `wb-gate`), `commands/` (`/bug /feature /research /idea /wb`), `tests/`. `workbench init` renders all of it into a project as committed copies, not links |
 | `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
@@ -326,7 +326,7 @@ worktrees and other clones carry them — see the `workbench` row above.
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/claude-code/workbench/bin/workbench common/claude-code/workbench/review/scripts/*.sh common/claude-code/workbench/tests/*.sh`
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/claude-code/workbench/bin/workbench common/claude-code/workbench/workbench-review/scripts/*.sh common/claude-code/workbench/tests/*.sh`
 - Test: `bash common/claude-code/workbench/tests/workbench.sh` — end-to-end loop plus failure paths for `workbench`, in a temp repo
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
