@@ -2495,6 +2495,9 @@ cmd_round() {
   else
     awk -v r="rounds: $entries · $decision" '{ print } /^status: / && !done { print r; done = 1 }' "$path" > "$tmp"
   fi
+  # mktemp creates 0600; the replace must not carry that onto the item file,
+  # which is committed and read by everything downstream.
+  chmod --reference="$path" "$tmp"
   mv -f "$tmp" "$path"
   echo "rounds: $entries"
   case "$decision" in

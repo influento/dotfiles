@@ -1444,6 +1444,13 @@ run "round wants counts" 1 "fixed and stands are counts" "$WB" round "$r" many 0
 run "round wants both counts, not their concatenation" 1 "fixed and stands are counts" "$WB" round "$r" "" 3
 run "and rejects an empty second count too" 1 "fixed and stands are counts" "$WB" round "$r" 3 ""
 run "round wants three arguments" 2 "usage" "$WB" round "$r" 1
+# The rewrite goes through mktemp, which creates 0600; the item file is
+# committed and read by everything downstream, so its mode must survive.
+rp=$(newc feature "perms")
+rf=$(find workbench/items -name "$rp-*.md")
+chmod 644 "$rf"
+"$WB" round "$rp" 1 0 >/dev/null
+check "round leaves the item file's mode alone" bash -c "[ \"\$(stat -c %a '$rf')\" = 644 ]"
 
 # a repo name tmux could not target
 new_repo "dot.ted"
