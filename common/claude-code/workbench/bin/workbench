@@ -1558,6 +1558,15 @@ without_fences() {
   awk '/^[[:space:]]*(```|~~~)/ { inside = !inside; print; next } !inside' "$1"
 }
 
+# HTML comments gone, both shapes: one closed on its own line, and one that
+# spans lines. Every scan that asks whether a section holds anything runs
+# through here first — a section holding nothing but the template's own
+# instruction comment is empty, and reads that way only after this. Takes
+# stdin so it composes in a pipeline; a file is '< "$f"'.
+strip_comments() {
+  sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
+}
+
 # An odd number of fence lines: everything after the last one is inside a
 # block to every scan above, so a criterion reads as empty and a section as
 # missing with nothing to say why. Named at the gates, before those scans.
@@ -1577,7 +1586,7 @@ has_evidence() {
   # not an error — the herestring grep below settles it either way.
   body=$(without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
     | tail -n +2 | grep -v '^## ' \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d') || true
+    | strip_comments) || true
   grep -qE '^[[:space:]]*(```|~~~)' <<<"$body"
 }
 
@@ -1703,13 +1712,13 @@ $hint"
 # What was seen for a bug, The term for a rename, Scope for research.
 lead_section() {
   without_fences "$1" | awk '/^## / { n++ } n == 1' | tail -n +2 \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
+    | strip_comments
 }
 
 section_filled() {
   local body
   body=$(without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d') || true
+    | strip_comments) || true
   grep -q '[^[:space:]]' <<<"$body"
 }
 
@@ -1726,7 +1735,7 @@ criterion_heading() {
 # under a heading wins, so a rewritten concept need not delete the old one.
 concept_states() {
   without_fences "$1" | sed -n '/^## Concepts/,/^## /p' \
-    | sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' \
+    | strip_comments \
     | awk '
         /^## / { next }
         /^### / { if (h != "") print h "\t" s; h = substr($0, 5); s = ""; next }
@@ -3341,7 +3350,7 @@ find_report() {
 # no hash to compare against.
 has_findings() {
   local body
-  body=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$1" \
+  body=$(strip_comments < "$1" \
     | grep -v -e '^# ' -e '^date: ' -e '^checked: ') || true
   grep -q '[^[:space:]]' <<<"$body"
 }
@@ -3640,7 +3649,7 @@ or test run left behind counts too: ignore it or delete it, then re-run."
   # report with its comments stripped — what the sweep wrote, not what it got.
   local prose tok file line n
   prose=$(mktemp)
-  sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" > "$prose"
+  strip_comments < "$root/$rel" > "$prose"
 
   # Every file in the tree, once, for the slashless tokens below.
   local index
@@ -3713,12 +3722,12 @@ coverage, then re-run review-check; or review-drop --force to discard it."
     # sit under prose that qualifies or contradicts it, which is the one place
     # merge cannot afford ambiguity — it reads this line and nothing else.
     local tail_line stripped
-    tail_line=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel" \
+    tail_line=$(strip_comments < "$root/$rel" \
       | grep -v '^[[:space:]]*$' | tail -1)
     verdict=$(printf '%s' "$tail_line" | sed -n 's/^verdict: *//p')
     case "$verdict" in
       merge|merge\ *|hold\ *) ;;
-      "") stripped=$(sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d' "$root/$rel")
+      "") stripped=$(strip_comments < "$root/$rel")
           if grep -q '^verdict: ' <<<"$stripped"; then
             die "$rel has a 'verdict:' line, but it must be the last line with nothing after it; move it to the end, then check again"
           fi
