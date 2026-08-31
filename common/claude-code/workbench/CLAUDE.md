@@ -7,13 +7,13 @@ because it is what opts a project in; everything else reaches a project through
 
 ## Layout
 
-| Path                              | What it is                                                          |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `bin/`                            | the CLI                                                             |
-| `workbench/`, `workbench-review/` | the two skills — every source dir here is named exactly as the skill it renders to |
-| `agents/`                         | `wb-worker`, `wb-reviewer`, `wb-gate`                                |
-| `commands/`                       | `/bug /feature /research /idea /wb`                                  |
-| `tests/`                          | end-to-end loop plus failure paths, in a temp repo                   |
+| Path        | What it is                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| `bin/`      | the CLI                                                                                  |
+| `skills/`   | `workbench` and `workbench-review` — each dir is named exactly as the skill it renders to |
+| `agents/`   | `wb-worker`, `wb-reviewer`, `wb-gate`                                                    |
+| `commands/` | `/bug /feature /research /idea /wb` — thin skills too, one per typed command              |
+| `tests/`    | end-to-end loop plus failure paths, in a temp repo                                       |
 
 ## What `init` puts in a project
 
@@ -49,8 +49,8 @@ Two extension points:
 
 ## Adding files here
 
-`skill_sources` enumerates `workbench/`, `workbench-review/` and each
-`commands/<name>/`, and `skill_hash` covers everything under them. A file added
+`skill_sources` enumerates `skills/workbench/`, `skills/workbench-review/` and
+each `commands/<name>/`, and `skill_hash` covers everything under them. A file added
 inside one of those dirs ships into every project that runs `init` and marks
 every already-rendered copy stale. Maintainer-facing files (this one included)
 belong at the root of this tree instead.
@@ -59,7 +59,7 @@ belong at the root of this tree instead.
 
 Run from this directory (`common/claude-code/workbench/`):
 
-- Lint: `shellcheck -x bin/workbench workbench-review/scripts/*.sh tests/*.sh`
+- Lint: `shellcheck -x bin/workbench skills/workbench-review/scripts/*.sh tests/*.sh`
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for
   `workbench`, in a temp repo
 

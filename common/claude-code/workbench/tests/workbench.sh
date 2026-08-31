@@ -7,8 +7,8 @@ set -euo pipefail
 SELF=$(readlink -f "$0")  # every check runs from a temp repo, so paths here must be absolute
 # The suite lives inside the tool it tests, so every source is one hop up.
 WB=$(readlink -f "$(dirname "$0")/../bin/workbench")
-OPEN=$(readlink -f "$(dirname "$0")/../workbench-review/scripts/open.sh")
-RULES=$(readlink -f "$(dirname "$0")/../workbench-review/scripts/rules.sh")
+OPEN=$(readlink -f "$(dirname "$0")/../skills/workbench-review/scripts/open.sh")
+RULES=$(readlink -f "$(dirname "$0")/../skills/workbench-review/scripts/rules.sh")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
