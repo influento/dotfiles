@@ -192,6 +192,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances that appear separately in wofi                            |
 | **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`               | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`); waybar indicator                      |
 | **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
+| **startup-reminders**     | `workstation/scripts/startup-reminders`                       | Nag about post-install manual steps on sway start, until a script marks them done (data in `reminders/*.txt`)                    |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
@@ -200,7 +201,8 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet, opened by the `cheat` alias — no deploy step. See `workstation/cheatsheets/CLAUDE.md` |
 
 What the scripts above actually do — the headless design constraints, the
-nosleep inhibitor, tg's isolated instances, auto-update's cooldown:
+nosleep inhibitor, tg's isolated instances, auto-update's cooldown, the
+reminders format:
 `workstation/scripts/CLAUDE.md`.
 
 ## Claude Code Skills
