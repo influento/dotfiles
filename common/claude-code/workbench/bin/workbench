@@ -286,21 +286,8 @@ ensure_gitignore() {
   root=$(repo_root)
   gi="$root/.gitignore"
   # Skills are rendered copies, committed so every checkout and clone has
-  # them; an earlier init ignored them as links, and those lines would keep
-  # the copies out of git. settings.local.json is left ignored: that file is
-  # per-user by Claude Code's own definition. grep exits 1 when nothing
-  # survives, which is a valid result here, not a failure.
-  local stale name
-  if [ -f "$gi" ]; then
-    stale='^\.claude/skills/(workbench|workbench-review|rename'
-    for name in $WB_COMMANDS; do stale="$stale|$name"; done
-    stale="$stale)\$"
-    if grep -qE "$stale" "$gi"; then
-      grep -vE "$stale" "$gi" > "$gi.tmp" || true
-      mv "$gi.tmp" "$gi"
-      echo "  .gitignore -= the skill links; the copies are meant to be committed"
-    fi
-  fi
+  # them; nothing here ignores them. settings.local.json is left ignored:
+  # that file is per-user by Claude Code's own definition.
   local entry='.worktrees/'
   grep -qxF "$entry" "$gi" 2>/dev/null && return 0
   # A last line missing its newline would otherwise absorb the entry.
@@ -345,8 +332,11 @@ skill_hash() {
 
 # current | stale | edited | missing — for the copy of <name> under <root>.
 # A copy whose content no longer matches its own stamp was edited by hand,
-# and init refuses to overwrite it without --force. A stamp without a copy
-# hash (an earlier format) reads as stale, so it is simply re-rendered.
+# and init refuses to overwrite it without --force. The regex on the copy
+# hash is why a stamp not carrying one reads as stale — re-rendered — rather
+# than as edited, which init would refuse. Not only the older two-line format
+# it was written for: any garbled second line lands there too, and
+# re-rendering beats refusing every init until someone passes --force.
 skill_state() {
   local root="$1" src="$2" dst src_hash copy_hash
   dst="$root/.claude/skills/$(basename "$src")"
@@ -551,7 +541,11 @@ if not isinstance(data, dict):
 changed = []
 # The settings are committed, so a clone on a machine without the CLI opens
 # with them too: guarded, the hook and status line stay quiet there instead
-# of failing every session. A bare command from an earlier init is upgraded.
+# of failing every session. A bare, unguarded command is rewritten in place
+# rather than left beside the guarded one: appended instead, it would run
+# twice a session, and a bare statusLine would stay broken on a machine
+# without the CLI. Reached now by a hand-edited settings.json, not by an
+# older init.
 HOOK = "command -v workbench >/dev/null && workbench status || true"
 LINE = "command -v workbench >/dev/null && workbench statusline || true"
 # Shapes Claude Code would reject are skipped, not crashed on: a settings
@@ -567,7 +561,7 @@ hooks = data.setdefault("hooks", {})
 # The session wiring: 'status' into context at session start, and the
 # signal/gate hooks that title a session's tmux window and route its
 # questions by mode. Each is matched by its exact command, so a re-run adds
-# nothing twice; a hook of ours under an older, unguarded command is upgraded.
+# nothing twice; an unguarded command of ours is rewritten, not duplicated.
 SIG = lambda c: "command -v workbench >/dev/null && workbench " + c + " || true"
 GATE = lambda c: "! command -v workbench >/dev/null || workbench " + c
 WANT = [
