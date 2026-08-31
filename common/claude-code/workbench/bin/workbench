@@ -144,10 +144,10 @@ wb_find() {
   find "${dirs[@]}" "$@" 2>/dev/null || true
 }
 
-# Everything the tool renders lives under one root: workbench/ and
-# workbench-review/ are the two skills, named as they render; agents/ and
-# commands/ are consumed by init, and this script sits in bin/. Nothing reaches outside that tree. Resolving from $0 keeps the path
-# out of the script, so a moved checkout still works.
+# Everything the tool renders lives under one root: skills/ holds the two
+# skills, named as they render; agents/ and commands/ are consumed by init,
+# and this script sits in bin/. Nothing reaches outside that tree. Resolving
+# from $0 keeps the path out of the script, so a moved checkout still works.
 wb_root() {
   local self
   # $0 is a bare name when found on PATH, so resolve it before following links
@@ -306,7 +306,7 @@ skill_sources() {
   local base name
   base=$(readlink -f "$(wb_root)") || true
   [ -n "$base" ] && [ -d "$base" ] || die "workbench source not found at $(wb_root)"
-  printf '%s\n' "$base/workbench" "$base/workbench-review"
+  printf '%s\n' "$base/skills/workbench" "$base/skills/workbench-review"
   for name in $WB_COMMANDS; do printf '%s\n' "$base/commands/$name"; done
 }
 
