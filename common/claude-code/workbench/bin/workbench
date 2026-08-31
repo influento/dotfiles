@@ -1003,7 +1003,7 @@ find_item() {
   wb_find items -name "$id-*.md" -print -quit < <(
     {
       while IFS= read -r b; do worktree_of "$b"; done \
-        < <(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+        < <(local_branches "$(main_root)" "$id")
       main_root
       repo_root
       all_roots
@@ -1018,16 +1018,33 @@ item_root() {
   printf '%s\n' "${1%/"$WB"/items/*}"
 }
 
+# Local branches for an item id, one per line. refs/heads lives in the common
+# git directory and is shared by every worktree, so the set is the same from
+# any checkout — the root is passed to pin the call, not to change the answer.
+local_branches() {
+  git -C "$1" for-each-ref --format='%(refname:short)' "refs/heads/$2-*"
+}
+
+# One item, one branch. $1 the id, for the message; $2 the branches already
+# read. A checker, not a filter: 'b=$(require_one_branch …)' would run the die
+# in a command substitution, where 'exit 1' leaves only that subshell and the
+# refusal reaches the caller as an exit status for 'set -e' to notice — or,
+# after a 'local', not at all. Called as a statement, the die is the script's.
+require_one_branch() {
+  case "$2" in
+    *$'\n'*) die "several branches match $1-*:"$'\n'"$2" ;;
+  esac
+}
+
 # The branch an item is on, if any: a local one, else one only fetched from
 # origin — on another machine that ref may be the only trace that an item
-# was started.
+# was started. The origin lookup stays written out: one site, and a different
+# ref namespace than local_branches covers.
 item_branch() {
   local b
-  b=$(git for-each-ref --format='%(refname:short)' "refs/heads/$1-*")
-  [ -n "$b" ] || b=$(git for-each-ref --format='%(refname:short)' "refs/remotes/origin/$1-*")
-  case "$b" in
-    *$'\n'*) die "several branches match $1-*:"$'\n'"$b" ;;
-  esac
+  b=$(local_branches "$(main_root)" "$1")
+  [ -n "$b" ] || b=$(git -C "$(main_root)" for-each-ref --format='%(refname:short)' "refs/remotes/origin/$1-*")
+  require_one_branch "$1" "$b"
   printf '%s\n' "$b"
 }
 
@@ -1263,7 +1280,7 @@ cmd_merge() {
     # finish — and a bare "already carries" leaves the user with a merged item,
     # two leftovers and nothing to run. Name them and hand over the commands.
     local left_branch left_wt
-    left_branch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$id-*" | head -1)
+    left_branch=$(local_branches "$root" "$id" | head -1)
     left_wt=''
     [ -z "$left_branch" ] || left_wt=$(worktree_of "$left_branch")
     if [ -n "$left_branch" ]; then
@@ -1275,11 +1292,9 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
     fi
     die "$main already carries 'Item: $id' at $prior"
   fi
-  branch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
+  branch=$(local_branches "$root" "$id")
   [ -n "$branch" ] || die "no branch named $id-*; nothing to merge"
-  case "$branch" in
-    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
-  esac
+  require_one_branch "$id" "$branch"
 
   # The merge gate asks whether everything verifiable was verified, and the
   # item file on the branch is the only witness — main's copy is the item as
@@ -1825,10 +1840,8 @@ cmd_archive() {
 
   local main branch
   main=$(default_branch)
-  branch=$(git for-each-ref --format='%(refname:short)' "refs/heads/$id-*")
-  case "$branch" in
-    *$'\n'*) die "several branches match $id-*:"$'\n'"$branch" ;;
-  esac
+  branch=$(local_branches "$(main_root)" "$id")
+  require_one_branch "$id" "$branch"
   # Started with the worktree gone — removed, or never cut on this machine —
   # the branch's copy is the item and main's is the item as it started; the
   # checks below read the branch's. A worktree removed by hand and not yet
@@ -3081,6 +3094,9 @@ status_lines() {
     f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
     # A branch with no worktree — removed by hand, or only fetched from
     # another machine — is started too; 'start' resumes it.
+    # Not local_branches: that globs '<id>-*', and this asks whether a branch
+    # of exactly this name exists. The two differ when one slug is a prefix of
+    # another — b-1-foo would answer for b-1-foobar.
     [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/${name%.md}")" ] || started='   started'
     if [ -n "$f" ] && ! git -C "$mainr" ls-files --error-unmatch "$f" >/dev/null 2>&1; then
       where="   [not committed — 'workbench start' lands it]"
@@ -3191,7 +3207,7 @@ cmd_status() {
     for name in "${names[@]}"; do
       mid=$(item_id "$name")
       [ -n "$mid" ] || continue
-      [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$mid-*")" ] || continue
+      [ -z "$(local_branches "$mainr" "$mid")" ] || continue
       f=$(find "$mainr/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
       [ -n "$f" ] || continue
       local st sha
@@ -3355,7 +3371,7 @@ awaiting_on_main() {
   [ -d "$mainr/$WB/items" ] || return 0
   grep -rl '^status: awaiting' "$mainr/$WB/items" --exclude-dir=archive 2>/dev/null | sort \
     | while IFS= read -r h; do
-        [ -n "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/$(item_id "$h")-*")" ] || printf '%s\n' "$h"
+        [ -n "$(local_branches "$mainr" "$(item_id "$h")")" ] || printf '%s\n' "$h"
       done
   return 0
 }
@@ -3777,7 +3793,7 @@ coverage, then re-run review-check; or review-drop --force to discard it."
   # reviewer, and at three holds it stops and asks.
   if [ -n "$pid" ]; then
     local pbranch holds
-    pbranch=$(git -C "$root" for-each-ref --format='%(refname:short)' "refs/heads/$pid-*" | head -1)
+    pbranch=$(local_branches "$root" "$pid" | head -1)
     case "$verdict" in
       merge*)
         if [ -n "$pbranch" ]; then
@@ -3892,7 +3908,7 @@ cmd_review() {
     [ -z "$item" ] || root=$(item_root "$item")
     # Several branches carrying the id is merge's to refuse; the sweep must
     # still return a report, so the first one's manifest and a note.
-    branches=$(git for-each-ref --format='%(refname:short)' "refs/heads/$scope-*")
+    branches=$(local_branches "$root" "$scope")
     branch=${branches%%$'\n'*}
     # A branch with no worktree is the one case where rooting silently lands on
     # the wrong tree: item files live on the default branch from creation, so
