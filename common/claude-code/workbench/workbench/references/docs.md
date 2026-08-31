@@ -89,6 +89,12 @@ session writes there through the main checkout, so its edits show up as
 unstaged changes on the default branch; commit them as housekeeping.
 `workbench merge` tolerates them unstaged and refuses them staged.
 
+Without that setting Claude Code keys the store to the checkout instead:
+`~/.claude/projects/<slug>/memory/`, where `<slug>` is the checkout's
+absolute path with every character outside `[A-Za-z0-9]` replaced by `-`. A
+worktree has a different path and so a store of its own, so anything reading
+memory there has to read the main checkout's as well as its own.
+
 Auditing memory for facts that have drifted, or that should have been repository
 documents, is a review reason — see [reviews.md](reviews.md).
 

@@ -45,11 +45,10 @@ trailer; a memory entry is neither. That is the whole argument, and it holds
 whether or not the store is versioned.
 
 Two more legs — memory that is machine-local, and keyed to the checkout's
-path so a worktree gets a store of its own — `init` removes by pointing
-`autoMemoryDirectory` at `.claude/memory/` in the tree: one store, committed,
-shared by every worktree and every clone at the same path. What that buys is
-sync and a diff. What it does not buy is review, which is why the `memory` sweep
-reason exists.
+path so a worktree gets a store of its own — `init` removes by putting the
+store in the tree; [docs.md](docs.md), "Repository documents or agent
+memory", says how. What that buys is sync and a diff. What it does not buy
+is review, which is why the `memory` sweep reason exists.
 
 ## Why `rename` is a class and `refactor` is not
 
