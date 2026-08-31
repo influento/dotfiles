@@ -37,21 +37,8 @@ This means:
 - Existing files are backed up with a timestamp before being replaced
 
 **Exception — app-rewritten files.** `~/.claude/settings.json` is deep-merged by
-`merge_json_config` instead of symlinked. Claude Code saves settings by writing a
-temp file and `rename()`-ing it over the target, which replaces the symlink rather
-than writing through it, so a symlinked settings file silently degrades into a
-stale copy on the first `/config` change. A hard link breaks the same way; a bind
-mount makes the write fail with `EBUSY`. On merge, tracked values win for every key
-we define — and arrays are replaced wholesale, so dropping one entry from an
-allow-list here drops it there — while keys only Claude Code knows about
-(`enabledPlugins`, feature flags, onboarding state) survive untouched.
-
-Two consequences of merging rather than replacing:
-
-- **Deletions do not propagate.** Removing a whole key from the tracked file leaves
-  it in place in `~/.claude/settings.json`. Delete it there by hand as well.
-- **`/config` edits do not show up in `git diff`.** Mirror anything worth keeping
-  into the tracked file.
+`merge_json_config` instead of symlinked, with consequences for how edits
+propagate in both directions: `common/claude-code/CLAUDE.md`.
 
 ### Config Mapping
 
@@ -168,8 +155,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
 | **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
 | **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
-| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills (see "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
-| **workbench**        | `common/claude-code/workbench/` | Item-tracking workflow CLI, opted into per project; `init` renders the `workbench` / `workbench-review` skills plus the `/bug /feature /research /idea /wb` commands (`/wb rename` covers renames) as committed copies under `.claude/skills/` (stamped with source + copy hashes; `status` flags stale and hand-edited ones, `init --force` overwrites the latter) and merges a session hook + status line + allow rule + `autoMemoryDirectory` (memory tracked in the tree) + the signal/gate hooks into the project's `.claude/settings.json`. `workbench lead` opens tmux session `wb-<repo>` with the lead in window 0; each `start` then opens the item's worker as its own Claude session in its own window (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it may hold), titled by the hooks with what it needs (`?` needs you, `↑` asked the lead, `⟳` in review, `✓` ready, `!` parked a call); `open <id\|lead>` switches or resumes, `mode attended\|unattended` decides live whether questions go to the user in-window or are parked; `round` keeps the review dialog honest before the gate. Without a lead `start` is git-only. Two extension points, both undocumented until now: `WORKBENCH_ROOT` overrides where `init` renders from, and a source file ending `.tpl` is rendered on the way in with `@@PROJECT@@` and `@@DEFAULT_BRANCH@@` substituted, the `.tpl` itself not copied — the hook for per-project skill content. Nothing shipped uses it; it is tested |
+| **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills, and the workbench CLI (see `common/claude-code/CLAUDE.md` and "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
@@ -192,7 +178,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
 | **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
 | **swaylock**              | `workstation/swaylock/config.tpl`                             | Screen locker: colors, indicator, behavior (themed)                                                  |
-| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers. Screen-off goes via `headless dpms` so it never powers off a virtual output |
+| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers                                                       |
 | **mako**                  | `workstation/mako/config.tpl`                                 | Notification daemon: appearance, urgency, timeouts (themed)                                          |
 | **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`          | Wallpaper: launcher script, image storage (themed)                                                   |
 | **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                            | Night light: temperature, location-based schedule                                                    |
@@ -202,75 +188,20 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                    | GTK3 apps: theme, icons, cursor, font                                                                |
 | **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (requires qt6ct env var from OS installer)         |
 | **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
-| **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: yay -Syu (repos + AUR) + npm updates, 12h cooldown (`--force` to bypass), mako notifications |
-| **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances (own --workdir + .desktop launcher) that appear in wofi; create/list/remove, auto-runs update-desktop-database |
-| **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`               | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient systemd --user unit holding a logind block inhibitor; lock (15m) and display-off (30m) still apply, only the 60m suspend is blocked; clears on reboot. Waybar indicator shows both states (visible when off too, since that is the case worth noticing) and toggles on click; state changes signal waybar (RTMIN+8) for instant feedback |
-| **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: disables the physical outputs and serves the live Sway session over wayvnc on a virtual output instead (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator). `connect <host>` opens it from the laptop over an SSH tunnel; `app <host> <cmd>` forwards a single app over waypipe (works even with no session running). Resolves `SWAYSOCK` itself so it can be driven over SSH; clears on reboot. See "Headless Mode" below |
+| **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: repos + AUR + npm, with a cooldown                           |
+| **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances that appear separately in wofi                            |
+| **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`               | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`); waybar indicator                      |
+| **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
 | **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
 | **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
 | **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
 | **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
 | **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
-| **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet (Common / Neovim / IdeaVim / Tmux, switch with keys 1–4). Opened via chromium app mode with the `cheat` alias in `.zshrc-workstation` — no symlink, no deploy step |
+| **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet, opened by the `cheat` alias — no deploy step. See `workstation/cheatsheets/CLAUDE.md` |
 
-## Headless Mode
-
-`headless on` turns the workstation into a remotely-served box with the monitor
-off — a backup profile for power outages, where the 38" ultrawide is the largest
-consumer in the setup. `headless off` restores the normal desktop. State is
-transient (systemd `--user` unit + `$XDG_RUNTIME_DIR`), so a reboot always comes
-back as a normal desktop.
-
-Four constraints drove the design. Do not "simplify" past them:
-
-1. **Never capture a physical output.** A disabled or DPMS-off output stops
-   being composited, so `wlr-screencopy` has no frames and the VNC stream
-   freezes with no way to wake it remotely. wayvnc is always pointed at a
-   virtual output, which is composited regardless of monitor state.
-2. **Never assume `HEADLESS-1`.** Sway increments the suffix on every
-   `create_output` for the compositor's lifetime, so the second toggle yields
-   `HEADLESS-2`. Resolve the name via the `HEADLESS-` prefix at call time.
-3. **Always set the virtual output's scale explicitly.** `sway/scale.conf` sets
-   `output * scale 1.3` for the ultrawide; inherited, it misrenders the remote
-   view. Mode and scale are both required on a HiDPI client: mode sets the
-   framebuffer wayvnc streams, scale sets the logical layout inside it. Wrong
-   scale gives half-size UI or a blurry upscale.
-4. **Idle handling must skip virtual outputs.** `swayidle/config` calls
-   `headless dpms off` rather than `output * power off` for exactly this reason,
-   and `headless on` invokes `nosleep on`, since the 60-minute
-   `systemctl suspend` would otherwise drop every remote session (WiFi-only, so
-   no Wake-on-LAN). It claims that inhibitor only when it is not already held
-   and releases it only when it claimed it — tracked by
-   `$XDG_RUNTIME_DIR/headless.nosleep-owned` — so ending headless mode never
-   silently undoes a nosleep the user set by hand.
-
-Remote viewers hold a Wayland keyboard-shortcuts inhibitor, which Sway honours,
-so while the viewer is focused `$mod+1` drives the *remote* session and the
-local compositor never sees it. That is the desired behaviour, but it needs an
-escape: `sway/config.tpl` binds `$mod+Ctrl+1`–`9` and `$mod+Ctrl+q` with
-`--inhibited`, which fires regardless of any inhibitor. `Shift+F11` (passed to
-remote-viewer via `--hotkeys`) leaves fullscreen.
-
-The viewer matters as much as the geometry. tigervnc's `vncviewer` is X11-only,
-so under Sway it runs through XWayland and a scaled output renders it at 1x then
-upscales — halving the effective resolution of a HiDPI stream. `connect` prefers
-`wlvncc` (AUR, purpose-built for wayvnc), then `remote-viewer` (virt-viewer,
-GTK/Wayland-native), and only falls back to `vncviewer` with a warning and
-`RemoteResize=0` (which otherwise logs `SetDesktopSize failed`, since wayvnc
-cannot resize a Sway output on request). Override with `HEADLESS_VIEWER`.
-
-Geometry resolution order is environment > `~/.config/headless.conf` (untracked,
-per-machine) > built-in default. `headless connect` overrides all of them by
-detecting the connecting machine's own output and passing it to the far side,
-which works because both machines run this same Sway config.
-
-`output <name> disable` is used rather than `power off` because it both drops
-the monitor to standby and makes Sway migrate the workspaces to the virtual
-output automatically. The workspace-to-output layout is recorded on the way in
-and restored on the way out.
-
-Requires `wayvnc`, `waypipe` and a VNC client (`virt-viewer`, or `wlvncc` from
-the AUR), plus tty1 autologin. All system-level, so they live in arch-install.
+What the scripts above actually do — the headless design constraints, the
+nosleep inhibitor, tg's isolated instances, auto-update's cooldown:
+`workstation/scripts/CLAUDE.md`.
 
 ## Claude Code Skills
 
@@ -279,8 +210,8 @@ Skills are split into two trees under `common/claude-code/`:
 | Tree              | Deployed                                    | Contents                                                                                              |
 | ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: `bin/` (CLI), `workbench/` + `workbench-review/` (the two skills — every source dir here is named exactly as the skill it renders to), `agents/` (`wb-worker`, `wb-reviewer`, `wb-gate`), `commands/` (`/bug /feature /research /idea /wb`), `tests/`. `workbench init` renders all of it into a project as committed copies, not links |
-| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public) |
+| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: CLI, its two skills, agents, commands, tests. Rendered into a project by `workbench init`, never linked — see `common/claude-code/workbench/CLAUDE.md` |
+| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
 `name` and `description` frontmatter is loaded into context at session start — the
@@ -294,20 +225,6 @@ anywhere (registers like `caveman`, `indexer`, `human-like-text`) or handles a f
 format with no natural home repo (`docx`, `pdf`). It is **optional** if it only makes
 sense inside one kind of project (`go/` in Go repos, `manim` in animation projects,
 `excalidraw` in the Obsidian vault, `build-cv` when writing a CV).
-
-To opt a project in, symlink the skill directories it needs:
-
-```bash
-mkdir -p <project>/.claude/skills
-ln -s ~/dev/infra/dotfiles/common/claude-code/skills-optional/go/* <project>/.claude/skills/
-```
-
-The `go/` subdirectory is a grouping only — Claude Code discovers skills as
-`skills/<name>/SKILL.md`, so link the individual skill dirs, never the `go/` dir itself.
-Ignore the symlinks themselves in the project's `.gitignore`; `.claude/skills/` as
-a whole only when every skill there is personal rather than team-wide. Workbench
-is the exception: `workbench init` renders its skills as committed copies so
-worktrees and other clones carry them — see the `workbench` row above.
 
 ## Code Conventions
 
@@ -326,25 +243,10 @@ worktrees and other clones carry them — see the `workbench` row above.
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh common/claude-code/workbench/bin/workbench common/claude-code/workbench/workbench-review/scripts/*.sh common/claude-code/workbench/tests/*.sh`
-- Test: `bash common/claude-code/workbench/tests/workbench.sh` — end-to-end loop plus failure paths for `workbench`, in a temp repo
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh`
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
-
-## Codebase Size (baseline: 2026-03-14)
-
-~38,300 tokens total (~33,700 deduplicated, excluding generated files).
-
-| Area                                     | Est. Tokens |
-| ---------------------------------------- | ----------- |
-| `common/`                                | ~13,200     |
-| `workstation/`                           | ~8,900      |
-| Root files (CLAUDE.md, install.sh, etc.) | ~6,200      |
-| `lib/`                                   | ~3,900      |
-| `docs/` + `themes/`                      | ~1,500      |
-
-Binary files (wallpapers, 8.3 MB) excluded.
 
 ## Editing Configs
 
@@ -385,3 +287,7 @@ When modifying any config, follow this workflow:
 
 - **`docs/references.md`** — official doc links and config format notes for every tool.
   Consult before modifying configs, especially after package upgrades.
+
+Detail that only matters inside one directory lives in a `CLAUDE.md` there —
+under `common/claude-code/`, `workstation/scripts/`, `workstation/cheatsheets/`
+— and loads only when that tree is touched.

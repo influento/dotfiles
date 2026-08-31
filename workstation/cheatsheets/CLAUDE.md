@@ -2,7 +2,7 @@
 
 Single multi-scope HTML cheatsheet covering nvim, ideavim, and tmux. Opened via chromium app mode (no browser chrome) and pinned on a sway workspace.
 
-Lives at `~/dev/infra/dotfiles/workstation/cheatsheets/`. The `cheat` zsh alias opens chromium with `file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/tools/index.html` directly — no deploy step, no symlink.
+Lives at `~/dev/infra/dotfiles/workstation/cheatsheets/`. The `cheat` zsh alias (defined in `workstation/zsh/.zshrc-workstation`) opens chromium with `file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/tools/index.html` directly — no deploy step, no symlink.
 
 ## Layout
 

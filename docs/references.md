@@ -10,7 +10,6 @@ Check these when upgrading tools or debugging config issues.
 | **zsh + oh-my-zsh** | `common/zsh/.zshrc` | [oh-my-zsh wiki](https://github.com/ohmyzsh/ohmyzsh/wiki) | Plugins: git, sudo, extract, zsh-autosuggestions, zsh-syntax-highlighting |
 | **Starship** | `common/starship/starship.toml` | [starship.rs/config](https://starship.rs/config/) | TOML format, module reference has all options |
 | **Neovim** | `common/nvim/init.lua`, `lua/` | [neovim.io/doc](https://neovim.io/doc/user/) | lazy.nvim plugin manager, lua config |
-| **workbench sessions** | `claude-code/workbench/bin/workbench` (`lead`, `open`, `signal`, `gate`), `claude-code/workbench/agents/` | [Claude Code hooks](https://code.claude.com/docs/en/hooks), [CLI reference](https://code.claude.com/docs/en/cli-reference), [tmux man](https://man.openbsd.org/tmux.1) | Hooks used: `SessionStart/End`, `PreToolUse`, `PostToolUse`, `PermissionRequest` (decides by JSON `decision`, exit 2 ignored), `SubagentStart/Stop` (matcher is `agent_type`), `Stop`; every input carries `session_id`, `cwd`, `permission_mode`. A `--agent` definition's `tools:` restricts the session. `SendMessage` to a reply target carries `uds:` sockets, not names; idle notices are documented as same-permission-class only, though one crossed classes in practice. tmux `#{window_id}` (`@N`) is stable, window names are not; a worktree under a trusted repo inherits trust |
 | **tmux** | `common/tmux/tmux.conf.tpl` | [tmux man page](https://man.openbsd.org/tmux.1) | Themed template, generates `tmux.conf` |
 | **Git** | `common/git/.gitconfig` | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
 | **fontconfig** | `common/fontconfig/fonts.conf` | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
@@ -18,6 +17,10 @@ Check these when upgrading tools or debugging config issues.
 | **fastfetch** | `common/fastfetch/config.jsonc` | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |
 | **fzf** | Configured in `.zshrc` | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
 | **zoxide** | Configured in `.zshrc` | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | `eval "$(zoxide init zsh)"` |
+
+The hooks, CLI and tmux facts behind `workbench lead` / `open` / `signal` /
+`gate` are in `common/claude-code/workbench/CLAUDE.md`, with the session model
+they belong to.
 
 ## Workstation only
 
