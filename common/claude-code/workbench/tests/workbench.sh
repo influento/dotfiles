@@ -1058,6 +1058,12 @@ git worktree prune
 run "start resumes after the prune" 0 "resumed b-001-gone" "$WB" start b-001
 git branch -q b-001-other main
 run "start refuses when several branches match" 1 "several branches match b-001" "$WB" start b-001
+# start reaches the check through item_branch; merge and archive call it
+# directly, and those two call sites had no test of their own — sharing one
+# implementation is not the same as covering the paths into it. A wrong id or
+# a wrong root at either would fail silently otherwise.
+run "merge refuses when several branches match" 1 "several branches match b-001" "$WB" merge b-001 "two branches" --no-review
+run "archive refuses when several branches match" 1 "several branches match b-001" "$WB" archive b-001
 git branch -qD b-001-other
 # a second machine: the branch exists only on origin
 git clone -q --bare . "$TMP/resume-origin"
