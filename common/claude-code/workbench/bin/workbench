@@ -2299,41 +2299,81 @@ cmd_mode() {
 # The hook input, read once, and every field the hooks look at pulled in
 # one pass — a python3 per field is most of a hook's latency. Without
 # python3, a sed that takes the first string under the key's last segment.
+# Dotted paths out of a JSON object on stdin: one line per path, in argument
+# order, empty for a path that is missing or whose value is not a string.
+#
+# The count is the contract. A missing field still gets its line, because
+# every caller reads the output positionally — 'read_hook_input' binds eight
+# of them by index — and a dropped line would shift every field after it onto
+# the wrong name. Callers still default with '${vals[i]:-}': command
+# substitution eats trailing newlines, so an all-empty result arrives short.
+#
+# One invocation for all of them. A python3 start is ~15ms and this runs on
+# every hook and every status-line repaint, so a call per field was most of
+# what either cost.
+#
+# No jq leg. jq is on none of the machines this runs on, so it was a third
+# implementation no test could reach — and an unreachable leg is exactly
+# where the greedy scan below sat wrong for as long as it did. (Elsewhere in
+# this repo the convention is "jq, or fall back"; this is a call about this
+# tool, not about that convention.)
+json_fields() {
+  local input k
+  input=$(cat 2>/dev/null || true)
+  if command -v python3 >/dev/null 2>&1; then
+    # Never fails: unparseable input yields one empty line per path, which is
+    # what the caller would have got from a refusal anyway.
+    printf '%s' "$input" | python3 -c '
+import json, re, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = None
+for path in sys.argv[1:]:
+    v = d
+    for k in path.split("."):
+        v = v.get(k) if isinstance(v, dict) else None
+    print(re.sub(r"\s+", " ", v) if isinstance(v, str) else "")' "$@" 2>/dev/null || true
+    return 0
+  fi
+  # No python3: a text scan, one key at a time, matching the FIRST occurrence
+  # of the path's last segment. A trailing '.*' is greedy, so a plain
+  # 's/.*"key".*/\1/' takes the LAST match on the line — on a compact payload
+  # that is a nested copy under some other object rather than the field asked
+  # for.
+  #
+  # A heuristic, not a parser, and it stays one: it ignores the path's
+  # prefix, and a nested key written *before* the real one still wins. It is
+  # aimed at how these payloads are actually written, with the top-level
+  # fields first. awk rather than 'grep -o | head -1' because 'head' closes
+  # the pipe on its first line and the writer takes SIGPIPE, which under
+  # 'set -o pipefail' is a 141 the caller reads as failure.
+  for k in "$@"; do
+    printf '%s' "$input" | awk -v key="${k##*.}" '
+      !done && match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\"[^\"]*\"") {
+        s = substr($0, RSTART, RLENGTH)
+        sub(/^[^:]*:[[:space:]]*"/, "", s); sub(/"$/, "", s)
+        print s; done = 1
+      }
+      END { if (!done) print "" }'
+  done
+}
+
 hook_input=""
 HOOK_FIELDS="session_id cwd permission_mode agent_type tool_name tool_input.to message source"
 h_session_id="" h_cwd="" h_permission_mode="" h_agent_type="" h_tool_name="" h_tool_input_to="" h_message="" h_source=""
 read_hook_input() {
   hook_input=$(cat 2>/dev/null || true)
   [ -n "$hook_input" ] || return 0
-  local k
-  if command -v python3 >/dev/null 2>&1; then
-    local out vals i=0
-    # shellcheck disable=SC2086
-    out=$(printf '%s' "$hook_input" | python3 -c '
-import json, re, sys
-d = json.load(sys.stdin)
-for path in sys.argv[1:]:
-    v = d
-    for k in path.split("."):
-        v = v.get(k) if isinstance(v, dict) else None
-    print(re.sub(r"\s+", " ", v) if isinstance(v, str) else "")' $HOOK_FIELDS 2>/dev/null) || return 0
-    mapfile -t vals <<< "$out"
-    for k in $HOOK_FIELDS; do
-      printf -v "h_${k//./_}" '%s' "${vals[$i]:-}"; i=$((i + 1))
-    done
-  else
-    # No python3: a first-match scan, not a greedy one. 'sed s/.*"key".*/' is
-    # greedy, so it took the *last* occurrence of the key — and since the name
-    # is used without its path prefix, a nested copy inside 'tool_input' won
-    # over the top-level field the caller asked for. Matching the first
-    # occurrence puts the outer field back in front, which is where the hook
-    # payload always writes it.
-    for k in $HOOK_FIELDS; do
-      printf -v "h_${k//./_}" '%s' "$(printf '%s' "$hook_input" \
-        | grep -o "\"${k##*.}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
-        | head -1 | sed 's/^[^:]*:[[:space:]]*"//; s/"$//')"
-    done
-  fi
+  local k vals=() i=0
+  # ':-' below, not just the count from json_fields: a process substitution
+  # ending in all-empty lines still arrives as fewer elements than fields.
+  # shellcheck disable=SC2086
+  mapfile -t vals < <(printf '%s' "$hook_input" | json_fields $HOOK_FIELDS)
+  # shellcheck disable=SC2086
+  for k in $HOOK_FIELDS; do
+    printf -v "h_${k//./_}" '%s' "${vals[$i]:-}"; i=$((i + 1))
+  done
 }
 
 # The window's title: the id, prefixed by what the session needs.
@@ -2591,18 +2631,13 @@ worker_flags() {
 # outside a workbench project: the setting is per project, but a worktree
 # session inherits it while its own checkout may predate adoption.
 cmd_statusline() {
-  local input dir model
+  local input dir model vals=()
   input=$(cat)
-  if command -v jq >/dev/null 2>&1; then
-    dir=$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty' 2>/dev/null || true)
-    model=$(printf '%s' "$input" | jq -r '.model.display_name // empty' 2>/dev/null || true)
-  elif command -v python3 >/dev/null 2>&1; then
-    dir=$(printf '%s' "$input" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("workspace",{}).get("current_dir") or d.get("cwd") or "")' 2>/dev/null || true)
-    model=$(printf '%s' "$input" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("model",{}).get("display_name") or "")' 2>/dev/null || true)
-  else
-    dir=$(printf '%s' "$input" | sed -n 's/.*"current_dir": *"\([^"]*\)".*/\1/p' | head -1)
-    model=$(printf '%s' "$input" | sed -n 's/.*"display_name": *"\([^"]*\)".*/\1/p' | head -1)
-  fi
+  # One pass for both fields, where this was two interpreter starts per
+  # repaint. 'cwd' stands in for a payload without a workspace block.
+  mapfile -t vals < <(printf '%s' "$input" | json_fields workspace.current_dir cwd model.display_name)
+  dir=${vals[0]:-}; [ -n "$dir" ] || dir=${vals[1]:-}
+  model=${vals[2]:-}
   [ -n "$dir" ] && [ -d "$dir" ] || return 0
   cd "$dir" || return 0
   git rev-parse --git-dir >/dev/null 2>&1 || return 0
@@ -3489,34 +3524,7 @@ memory_dir_setting() {
   local f v
   for f in "$(main_root)/.claude/settings.local.json" "$(main_root)/.claude/settings.json" "${HOME%/}/.claude/settings.json"; do
     [ -f "$f" ] || continue
-    if command -v python3 >/dev/null 2>&1; then
-      v=$(python3 -c 'import json,sys
-try: print(json.load(open(sys.argv[1])).get("autoMemoryDirectory") or "")
-except Exception: print("")' "$f")
-    else
-      # The first occurrence, not the last. A trailing '.*' is greedy, so
-      # 's/.*"key".*/\1/' returns the LAST match on the line — on a compact
-      # settings.json that is a nested copy under some other object rather
-      # than the top-level setting asked for. Same shape as the scan in
-      # 'read_hook_input', and the same reason.
-      #
-      # A heuristic, not a parser, and it stays one: with a nested key
-      # written *before* the real one, first-match is wrong too. Nothing
-      # here knows about nesting. It is the leg for a machine with no
-      # python3, and it is aimed at how the file is actually written —
-      # 'init' and Claude Code both put the top-level keys first.
-      #
-      # awk rather than 'grep -o … | head -1': 'head' closes the pipe as
-      # soon as it has its line, the writer takes SIGPIPE, and under
-      # 'set -o pipefail' the assignment returns 141. awk reads the file
-      # itself, so there is no pipe to break.
-      v=$(awk '
-        !done && match($0, /"autoMemoryDirectory"[[:space:]]*:[[:space:]]*"[^"]*"/) {
-          s = substr($0, RSTART, RLENGTH)
-          sub(/^[^:]*:[[:space:]]*"/, "", s); sub(/"$/, "", s)
-          print s; done = 1
-        }' "$f")
-    fi
+    v=$(json_fields autoMemoryDirectory < "$f")
     [ -n "$v" ] || continue
     # shellcheck disable=SC2088  # the setting's own literal '~/'
     case "$v" in "~/"*) v="${HOME%/}/${v#\~/}" ;; esac

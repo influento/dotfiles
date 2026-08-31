@@ -1380,6 +1380,20 @@ run "signal asked to the reviewer is ignored" 0 "" bash -c "hook sid-2 '$PWD' Se
 check "no ↑ for a reviewer message" [ "$(title_of "$w2")" = "$s2" ]
 run "signal asked to the lead by name" 0 "" bash -c "hook sid-2 '$PWD' SendMessage wb-sessions-lead | TMUX_PANE=$p2 '$WB' signal asked"
 check "↑ for a message to the lead" [ "$(title_of "$w2")" = "↑ $s2" ]
+# The eight hook fields are bound by position, so a field the payload omits
+# has to arrive as an empty line rather than no line — otherwise every field
+# after it shifts onto the wrong name. Omitted here are permission_mode and
+# agent_type, in the MIDDLE of the list: drop a trailing field and the shift
+# has nothing left to corrupt, so the check would pass on a broken reader.
+# 'tool_input.to' is the last of the eight that carries a value, so it is the
+# one that moves first, and '↑' is only set when it still reads as the lead.
+sparse="{\"session_id\":\"sid-2\",\"cwd\":\"$PWD\",\"tool_name\":\"SendMessage\",\"tool_input\":{\"to\":\"wb-sessions-lead\"}}"
+run "signal working resets before the sparse check" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+run "a payload missing middle fields still binds the rest" 0 "" bash -c "printf '%s' '$sparse' | TMUX_PANE=$p2 '$WB' signal asked"
+check "↑ survives the gaps" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "signal working resets before the no-python3 check" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+run "the same holds on the no-python3 leg" 0 "" bash -c "printf '%s' '$sparse' | PATH=\"\$NOJSON:$TMP/bin\" TMUX_PANE=$p2 '$WB' signal asked"
+check "↑ on the scan leg too" [ "$(title_of "$w2")" = "↑ $s2" ]
 run "signal stopped keeps asked" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal stopped"
 check "stopped after asking stays ↑" [ "$(title_of "$w2")" = "↑ $s2" ]
 run "a session start on compaction changes nothing" 0 "" bash -c "printf '{\"session_id\":\"sid-2\",\"source\":\"compact\"}' | TMUX_PANE=$p2 '$WB' signal start"
