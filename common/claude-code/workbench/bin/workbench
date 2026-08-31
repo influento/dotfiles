@@ -3494,7 +3494,28 @@ memory_dir_setting() {
 try: print(json.load(open(sys.argv[1])).get("autoMemoryDirectory") or "")
 except Exception: print("")' "$f")
     else
-      v=$(sed -n 's/.*"autoMemoryDirectory" *: *"\([^"]*\)".*/\1/p' "$f" | head -1)
+      # The first occurrence, not the last. A trailing '.*' is greedy, so
+      # 's/.*"key".*/\1/' returns the LAST match on the line — on a compact
+      # settings.json that is a nested copy under some other object rather
+      # than the top-level setting asked for. Same shape as the scan in
+      # 'read_hook_input', and the same reason.
+      #
+      # A heuristic, not a parser, and it stays one: with a nested key
+      # written *before* the real one, first-match is wrong too. Nothing
+      # here knows about nesting. It is the leg for a machine with no
+      # python3, and it is aimed at how the file is actually written —
+      # 'init' and Claude Code both put the top-level keys first.
+      #
+      # awk rather than 'grep -o … | head -1': 'head' closes the pipe as
+      # soon as it has its line, the writer takes SIGPIPE, and under
+      # 'set -o pipefail' the assignment returns 141. awk reads the file
+      # itself, so there is no pipe to break.
+      v=$(awk '
+        !done && match($0, /"autoMemoryDirectory"[[:space:]]*:[[:space:]]*"[^"]*"/) {
+          s = substr($0, RSTART, RLENGTH)
+          sub(/^[^:]*:[[:space:]]*"/, "", s); sub(/"$/, "", s)
+          print s; done = 1
+        }' "$f")
     fi
     [ -n "$v" ] || continue
     # shellcheck disable=SC2088  # the setting's own literal '~/'

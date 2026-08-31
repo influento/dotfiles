@@ -60,6 +60,21 @@ esac
 SHIM
 chmod +x "$TMP/bin/tmux"
 
+# A PATH with neither python3 nor jq, for the JSON fallback legs. Shadowing
+# does not work — 'command -v' walks the whole PATH and finds /usr/bin/python3
+# behind any shim — so the only way to hide them is a PATH that holds nothing
+# else. 'type -P' rather than 'command -v': the caller's shell may alias 'cat'
+# or 'ls' to something else, and an alias is not a path to link.
+NOJSON="$TMP/nojson"
+mkdir -p "$NOJSON"
+for _t in bash sh sed awk gawk grep head tail cut sort uniq comm wc tr find git \
+          basename dirname date mktemp cat printf readlink sha256sum paste rm \
+          rmdir mkdir mv cp touch env expr seq id tee xargs; do
+  _p=$(type -P "$_t" 2>/dev/null) && [ -n "$_p" ] && ln -sf "$_p" "$NOJSON/$_t"
+done
+unset _t _p
+export NOJSON
+
 fails=0 checks=0
 pass() { checks=$((checks + 1)); echo "ok   $1"; }
 fail() { checks=$((checks + 1)); fails=$((fails + 1)); echo "FAIL $1" >&2; }
@@ -195,6 +210,13 @@ session() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":
 run "statusline with nothing in flight" 0 '^\[Opus\] wb: nothing in flight$' bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
 run "statusline outside a workbench project is silent" 0 "" bash -c "$(declare -f session); session '$HOME' | '$WB' statusline"
 check "statusline outside a workbench project prints nothing" [ -z "$(session "$HOME" | "$WB" statusline)" ]
+# The JSON legs. statusline reads its directory and model out of the session
+# payload three ways — jq, python3, then a sed scan — and the scan had no
+# coverage at all: every other check here runs with python3 on PATH. It is not
+# a corner. jq is absent on the machine this was written on, so python3 is the
+# leg in use for every repaint, and sed is what a box with neither falls to.
+run "statusline agrees with itself without jq or python3" 0 '^\[Opus\] wb: nothing in flight$' \
+  bash -c "$(declare -f session); session '$PWD' | PATH=\"\$NOJSON\" '$WB' statusline"
 git add -A && git commit -qm 'workbench init'
 
 git checkout -q -b side
@@ -1057,6 +1079,18 @@ run "status is quiet once the clone overrides the memory path" 0 "" bash -c "! '
 check "init does not nag about a differing local override" bash -c "! '$WB' init 2>&1 | grep -q 'the local one is redundant'"
 echo '{"autoMemoryDirectory":"~/resume/.claude/memory"}' > .claude/settings.local.json
 run "init names a local override that repeats the project value" 0 "the local one is redundant" "$WB" init
+rm .claude/settings.local.json
+# The no-python3 leg reads the setting by scanning text, and a compact
+# settings.json puts every key on one line. A greedy 's/.*"key".*/\1/' takes
+# the LAST match on that line, so a nested copy under any other object wins
+# over the top-level setting; the scan must take the first. Written in the
+# direction the file is actually written — top-level key first, decoy after —
+# because reversed, first-match is wrong too and the check would pass for the
+# wrong reason. Run under $NOJSON: with python3 present this leg never runs.
+printf '{"autoMemoryDirectory":"~/resume/.claude/memory","hooks":{"autoMemoryDirectory":"~/DECOY/.claude/memory"}}' > .claude/settings.local.json
+run "the no-python3 memory scan takes the top-level key, not a nested one" 0 "resume/.claude/memory" \
+  bash -c "PATH=\"\$NOJSON\" '$WB' status"
+check "and does not report the nested decoy" bash -c "! PATH=\"\$NOJSON\" '$WB' status | grep -q DECOY"
 rm .claude/settings.local.json
 # origin's ref outlives the merge and the archive; neither may be resumed
 ready .worktrees/b-001-gone
