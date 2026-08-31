@@ -11,6 +11,29 @@ follows is what a reader cannot get from the code quickly enough.
 Background system update on sway start: `yay -Syu` (repos + AUR) + npm updates,
 12h cooldown (`--force` to bypass), mako notifications.
 
+## startup-reminders
+
+Nags about post-install steps that cannot be automated, until they are done.
+`exec`'d from `sway/config.tpl`, it sleeps 10s (so the notification daemon is
+up), then fires each pending line as a `notify-send -u critical`.
+
+The data lives in `reminders/*.txt` at the repo root, one reminder per line:
+
+| Line form      | Behaviour                                                        |
+| -------------- | ---------------------------------------------------------------- |
+| `key:message`  | Shown until `key` appears in `~/.local/state/dotfiles/completed`  |
+| `message`      | Shown every time — no way to dismiss it                           |
+
+A script silences its own reminder by appending its key to that state file; see
+`setup-wireguard`, whose reminder exists because the WireGuard configs do not
+exist until Dropbox has synced.
+
+Two things to know before editing it. The parse loop is duplicated in
+`install.sh`, which renders the same files as `log_warn` lines at the end of a
+deploy — change the format in one place and you must change it in both. And the
+key split is on the *first* colon in the line, so a keyless reminder containing
+a colon loses everything before it; give such a line a key, even a dummy one.
+
 ## tg
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and
