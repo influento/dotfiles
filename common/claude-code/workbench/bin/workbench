@@ -19,6 +19,9 @@ WB=workbench
 # lives here. No /rename — a rename is '/wb rename'; why is in the skill's
 # rationale.md, "Why the commands are thin".
 WB_COMMANDS="bug feature research idea wb"
+# The agent definitions, one .md each under agents/. Named here rather than
+# globbed for the reason agent_sources() gives.
+WB_AGENTS="wb-worker wb-reviewer wb-gate"
 MARK_START='<!-- workbench:start -->'
 MARK_END='<!-- workbench:end -->'
 # One obvious sentence, one question: the caps that keep BACKLOG.md and
@@ -424,22 +427,39 @@ render_skills() {
   done
 }
 
+# The agent sources, named the way the skills are: one line per agent, the
+# basename being the name Claude Code loads. A list rather than a glob over
+# agents/*.md, so a file that is not an agent — notes, a draft — cannot ship
+# as one by sitting in the directory, and a source renamed or turned into a
+# .tpl fails loudly here instead of going silently absent from the project.
+agent_sources() {
+  local base name
+  base=$(readlink -f "$(wb_root)") || true
+  [ -n "$base" ] && [ -d "$base" ] || die "workbench source not found at $(wb_root)"
+  for name in $WB_AGENTS; do printf '%s\n' "$base/agents/$name.md"; done
+}
+
 # Agent definitions go to .claude/agents/, copied whole: a worker that runs
-# one item in its worktree, for a composing session to spawn. Same rule as
-# the skills — the copy is never edited, the source is.
+# one item in its worktree, for a composing session to spawn. The copy is
+# meant to be read, never edited — but unlike a skill, which is a directory
+# and can hold a GENERATED stamp recording what it came from, an agent is a
+# flat .md with nowhere to put one. So the check here is 'cmp' and the answer
+# is one bit: a copy that differs is overwritten, whether the source moved on
+# or someone edited the copy. A hand edit is lost without a prompt. Making
+# that refusable needs somewhere to record two hashes — a sidecar manifest —
+# and three static files have not earned the second bookkeeping format.
 render_agents() {
-  local root srcdir src dst
+  local root src dst name
   root=$(repo_root)
-  srcdir=$(readlink -f "$(wb_root)")
-  [ -d "$srcdir/agents" ] || return 0
   mkdir -p "$root/.claude/agents"
-  for src in "$srcdir"/agents/*.md; do
-    [ -f "$src" ] || continue
-    dst="$root/.claude/agents/$(basename "$src")"
+  while IFS= read -r src; do
+    [ -f "$src" ] || die "agent source not found at $src"
+    name=$(basename "$src")
+    dst="$root/.claude/agents/$name"
     if [ -f "$dst" ] && cmp -s "$src" "$dst"; then continue; fi
     cp "$src" "$dst"
-    echo "  rendered .claude/agents/$(basename "$src")"
-  done
+    echo "  rendered .claude/agents/$name"
+  done < <(agent_sources)
 }
 
 # The copies that no longer match: "<name>\t<stale|edited|missing>". Over the
@@ -451,6 +471,24 @@ skill_drift() {
     state=$(skill_state "$root" "$src")
     [ "$state" = current ] || printf '%s\t%s\n' "$(basename "$src")" "$state"
   done < <(skill_sources 2>/dev/null)
+}
+
+# The agent copies that no longer match: "<name>\tdiffers" or "<name>\tmissing".
+# One bit where skill_drift has three, for the reason render_agents gives: with
+# nothing recorded about where a copy came from, "differs" cannot be split into
+# stale and edited, and saying only "differs" beats guessing which.
+agent_drift() {
+  local root src dst name
+  root=$(main_root)
+  while IFS= read -r src; do
+    name=$(basename "$src")
+    dst="$root/.claude/agents/$name"
+    if [ ! -f "$dst" ]; then
+      printf '%s\tmissing\n' "$name"
+    elif ! cmp -s "$src" "$dst"; then
+      printf '%s\tdiffers\n' "$name"
+    fi
+  done < <(agent_sources 2>/dev/null)
 }
 
 claude_md_block() {
@@ -3283,6 +3321,16 @@ cmd_status() {
     echo
     echo "skills edited by hand under .claude/skills/ — move the edit into the source; 'workbench init --force' overwrites"
     echo "  $edited"
+  fi
+  # Agents are listed apart from the skills because the answer is weaker: a
+  # copy that differs may be behind its source or may have been edited, and
+  # nothing recorded here can tell them apart. Either way init overwrites it.
+  local agents
+  agents=$(agent_drift | awk -F '\t' '{ printf "%s ", $1 }')
+  if [ -n "${agents// /}" ]; then
+    echo
+    echo "agents differ from their source — run 'workbench init', then commit .claude/"
+    echo "  $agents"
   fi
   # The memory setting is a path, committed: a clone laid out differently
   # from the one init ran in points at a store that is not in its tree.

@@ -805,6 +805,29 @@ ln -s SKILL.md "$TMP/src/commands/wb/link.md"
 run "init refuses a symlink in a source" 1 "is a symlink" env WORKBENCH_ROOT="$TMP/src" "$WB" init
 rm "$TMP/src/commands/wb/link.md"
 
+# Agents are named in WB_AGENTS rather than globbed out of agents/, so what
+# ships as an agent is a decision and not whatever happens to sit there.
+printf 'notes\n' > "$TMP/src/agents/NOTES.md"
+env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
+check "a stray file under agents/ is not rendered as an agent" [ ! -e .claude/agents/NOTES.md ]
+rm "$TMP/src/agents/NOTES.md"
+# The other half of naming them: a source that no longer exists under its own
+# name stops the init instead of leaving the project silently short an agent,
+# which is what the glob did to anything renamed or turned into a .tpl.
+mv "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-gate.md.tpl"
+run "a renamed agent source fails the init" 1 "agent source not found" env WORKBENCH_ROOT="$TMP/src" "$WB" init
+mv "$TMP/src/agents/wb-gate.md.tpl" "$TMP/src/agents/wb-gate.md"
+# An agent copy that no longer matches its source was invisible: skill_drift
+# walks skill_sources, which is skills and commands, so status never said a
+# word about agents however far behind they were.
+env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
+run "status is quiet while the agents match" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
+printf '\nmoved on\n' >> "$TMP/src/agents/wb-gate.md"
+run "status reports an agent whose source moved on" 0 "agents differ from their source" env WORKBENCH_ROOT="$TMP/src" "$WB" status
+run "status names the agent" 0 "" bash -c "env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -A1 'agents differ' | grep -q wb-gate"
+env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
+run "init clears the agent drift" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
+
 # adopt on a symlinked CLAUDE.md edits the target, not the link
 new_repo adopt
 mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude
