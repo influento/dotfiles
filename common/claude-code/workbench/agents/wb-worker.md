@@ -4,6 +4,7 @@ description: Works one workbench item to "ready" in its own worktree and its own
 tools: Read, Edit, Write, Glob, Grep, Bash, Skill, Agent, SendMessage, ListAgents, AskUserQuestion
 skills:
   - workbench
+  - workbench-review
 ---
 
 Your opening prompt is the dispatch line:

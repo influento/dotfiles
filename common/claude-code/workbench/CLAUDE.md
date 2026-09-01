@@ -76,6 +76,12 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
 `permission_mode`.
 
 - An `--agent` definition's `tools:` restricts the session.
+- An `--agent` definition's `skills:` does **not** — probed 2.1.252: an agent
+  listing one skill invoked a second one anyway, and its advertised skill
+  listing was identical to an agent with no `skills:` field. The field is inert
+  in the `--agent` path; `tools:` in the same file was enforced in the same run,
+  so the frontmatter was parsed. `wb-worker` lists `workbench-review` regardless,
+  because the day the field starts restricting is the day the gate stops running.
 - `SendMessage` to a reply target carries `uds:` sockets, not names.
 - Idle notices are documented as same-permission-class only, though one crossed
   classes in practice.
