@@ -24,7 +24,10 @@ missing. Read it and name it; the checks below are made against it. Check:
   "corrected before the evidence was run"
 - the root cause is stated, for a bug, and is a mechanism
 - only the template's headings are present — no "For the operator", no
-  "What this did not prove", no dated appendix; `archive` will refuse them
+  "What this did not prove", no dated appendix; `archive` will refuse them.
+  The set is per class and lives in one place, `template_headings()` in the
+  CLI: read it rather than recall it —
+  `sed -n '/^template_headings()/,/^}/p' "$(command -v workbench)"`
 - the status is one of the five, with a trigger or a why when it needs one — `abandoned` never reaches a merge; an item
   about to merge as plain `open` has a fenced block under Evidence
 - no script was written to satisfy a step and then deleted, and no scratch
