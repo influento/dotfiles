@@ -48,9 +48,10 @@ bindsym $mod+Escape exec ~/.local/bin/lock
 # Headless mode: disable the monitor and serve the session over VNC instead
 bindsym $mod+Shift+o exec ~/.local/bin/headless toggle
 
-# Screenshots
-bindsym $mod+p exec bash -c 'mkdir -p ~/pictures && f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f" && (sleep 20 && rm -f "$f") &'
-bindsym $mod+Shift+p exec bash -c 'mkdir -p ~/pictures && f=~/pictures/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && drawdesk --image "$f" && (sleep 20 && rm -f "$f") &'
+# Screenshots. Kept for the whole session; wiped at the next sway start
+# (see the screenshots line in Autostart below).
+bindsym $mod+p exec bash -c 'mkdir -p ~/pictures/screenshots && f=~/pictures/screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f"'
+bindsym $mod+Shift+p exec bash -c 'mkdir -p ~/pictures/screenshots && f=~/pictures/screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && drawdesk --image "$f"'
 
 # --- Keybindings: Focus (vim-style) ---
 bindsym $mod+h focus left
@@ -184,6 +185,9 @@ exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
 exec nm-applet --indicator
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus dropbox
+# Screenshots live for one session: clear the previous session's on start.
+# exec, not exec_always -- a config reload must not wipe them mid-session.
+exec bash -c 'mkdir -p ~/pictures/screenshots && find ~/pictures/screenshots -maxdepth 1 -name "screenshot-*.png" -delete'
 exec startup-reminders
 exec auto-update
 
