@@ -33,9 +33,10 @@ and the signal/gate hooks.
 `start` then opens the item's worker as its own Claude session in its own window
 (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it
 may hold), titled by the hooks with what it needs (`?` needs you, `↑` asked the
-lead, `⟳` in review, `✓` ready, `!` parked a call); `open <id|lead>` switches or
-resumes, `mode attended|unattended` decides live whether questions go to the user
-in-window or are parked; `round` keeps the review dialog honest before the gate.
+lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped); `open <id|lead>`
+switches or resumes, `mode attended|unattended` decides live whether questions go
+to the user in-window or are parked; `round` keeps the review dialog honest
+before the gate.
 Without a lead `start` is git-only.
 
 ## Extension points
