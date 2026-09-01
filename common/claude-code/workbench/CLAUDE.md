@@ -11,7 +11,7 @@ because it is what opts a project in; everything else reaches a project through
 | ----------- | ---------------------------------------------------------------------------------------- |
 | `bin/`      | the CLI                                                                                  |
 | `skills/`   | `workbench` and `workbench-review` — each dir is named exactly as the skill it renders to |
-| `agents/`   | `wb-worker`, `wb-reviewer`, `wb-gate`                                                    |
+| `agents/`   | `wb-worker`, `wb-reviewer`, `wb-gate` — listed in `WB_AGENTS`, not globbed                |
 | `commands/` | `/bug /feature /research /idea /wb` — thin skills too, one per typed command              |
 | `tests/`    | end-to-end loop plus failure paths, in a temp repo                                       |
 
@@ -22,6 +22,16 @@ because it is what opts a project in; everything else reaches a project through
 committed copies under `.claude/skills/` — copies, not links, so worktrees and
 other clones carry them. Each copy is stamped with source + copy hashes;
 `status` flags stale and hand-edited ones, `init --force` overwrites the latter.
+
+The `agents/` definitions go to `.claude/agents/` the same way, copied and
+committed, but with weaker bookkeeping: an agent is a flat `.md` with nowhere
+to hold a stamp, so the check is `cmp` and the answer is one bit. `status` says
+an agent "differs from its source" without claiming whether it is behind or was
+edited, and `init` overwrites it either way — a hand edit is lost silently.
+Splitting those two needs a sidecar manifest of hashes; three static files have
+not earned a second bookkeeping format. Which agents exist is `WB_AGENTS`, not
+whatever sits in `agents/`, so a stray file cannot ship as an agent and a
+renamed source fails the init instead of going missing from the project.
 
 It also merges into the project's `.claude/settings.json`: a session hook, the
 status line, an allow rule, `autoMemoryDirectory` (memory tracked in the tree),
