@@ -1152,7 +1152,7 @@ for n in 1 2 3; do
   [ "$n" -lt 3 ] && check "hold $n is counted" grep -q "hold $n of 3 for b-002" <<< "$out"
   "$WB" review-drop "$report" >/dev/null 2>&1
 done
-check "the third hold says to stop and call" grep -q "three holds: stop, 'workbench call b-002" <<< "$out"
+check "the third hold says to stop and call" grep -q "3 holds: stop, 'workbench call b-002" <<< "$out"
 run "merge refuses after holds" 1 "no passed pre-merge review" "$WB" merge b-002 "reviewed"
 
 # --- abandoned: the one exit for work the user drops --------------------------
