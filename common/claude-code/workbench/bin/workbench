@@ -3790,7 +3790,7 @@ coverage, then re-run review-check; or review-drop --force to discard it."
   # report's name, the branch commit the sweep read. A branch that moves
   # after this is unreviewed again, which merge checks. A hold records
   # nothing but a count: the worker fixes and reviews again, with a fresh
-  # reviewer, and at three holds it stops and asks.
+  # reviewer, and at REVIEW_HOLDS holds it stops and asks.
   if [ -n "$pid" ]; then
     local pbranch holds
     pbranch=$(local_branches "$root" "$pid" | head -1)
@@ -3808,7 +3808,7 @@ coverage, then re-run review-check; or review-drop --force to discard it."
         printf '%s\n' "$holds" > "$(git_common_dir)/review-holds/$pid"
         rm -f "$(git_common_dir)/review-passed/$pid"
         echo "verdict: ${verdict} — hold $holds of $REVIEW_HOLDS for $pid; fix on the branch, review-drop this report, then review again"
-        [ "$holds" -lt "$REVIEW_HOLDS" ] || echo "three holds: stop, 'workbench call $pid \"<the standing finding>\"', and leave the merge to the user" ;;
+        [ "$holds" -lt "$REVIEW_HOLDS" ] || echo "$REVIEW_HOLDS holds: stop, 'workbench call $pid \"<the standing finding>\"', and leave the merge to the user" ;;
     esac
   fi
 }
