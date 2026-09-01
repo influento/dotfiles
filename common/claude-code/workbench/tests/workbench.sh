@@ -828,6 +828,27 @@ run "status names the agent" 0 "" bash -c "env WORKBENCH_ROOT='$TMP/src' '$WB' s
 env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
 run "init clears the agent drift" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
 
+# An agent this tool no longer ships. Only reachable by the deliberate
+# two-step: out of WB_AGENTS and deleted from agents/ — agent_sources dies on
+# a name it lists but cannot find. The copy used to stay in the project for
+# good, with nothing said by init or status.
+printf -- '---\nname: my-own\ndescription: a project agent, nothing to do with workbench\n---\nmine\n' > .claude/agents/my-own.md
+cp "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-spare.md"
+sed -i 's/^name: wb-gate$/name: wb-spare/' "$TMP/src/agents/wb-spare.md"
+WB_SPARE=$(sed 's/^WB_AGENTS="\(.*\)"$/WB_AGENTS="\1 wb-spare"/' "$WB")
+printf '%s' "$WB_SPARE" > "$TMP/bin/wb-spare"; chmod +x "$TMP/bin/wb-spare"
+env WORKBENCH_ROOT="$TMP/src" "$TMP/bin/wb-spare" init >/dev/null 2>&1
+check "the spare agent is rendered while it is shipped" [ -f .claude/agents/wb-spare.md ]
+# retire it: gone from the list, gone from the source
+rm "$TMP/src/agents/wb-spare.md"
+run "init reaps an agent that is no longer shipped" 0 "removed .claude/agents/wb-spare.md: no longer a workbench agent" env WORKBENCH_ROOT="$TMP/src" "$WB" init
+check "the retired copy is gone" [ ! -e .claude/agents/wb-spare.md ]
+# The assertion that matters: the reap is guarded by the marker, so a project's
+# own agent in the same directory is not collateral.
+check "a project's own agent survives the reap" [ -f .claude/agents/my-own.md ]
+check "the shipped agents survive the reap" bash -c '[ -f .claude/agents/wb-worker.md ] && [ -f .claude/agents/wb-gate.md ] && [ -f .claude/agents/wb-reviewer.md ]'
+rm .claude/agents/my-own.md
+
 # adopt on a symlinked CLAUDE.md edits the target, not the link
 new_repo adopt
 mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude

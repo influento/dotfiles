@@ -33,6 +33,13 @@ not earned a second bookkeeping format. Which agents exist is `WB_AGENTS`, not
 whatever sits in `agents/`, so a stray file cannot ship as an agent and a
 renamed source fails the init instead of going missing from the project.
 
+Retiring one — out of `WB_AGENTS` *and* deleted from `agents/`, since
+`agent_sources` dies on a name it lists but cannot find — reaps the copy from
+the project on the next `init`. The reap is guarded by `x-workbench: true` in
+the copy's own frontmatter, carried by the sources so it is true of the copies:
+a project's own agent in the same directory has no marker and is never touched.
+An unknown frontmatter key is inert — see "Platform facts" below.
+
 It also merges into the project's `.claude/settings.json`: a session hook, the
 status line, an allow rule, `autoMemoryDirectory` (memory tracked in the tree),
 and the signal/gate hooks.
@@ -86,6 +93,10 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
 `permission_mode`.
 
 - An `--agent` definition's `tools:` restricts the session.
+- An arbitrary unknown frontmatter key on an agent is accepted and inert —
+  probed 2.1.252: `x-workbench: true` on a definition still loaded (it appears
+  in `--agent <bogus>`'s "Available agents" list, which is how a missing agent
+  fails), and its `tools:` still applied. That is what `render_agents` reaps by.
 - An `--agent` definition's `skills:` does **not** — probed 2.1.252: an agent
   listing one skill invoked a second one anyway, and its advertised skill
   listing was identical to an agent with no `skills:` field. The field is inert

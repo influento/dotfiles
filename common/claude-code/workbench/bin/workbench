@@ -449,17 +449,34 @@ agent_sources() {
 # that refusable needs somewhere to record two hashes — a sidecar manifest —
 # and three static files have not earned the second bookkeeping format.
 render_agents() {
-  local root src dst name
+  local root src dst name wanted=" "
   root=$(repo_root)
   mkdir -p "$root/.claude/agents"
   while IFS= read -r src; do
     [ -f "$src" ] || die "agent source not found at $src"
     name=$(basename "$src")
+    wanted="$wanted$name "
     dst="$root/.claude/agents/$name"
     if [ -f "$dst" ] && cmp -s "$src" "$dst"; then continue; fi
     cp "$src" "$dst"
     echo "  rendered .claude/agents/$name"
   done < <(agent_sources)
+
+  # A copy for an agent this tool no longer ships. Reachable only by the
+  # deliberate two-step — dropped from WB_AGENTS and deleted from agents/ —
+  # since agent_sources dies on a name it lists but cannot find. Guarded by
+  # the marker in the copy's own frontmatter, so a project's own agent
+  # sitting in the same directory is never touched: 'x-workbench' is carried
+  # by the sources, which is what makes it true of the copies too, and an
+  # unknown frontmatter key is inert (CLAUDE.md, "Platform facts").
+  for dst in "$root"/.claude/agents/*.md; do
+    [ -f "$dst" ] || continue
+    name=$(basename "$dst")
+    grep -q '^x-workbench:' "$dst" || continue
+    case "$wanted" in *" $name "*) continue ;; esac
+    rm -f "$dst"
+    echo "  removed .claude/agents/$name: no longer a workbench agent"
+  done
 }
 
 # The copies that no longer match: "<name>\t<stale|edited|missing>". Over the

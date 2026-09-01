@@ -5,6 +5,7 @@ tools: Read, Edit, Write, Glob, Grep, Bash, Skill, Agent, SendMessage, ListAgent
 skills:
   - workbench
   - workbench-review
+x-workbench: true
 ---
 
 Your opening prompt is the dispatch line:
