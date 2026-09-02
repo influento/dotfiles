@@ -48,6 +48,29 @@ end
 -- vim.g.markdown_reader_auto = false to start in editing mode instead.
 local auto = vim.g.markdown_reader_auto ~= false
 
+-- Where the file sits in the repository, which is what identifies it -- a bare
+-- basename does not distinguish the four CLAUDE.md files in this tree. Falls back
+-- to a ~-relative path outside a repo.
+local function statusline(sbuf)
+  local path = vim.api.nvim_buf_get_name(sbuf)
+  local label = "[No Name]"
+  if path ~= "" then
+    local root = vim.fs.root(sbuf, { ".git" })
+    label = (root and vim.startswith(path, root .. "/"))
+      and path:sub(#root + 2)
+      or vim.fn.fnamemodify(path, ":~")
+  end
+  -- Built from mini.statusline's own groups so the reader does not look like a
+  -- different editor, and %% because a per-cent in a path would be a format item.
+  return table.concat({
+    "%#MiniStatuslineModeOther# READ ",
+    "%#MiniStatuslineFilename# ", label:gsub("%%", "%%%%"), " ",
+    "%#MiniStatuslineFilename#%=",
+    "%#MiniStatuslineFileinfo# markdown ",
+    "%#MiniStatuslineModeOther# %l/%L ",
+  })
+end
+
 local function open()
   local sbuf = vim.api.nvim_get_current_buf()
   -- <leader>z is markdown-buffer-local, but :MarkdownRead can be run anywhere.
@@ -84,9 +107,10 @@ local function open()
   -- path that exists, and anything that resolves the current buffer against the
   -- cwd trips over it -- neo-tree's follow_current_file asked to change the cwd
   -- every time the tree was focused. Nameless makes those checks skip the buffer
-  -- (neo-tree's get_path_to_reveal returns nil on an empty name), and the winbar
-  -- carries the file's identity instead, where a reader wants a title anyway.
-  vim.wo[win].winbar = "  " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(sbuf), ":~:.")
+  -- (neo-tree's get_path_to_reveal returns nil on an empty name), so the file's
+  -- identity has to be put back by hand. mini.statusline only ever sets the
+  -- global option, so a window-local one wins here and nowhere else.
+  vim.wo[win].statusline = statusline(sbuf)
 
   mdtable.set_highlights()
   local map = render(rbuf, sbuf, win)
@@ -113,7 +137,7 @@ local function open()
     buffer = rbuf,
     callback = function()
       local w = vim.fn.bufwinid(rbuf)
-      if w ~= -1 then vim.wo[w].winbar = "" end
+      if w ~= -1 then vim.wo[w].statusline = "" end
     end,
   })
   -- Both the column allocation and the re-flow depend on the window width.
@@ -138,7 +162,7 @@ local function close()
     if r <= rline and src > best and r >= (st.map[best] or 0) then best = src end
   end
   reader[rbuf] = nil
-  vim.wo[win].winbar = ""
+  vim.wo[win].statusline = ""
   -- The source can be gone: :bd while the reader was up, or the file replaced by
   -- something else editing it. Do not throw on the way out.
   if not vim.api.nvim_buf_is_valid(st.src) then
