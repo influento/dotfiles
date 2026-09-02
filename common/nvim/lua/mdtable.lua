@@ -561,8 +561,25 @@ function M.document(buf, avail)
           i = i + 1
           if l:match("^%s*```") then break end
         end
+      elseif line:match("^%s*<!%-%-") then
+        -- HTML comments are instructions to other tools -- toc markers, prettier
+        -- pragmas, linter pragmas. They are not part of the document being read,
+        -- so the reader drops them; the source line still maps to whatever comes
+        -- next, so a toggle from here lands somewhere sensible.
+        local nxt = #out + 1
+        repeat
+          map[i + 1] = nxt
+          local done = src[i + 1]:find("%-%->")
+          i = i + 1
+        until done or i >= #src
       elseif line:match("^%s*$") then
-        map[i + 1] = emit("")
+        -- One blank line is a separator; a run of them is just source formatting,
+        -- and a dropped comment or a stripped block would otherwise leave a hole.
+        if #out > 0 and out[#out] ~= "" then
+          map[i + 1] = emit("")
+        else
+          map[i + 1] = math.max(#out, 1)
+        end
         i = i + 1
       else
         local head = render_heading(line)
