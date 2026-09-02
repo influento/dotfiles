@@ -15,6 +15,7 @@ vim.opt.rtp:prepend(lazypath)
 require("options")
 require("keymaps")
 require("autocmds")
+require("markdown-reader")
 
 require("lazy").setup("plugins", {
   change_detection = { notify = false },
