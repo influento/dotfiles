@@ -313,11 +313,14 @@ end
 -- runs, so nvim-treesitter's markdown queries are not on the runtimepath yet.
 local query
 local function table_query()
-  if query == nil then
+  if not query then
+    -- Only a success is cached. The first render can happen before lazy.nvim has
+    -- the treesitter queries on the runtimepath, and remembering that failure
+    -- would leave every table unrendered for the rest of the session.
     local ok, q = pcall(vim.treesitter.query.parse, "markdown", "(pipe_table) @table")
-    query = ok and q or false
+    query = ok and q or nil
   end
-  return query or nil
+  return query
 end
 
 -- Everything needed to draw one table, computed once and shared by both consumers.

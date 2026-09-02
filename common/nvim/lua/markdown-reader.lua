@@ -42,6 +42,12 @@ local function render(rbuf, sbuf, win)
   return map
 end
 
+-- Reading or editing is a mode for the whole session, not a per-file memory:
+-- leaving the reader means "I am editing now", so the next markdown file opens
+-- raw too. One <leader>z puts you back into reading for good. Set
+-- vim.g.markdown_reader_auto = false to start in editing mode instead.
+local auto = vim.g.markdown_reader_auto ~= false
+
 local function open()
   local sbuf = vim.api.nvim_get_current_buf()
   -- <leader>z is markdown-buffer-local, but :MarkdownRead can be run anywhere.
@@ -86,6 +92,15 @@ local function open()
   for _, key in ipairs({ "q", "<leader>z" }) do
     vim.keymap.set("n", key, "<cmd>MarkdownRead<cr>", { buffer = rbuf, silent = true })
   end
+  -- Reading is the default, so the keys that mean "I want to change this" have to
+  -- work from here: they drop to the source at the matching line and then do what
+  -- they normally do. Without this, every edit costs a <leader>z first.
+  for _, key in ipairs({ "i", "a", "I", "A", "o", "O", "c", "s", "r", "x", "d", "p", "u" }) do
+    vim.keymap.set("n", key, function()
+      vim.cmd.MarkdownRead()
+      vim.api.nvim_feedkeys(key, "m", false)  -- remap, so the config's own x and d still apply
+    end, { buffer = rbuf, silent = true, desc = "Edit the source" })
+  end
   -- Both the column allocation and the re-flow depend on the window width.
   vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
     buffer = rbuf,
@@ -120,7 +135,13 @@ local function close()
 end
 
 vim.api.nvim_create_user_command("MarkdownRead", function()
-  if reader[vim.api.nvim_get_current_buf()] then close() else open() end
+  if reader[vim.api.nvim_get_current_buf()] then
+    auto = false
+    close()
+  else
+    auto = true
+    open()
+  end
 end, { desc = "Toggle the rendered markdown view" })
 
 local group = vim.api.nvim_create_augroup("markdown-reader", { clear = true })
@@ -131,6 +152,27 @@ vim.api.nvim_create_autocmd("FileType", {
   callback = function(args)
     vim.keymap.set("n", "<leader>z", "<cmd>MarkdownRead<cr>",
       { buffer = args.buf, silent = true, desc = "Toggle rendered markdown view" })
+  end,
+})
+
+-- BufWinEnter, not FileType: the layout is measured from the window, which is not
+-- settled yet when FileType fires. Reader buffers have no filetype, so swapping one
+-- in cannot re-trigger this, and close() clears `auto` before swapping the source
+-- back -- otherwise leaving the reader would immediately reopen it.
+vim.api.nvim_create_autocmd("BufWinEnter", {
+  group = group,
+  callback = function(args)
+    if not auto or vim.bo[args.buf].filetype ~= "markdown" then return end
+    if vim.bo[args.buf].buftype ~= "" or reader[args.buf] then return end
+    local win = vim.api.nvim_get_current_win()
+    if vim.api.nvim_win_get_buf(win) ~= args.buf or vim.wo[win].diff then return end
+    -- The very first file can arrive before lazy.nvim has loaded the colourscheme
+    -- and the treesitter queries, so hold the opening render until startup is done.
+    if vim.v.vim_did_enter == 0 then
+      vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim.schedule(open) end })
+    else
+      vim.schedule(open)
+    end
   end,
 })
 
