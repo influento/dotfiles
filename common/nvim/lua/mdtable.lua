@@ -52,6 +52,14 @@ function M.set_highlights()
     end
     vim.api.nvim_set_hl(0, name, { link = target })
   end
+  -- A terminal cell has one size, so the top of the hierarchy is drawn rather
+  -- than scaled: H1 is a filled bar in the heading's own colour. Derived from the
+  -- theme every time, so it follows a colourscheme change like everything else.
+  local h1 = vim.api.nvim_get_hl(0, { name = "MdReadH1", link = false })
+  local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
+  vim.api.nvim_set_hl(0, "MdReadH1Bar", (h1.fg and normal.bg)
+    and { fg = normal.bg, bg = h1.fg, bold = true }
+    or { link = "MdReadH1" })
 end
 
 local B = { tl = "╭", tm = "┬", tr = "╮",
@@ -494,10 +502,28 @@ end
 
 -- No per-level indent: the icon already says which level this is, and indenting
 -- headings while prose and tables stay put makes the left edge zigzag.
-local function render_heading(line)
+-- A heading is one or more rendered lines plus the highlight for each. Levels 1-3
+-- carry weight the font cannot: a filled bar, a full-width rule, a rule the width
+-- of the title. Below that the icon and the theme's own colour are the whole cue.
+---@return table[]|nil  { {text, hl}, ... }
+local function render_heading(line, text_w)
   local hashes, title = line:match("^(#+)%s+(.*)$")
   if not hashes or #hashes > 6 then return nil end
-  return M.heading_icons[#hashes] .. " " .. title
+  local level = #hashes
+  local head = M.heading_icons[level] .. " " .. plain(title)
+  local hl = "MdReadH" .. level
+
+  if level == 1 then
+    -- Padded to the page width so the bar runs margin to margin. Not hl_eol: the
+    -- colour has to stop at the text column, not run off into the window.
+    return { { text = head .. string.rep(" ", math.max(0, text_w - strwidth(head))),
+               hl = "MdReadH1Bar" } }
+  elseif level == 2 then
+    return { { text = head, hl = hl }, { text = string.rep("─", text_w), hl = hl } }
+  elseif level == 3 then
+    return { { text = head, hl = hl }, { text = string.rep("─", strwidth(head)), hl = hl } }
+  end
+  return { { text = head, hl = hl } }
 end
 
 -- Render a whole buffer into plain lines for a read-only mirror: tables fitted to
@@ -582,9 +608,12 @@ function M.document(buf, avail)
         end
         i = i + 1
       else
-        local head = render_heading(line)
+        local head = render_heading(line, text_w)
         if head then
-          map[i + 1] = emit(head, "MdReadH" .. math.min(#line:match("^(#+)"), 6))
+          for n, part in ipairs(head) do
+            local at = emit(part.text, part.hl)
+            if n == 1 then map[i + 1] = at end
+          end
           i = i + 1
         else
           local prefix, hang, body, bullet_at = paragraph_head(line)
