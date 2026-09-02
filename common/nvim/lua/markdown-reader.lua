@@ -62,7 +62,6 @@ local function open()
   vim.bo[rbuf].buftype = "nofile"
   vim.bo[rbuf].bufhidden = "wipe"
   vim.bo[rbuf].swapfile = false
-  vim.api.nvim_buf_set_name(rbuf, "reader://" .. vim.api.nvim_buf_get_name(sbuf))
 
   -- No filetype on purpose, so treesitter does not decorate a buffer that only
   -- looks like markdown: every conceal shortens a line, and a shortened line
@@ -81,6 +80,13 @@ local function open()
   vim.wo[win].list = false
   vim.wo[win].wrap = true      -- text is wrapped already; this catches overflow
   vim.wo[win].linebreak = true
+  -- The buffer is deliberately nameless. A name like "reader://<path>" is not a
+  -- path that exists, and anything that resolves the current buffer against the
+  -- cwd trips over it -- neo-tree's follow_current_file asked to change the cwd
+  -- every time the tree was focused. Nameless makes those checks skip the buffer
+  -- (neo-tree's get_path_to_reveal returns nil on an empty name), and the winbar
+  -- carries the file's identity instead, where a reader wants a title anyway.
+  vim.wo[win].winbar = "  " .. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(sbuf), ":~:.")
 
   mdtable.set_highlights()
   local map = render(rbuf, sbuf, win)
@@ -101,6 +107,15 @@ local function open()
       vim.api.nvim_feedkeys(key, "m", false)  -- remap, so the config's own x and d still apply
     end, { buffer = rbuf, silent = true, desc = "Edit the source" })
   end
+  -- Leaving by any route -- close(), :bd, another buffer opened here -- takes the
+  -- title with it. It belongs to the window, not to the buffer that set it.
+  vim.api.nvim_create_autocmd("BufWinLeave", {
+    buffer = rbuf,
+    callback = function()
+      local w = vim.fn.bufwinid(rbuf)
+      if w ~= -1 then vim.wo[w].winbar = "" end
+    end,
+  })
   -- Both the column allocation and the re-flow depend on the window width.
   vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
     buffer = rbuf,
@@ -123,6 +138,7 @@ local function close()
     if r <= rline and src > best and r >= (st.map[best] or 0) then best = src end
   end
   reader[rbuf] = nil
+  vim.wo[win].winbar = ""
   -- The source can be gone: :bd while the reader was up, or the file replaced by
   -- something else editing it. Do not throw on the way out.
   if not vim.api.nvim_buf_is_valid(st.src) then
