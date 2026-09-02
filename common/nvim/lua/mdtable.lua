@@ -33,9 +33,12 @@ local LINKS = {
   MdReadH4         = { "RenderMarkdownH4", "@markup.heading.4" },
   MdReadH5         = { "RenderMarkdownH5", "@markup.heading.5" },
   MdReadH6         = { "RenderMarkdownH6", "@markup.heading.6" },
-  MdReadTableHead  = { "RenderMarkdownTableHead", "@markup.heading" },
-  MdReadTableRow   = { "RenderMarkdownTableRow", "@punctuation.special" },
-  MdReadBullet     = { "RenderMarkdownBullet", "@markup.list" },
+  -- Table and list groups prefer the treesitter capture the raw buffer is
+  -- coloured by, so the same document does not change colour when it is toggled:
+  -- a header cell is @markup.heading there and the pipes @punctuation.special.
+  MdReadTableHead   = { "@markup.heading.markdown", "RenderMarkdownTableHead" },
+  MdReadTableBorder = { "@punctuation.special.markdown", "@punctuation.special" },
+  MdReadBullet      = { "@markup.list.markdown", "@markup.list" },
   MdReadCode       = { "RenderMarkdownCode", "@markup.raw.block" },
   MdReadCodeInline = { "RenderMarkdownCodeInline", "@markup.raw" },
   MdReadBold       = { "@markup.strong" },
@@ -55,6 +58,14 @@ function M.set_highlights()
   -- A terminal cell has one size, so the top of the hierarchy is drawn rather
   -- than scaled: H1 is a filled bar in the heading's own colour. Derived from the
   -- theme every time, so it follows a colourscheme change like everything else.
+  -- Inline code takes its foreground from the raw buffer's own group and keeps
+  -- the reader's background box: the same green, still visibly a code span.
+  local raw = vim.api.nvim_get_hl(0, { name = "@markup.raw.markdown_inline", link = false })
+  local box = vim.api.nvim_get_hl(0, { name = "RenderMarkdownCodeInline", link = false })
+  if raw.fg and box.bg then
+    vim.api.nvim_set_hl(0, "MdReadCodeInline", { fg = raw.fg, bg = box.bg })
+  end
+
   local h1 = vim.api.nvim_get_hl(0, { name = "MdReadH1", link = false })
   local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
   vim.api.nvim_set_hl(0, "MdReadH1Bar", (h1.fg and normal.bg)
@@ -192,37 +203,67 @@ end
 -- spaces, and each word splits again after / , ; so that long paths and lists
 -- break at a meaningful point rather than mid-token.
 local function tokens(text)
-  local out = {}
-  for word in text:gmatch("%S+") do
-    local first, part = true, ""
-    for _, ch in ipairs(chars(word)) do
+  local out, i = {}, 1
+  while true do
+    local a, b = text:find("%S+", i)
+    if not a then break end
+    local first, part, at = true, "", a
+    for _, ch in ipairs(chars(text:sub(a, b))) do
       part = part .. ch
       if ch == "/" or ch == "," or ch == ";" then
-        out[#out + 1] = { text = part, glue = first and " " or "" }
-        first, part = false, ""
+        out[#out + 1] = { text = part, pos = at, glue = first and " " or "" }
+        first, at, part = false, at + #part, ""
       end
     end
-    if part ~= "" then out[#out + 1] = { text = part, glue = first and " " or "" } end
+    if part ~= "" then out[#out + 1] = { text = part, pos = at, glue = first and " " or "" } end
+    i = b + 1
   end
   return out
 end
 
-local function wrap_cell(text, width)
-  if width <= 0 then return { "" } end
-  local items = tokens(text)
-  if #items == 0 then return { "" } end
-  local lines, cur = {}, ""
-  for _, item in ipairs(items) do
-    local glue = cur == "" and "" or item.glue
-    local cand = cur .. glue .. item.text
-    if strwidth(cand) <= width then
-      cur = cand
+-- Whitespace-only units, for prose.
+local function words(text)
+  local out, i = {}, 1
+  while true do
+    local a, b = text:find("%S+", i)
+    if not a then break end
+    out[#out + 1] = { text = text:sub(a, b), pos = a, glue = " " }
+    i = b + 1
+  end
+  return out
+end
+
+-- The one wrapping engine, shared by prose and by table cells. `items` are the
+-- smallest units a line may start with -- each carrying its byte position in the
+-- source text and the glue that joins it to the one before -- and `at` maps a
+-- 1-based byte of that text to a highlight group. Highlight is tracked per byte
+-- rather than by clipping ranges, because a wrapped line is rebuilt from pieces
+-- whose bytes no longer line up with the source.
+---@return string[] lines, table[][] spans  one span list per output line
+local function wrap_marked(items, at, width)
+  if width < 1 then width = 1 end
+  local out, marks = {}, {}
+  local cur, cur_marks
+  local function flush()
+    if cur then out[#out + 1] = cur; marks[#marks + 1] = cur_marks; cur, cur_marks = nil, nil end
+  end
+  local function put(str, pos)
+    local base = #cur
+    cur = cur .. str
+    for j = 1, #str do cur_marks[base + j] = at[pos + j - 1] end
+  end
+
+  for _, it in ipairs(items) do
+    local glue = (cur and cur ~= "") and it.glue or ""
+    if cur and strwidth(cur .. glue .. it.text) <= width then
+      cur = cur .. glue
+      put(it.text, it.pos)
     else
-      if cur ~= "" then lines[#lines + 1] = cur end
-      cur = ""
-      -- A single token wider than the column has no break point; split it on
-      -- character boundaries so the border still lines up.
-      local rest = item.text
+      flush()
+      -- A unit wider than the line has no break point of its own, so split it on
+      -- character boundaries as a last resort. In a table this is what keeps the
+      -- border aligned.
+      local rest, rpos = it.text, it.pos
       while strwidth(rest) > width do
         local take = ""
         for _, ch in ipairs(chars(rest)) do
@@ -230,14 +271,56 @@ local function wrap_cell(text, width)
           take = take .. ch
         end
         if take == "" then break end
-        lines[#lines + 1] = take
-        rest = rest:sub(#take + 1)
+        cur, cur_marks = "", {}
+        put(take, rpos)
+        flush()
+        rpos, rest = rpos + #take, rest:sub(#take + 1)
       end
-      cur = rest
+      cur, cur_marks = "", {}
+      put(rest, rpos)
     end
   end
-  if cur ~= "" then lines[#lines + 1] = cur end
-  return #lines > 0 and lines or { "" }
+  flush()
+  if #out == 0 then out, marks = { "" }, { {} } end
+
+  local per_line = {}
+  for k, line in ipairs(out) do
+    local sp, m, b = {}, marks[k], 1
+    while b <= #line do
+      local hl = m[b]
+      if hl then
+        local e = b
+        while e < #line and m[e + 1] == hl do e = e + 1 end
+        sp[#sp + 1] = { col = b - 1, end_col = e, hl = hl }
+        b = e + 1
+      else
+        b = b + 1
+      end
+    end
+    per_line[k] = sp
+  end
+  return out, per_line
+end
+
+local function marks_of(spans)
+  local at = {}
+  for _, sp in ipairs(spans) do
+    for b = sp.col + 1, sp.end_col do at[b] = sp.hl end
+  end
+  return at
+end
+
+-- One table cell, wrapped. `base` colours whatever the inline markup did not
+-- claim, so a header cell comes out one colour with its code spans and links
+-- still standing out -- the per-byte map settles the overlap, so no extmark
+-- priority is involved.
+local function wrap_cell(src, width, base)
+  local text, spans = inline(src)
+  local at = marks_of(spans)
+  if base then
+    for b = 1, #text do if at[b] == nil then at[b] = base end end
+  end
+  return wrap_marked(tokens(text), at, width)
 end
 
 -- Shrink the widest column one cell at a time until the table fits. Widest-first
@@ -278,15 +361,20 @@ local function row_rule(widths)
   return border(widths, B.ml, B.mm, B.mr, B.h)
 end
 
-local function row_lines(cells, widths, aligns)
-  local wrapped, height = {}, 1
+-- One table row: the rendered lines, and for each the highlight spans. Columns
+-- are byte offsets built up as the line is assembled -- never computed from
+-- display width, which the box-drawing glyphs and the icons do not agree with.
+---@return string[] lines, table[][] spans
+local function row_lines(cells, widths, aligns, base)
+  local wrapped, spans, height = {}, {}, 1
   for i, w in ipairs(widths) do
-    wrapped[i] = wrap_cell(plain(cells[i] or ""), w)
+    wrapped[i], spans[i] = wrap_cell(cells[i] or "", w, base)
     height = math.max(height, #wrapped[i])
   end
-  local out = {}
+  local out, hls = {}, {}
   for li = 1, height do
-    local parts = { B.v }
+    local line = B.v
+    local sp = { { col = 0, end_col = #B.v, hl = "MdReadTableBorder" } }
     for i, w in ipairs(widths) do
       local text = wrapped[i][li] or ""
       local slack = math.max(0, w - strwidth(text))
@@ -300,13 +388,18 @@ local function row_lines(cells, widths, aligns)
       else
         left, right = 0, slack
       end
-      parts[#parts + 1] = string.rep(" ", M.opts.cell_pad + left) .. text
-        .. string.rep(" ", right + M.opts.cell_pad)
-      parts[#parts + 1] = B.v
+      line = line .. string.rep(" ", M.opts.cell_pad + left)
+      local at = #line
+      line = line .. text .. string.rep(" ", right + M.opts.cell_pad)
+      for _, c in ipairs(spans[i][li] or {}) do
+        sp[#sp + 1] = { col = at + c.col, end_col = at + c.end_col, hl = c.hl }
+      end
+      sp[#sp + 1] = { col = #line, end_col = #line + #B.v, hl = "MdReadTableBorder" }
+      line = line .. B.v
     end
-    out[li] = table.concat(parts)
+    out[li], hls[li] = line, sp
   end
-  return out
+  return out, hls
 end
 
 local function alignment(cell)
@@ -354,38 +447,53 @@ local function layout(buf, node, avail)
   for _, row in ipairs(rows) do
     if not row.delim then
       for i = 1, ncols do
-        natural[i] = math.max(natural[i], strwidth(plain(row.cells[i] or "")))
+        -- Measured with the same function that renders it. Two implementations
+        -- of "what does this cell display" that disagree by one column would
+        -- misalign every border below it.
+        natural[i] = math.max(natural[i], strwidth((inline(row.cells[i] or ""))))
       end
     end
   end
   local widths = allocate(natural, avail)
 
-  local rendered = {}
+  local rendered, hls = {}, {}
   for ri, row in ipairs(rows) do
-    rendered[ri] = (not row.delim)
-      and row_lines(row.cells, widths, aligns)
-      or { border(widths, B.ml, B.mm, B.mr) }
-  end
-  return { rows = rows, delim_idx = delim_idx, widths = widths, rendered = rendered }
-end
-
--- The table as a flat list of lines, borders and rules included.
----@return string[] lines, integer head_lines  count of leading header-coloured lines
-local function flatten(lo)
-  local out = {}
-  local head_lines = 0
-  out[#out + 1] = border(lo.widths, B.tl, B.tm, B.tr)
-  for ri = 1, #lo.rows do
-    vim.list_extend(out, lo.rendered[ri])
-    if ri <= lo.delim_idx then head_lines = #out end
-    -- A rule between every pair of body rows. The delimiter row already draws
-    -- the one under the header, hence ri > delim_idx.
-    if ri > lo.delim_idx and ri < #lo.rows then
-      out[#out + 1] = row_rule(lo.widths)
+    if row.delim then
+      local line = border(widths, B.ml, B.mm, B.mr)
+      rendered[ri] = { line }
+      hls[ri] = { { { col = 0, end_col = #line, hl = "MdReadTableBorder" } } }
+    else
+      rendered[ri], hls[ri] =
+        row_lines(row.cells, widths, aligns, ri < delim_idx and "MdReadTableHead" or nil)
     end
   end
-  out[#out + 1] = border(lo.widths, B.bl, B.bm, B.br)
-  return out, head_lines
+  return { rows = rows, delim_idx = delim_idx, widths = widths, rendered = rendered, hls = hls }
+end
+
+-- The table as a flat list of lines, borders and rules included, with the
+-- highlight spans for each. Line numbers are relative to the table.
+---@return string[] lines, table[] hls  {line, col, end_col, hl}
+local function flatten(lo)
+  local out, hls = {}, {}
+  local function add(line, sp)
+    out[#out + 1] = line
+    for _, c in ipairs(sp) do
+      hls[#hls + 1] = { line = #out, col = c.col, end_col = c.end_col, hl = c.hl }
+    end
+  end
+  local function rule(line)
+    add(line, { { col = 0, end_col = #line, hl = "MdReadTableBorder" } })
+  end
+
+  rule(border(lo.widths, B.tl, B.tm, B.tr))
+  for ri = 1, #lo.rows do
+    for li, line in ipairs(lo.rendered[ri]) do add(line, lo.hls[ri][li]) end
+    -- A rule between every pair of body rows. The delimiter row already draws the
+    -- one under the header, hence ri > delim_idx.
+    if ri > lo.delim_idx and ri < #lo.rows then rule(row_rule(lo.widths)) end
+  end
+  rule(border(lo.widths, B.bl, B.bm, B.br))
+  return out, hls
 end
 
 -- ---------------------------------------------------------------------------
@@ -393,81 +501,9 @@ end
 
 M.heading_icons = { "󰲡", "󰲣", "󰲥", "󰲧", "󰲩", "󰲫" }
 
--- Wrap `text` to `width`, carrying `spans` (byte ranges from inline()) across the
--- breaks. Highlight is tracked per byte rather than by clipping ranges, because a
--- wrapped line is rebuilt from words and its bytes do not line up with the source.
----@return string[] lines, table[][] spans  one span list per output line
+-- Prose: the same engine, with whitespace as the only break point.
 local function wrap_hl(text, spans, width)
-  if width < 1 then width = 1 end
-  local at = {}
-  for _, sp in ipairs(spans) do
-    for b = sp.col + 1, sp.end_col do at[b] = sp.hl end
-  end
-
-  local words, i = {}, 1
-  while true do
-    local a, b = text:find("%S+", i)
-    if not a then break end
-    words[#words + 1] = { text = text:sub(a, b), pos = a }
-    i = b + 1
-  end
-
-  local out, marks = {}, {}
-  local cur, cur_marks
-  local function flush()
-    if cur then out[#out + 1] = cur; marks[#marks + 1] = cur_marks; cur, cur_marks = nil, nil end
-  end
-  local function put(str, pos)
-    local base = #cur
-    cur = cur .. str
-    for j = 1, #str do cur_marks[base + j] = at[pos + j - 1] end
-  end
-
-  for _, w in ipairs(words) do
-    if cur and strwidth(cur .. " " .. w.text) <= width then
-      cur = cur .. " "
-      put(w.text, w.pos)
-    else
-      flush()
-      -- Prose breaks on whitespace only. A token too wide for the line has no
-      -- break point, so split it on character boundaries as a last resort.
-      local rest, rpos = w.text, w.pos
-      while strwidth(rest) > width do
-        local take = ""
-        for _, ch in ipairs(chars(rest)) do
-          if strwidth(take .. ch) > width then break end
-          take = take .. ch
-        end
-        if take == "" then break end
-        cur, cur_marks = "", {}
-        put(take, rpos)
-        flush()
-        rpos, rest = rpos + #take, rest:sub(#take + 1)
-      end
-      cur, cur_marks = "", {}
-      put(rest, rpos)
-    end
-  end
-  flush()
-  if #out == 0 then out, marks = { "" }, { {} } end
-
-  local per_line = {}
-  for k, line in ipairs(out) do
-    local sp, m, b = {}, marks[k], 1
-    while b <= #line do
-      local hl = m[b]
-      if hl then
-        local e = b
-        while e < #line and m[e + 1] == hl do e = e + 1 end
-        sp[#sp + 1] = { col = b - 1, end_col = e, hl = hl }
-        b = e + 1
-      else
-        b = b + 1
-      end
-    end
-    per_line[k] = sp
-  end
-  return out, per_line
+  return wrap_marked(words(text), marks_of(spans), width)
 end
 
 -- A line that cannot be swallowed into the paragraph above it.
@@ -548,8 +584,8 @@ function M.document(buf, avail)
       for _, node in q:iter_captures(tree:root(), buf) do
         local lo = layout(buf, node, text_w)
         if lo then
-          local tl, head_lines = flatten(lo)
-          repl[lo.rows[1].lnum] = { last = lo.rows[#lo.rows].lnum, lines = tl, head_lines = head_lines }
+          local tl, thls = flatten(lo)
+          repl[lo.rows[1].lnum] = { last = lo.rows[#lo.rows].lnum, lines = tl, hls = thls }
         end
       end
     end
@@ -569,8 +605,10 @@ function M.document(buf, avail)
     local r = repl[i]
     if r then
       local first = #out + 1
-      for n, tl in ipairs(r.lines) do
-        emit(tl, n <= r.head_lines and "MdReadTableHead" or "MdReadTableRow")
+      for _, tl in ipairs(r.lines) do out[#out + 1] = pad .. tl end
+      for _, c in ipairs(r.hls) do
+        hls[#hls + 1] = { line = first + c.line - 1, col = #pad + c.col,
+                          end_col = #pad + c.end_col, hl = c.hl }
       end
       for l = i, r.last do map[l + 1] = first end
       i = r.last + 1
