@@ -1626,6 +1626,28 @@ run "without a lead, --resources still reaches the dispatch line" 0 "dispatch: w
 run "lead names the session without tmux's separators" 0 "started wb-dot-ted: window lead runs wb-dot-ted-lead" env TMUX=x "$WB" lead
 check "and targets it exactly" bash -c "tlog | grep -q -- '-t =wb-dot-ted'"
 
+# --- premerge: the project's own gate, run in the worktree before the squash --
+new_repo "premerge"
+"$WB" init >/dev/null
+git add -A && git commit -qm wb
+pid=$(newc bug "premerge")
+"$WB" start "$pid" --no-open >/dev/null 2>&1
+pwt=.worktrees/$pid-premerge
+ready "$pwt"
+git config workbench.premerge "pwd >> '$TMP/premerge.log' && test -e '$TMP/premerge-pass'"
+run "merge refuses when the premerge command fails" 1 "premerge check failed" "$WB" merge "$pid" "gated" --no-review
+check "and the branch is still there" git show-ref -q --verify "refs/heads/$pid-premerge"
+check "and the command ran in the worktree" bash -c "[ \"\$(readlink -f \"\$(tail -1 '$TMP/premerge.log')\")\" = \"\$(readlink -f '$pwt')\" ]"
+touch "$TMP/premerge-pass"
+run "merge proceeds when it passes" 0 "merged $pid" "$WB" merge "$pid" "gated" --no-review
+pid2=$(newc bug "premerge gone")
+"$WB" start "$pid2" --no-open >/dev/null 2>&1
+ready ".worktrees/$pid2-premerge-gone"
+git worktree remove ".worktrees/$pid2-premerge-gone"
+run "merge refuses a branch with no worktree to run the command in" 1 "no worktree to run it in" "$WB" merge "$pid2" "gone" --no-review
+git config --unset workbench.premerge
+run "and merges once the config is unset" 0 "merged $pid2" "$WB" merge "$pid2" "gone" --no-review
+
 echo
 echo "$checks checks, $fails failed"
 [ "$fails" -eq 0 ]

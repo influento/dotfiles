@@ -65,6 +65,14 @@ A merge that skipped the review gate carries a second trailer, `Review: skipped`
 and would tempt a reader to use it instead of opening the item, which is the
 contract. The subject describes the change, not the item's title.
 
+When `git config workbench.premerge` is set — `"npm run gate"`, a test run,
+whatever the project's own tools say — the command runs it in the branch's
+worktree after every other check and before the squash, and refuses the merge
+on a non-zero exit with the command's output as the reason. That is the
+project's deterministic gate, beside the review; `--no-review` is the user's
+override of the review and does not skip it. A branch whose worktree is gone is
+refused rather than merged unchecked: `workbench start <id>` recreates one.
+
 The command refuses, before touching anything, when the main checkout is not on
 the default branch, has staged changes or an uncommitted deletion (an unstaged
 edit stays out of the squash and is tolerated), the worktree has uncommitted

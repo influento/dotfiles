@@ -61,7 +61,8 @@ usage:
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
   workbench merge <id> "<subject>" [--no-review]
                                        squash onto the default branch, drop the worktree and branch;
-                                       needs evidence or a trigger status, and a passed pre-merge review
+                                       needs evidence or a trigger status, and a passed pre-merge review;
+                                       runs 'git config workbench.premerge' in the worktree first, refusing on non-zero
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what a research or abandoned branch carries
   workbench status                     in flight, duplicate ids, reports
@@ -778,6 +779,13 @@ setup_checklist() {
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
   echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)). Without it one session works items itself"
   echo "  mode              $(mode) — 'workbench mode unattended' before leaving: questions are refused by the hooks and parked, the lead told; live for every session"
+  local premerge
+  premerge=$(git config --get workbench.premerge 2>/dev/null || true)
+  if [ -n "$premerge" ]; then
+    echo "  premerge          '$premerge' (git config workbench.premerge) runs in the branch's worktree before every squash; non-zero refuses the merge"
+  else
+    echo "  premerge          optional — 'git config workbench.premerge \"<command>\"' (tests, a lint gate) runs in the branch's worktree before every squash and refuses the merge on non-zero: the project's own tools, beside the review"
+  fi
   echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
   echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
   echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
@@ -1489,6 +1497,23 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   # user's rebase in the worktree anyway, so ask for it up front.
   if ! git -C "$root" merge-tree --write-tree "$main" "$branch" >/dev/null 2>&1; then
     die "$branch conflicts with $main; rebase it onto $main in its worktree, then retry"
+  fi
+
+  # The project's own gate — 'git config workbench.premerge "npm run gate"' —
+  # run in the branch's worktree, last of the checks because it is the slow
+  # one, and before anything lands. Its exit status is the verdict and its
+  # output the reason, so both go where a person reads. The review above is
+  # judgment and --no-review is the user's override of it; this is the
+  # project's tools, and the override does not reach it — unset the config
+  # to skip it. A branch whose worktree is gone is refused, not passed
+  # unchecked: the tools need the files.
+  local premerge
+  premerge=$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)
+  if [ -n "$premerge" ]; then
+    [ -n "$wt" ] || die "workbench.premerge is set ('$premerge') and $branch has no worktree to run it in; 'workbench start $id' recreates one, then retry"
+    echo "premerge: $premerge (in $wt)" >&2
+    (cd "$wt" && bash -c "$premerge") >&2 \
+      || die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry"
   fi
 
   # merge-tree is a pre-check, not a guarantee — rename detection can differ —

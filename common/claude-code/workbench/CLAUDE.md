@@ -109,6 +109,18 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
 - tmux `#{window_id}` (`@N`) is stable; window names are not — which is why
   `open` targets ids.
 - A worktree under a trusted repo inherits that trust.
+- A `type: agent` Stop hook's subagent runs in `dontAsk` whatever the parent
+  session's mode — probed 2.1.258 with the parent in `auto` and in `default`:
+  `PermissionRequest` never fired for it, so `gate permission` cannot reach
+  it. Only Claude Code's built-in read-only allowlist runs there (`git diff`,
+  `git status`, `grep`, `tail`); a script (`bash x.sh`), `ls -la`, and piped
+  or compound forms were refused (2.1.259). Anything else needs an explicit
+  `permissions.allow` rule in the project's settings, which the hook agent
+  does honour.
+- `.claude/rules/*.md` with a `paths:` glob loads into a subagent spawned with
+  the Agent tool once it reads a matching file — probed 2.1.258 with a canary
+  line, for `wb-reviewer` and `general-purpose`; the unscoped rules load
+  regardless. A project's per-file rules reach the reviewer and the gate.
 
 The CLI surface these sit under: `workbench lead`, `open`, `signal`, `gate`, and
 the definitions in `agents/`.
