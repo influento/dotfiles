@@ -206,12 +206,19 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
     if vim.bo[args.buf].buftype ~= "" or reader[args.buf] then return end
     local win = vim.api.nvim_get_current_win()
     if vim.api.nvim_win_get_buf(win) ~= args.buf or vim.wo[win].diff then return end
+    -- Deferred, so the buffer under the cursor may have moved on by the time this
+    -- runs -- open() reads the current one, not args.buf.
+    local function later()
+      vim.schedule(function()
+        if vim.api.nvim_get_current_buf() == args.buf and not reader[args.buf] then open() end
+      end)
+    end
     -- The very first file can arrive before lazy.nvim has loaded the colourscheme
     -- and the treesitter queries, so hold the opening render until startup is done.
     if vim.v.vim_did_enter == 0 then
-      vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = function() vim.schedule(open) end })
+      vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = later })
     else
-      vim.schedule(open)
+      later()
     end
   end,
 })
