@@ -1,5 +1,31 @@
 # Dotfiles
 
+<!--toc:start-->
+- [Dotfiles](#dotfiles)
+  - [Project Overview](#project-overview)
+  - [How It Works](#how-it-works)
+    - [Profiles](#profiles)
+    - [Deployment Method](#deployment-method)
+    - [Config Mapping](#config-mapping)
+  - [Theming System](#theming-system)
+    - [How It Works](#how-it-works-1)
+    - [Token Syntax](#token-syntax)
+    - [Theme Selection](#theme-selection)
+    - [Adding a New Theme](#adding-a-new-theme)
+    - [Adding Colors to a Config](#adding-colors-to-a-config)
+    - [Template Files](#template-files)
+  - [What Each Tool Does](#what-each-tool-does)
+    - [Common (all profiles)](#common-all-profiles)
+    - [Server only](#server-only)
+    - [Workstation only](#workstation-only)
+  - [Claude Code Skills](#claude-code-skills)
+  - [Code Conventions](#code-conventions)
+  - [Commands](#commands)
+  - [Editing Configs](#editing-configs)
+    - [Adding New Configs](#adding-new-configs)
+  - [Documentation](#documentation)
+<!--toc:end-->
+
 ## Project Overview
 
 Profile-driven, idempotent dotfiles manager for user-level configuration. Part of a
@@ -42,50 +68,50 @@ propagate in both directions: `common/claude-code/CLAUDE.md`.
 
 ### Config Mapping
 
-| Source                              | Target                                    | Profile     |
-| ----------------------------------- | ----------------------------------------- | ----------- |
-| `common/zsh/.zshrc.tpl`             | `~/.zshrc` (via generated `.zshrc`)       | all         |
-| `common/zsh/.zshenv`                | `~/.zshenv` (PATH for non-interactive shells, e.g. `ssh host <cmd>`) | all |
-| `workstation/zsh/.zshrc-workstation`| `~/.zshrc-workstation`                    | workstation |
-| `common/nvim/`                      | `~/.config/nvim/`                         | all         |
-| `common/ideavim/.ideavimrc`         | `~/.ideavimrc`                            | all         |
-| `common/tmux/`                      | `~/.config/tmux/`                         | all         |
-| `common/git/.gitconfig`             | `~/.gitconfig`                            | all         |
-| `common/starship/`                  | `~/.config/starship/`                     | all         |
-| `common/fontconfig/`                | `~/.config/fontconfig/`                   | all         |
-| `workstation/lazygit/`              | `~/.config/lazygit/`                      | workstation |
-| `common/btop/`                      | `~/.config/btop/`                         | all         |
-| `common/fastfetch/`                 | `~/.config/fastfetch/`                    | all         |
-| `workstation/yazi/`                 | `~/.config/yazi/`                         | workstation |
-| `common/claude-code/settings.json`  | `~/.claude/settings.json` (**merged**, not symlinked) | all         |
-| `common/claude-code/skills/`        | `~/.claude/skills/`                       | all         |
-| `common/claude-code/skills-optional/` | *not deployed* — symlinked per project into `<project>/.claude/skills/` | all |
-| `common/npm/packages.conf`          | global npm packages (installed via npm)   | all         |
-| `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded) | all |
-| `common/scripts/*`                  | `~/.local/bin/*`                          | all         |
-| `common/claude-code/workbench/bin/workbench` | `~/.local/bin/workbench` (the only file deployed out of `workbench/`, because it is what opts a project in) | all |
-| `server/scripts/*`                  | `~/.local/bin/*`                          | server      |
-| `server/systemd/user/`             | `~/.config/systemd/user/`                 | server      |
-| `workstation/sway/`                 | `~/.config/sway/`                         | workstation |
-| `workstation/swaylock/`             | `~/.config/swaylock/`                     | workstation |
-| `workstation/swayidle/`             | `~/.config/swayidle/`                     | workstation |
-| `workstation/mako/`                 | `~/.config/mako/`                         | workstation |
-| `workstation/swaybg/`               | `~/.config/swaybg/`                       | workstation |
-| `workstation/wlsunset/`             | `~/.config/wlsunset/`                     | workstation |
-| `workstation/swayosd/`              | `~/.config/swayosd/`                      | workstation |
-| `workstation/cliphist/`             | `~/.config/cliphist/`                     | workstation |
-| `workstation/waybar/`               | `~/.config/waybar/`                       | workstation |
-| `workstation/ghostty/`              | `~/.config/ghostty/`                      | workstation |
-| `workstation/xdg-desktop-portal/`   | `~/.config/xdg-desktop-portal/`           | workstation |
-| `workstation/scripts/*`             | `~/.local/bin/*`                          | workstation |
-| `workstation/npm/packages.conf`     | workstation-only npm packages (via npm)   | workstation |
-| `workstation/obsidian/plugins.conf` | `~/Dropbox/data-vault/.obsidian/plugins/` | workstation |
-| `workstation/theming/gtk-3.0/`      | `~/.config/gtk-3.0/`                      | workstation |
-| `workstation/theming/gtk-4.0/`      | `~/.config/gtk-4.0/`                      | workstation |
-| `workstation/theming/qt6ct/`        | `~/.config/qt6ct/`                        | workstation |
-| `workstation/mpv/`                  | `~/.config/mpv/`                          | workstation |
-| `workstation/yt-dlp/`               | `~/.config/yt-dlp/`                       | workstation |
-| `workstation/mimeapps/mimeapps.list`| `~/.config/mimeapps.list`                 | workstation |
+| Source                                                           | Target                                                                                                      | Profile     |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------- |
+| `common/zsh/.zshrc.tpl`                                          | `~/.zshrc` (via generated `.zshrc`)                                                                         | all         |
+| `common/zsh/.zshenv`                                             | `~/.zshenv` (PATH for non-interactive shells, e.g. `ssh host <cmd>`)                                        | all         |
+| `workstation/zsh/.zshrc-workstation`                             | `~/.zshrc-workstation`                                                                                      | workstation |
+| `common/nvim/`                                                   | `~/.config/nvim/`                                                                                           | all         |
+| `common/ideavim/.ideavimrc`                                      | `~/.ideavimrc`                                                                                              | all         |
+| `common/tmux/`                                                   | `~/.config/tmux/`                                                                                           | all         |
+| `common/git/.gitconfig`                                          | `~/.gitconfig`                                                                                              | all         |
+| `common/starship/`                                               | `~/.config/starship/`                                                                                       | all         |
+| `common/fontconfig/`                                             | `~/.config/fontconfig/`                                                                                     | all         |
+| `workstation/lazygit/`                                           | `~/.config/lazygit/`                                                                                        | workstation |
+| `common/btop/`                                                   | `~/.config/btop/`                                                                                           | all         |
+| `common/fastfetch/`                                              | `~/.config/fastfetch/`                                                                                      | all         |
+| `workstation/yazi/`                                              | `~/.config/yazi/`                                                                                           | workstation |
+| `common/claude-code/settings.json`                               | `~/.claude/settings.json` (**merged**, not symlinked)                                                       | all         |
+| `common/claude-code/skills/`                                     | `~/.claude/skills/`                                                                                         | all         |
+| `common/claude-code/skills-optional/`                            | _not deployed_ — symlinked per project into `<project>/.claude/skills/`                                     | all         |
+| `common/npm/packages.conf`                                       | global npm packages (installed via npm)                                                                     | all         |
+| `influento/tmux-plugins` (latest release, reinstalls on new tag) | `~/.local/bin/tmux-warp` (downloaded)                                                                       | all         |
+| `common/scripts/*`                                               | `~/.local/bin/*`                                                                                            | all         |
+| `common/claude-code/workbench/bin/workbench`                     | `~/.local/bin/workbench` (the only file deployed out of `workbench/`, because it is what opts a project in) | all         |
+| `server/scripts/*`                                               | `~/.local/bin/*`                                                                                            | server      |
+| `server/systemd/user/`                                           | `~/.config/systemd/user/`                                                                                   | server      |
+| `workstation/sway/`                                              | `~/.config/sway/`                                                                                           | workstation |
+| `workstation/swaylock/`                                          | `~/.config/swaylock/`                                                                                       | workstation |
+| `workstation/swayidle/`                                          | `~/.config/swayidle/`                                                                                       | workstation |
+| `workstation/mako/`                                              | `~/.config/mako/`                                                                                           | workstation |
+| `workstation/swaybg/`                                            | `~/.config/swaybg/`                                                                                         | workstation |
+| `workstation/wlsunset/`                                          | `~/.config/wlsunset/`                                                                                       | workstation |
+| `workstation/swayosd/`                                           | `~/.config/swayosd/`                                                                                        | workstation |
+| `workstation/cliphist/`                                          | `~/.config/cliphist/`                                                                                       | workstation |
+| `workstation/waybar/`                                            | `~/.config/waybar/`                                                                                         | workstation |
+| `workstation/ghostty/`                                           | `~/.config/ghostty/`                                                                                        | workstation |
+| `workstation/xdg-desktop-portal/`                                | `~/.config/xdg-desktop-portal/`                                                                             | workstation |
+| `workstation/scripts/*`                                          | `~/.local/bin/*`                                                                                            | workstation |
+| `workstation/npm/packages.conf`                                  | workstation-only npm packages (via npm)                                                                     | workstation |
+| `workstation/obsidian/plugins.conf`                              | `~/Dropbox/data-vault/.obsidian/plugins/`                                                                   | workstation |
+| `workstation/theming/gtk-3.0/`                                   | `~/.config/gtk-3.0/`                                                                                        | workstation |
+| `workstation/theming/gtk-4.0/`                                   | `~/.config/gtk-4.0/`                                                                                        | workstation |
+| `workstation/theming/qt6ct/`                                     | `~/.config/qt6ct/`                                                                                          | workstation |
+| `workstation/mpv/`                                               | `~/.config/mpv/`                                                                                            | workstation |
+| `workstation/yt-dlp/`                                            | `~/.config/yt-dlp/`                                                                                         | workstation |
+| `workstation/mimeapps/mimeapps.list`                             | `~/.config/mimeapps.list`                                                                                   | workstation |
 
 ## Theming System
 
@@ -122,83 +148,83 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 
 ### Template Files
 
-| Template                                     | Generated file       | Token format    |
-| -------------------------------------------- | -------------------- | --------------- |
-| `common/zsh/.zshrc.tpl`                      | `.zshrc`             | `@@TOKEN@@`     |
-| `common/starship/starship.toml.tpl`          | `starship.toml`      | `@@TOKEN@@`     |
-| `common/tmux/tmux.conf.tpl`                  | `tmux.conf`          | `@@TOKEN@@`     |
-| `workstation/lazygit/config.yml.tpl`         | `config.yml`         | `@@TOKEN@@`     |
-| `workstation/mako/config.tpl`                | `config`             | `@@TOKEN@@`     |
-| `workstation/swaylock/config.tpl`            | `config`             | `@@TOKEN_RAW@@` |
-| `workstation/swayosd/style.css.tpl`          | `style.css`          | `@@TOKEN@@`     |
-| `workstation/swaybg/wallpaper.sh.tpl`        | `wallpaper.sh`       | `@@TOKEN@@`     |
-| `workstation/theming/gtk-4.0/gtk.css.tpl`    | `gtk.css`            | `@@TOKEN@@`     |
-| `workstation/sway/config.tpl`                | `config`             | `@@TOKEN@@`     |
-| `workstation/waybar/config.tpl`              | `config`             | `@@TOKEN@@`     |
-| `workstation/waybar/style.css.tpl`           | `style.css`          | `@@TOKEN@@`     |
-| `workstation/mpv/mpv.conf.tpl`               | `mpv.conf`           | `@@TOKEN@@`     |
-| `workstation/mpv/script-opts/osc.conf.tpl`   | `osc.conf`           | `@@TOKEN@@`     |
+| Template                                   | Generated file  | Token format    |
+| ------------------------------------------ | --------------- | --------------- |
+| `common/zsh/.zshrc.tpl`                    | `.zshrc`        | `@@TOKEN@@`     |
+| `common/starship/starship.toml.tpl`        | `starship.toml` | `@@TOKEN@@`     |
+| `common/tmux/tmux.conf.tpl`                | `tmux.conf`     | `@@TOKEN@@`     |
+| `workstation/lazygit/config.yml.tpl`       | `config.yml`    | `@@TOKEN@@`     |
+| `workstation/mako/config.tpl`              | `config`        | `@@TOKEN@@`     |
+| `workstation/swaylock/config.tpl`          | `config`        | `@@TOKEN_RAW@@` |
+| `workstation/swayosd/style.css.tpl`        | `style.css`     | `@@TOKEN@@`     |
+| `workstation/swaybg/wallpaper.sh.tpl`      | `wallpaper.sh`  | `@@TOKEN@@`     |
+| `workstation/theming/gtk-4.0/gtk.css.tpl`  | `gtk.css`       | `@@TOKEN@@`     |
+| `workstation/sway/config.tpl`              | `config`        | `@@TOKEN@@`     |
+| `workstation/waybar/config.tpl`            | `config`        | `@@TOKEN@@`     |
+| `workstation/waybar/style.css.tpl`         | `style.css`     | `@@TOKEN@@`     |
+| `workstation/mpv/mpv.conf.tpl`             | `mpv.conf`      | `@@TOKEN@@`     |
+| `workstation/mpv/script-opts/osc.conf.tpl` | `osc.conf`      | `@@TOKEN@@`     |
 
 ## What Each Tool Does
 
 ### Common (all profiles)
 
-| Tool                 | Config location                     | Purpose                                                              |
-| -------------------- | ----------------------------------- | -------------------------------------------------------------------- |
-| **zsh + oh-my-zsh**  | `common/zsh/.zshrc.tpl`             | Shell: plugins, aliases, environment, prompt theme (themed)          |
-| **Neovim**           | `common/nvim/init.lua`              | Editor: keymaps, plugins (lazy.nvim), options                        |
-| **IdeaVim**          | `common/ideavim/.ideavimrc`         | JetBrains IDE Vim layer: mirrors nvim keymaps and options            |
-| **tmux**             | `common/tmux/tmux.conf.tpl`         | Terminal multiplexer: prefix key, panes, status bar (themed)         |
-| **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                    |
-| **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                  |
-| **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families              |
-| **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                              |
-| **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                 |
-| **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch |
+| Tool                 | Config location                     | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **zsh + oh-my-zsh**  | `common/zsh/.zshrc.tpl`             | Shell: plugins, aliases, environment, prompt theme (themed)                                                                                                                                                                                                                                                                                                                                                                    |
+| **Neovim**           | `common/nvim/init.lua`              | Editor: keymaps, plugins (lazy.nvim), options                                                                                                                                                                                                                                                                                                                                                                                  |
+| **IdeaVim**          | `common/ideavim/.ideavimrc`         | JetBrains IDE Vim layer: mirrors nvim keymaps and options                                                                                                                                                                                                                                                                                                                                                                      |
+| **tmux**             | `common/tmux/tmux.conf.tpl`         | Terminal multiplexer: prefix key, panes, status bar (themed)                                                                                                                                                                                                                                                                                                                                                                   |
+| **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                                                                                                                                                                                                                                                                                                                                                                              |
+| **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                                                                                                                                                                                                                                                                                                                                                                            |
+| **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families                                                                                                                                                                                                                                                                                                                                                                        |
+| **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                                                                                                                                                                                                                                                                                                                                                                                        |
+| **fastfetch**        | `common/fastfetch/config.jsonc`     | System info display: modules, layout                                                                                                                                                                                                                                                                                                                                                                                           |
+| **setup-github**     | `common/scripts/setup-github`       | First-login setup: SSH key, GitHub auth, git identity, remote switch                                                                                                                                                                                                                                                                                                                                                           |
 | **Claude Code**      | `common/claude-code/`               | Claude Code: global settings, permissions, custom skills, and the workbench CLI (see `common/claude-code/CLAUDE.md` and "Claude Code Skills" below; `write-a-skill` drafts new skills, `skill-creator` tests/benchmarks them — `skill-creator` eval scripts need PyYAML + a browser, so they only fully work on workstation). Bootstrapped via Anthropic's native installer on first `install.sh` run; self-updates thereafter |
-| **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update |
-| **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes       |
-| **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                            |
+| **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update                                                                                                                                                                                                                                                                                                                              |
+| **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes                                                                                                                                                                                                                                                                                                                                                                 |
+| **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Server only
 
-| Tool                      | Config location                                               | Purpose                                                              |
-| ------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **server-auto-update**    | `server/scripts/server-auto-update`                           | Unattended server maintenance: npm updates via systemd timer (12h)   |
-| **systemd units**         | `server/systemd/user/`                                        | Timer-triggered services: server-auto-update.timer/.service          |
-| **scripts (server)**      | `server/scripts/`                                             | Server-specific scripts → `~/.local/bin/`                            |
+| Tool                   | Config location                     | Purpose                                                            |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| **server-auto-update** | `server/scripts/server-auto-update` | Unattended server maintenance: npm updates via systemd timer (12h) |
+| **systemd units**      | `server/systemd/user/`              | Timer-triggered services: server-auto-update.timer/.service        |
+| **scripts (server)**   | `server/scripts/`                   | Server-specific scripts → `~/.local/bin/`                          |
 
 ### Workstation only
 
-| Tool                      | Config location                                               | Purpose                                                                                              |
-| ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **LazyGit**               | `workstation/lazygit/config.yml.tpl`                          | Terminal git UI: theme, pager, editor (themed)                                                       |
-| **yazi**                  | `workstation/yazi/yazi.toml`                                  | File manager: keymaps, appearance overrides                                                          |
-| **Sway**                  | `workstation/sway/config.tpl`                                 | Wayland compositor: keybindings, monitors, workspaces, window rules (themed)                         |
-| **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`              | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                  |
-| **Ghostty**               | `workstation/ghostty/config`                                  | Terminal emulator: font, theme, window settings                                                      |
-| **swaylock**              | `workstation/swaylock/config.tpl`                             | Screen locker: colors, indicator, behavior (themed)                                                  |
-| **swayidle**              | `workstation/swayidle/config`                                 | Idle manager: lock, screen off, suspend timers                                                       |
-| **mako**                  | `workstation/mako/config.tpl`                                 | Notification daemon: appearance, urgency, timeouts (themed)                                          |
-| **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`          | Wallpaper: launcher script, image storage (themed)                                                   |
-| **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                            | Night light: temperature, location-based schedule                                                    |
-| **SwayOSD**               | `workstation/swayosd/style.css.tpl`                           | On-screen display: volume/brightness popup styling (themed)                                          |
-| **cliphist**              | `workstation/cliphist/cliphist-pick.sh`                       | Clipboard history: picker script (wofi)                                                              |
-| **Obsidian plugins**      | `workstation/obsidian/plugins.conf`                           | Plugin installer: downloads from GitHub releases into vault                                          |
-| **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                    | GTK3 apps: theme, icons, cursor, font                                                                |
-| **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                        | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (requires qt6ct env var from OS installer)         |
-| **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                 | Portal backend: routes desktop portals to wlr for Sway                                               |
-| **auto-update**           | `workstation/scripts/auto-update`                             | Background system update on sway start: repos + AUR + npm, with a cooldown                           |
-| **tg**                    | `workstation/scripts/tg`                                      | Create isolated Telegram Desktop instances that appear separately in wofi                            |
-| **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`               | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`); waybar indicator                      |
-| **headless**              | `workstation/scripts/headless`, `headless-status`             | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
-| **startup-reminders**     | `workstation/scripts/startup-reminders`                       | Nag about post-install manual steps on sway start, until a script marks them done (data in `reminders/*.txt`)                    |
-| **npm packages**          | `workstation/npm/packages.conf`                               | Workstation-only npm packages: install on deploy, update via auto-update                             |
-| **scripts (workstation)** | `workstation/scripts/`                                        | Desktop-specific scripts → `~/.local/bin/`                                                           |
-| **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/`  | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                        |
-| **yt-dlp**                | `workstation/yt-dlp/config`                                   | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                   |
-| **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                          | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers |
-| **cheatsheets**           | `workstation/cheatsheets/tools/`                              | Single multi-scope HTML cheatsheet, opened by the `cheat` alias — no deploy step. See `workstation/cheatsheets/CLAUDE.md` |
+| Tool                      | Config location                                              | Purpose                                                                                                                                                                                          |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **LazyGit**               | `workstation/lazygit/config.yml.tpl`                         | Terminal git UI: theme, pager, editor (themed)                                                                                                                                                   |
+| **yazi**                  | `workstation/yazi/yazi.toml`                                 | File manager: keymaps, appearance overrides                                                                                                                                                      |
+| **Sway**                  | `workstation/sway/config.tpl`                                | Wayland compositor: keybindings, monitors, workspaces, window rules (themed)                                                                                                                     |
+| **Waybar**                | `workstation/waybar/config.tpl`, `style.css.tpl`             | Status bar: modules (clock, workspaces, tray), CSS styling (themed)                                                                                                                              |
+| **Ghostty**               | `workstation/ghostty/config`                                 | Terminal emulator: font, theme, window settings                                                                                                                                                  |
+| **swaylock**              | `workstation/swaylock/config.tpl`                            | Screen locker: colors, indicator, behavior (themed)                                                                                                                                              |
+| **swayidle**              | `workstation/swayidle/config`                                | Idle manager: lock, screen off, suspend timers                                                                                                                                                   |
+| **mako**                  | `workstation/mako/config.tpl`                                | Notification daemon: appearance, urgency, timeouts (themed)                                                                                                                                      |
+| **swaybg**                | `workstation/swaybg/wallpaper.sh.tpl`, `wallpapers/`         | Wallpaper: launcher script, image storage (themed)                                                                                                                                               |
+| **wlsunset**              | `workstation/wlsunset/wlsunset.sh`                           | Night light: temperature, location-based schedule                                                                                                                                                |
+| **SwayOSD**               | `workstation/swayosd/style.css.tpl`                          | On-screen display: volume/brightness popup styling (themed)                                                                                                                                      |
+| **cliphist**              | `workstation/cliphist/cliphist-pick.sh`                      | Clipboard history: picker script (wofi)                                                                                                                                                          |
+| **Obsidian plugins**      | `workstation/obsidian/plugins.conf`                          | Plugin installer: downloads from GitHub releases into vault                                                                                                                                      |
+| **GTK theming**           | `workstation/theming/gtk-3.0/settings.ini`                   | GTK3 apps: theme, icons, cursor, font                                                                                                                                                            |
+| **Qt theming**            | `workstation/theming/qt6ct/qt6ct.conf`                       | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (requires qt6ct env var from OS installer)                                                                                                     |
+| **XDG desktop portal**    | `workstation/xdg-desktop-portal/portals.conf`                | Portal backend: routes desktop portals to wlr for Sway                                                                                                                                           |
+| **auto-update**           | `workstation/scripts/auto-update`                            | Background system update on sway start: repos + AUR + npm, with a cooldown                                                                                                                       |
+| **tg**                    | `workstation/scripts/tg`                                     | Create isolated Telegram Desktop instances that appear separately in wofi                                                                                                                        |
+| **nosleep**               | `workstation/scripts/nosleep`, `nosleep-status`              | Toggle auto-suspend inhibition (`on`/`off`/`status`/`toggle`); waybar indicator                                                                                                                  |
+| **headless**              | `workstation/scripts/headless`, `headless-status`            | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`on`/`off`/`status`/`toggle`, `$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
+| **startup-reminders**     | `workstation/scripts/startup-reminders`                      | Nag about post-install manual steps on sway start, until a script marks them done (data in `reminders/*.txt`)                                                                                    |
+| **npm packages**          | `workstation/npm/packages.conf`                              | Workstation-only npm packages: install on deploy, update via auto-update                                                                                                                         |
+| **scripts (workstation)** | `workstation/scripts/`                                       | Desktop-specific scripts → `~/.local/bin/`                                                                                                                                                       |
+| **mpv**                   | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/` | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration (themed)                                                                                                                    |
+| **yt-dlp**                | `workstation/yt-dlp/config`                                  | Video downloader: 1080p cap, mp4, metadata embedding, SponsorBlock                                                                                                                               |
+| **swayimg (MIME)**        | `workstation/mimeapps/mimeapps.list`                         | Default image viewer for png/jpeg/gif/webp/bmp/tiff/svg/avif/heif + keeps existing browser/scheme handlers                                                                                       |
+| **cheatsheets**           | `workstation/cheatsheets/tools/`                             | Single multi-scope HTML cheatsheet, opened by the `cheat` alias — no deploy step. See `workstation/cheatsheets/CLAUDE.md`                                                                        |
 
 What the scripts above actually do — the headless design constraints, the
 nosleep inhibitor, tg's isolated instances, auto-update's cooldown, the
@@ -209,11 +235,11 @@ reminders format:
 
 Skills are split into two trees under `common/claude-code/`:
 
-| Tree              | Deployed                                    | Contents                                                                                              |
-| ----------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `skills/`         | symlinked to `~/.claude/skills/` (global)   | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill` |
-| `workbench/`      | only `bin/workbench` → `~/.local/bin/`      | The workbench tool, whole: CLI, its two skills, agents, commands, tests. Rendered into a project by `workbench init`, never linked — see `common/claude-code/workbench/CLAUDE.md` |
-| `skills-optional/`| never deployed — opted into per project      | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
+| Tree               | Deployed                                  | Contents                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills/`          | symlinked to `~/.claude/skills/` (global) | `caveman`, `debloat`, `densify`, `docx`, `frontend-design`, `human-like-text`, `indexer`, `pdf`, `simple-english`, `skill-creator`, `write-a-skill`                                                                               |
+| `workbench/`       | only `bin/workbench` → `~/.local/bin/`    | The workbench tool, whole: CLI, its two skills, agents, commands, tests. Rendered into a project by `workbench init`, never linked — see `common/claude-code/workbench/CLAUDE.md`                                                 |
+| `skills-optional/` | never deployed — opted into per project   | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
 
 The split is about **trigger blast radius**, not disk or token cost. Only a skill's
 `name` and `description` frontmatter is loaded into context at session start — the
