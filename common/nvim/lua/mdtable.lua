@@ -22,30 +22,42 @@ M.opts = {
   max_width = 90,  -- longest rendered line; a wider window centres the page
 }
 
--- Highlight groups. The names are ours; each links to the theme's markdown
--- palette where it has one -- catppuccin defines the RenderMarkdown* groups
--- whether or not that plugin is installed -- and to a treesitter group otherwise.
+-- Highlight groups. The names are ours; each borrows from a group the theme
+-- already defines -- catppuccin ships the RenderMarkdown* family whether or not
+-- that plugin is installed, and the @markup.* captures are what colours the raw
+-- buffer. No colour value is written here or anywhere else in this file.
 -- M.set_highlights() is idempotent; call it again on ColorScheme.
+--
+-- The page is quiet on purpose: the chrome recedes to the weight of a listchar
+-- so the words carry it, and what is left in colour is the content -- headings,
+-- code, links and emphasis.
 local LINKS = {
-  MdReadH1         = { "RenderMarkdownH1", "@markup.heading.1" },
-  MdReadH2         = { "RenderMarkdownH2", "@markup.heading.2" },
-  MdReadH3         = { "RenderMarkdownH3", "@markup.heading.3" },
-  MdReadH4         = { "RenderMarkdownH4", "@markup.heading.4" },
-  MdReadH5         = { "RenderMarkdownH5", "@markup.heading.5" },
-  MdReadH6         = { "RenderMarkdownH6", "@markup.heading.6" },
-  -- Table and list groups prefer the treesitter capture the raw buffer is
-  -- coloured by, so the same document does not change colour when it is toggled:
-  -- a header cell is @markup.heading there and the pipes @punctuation.special.
+  MdReadH1          = { "RenderMarkdownH1", "@markup.heading.1" },
+  MdReadH2          = { "RenderMarkdownH2", "@markup.heading.2" },
+  MdReadH3          = { "RenderMarkdownH3", "@markup.heading.3" },
+  MdReadH4          = { "RenderMarkdownH4", "@markup.heading.4" },
+  MdReadH5          = { "RenderMarkdownH5", "@markup.heading.5" },
+  MdReadH6          = { "RenderMarkdownH6", "@markup.heading.6" },
+  -- A table header prefers the treesitter capture the raw buffer is coloured by,
+  -- so the same document does not change colour when it is toggled: a header cell
+  -- is @markup.heading.markdown there.
   MdReadTableHead   = { "@markup.heading.markdown", "RenderMarkdownTableHead" },
-  MdReadTableBorder = { "@punctuation.special.markdown", "@punctuation.special" },
-  MdReadBullet      = { "@markup.list.markdown", "@markup.list" },
-  MdReadCode       = { "RenderMarkdownCode", "@markup.raw.block" },
-  MdReadCodeInline = { "RenderMarkdownCodeInline", "@markup.raw" },
-  MdReadBold       = { "@markup.strong" },
-  MdReadItalic     = { "@markup.italic" },
-  MdReadStrike     = { "@markup.strikethrough" },
-  MdReadLink       = { "@markup.link.label" },
+  -- Borders and bullets are structure, not content. They stay legible as a grid
+  -- and never compete with the text inside one.
+  MdReadTableBorder = { "NonText" },
+  MdReadBullet      = { "NonText" },
+  MdReadCode        = { "RenderMarkdownCode", "@markup.raw.block" },
+  MdReadCodeInline  = { "RenderMarkdownCodeInline", "@markup.raw" },
+  MdReadBold        = { "@markup.strong" },
+  MdReadItalic      = { "@markup.italic" },
+  MdReadStrike      = { "@markup.strikethrough" },
+  -- Underlined, so a link is identifiable without having to recognise a hue.
+  MdReadLink        = { "@markup.link.label", add = { underline = true } },
 }
+
+-- The rule under a heading is chrome too, so it takes the border's grey rather
+-- than the heading's colour -- the heading itself is what carries the level.
+local RULE = "MdReadTableBorder"
 
 function M.set_highlights()
   for name, chain in pairs(LINKS) do
@@ -53,11 +65,14 @@ function M.set_highlights()
     for _, candidate in ipairs(chain) do
       if vim.fn.hlexists(candidate) == 1 then target = candidate; break end
     end
-    vim.api.nvim_set_hl(0, name, { link = target })
+    if chain.add then
+      -- A link cannot be partially overridden, so resolve it and copy.
+      vim.api.nvim_set_hl(0, name, vim.tbl_extend("force",
+        vim.api.nvim_get_hl(0, { name = target, link = false }), chain.add))
+    else
+      vim.api.nvim_set_hl(0, name, { link = target })
+    end
   end
-  -- A terminal cell has one size, so the top of the hierarchy is drawn rather
-  -- than scaled: H1 is a filled bar in the heading's own colour. Derived from the
-  -- theme every time, so it follows a colourscheme change like everything else.
   -- Inline code takes its foreground from the raw buffer's own group and keeps
   -- the reader's background box: the same green, still visibly a code span.
   local raw = vim.api.nvim_get_hl(0, { name = "@markup.raw.markdown_inline", link = false })
@@ -65,11 +80,15 @@ function M.set_highlights()
   if raw.fg and box.bg then
     vim.api.nvim_set_hl(0, "MdReadCodeInline", { fg = raw.fg, bg = box.bg })
   end
-
+  -- A terminal cell has one size, so the top of the hierarchy is drawn rather
+  -- than scaled: H1 is a band running margin to margin. The heading keeps its own
+  -- colour as the foreground and the band takes CursorLine's background -- an
+  -- inverted bar puts a slab of saturation at the top of every page. Derived from
+  -- the theme every time, so it follows a colourscheme change like everything else.
   local h1 = vim.api.nvim_get_hl(0, { name = "MdReadH1", link = false })
-  local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
-  vim.api.nvim_set_hl(0, "MdReadH1Bar", (h1.fg and normal.bg)
-    and { fg = normal.bg, bg = h1.fg, bold = true }
+  local panel = vim.api.nvim_get_hl(0, { name = "CursorLine", link = false })
+  vim.api.nvim_set_hl(0, "MdReadH1Bar", (h1.fg and panel.bg)
+    and { fg = h1.fg, bg = panel.bg, bold = true }
     or { link = "MdReadH1" })
 end
 
@@ -555,9 +574,9 @@ local function render_heading(line, text_w)
     return { { text = head .. string.rep(" ", math.max(0, text_w - strwidth(head))),
                hl = "MdReadH1Bar" } }
   elseif level == 2 then
-    return { { text = head, hl = hl }, { text = string.rep("─", text_w), hl = hl } }
+    return { { text = head, hl = hl }, { text = string.rep("─", text_w), hl = RULE } }
   elseif level == 3 then
-    return { { text = head, hl = hl }, { text = string.rep("─", strwidth(head)), hl = hl } }
+    return { { text = head, hl = hl }, { text = string.rep("─", strwidth(head)), hl = RULE } }
   end
   return { { text = head, hl = hl } }
 end
