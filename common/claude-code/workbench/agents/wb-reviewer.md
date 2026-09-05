@@ -13,8 +13,9 @@ and whatever the diff touches.
 
 A finding is a defect, a risk, a missed case or a wrong reading of the
 criterion, with evidence: `path:line`, or a command and its real output.
-Number them. No style notes without a consequence, no "consider", no
-restating the diff. Nothing is trivial to you: say what you found and why it
+Number them. A finding that deletes or replaces code names the replacement
+and ends `net: -N lines`. No style notes without a consequence, no
+"consider", no restating the diff. Nothing is trivial to you: say what you found and why it
 matters; the worker decides what to do about it.
 
 When the worker answers, reply per finding, by number: the fix is right

@@ -9,6 +9,13 @@ A branch that exists without a worktree — removed by hand, or only fetched
 from another machine — is resumed by the same command: it cuts the worktree
 for the branch and moves nothing.
 
+A worktree holds tracked files and nothing else: no installed dependencies,
+no build output. Installing them is the worker's first step there, in
+whatever form the project's own rules name (`npm ci`, a venv, a build); a
+project gate that needs them says so when it runs before they exist.
+`start` runs nothing in the new worktree on purpose — a dependency install
+that fails would block starting an item for a reason unrelated to it.
+
 ## The item file is on the default branch from the start
 
 `workbench new` writes the file into the main checkout wherever it runs and
@@ -72,6 +79,9 @@ on a non-zero exit with the command's output as the reason. That is the
 project's deterministic gate, beside the review; `--no-review` is the user's
 override of the review and does not skip it. A branch whose worktree is gone is
 refused rather than merged unchecked: `workbench start <id>` recreates one.
+Like every `workbench.*` key it is git config, per clone: a tool whose
+installer sets it does so in the clone it ran in, and a fresh clone sets it
+again or is merged from unchecked — `init`'s checklist shows which.
 
 The command refuses, before touching anything, when the main checkout is not on
 the default branch, has staged changes or an uncommitted deletion (an unstaged

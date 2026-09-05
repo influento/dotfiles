@@ -1,0 +1,57 @@
+---
+paths: ["**/*.{ts,tsx}"]
+---
+
+# Lean code
+
+Everything countable is gated in `ts-gate/`. This pass covers only what needs
+intent to judge. Apply it to the files `bash ts-gate/scripts/gate.sh --list`
+prints: the branch since the default branch plus the working tree. Before
+writing, before finishing, and in review.
+
+## Before writing
+
+Read the task and trace the real flow through every file the change touches.
+Then stop at the first rung that holds:
+
+1. Needs to exist at all? Speculative need: skip it, say so in one line.
+2. Already in this codebase? Reuse the helper, type, or pattern. Look before you write.
+3. Stdlib does it? Use it.
+4. Effect ships it (Schedule, Cache, Duration, Stream, Schema)? Use it; check the API per `ts-effect.md`.
+5. An installed dependency does it? Use it. Never add one for what a few lines do.
+6. One line? One line.
+7. Only then: the minimum code that works.
+
+Bug fix: a report names a symptom. Grep every caller of the function you touch
+and fix the shared function once, not the one path the ticket names.
+
+## Must be zero
+
+| Check | Fix |
+|---|---|
+| Comment or JSDoc that restates the code or signature below it | Delete. A comment survives only for a why the code cannot show: constraint, gotcha, rejected alternative, spec reference. A deliberate ceiling is `// ponytail: <ceiling>, <upgrade path>` |
+| Interface or type alias with one implementer and one consumer, both internal | Inline it |
+| Export imported by exactly one other non-test file | Move it there, unexport |
+| Function whose body only forwards its arguments | Call the target directly |
+| Falsy guard on a required `string`/`number` param no caller passes empty | Delete |
+| Back-compat shim, legacy alias, dual read/write path, deprecation stub | Delete unless asked. Internal code is not a contract: update every caller in the same commit |
+| New file where the code fits an existing one | Merge |
+| Hand-rolled version of something the stdlib ships (loop that is a `find`, manual `startsWith`, own `groupBy`) | Replace; name the method |
+| Dependency whose job Node or TypeScript already does (`uuid`, `dotenv`, `node-fetch`, lodash for one function) | Replace with the native; name it |
+| Flag, option, or config key nothing sets, or that only ever has its default | Delete the branch with it |
+
+## Keep
+
+Never simplify away: validation at trust boundaries (user input, network,
+files), error handling that prevents data loss, security, accessibility,
+anything explicitly requested. Two forms the same size: take the boring one
+that is correct on edge cases. Non-trivial logic (a branch, loop, parser,
+money or security path) leaves one test that fails if it breaks; trivial
+one-liners get none, and that one test is never a deletion finding.
+
+## Report
+
+State lines and dependencies added and removed, and what you deleted. Justify
+every new file and new dependency; the default is none.
+
+Before adding code, check whether deleting code solves it instead.

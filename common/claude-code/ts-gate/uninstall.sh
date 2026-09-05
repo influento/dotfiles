@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Remove the TS gate from a project. Mirrors install.sh, guided by ts-gate/.install.json.
+#   uninstall.sh <target-dir>
+set -euo pipefail
+T="$(cd "${1:?usage: uninstall.sh <target-dir>}" && pwd)"
+cd "$T"
+[ -f ts-gate/.install.json ] || { echo "no ts-gate/.install.json in $T, nothing to uninstall"; exit 1; }
+
+# 1. Dependencies: only the ones install added.
+PM="npm rm"
+[ -f pnpm-lock.yaml ] && PM="pnpm remove"
+[ -f yarn.lock ] && PM="yarn remove"
+{ [ -f bun.lockb ] || [ -f bun.lock ]; } && PM="bun remove"
+DEPS=$(node -p 'require("./ts-gate/.install.json").deps.join(" ")')
+[ -z "$DEPS" ] || $PM $DEPS
+
+# 2. Scripts
+npm pkg delete scripts.gate scripts.gate:local scripts.gate:full scripts.gate:fix scripts.gate:verify
+
+# 3. ESLint config: only if install wrote it and nobody edited it since.
+node -e '
+const fs=require("fs"),c=require("crypto"),{config}=require("./ts-gate/.install.json");
+if(!config||!fs.existsSync(config.file)) process.exit();
+if(c.createHash("sha256").update(fs.readFileSync(config.file)).digest("hex")===config.sha256) fs.unlinkSync(config.file);
+else console.log(config.file+" was edited after install, left in place. It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.");'
+
+# 4. Rules
+for f in ts-gate/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done
+rmdir .claude/rules 2>/dev/null || true
+
+# 5. Stop hook and allow rules. Empty containers are pruned; an empty settings.json is removed.
+S=.claude/settings.json
+if [ -f "$S" ]; then
+  node -e '
+const fs=require("fs"),p=process.argv[1],s=JSON.parse(fs.readFileSync(p,"utf8")),cmd="bash ts-gate/scripts/stop-hook.sh";
+if(s.hooks?.Stop){
+  s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==cmd&&!(h.type==="agent"&&/ts-lean-code\.md/.test(h.prompt)))})).filter(e=>e.hooks.length);
+  if(!s.hooks.Stop.length) delete s.hooks.Stop;
+  if(!Object.keys(s.hooks).length) delete s.hooks;
+}
+if(Array.isArray(s.permissions?.allow)){
+  s.permissions.allow=s.permissions.allow.filter(r=>r!=="Bash(npm ci)"&&r!=="Bash(npm run gate:*)");
+  if(!s.permissions.allow.length) delete s.permissions.allow;
+  if(!Object.keys(s.permissions).length) delete s.permissions;
+}
+Object.keys(s).length?fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n"):fs.unlinkSync(p);' "$S"
+fi
+rmdir .claude 2>/dev/null || true
+
+# 6. workbench.premerge, only if it is still ours.
+[ "$(git config --get workbench.premerge 2>/dev/null)" = "npm run gate" ] && git config --unset workbench.premerge
+
+# 7. Files
+command rm -rf ts-gate
+echo "uninstalled. Left in place because code may depend on them: effect, repos/effect"

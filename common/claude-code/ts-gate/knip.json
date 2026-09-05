@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "repos/**"
+  ],
+  "ignoreDependencies": ["effect"],
+  "rules": {
+    "files": "error",
+    "exports": "error",
+    "types": "error",
+    "duplicates": "error",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "unlisted": "error",
+    "enumMembers": "warn"
+  }
+}

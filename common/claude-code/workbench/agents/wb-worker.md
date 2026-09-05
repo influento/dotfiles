@@ -17,9 +17,10 @@ describe you. You are a session of your own — the user can type in your
 window — and the lead is a peer you reach with `SendMessage` by the name in
 the dispatch line (`ListAgents` shows it).
 
-1. `cd` into the worktree. Read the item. If the criterion is empty or not
-   RED on the unchanged tree, write it, run it RED, `workbench call <id>` it
-   in one line, and go on.
+1. `cd` into the worktree. It holds tracked files only: install the
+   project's dependencies the way its rules say before anything runs. Read
+   the item. If the criterion is empty or not RED on the unchanged tree,
+   write it, run it RED, `workbench call <id>` it in one line, and go on.
 2. Do the work. Record evidence as pasted output under `## Evidence`, one
    block per criterion step. Commit on the branch as you go; the item file
    commits with the code.
