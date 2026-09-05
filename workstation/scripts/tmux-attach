@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tmux-attach — the terminal's entry point: restore the saved tmux state, then
+# attach. Ghostty runs this instead of `tmux new-session -A -s main`.
+#
+# It exists because tmux-continuum's own auto-restore is unusable here, in two
+# separate ways, so `@continuum-restore` is off in common/tmux/tmux.conf.tpl:
+#
+#   * It decides whether to restore at all from `ps -u | grep "^tmux"`, a count
+#     of every concurrent tmux process. A second terminal opening in the same
+#     moment pushes the count over its threshold and the restore is skipped
+#     silently — the "sometimes it restores, sometimes it doesn't" symptom.
+#   * When it does fire it restores in the background, while the shell is
+#     already live. Panes created in those seconds race tmux-resurrect's
+#     pane_exists check, so it splits a pane that is already there; the pane
+#     count then no longer matches the saved layout, select-layout refuses it
+#     (the error is swallowed), and the window is left as horizontal strips
+#     with 1-row-tall panes. It ratchets: the broken layout is what gets saved.
+#
+# Restoring here is unconditional and finishes before the shell exists, so
+# nothing can race it.
+
+readonly restore_script="$HOME/.local/share/tmux/plugins/tmux-resurrect/scripts/restore.sh"
+readonly lock_file="${XDG_RUNTIME_DIR:-/tmp}/tmux-attach.lock"
+readonly restored_flag='@dotfiles-restored'
+
+server_running() {
+  tmux list-sessions >/dev/null 2>&1
+}
+
+# Set on the server, so it survives for the server's lifetime and no second
+# terminal restores on top of a session that is already back.
+already_restored() {
+  [ "$(tmux show-options -gv "$restored_flag" 2>/dev/null || true)" = "1" ]
+}
+
+# Every tmux command here closes fd 9. This is load-bearing: the tmux server
+# inherits the fds of whichever client forks it and then outlives this script,
+# so a server holding fd 9 holds the lock forever and every later terminal
+# blocks on flock with no way out.
+restore_once() {
+  server_running || tmux new-session -d -s main 9>&-
+  if already_restored; then
+    return 0
+  fi
+  # run-shell, not a direct call: restore.sh derives the server socket from
+  # $TMUX (`echo $TMUX | cut -d, -f1`), so run outside a tmux context it builds
+  # `tmux -S "" new-session` and creates no session at all — it would restore
+  # windows into sessions that happen to exist and drop every other one.
+  if [ -x "$restore_script" ]; then
+    tmux run-shell "$restore_script" 9>&-
+  fi
+  tmux set-option -g "$restored_flag" 1 9>&-
+}
+
+# Two terminals opening at once must not both restore.
+exec 9>"$lock_file"
+flock 9
+restore_once
+exec 9>&-
+
+exec tmux new-session -A -s main

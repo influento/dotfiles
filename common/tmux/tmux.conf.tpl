@@ -98,8 +98,12 @@ set -g @plugin 'tmux-plugins/tmux-yank'
 set -g @plugin 'tmux-plugins/tmux-resurrect'
 set -g @plugin 'tmux-plugins/tmux-continuum'
 
-# Session persistence
+# Session persistence. Saving stays with continuum; restoring does not --
+# it decides whether to run from a `ps | grep "^tmux"` count and then restores
+# in the background while the shell is already live, which both skips restores
+# at random and corrupts window layouts. workstation/scripts/tmux-attach does
+# the restore instead, before the shell exists. `prefix + Ctrl-r` still works.
 set -g @resurrect-capture-pane-contents 'on'
-set -g @continuum-restore 'on'
+set -g @continuum-restore 'off'
 
 run '~/.local/share/tmux/plugins/tpm/tpm'
