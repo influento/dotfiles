@@ -46,13 +46,19 @@ local LINKS = {
   -- and never compete with the text inside one.
   MdReadTableBorder = { "NonText" },
   MdReadBullet      = { "NonText" },
+  -- Background only; the foreground is composed in set_highlights below.
   MdReadCode        = { "RenderMarkdownCode", "@markup.raw.block" },
+  MdReadCodeLang    = { "@label.markdown", "@label" },
   MdReadCodeInline  = { "RenderMarkdownCodeInline", "@markup.raw" },
   MdReadBold        = { "@markup.strong" },
   MdReadItalic      = { "@markup.italic" },
   MdReadStrike      = { "@markup.strikethrough" },
   -- Underlined, so a link is identifiable without having to recognise a hue.
   MdReadLink        = { "@markup.link.label", add = { underline = true } },
+  -- Frontmatter fields borrow from the yaml injection, which is what colours the
+  -- same block in the raw buffer -- toggling the reader must not change a hue.
+  MdReadMetaKey     = { "@property.yaml", "@property", "@variable.member" },
+  MdReadMetaValue   = { "@string.yaml", "@string" },
 }
 
 -- The rule under a heading is chrome too, so it takes the border's grey rather
@@ -80,6 +86,26 @@ function M.set_highlights()
   if raw.fg and box.bg then
     vim.api.nvim_set_hl(0, "MdReadCodeInline", { fg = raw.fg, bg = box.bg })
   end
+  -- Fenced code has a colour of its own in the raw buffer -- catppuccin paints
+  -- @markup.raw.block green -- and a language grammar's captures override it token
+  -- by token, which is exactly the layering treesitter does for an injection.
+  -- Without that base every byte the grammar does not claim falls back to Normal
+  -- and the block comes out half coloured. The reader's background box is kept.
+  local block = vim.api.nvim_get_hl(0, { name = "@markup.raw.block.markdown", link = false })
+  if not block.fg then
+    block = vim.api.nvim_get_hl(0, { name = "@markup.raw.block", link = false })
+  end
+  -- Read after the LINKS loop above re-linked it, so a ColorScheme re-run picks up
+  -- the new theme's box rather than the foreground this composed last time.
+  local code_bg = vim.api.nvim_get_hl(0, { name = "MdReadCode", link = false }).bg
+  if block.fg then
+    vim.api.nvim_set_hl(0, "MdReadCode", { fg = block.fg, bg = code_bg })
+  end
+  -- The fence's language annotation, the one part of a block the raw buffer
+  -- colours differently from the code under it.
+  local label = vim.api.nvim_get_hl(0, { name = "MdReadCodeLang", link = false })
+  vim.api.nvim_set_hl(0, "MdReadCodeLang", label.fg
+    and { fg = label.fg, bg = code_bg } or { link = "MdReadCode" })
   -- A terminal cell has one size, so the top of the hierarchy is drawn rather
   -- than scaled: H1 is a band running margin to margin. The heading keeps its own
   -- colour as the foreground and the band takes CursorLine's background -- an
@@ -525,6 +551,88 @@ local function wrap_hl(text, spans, width)
   return wrap_marked(words(text), marks_of(spans), width)
 end
 
+-- A fence's info string is not always its parser's name. Anything absent is
+-- tried as itself, so a label that already is the parser name needs no entry;
+-- `false` marks a label that has no grammar to parse it with.
+local CODE_LANG = {
+  sh = "bash", shell = "bash", zsh = "bash", console = "bash", shellsession = "bash",
+  js = "javascript", jsx = "javascript", mjs = "javascript", cjs = "javascript",
+  ts = "typescript", py = "python", rb = "ruby", yml = "yaml", jsonc = "json",
+  cs = "c_sharp", csharp = "c_sharp", ps1 = "powershell", rs = "rust", golang = "go",
+  htm = "html", md = "markdown", ["c#"] = "c_sharp",
+  text = false, txt = false, plain = false, [""] = false, none = false,
+  output = false, tree = false, ascii = false, log = false,
+}
+
+-- Captures that are not colour: skipping them keeps a few hundred inert extmarks
+-- per document out of the buffer.
+-- @none is a capture that means "clear whatever matched here", which is a thing
+-- only a live highlighter can do -- as a span it would paint nothing over text
+-- another capture already coloured, or worse, resolve to a real group.
+local NOT_HL = { spell = true, nospell = true, conceal = true, none = true }
+
+-- Colour a fenced block the way the editor does. The reader buffer deliberately
+-- has no filetype (see markdown-reader.lua), so treesitter never attaches to it;
+-- the block's text is parsed on its own with its own grammar instead, and every
+-- capture becomes a span. `first` is the reader line the block's first code line
+-- landed on, and `shifts` the byte column each of those lines starts at.
+local function code_spans(code, info, first, shifts, hls)
+  local lang = CODE_LANG[info or ""]
+  if lang == nil then lang = info end
+  if not lang or lang == "" then return end
+  local text = table.concat(code, "\n")
+  local ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)
+  -- No grammar installed for this label, or a broken one: the block still gets
+  -- its background, just no colour inside it.
+  if not ok or not parser then return end
+  local base = #hls
+  -- Injections -- a script inside html, a heredoc inside bash -- only exist after
+  -- a full parse, and they are the blocks most worth colouring.
+  if not pcall(parser.parse, parser, true) then return end
+
+  local function walk(ltree)
+    local lang_of = ltree:lang()
+    local q = vim.treesitter.query.get(lang_of, "highlights")
+    if q then
+      for _, tree in pairs(ltree:trees()) do
+        for id, node, meta in q:iter_captures(tree:root(), text) do
+          local name = q.captures[id]
+          if not (NOT_HL[name] or name:sub(1, 1) == "_") then
+            local sr, sc, er, ec = node:range()
+            -- A capture can span lines; each rendered line needs its own span.
+            for r = sr, math.min(er, #code - 1) do
+              local src_line = code[r + 1]
+              local a = (r == sr) and sc or 0
+              local b = (r == er) and ec or #src_line
+              if b > a then
+                local shift = shifts[r + 1]
+                hls[#hls + 1] = {
+                  line = first + r, col = shift + a, end_col = shift + b,
+                  -- The dotted name resolves through @capture.lang to @capture,
+                  -- which is what the theme actually defines.
+                  hl = "@" .. name .. "." .. lang_of,
+                  -- Above the block background, which carries no foreground.
+                  priority = 195 + ((tonumber(meta and meta.priority) or 100) - 100),
+                }
+              end
+            end
+          end
+        end
+      end
+    end
+    for _, child in pairs(ltree:children()) do walk(child) end
+  end
+  if not pcall(walk, parser) then
+    -- A grammar whose queries do not match its .so throws mid-iteration. Drop the
+    -- spans this call added -- and only those: the block's background was appended
+    -- before it and covers the same lines.
+    for k = #hls, base + 1, -1 do table.remove(hls, k) end
+  end
+end
+
+-- Three or more -, = or _ on a line of their own.
+local HR = "^%s*[%-=_]%s*[%-=_]%s*[%-=_][%s%-=_]*$"
+
 -- A line that cannot be swallowed into the paragraph above it.
 local function is_break(line)
   if line == nil then return true end
@@ -536,7 +644,19 @@ local function is_break(line)
     or line:match("^%s*[%-%*%+]%s") ~= nil
     or line:match("^%s*%d+[%.%)]%s") ~= nil
     or line:match("^%s*|") ~= nil
-    or line:match("^%s*[%-=_]%s*[%-=_]%s*[%-=_][%s%-=_]*$") ~= nil
+    or line:match(HR) ~= nil
+end
+
+-- The line that closes YAML frontmatter, or nil when the buffer does not open
+-- with any. A `---` whose next line is not a top-level key, or that is never
+-- closed, is not frontmatter -- it falls through to the horizontal rule.
+local function frontmatter_last(src)
+  if not (src[1] and src[1]:match("^%-%-%-%s*$")) then return nil end
+  if not (src[2] and src[2]:match("^[%w_.$-]+:")) then return nil end
+  for k = 3, #src do
+    if src[k]:match("^%-%-%-%s*$") or src[k]:match("^%.%.%.%s*$") then return k end
+  end
+  return nil
 end
 
 -- Split a paragraph's first line into the marker that starts it, the indent its
@@ -594,6 +714,7 @@ function M.document(buf, avail)
   local pad = string.rep(" ", math.max(M.opts.page_pad, math.floor((avail - text_w) / 2)))
 
   local src = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local fm_last = frontmatter_last(src)
   local repl = {}
   local q = table_query()
   local ok, parser = pcall(vim.treesitter.get_parser, buf, "markdown")
@@ -633,17 +754,130 @@ function M.document(buf, avail)
       i = r.last + 1
     else
       local line = src[i + 1]
-      if line:match("^%s*```") then
-        -- Code blocks are verbatim: no re-flow, no markup stripping.
-        local first = emit(line, "MdReadCode", true)
-        map[i + 1] = first
+      if i == 0 and fm_last then
+        -- Frontmatter is a block of fields, not the document's first paragraph:
+        -- left to the joiner, `---` and every key below it come out as one run of
+        -- prose. Rendered rather than dropped the way an HTML comment is -- in a
+        -- skill or a note the fields are the part you read first -- but never
+        -- through inline(), which would eat the quotes, brackets and asterisks a
+        -- YAML value is allowed to hold.
+        local l = 1
+        while l <= fm_last do
+          local text = src[l]
+          if l == 1 or l == fm_last then
+            -- The opening fence disappears; the closing one becomes the rule that
+            -- separates the fields from the document under them.
+            map[l] = (l == 1) and (#out + 1) or emit(string.rep("─", text_w), RULE)
+          else
+            -- A key is one bare word: anything looser claims the colon inside a
+            -- list entry like `- Bash(git status:*)` and rewrites it.
+            local indent, key, value = text:match("^(%s*)([%w_.%$%-]+):%s*(.*)$")
+            if key then
+              -- Continuations hang under the value, so a long one reads as a
+              -- single block rather than running back under its own key.
+              local kline = l
+              local prefix = indent .. key .. ": "
+              local hang = indent .. string.rep(" ", strwidth(key) + 2)
+              -- A block scalar's `|` or `>` indicator is not part of the value.
+              -- Both are re-flowed here, `|` included: its line breaks are the
+              -- width someone's editor happened to wrap at, and re-breaking those
+              -- against the page measure leaves a one-word tail on every line --
+              -- the same reason the paragraph joiner below exists.
+              local block = value:match("^[|>][%-+]?$") ~= nil
+              if block then value = "" end
+              -- Everything indented past the key belongs to this field. A plain
+              -- scalar has no indicator saying where its block ends, so it stops at
+              -- anything that could be the next field instead.
+              local cont = {}
+              while l + 1 < fm_last do
+                local nxt = src[l + 1]
+                if nxt:match("^%s*$") or #nxt:match("^%s*") <= #indent then break end
+                if not block
+                  and (nxt:match("^%s*[%-%*%+]%s") or nxt:match("^%s*[%w_.%$%-]+:%s")
+                       or nxt:match("^%s*[%w_.%$%-]+:%s*$")) then
+                  break
+                end
+                cont[#cont + 1] = vim.trim(nxt)
+                map[l + 1] = #out + 1
+                l = l + 1
+              end
+
+              local function put(p, wl)
+                out[#out + 1] = pad .. ((wl == "") and p:gsub("%s+$", "") or (p .. wl))
+                if wl ~= "" then
+                  hls[#hls + 1] = { line = #out, col = #pad + #p,
+                                    end_col = #pad + #p + #wl, hl = "MdReadMetaValue" }
+                end
+              end
+              for _, c in ipairs(cont) do
+                value = (value == "") and c or (value .. " " .. c)
+              end
+              local first = #out + 1
+              -- One span per line rather than the per-byte map prose needs: a YAML
+              -- value holds no inline markup to leave gaps in.
+              for k, wl in ipairs(wrap_marked(words(value), {}, math.max(1, text_w - strwidth(prefix)))) do
+                put((k == 1) and prefix or hang, wl)
+              end
+              map[kline] = first
+              hls[#hls + 1] = { line = first, col = #pad + #indent,
+                                end_col = #pad + #indent + #key, hl = "MdReadMetaKey" }
+            else
+              -- A nested value: a list item, or the continuation of a folded
+              -- scalar. Verbatim, so the indentation that carries its meaning
+              -- survives.
+              map[l] = emit(text, "MdReadMetaValue")
+            end
+          end
+          l = l + 1
+        end
+        i = fm_last
+      elseif line:match("^%s*```") then
+        -- Code blocks are verbatim: no re-flow, no markup stripping. Collected
+        -- whole before anything is emitted, so the block can be padded into a
+        -- rectangle -- a background with a ragged right edge reads as damage
+        -- rather than as a block -- and so its body can be parsed in one piece.
+        local fence, info = line:match("^(%s*```+%s*)([%w_%+%-#.]*)")
+        local opened = i + 1
+        local block, closed = { line }, false
         i = i + 1
         while i < #src do
           local l = src[i + 1]
-          map[i + 1] = emit(l, "MdReadCode", true)
+          block[#block + 1] = l
           i = i + 1
-          if l:match("^%s*```") then break end
+          if l:match("^%s*```") then closed = true; break end
         end
+
+        -- A fence nested under a bullet indents its body, and an indent-sensitive
+        -- grammar reads that as a block that never opens: python comes back one
+        -- ERROR node and no colour at all. Parse the body without the fence's own
+        -- indent, and put it back as each line's column shift.
+        local strip = #line:match("^%s*")
+        local first = #out + 1
+        for k, l in ipairs(block) do
+          -- Padded to the page measure, never to the longest line in the block:
+          -- one overlong line would otherwise pad every other line past the
+          -- window and wrap the whole block onto doubled rows. Padding is counted
+          -- in display width and the span in bytes -- a line of box-drawing in a
+          -- file tree makes the two disagree.
+          local padded = l .. string.rep(" ", math.max(0, text_w - strwidth(l)))
+          out[#out + 1] = pad .. padded
+          hls[#hls + 1] = { line = #out, col = #pad, end_col = #pad + #padded, hl = "MdReadCode" }
+          map[opened + k - 1] = #out
+        end
+        -- The language annotation, coloured as the raw buffer colours it.
+        if info and info ~= "" then
+          hls[#hls + 1] = { line = first, col = #pad + #fence,
+                            end_col = #pad + #fence + #info, hl = "MdReadCodeLang",
+                            priority = 195 }
+        end
+        -- The fences are chrome, not code: the body is what gets parsed.
+        local body, shifts = {}, {}
+        for k = 2, #block - (closed and 1 or 0) do
+          local cut = math.min(strip, #block[k]:match("^%s*"))
+          body[#body + 1] = block[k]:sub(cut + 1)
+          shifts[#shifts + 1] = #pad + cut
+        end
+        if #body > 0 then code_spans(body, info, first + 1, shifts, hls) end
       elseif line:match("^%s*<!%-%-") then
         -- HTML comments are instructions to other tools -- toc markers, prettier
         -- pragmas, linter pragmas. They are not part of the document being read,
@@ -663,6 +897,10 @@ function M.document(buf, avail)
         else
           map[i + 1] = math.max(#out, 1)
         end
+        i = i + 1
+      elseif line:match(HR) then
+        -- Before the paragraph branch: paragraph_head reads `- - -` as a bullet.
+        map[i + 1] = emit(string.rep("─", text_w), RULE)
         i = i + 1
       else
         local head = render_heading(line, text_w)

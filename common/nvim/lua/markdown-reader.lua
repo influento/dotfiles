@@ -33,7 +33,7 @@ local function render(rbuf, sbuf, win)
         end_col = math.min(h.end_col or #text, #text),
         hl_group = h.hl,
         hl_eol = h.eol,
-        priority = 190,
+        priority = h.priority or 190,
       })
     end
   end
