@@ -548,6 +548,8 @@ deploy_configs() {
           script_name="$(basename "$script")"
           [[ "$script_name" == ".gitkeep" ]] && continue
           [[ "$script_name" == *.tpl ]] && continue
+          # Per-directory docs live beside the scripts; they are not executables
+          [[ "$script_name" == *.md ]] && continue
           link_config "$script" "${user_home}/.local/bin/${script_name}"
         done
         ;;
