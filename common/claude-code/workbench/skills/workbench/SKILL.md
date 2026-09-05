@@ -86,6 +86,14 @@ idea (workbench/BACKLOG.md line)
    confirming a sizing, answering a parked call: when nobody is there to
    decide, "Unattended runs" below says what to do instead of deciding.
 
+10. **The project has no scratch folder.** A file that exists only for this
+    session — a probe, a capture, a diagram, a rendered page, a call stack —
+    goes to the scratchpad directory the environment names, outside the tree.
+    A review sweep's probes go under `workbench/scratch/<report>/` and leave
+    with the report. Nothing else is scratch: a fact worth keeping is a line
+    in the item's Evidence, a research concept, or a backlog entry, never a
+    file of its own. Do not create `scratch/`, `notes/`, `tmp/` or the like.
+
 ## Setting up
 
 `workbench init` and `workbench adopt` end with a checklist headed
