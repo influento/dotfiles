@@ -34,6 +34,31 @@ deploy — change the format in one place and you must change it in both. And th
 key split is on the *first* colon in the line, so a keyless reminder containing
 a colon loses everything before it; give such a line a key, even a dummy one.
 
+## tmux-attach
+
+What `ghostty/config` runs instead of `tmux new-session -A -s main`. It restores
+the saved tmux state and only then attaches, because tmux-continuum's own
+auto-restore fails in two independent ways:
+
+| Failure | Mechanism |
+| ------- | --------- |
+| Restore silently skipped | `another_tmux_server_running_on_startup` counts `ps -u \| grep "^tmux"` and bails above 1. A second terminal opening in the same moment is a second `tmux` process, so the restore never runs and the sessions have to be recovered by hand with `prefix + Ctrl-r` |
+| Layouts corrupted | The restore runs in the background while the shell is already live. Panes created in those seconds beat tmux-resurrect's `pane_exists` check, so it splits a pane that already exists; the pane count then no longer matches the saved layout, `select-layout` refuses it (the error is discarded by `restore_window_properties >/dev/null 2>&1`), and the window is left as horizontal strips with 1-row-tall panes. The broken layout is then what gets saved, so it ratchets on every boot |
+
+Three things in the script are load-bearing and look removable:
+
+- **`tmux run-shell "$restore_script"`, not a direct call.** `restore.sh` derives
+  the server socket from `$TMUX` (`echo $TMUX | cut -d, -f1`). Run outside a tmux
+  context that is empty, so `new_session` builds `tmux -S "" new-session` and
+  creates nothing — the restore then only refills sessions that already exist and
+  drops every other one, with no error.
+- **`9>&-` on every tmux command.** The tmux server inherits the fds of whichever
+  client forks it and outlives the script, so a server holding the flock fd holds
+  the lock forever and every later terminal blocks on `flock`.
+- **The `@dotfiles-restored` server option.** Restore must happen once per server,
+  not once per terminal, and the server may be started by something other than
+  ghostty — `workbench lead` creates a tmux session too.
+
 ## tg
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and

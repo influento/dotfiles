@@ -30,8 +30,10 @@ confirm-close-surface = false
 # Shell integration (prompt jumping, command output selection)
 shell-integration = detect
 
-# Auto-start tmux (attach to existing session or create new one)
-command = tmux new-session -A -s main
+# Auto-start tmux. tmux-attach restores the saved session state before it
+# attaches -- see workstation/scripts/tmux-attach for why continuum's own
+# auto-restore cannot do this job.
+command = tmux-attach
 
 # Keybinds
 # Copy is handled by copy-on-select; ctrl+c stays plain SIGINT
