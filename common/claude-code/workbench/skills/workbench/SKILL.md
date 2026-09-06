@@ -221,7 +221,12 @@ and a pre-merge review that must hold everything at once; two items that only
 make sense together cannot each satisfy a criterion. One rule applied to N
 files — every driver reports itself, every table moves under `src/` — is one
 item with one criterion over the set, not N items proving one sentence each,
-and not one item now and its twin twenty minutes later. Backlog lines are raw
+and not one item now and its twin twenty minutes later. The exception is a
+mechanical change whose blast radius cannot land green on one branch: a
+milestone with an expand item (the new form beside the old), one migrate item
+per batch the radius allows, and a contract item that deletes the old form —
+except a vocabulary rename, which stays one commit
+([glossary.md](references/glossary.md)). Backlog lines are raw
 material: any number may fold into one item and one may split, and nothing
 records which lines fed which.
 
