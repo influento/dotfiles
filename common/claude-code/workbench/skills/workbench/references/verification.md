@@ -80,7 +80,8 @@ eyes — visual, subjective, or in-world judgements.
 ## Evidence
 
 Record the actual output, not a summary of it, in a fenced block — `archive`
-refuses an Evidence section without one. "Tests pass" is not evidence; the
+refuses an Evidence section without one. The block is committed: replace any
+token, key or personal data in it with `<REDACTED>` before pasting. "Tests pass" is not evidence; the
 command and its output are. A table typed by hand — `RED 31 → GREEN 0`,
 `clean`, `-> yes` — is a summary, whatever the fence around it: paste the
 command and what it printed, and let the reader do the arithmetic. One line

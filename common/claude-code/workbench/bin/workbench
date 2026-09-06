@@ -833,6 +833,9 @@ status: open
 
 <!-- Steps, or a note that it was found by reading code — that is fine and
      needs no apology. Best-effort: a bug with no reproduction still ships.
+     Once it reproduces, cut steps one at a time until every one left is
+     load-bearing. A flaky one is worked by raising its reproduction rate —
+     loop it, parallelise, add stress — not by waiting for a clean run.
      Delete this comment. -->
 
 ## Root cause
@@ -843,7 +846,12 @@ status: open
      third party's decision" is a complete root cause. A suspected race is a
      mechanism: state it, mark the confidence unproven. A fact discovered here
      about a system you do not control is recorded here, not in a document of
-     its own. Delete this comment. -->
+     its own.
+     Not obvious after a first look: name three to five candidate mechanisms
+     before testing any, each with the change that would make the bug vanish,
+     and test them one variable at a time; only the survivor is written here.
+     Every probe log carries one tag, e.g. [DEBUG-a4f2], so removing them is
+     one grep. Delete this comment. -->
 
 ## The fix
 

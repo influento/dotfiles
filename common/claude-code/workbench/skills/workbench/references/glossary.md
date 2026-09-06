@@ -27,6 +27,15 @@ for whether an entry has become a spec: if a refactor edits the entry while the
 concept stayed the same, it was never a glossary entry. "The region the world is
 partitioned into for loading" is an entry. "A 16×16 tile region" is a spec.
 
+## Coining
+
+Vocabulary is settled while an item is being written, not at review. A word
+the user uses in a sense the glossary does not give — or a fuzzy one that
+could mean two things ("account": the Customer or the User?) — goes to the
+user with the sizing answer, and the item is written in the word that comes
+back. A new term's entry lands in the same commit as the item that first uses
+it, never batched for later.
+
 ## Starting out
 
 A fresh project starts with an empty glossary and fills it as the domain becomes

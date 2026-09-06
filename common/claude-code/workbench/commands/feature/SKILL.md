@@ -16,8 +16,9 @@ The `workbench` skill's rules apply; load it if it is not in context.
    research. Say which row and why, and stop for the user's answer.
 2. `workbench new feature "<title>"` — the description condensed to a few
    words; `--milestone <slug>` when it belongs to one.
-3. Fill **Why** and **What changes** from the description. For **What it
-   touches**, run `workbench find <paths>` once with the areas about to
+3. Fill **Why** and **What changes** from the description, in glossary
+   words — a word that conflicts with an entry, or could mean two things,
+   goes to the user with step 1. For **What it touches**, run `workbench find <paths>` once with the areas about to
    change and read an item only if its line matches.
 4. Draft **How to confirm it works** — the list from step 1 — run it on the
    unchanged tree so it is seen failing, and bring it to the user. Nothing
