@@ -13,7 +13,9 @@ The `workbench` skill's rules apply; load it if it is not in context.
    one-item-or-several test: could any entry go green and merge while the
    others are red? If so this is a milestone with an item per slice; if the
    area is not understood well enough to write criteria at all, it is
-   research. Say which row and why, and stop for the user's answer.
+   research. Say which row and why, and stop for the user's answer. If the
+   description has more than one plausible shape, offer `/grilling` first;
+   the criteria are drafted after the user has settled the design.
 2. `workbench new feature "<title>"` — the description condensed to a few
    words; `--milestone <slug>` when it belongs to one.
 3. Fill **Why** and **What changes** from the description, in glossary

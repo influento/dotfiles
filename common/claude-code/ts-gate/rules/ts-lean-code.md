@@ -40,6 +40,9 @@ and fix the shared function once, not the one path the ticket names.
 | Hand-rolled version of something the stdlib ships (loop that is a `find`, manual `startsWith`, own `groupBy`) | Replace; name the method |
 | Dependency whose job Node or TypeScript already does (`uuid`, `dotenv`, `node-fetch`, lodash for one function) | Replace with the native; name it |
 | Flag, option, or config key nothing sets, or that only ever has its default | Delete the branch with it |
+| Test whose expected value is computed the way the code computes it | Assert an independent literal |
+| Test that verifies through a side channel (a database query where the interface has a getter) | Read back through the interface |
+| Test that mocks an internal collaborator or asserts call counts | Mock only at a boundary not ours: an external service, time, randomness |
 
 ## Keep
 
