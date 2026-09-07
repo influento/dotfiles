@@ -13,7 +13,7 @@ description: Quickly draft a new agent skill with proper structure, progressive 
    - Does it need executable scripts or just instructions?
    - Any reference materials to include?
 
-2. **Draft the skill** - create:
+2. **Draft the skill** - apply the writing-for-agents skill's rules, and create:
    - SKILL.md with concise instructions
    - Additional reference files if content exceeds 500 lines
    - Utility scripts if deterministic operations needed

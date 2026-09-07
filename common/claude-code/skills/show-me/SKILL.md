@@ -1,6 +1,6 @@
 ---
 name: show-me
-description: Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML pages. TRIGGER when the user says "show me", "draw", "diagram", "visualize", "what does X look like", or invokes /show-me. SKIP when the answer is a single fact, a one-line lookup, or a code fix. For charts of numeric data use dataviz instead; for a UI mockup the user will refine by hand, use design instead.
+description: Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML pages. TRIGGER when the user says "show me", "draw", "diagram", "visualize", "what does X look like", or invokes /show-me. SKIP when the answer is a single fact, a one-line lookup, or a code fix. For charts of numeric data use dataviz instead; for a UI mockup the user will refine by hand, use design instead; for code that answers a design question by being run, use prototype instead.
 ---
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.

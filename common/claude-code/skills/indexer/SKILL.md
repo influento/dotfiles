@@ -24,7 +24,7 @@ Give one line to each major section of the source. Use this form:
 
 This rule binds before all others. Read every heading in the source. Give each heading a line, or name it in a `dropped:` line at the end. Never omit a heading in silence.
 
-Count the headings before you write. Count the lines after you write. If the two counts are different, correct the output before you send it.
+Count the headings before you write. After you write, count the index lines plus the headings named in the `dropped:` line. If the two counts are different, correct the output before you send it.
 
 ## Budget
 
@@ -45,7 +45,7 @@ This register drops mechanisms, reasons, invariants, and failure paths. Under-an
 
 ## Self-check before you send
 
-1. Is the heading count equal to the line count? If the counts are different, add the missing lines or a `dropped:` line.
+1. Is the heading count equal to the index lines plus the headings named in `dropped:`? If the counts are different, add the missing lines or the missing `dropped:` names.
 2. Is a line longer than 100 characters? Cut the clause.
 3. Does a line name two topics? Divide it into two lines.
 4. Does a clause say "covers X" or "discusses X"? Write what X is instead.
