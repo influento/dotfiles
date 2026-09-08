@@ -88,7 +88,7 @@ in [glossary.md](glossary.md).
 it with the user after triage as SKILL.md "Setting up" describes, with the
 survey's findings on how the app runs and what goals it states feeding the
 milestone and watch lines. `init` also merged the session hook, status line,
-`Bash(workbench:*)` allow rule, `autoMemoryDirectory` and the signal and
+allow rules (`Bash(workbench:*)`, the gate's `Write` on `workbench/reviews/` and `workbench/scratch/`), `autoMemoryDirectory` and the signal and
 gate hooks into `.claude/settings.json` — all committed with the skills.
 Whether items run as worker sessions is decided by running `workbench
 lead`, not by a setting (SKILL.md, "Lead and workers").

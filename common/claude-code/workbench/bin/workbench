@@ -573,7 +573,7 @@ ensure_settings() {
   root=$(repo_root)
   f="$root/.claude/settings.json"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', a SessionStart hook running 'workbench status', statusLine 'workbench statusline', and the signal/gate hooks 'workbench help' lists under sessions"
+    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', 'Edit(workbench/reviews/**)', 'Edit(workbench/scratch/**)', a SessionStart hook running 'workbench status', statusLine 'workbench statusline', and the signal/gate hooks 'workbench help' lists under sessions"
     return 0
   fi
   mkdir -p "$root/.claude"
@@ -615,9 +615,17 @@ perms = data.setdefault("permissions", {})
 allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
 if not isinstance(allow, list):
     print("  permissions.allow is not a list in .claude/settings.json; left alone")
-elif "Bash(workbench:*)" not in allow:
-    allow.append("Bash(workbench:*)")
-    changed.append("permissions.allow += Bash(workbench:*)")
+else:
+    # The sweep's two paths, so the gate's Write lands whatever permission
+    # mode the session that forked it runs in — a fork under dontAsk honours
+    # an allow rule and nothing else. The rule is Edit(...): that form
+    # governs every file-writing tool, and a Write(...) rule is accepted
+    # and ignored (probed 2.1.263). references/rationale.md, "Why the
+    # sweep's contract is not enforced by a hook".
+    for rule in ("Bash(workbench:*)", "Edit(workbench/reviews/**)", "Edit(workbench/scratch/**)"):
+        if rule not in allow:
+            allow.append(rule)
+            changed.append("permissions.allow += " + rule)
 hooks = data.setdefault("hooks", {})
 # The session wiring: 'status' into context at session start, and the
 # signal/gate hooks that title a session's tmux window and route its

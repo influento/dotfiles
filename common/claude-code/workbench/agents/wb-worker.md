@@ -1,7 +1,7 @@
 ---
 name: wb-worker
 description: Works one workbench item to "ready" in its own worktree and its own session — implementation, evidence, the review dialog, the pre-merge gate — and never merges. Opened by 'workbench start' under a lead; the opening prompt is the dispatch line.
-tools: Read, Edit, Write, Glob, Grep, Bash, Skill, Agent, SendMessage, ListAgents, AskUserQuestion
+tools: Read, Edit, Write, Glob, Grep, Bash, WebFetch, WebSearch, Skill, Agent, SendMessage, ListAgents, AskUserQuestion
 skills:
   - workbench
   - workbench-review

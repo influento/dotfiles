@@ -193,6 +193,7 @@ check "the worker can spawn its reviewer, ask, and message the lead" bash -c "gr
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
+check "init allows the gate's Write on the report and scratch paths" bash -c "grep -q 'Edit(workbench/reviews/\*\*)' .claude/settings.json && grep -q 'Edit(workbench/scratch/\*\*)' .claude/settings.json"
 check "init writes the session hook" grep -q 'workbench status ||' .claude/settings.json
 check "the hook is guarded on PATH" grep -q '"command -v workbench >/dev/null && workbench status || true"' .claude/settings.json
 check "init writes the status line" grep -q '"command -v workbench >/dev/null && workbench statusline || true"' .claude/settings.json

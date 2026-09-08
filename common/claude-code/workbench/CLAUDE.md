@@ -120,7 +120,16 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
   classes in practice.
 - tmux `#{window_id}` (`@N`) is stable; window names are not — which is why
   `open` targets ids.
-- A worktree under a trusted repo inherits that trust.
+- A worktree under a trusted repo inherits that trust. An untrusted
+  directory (`hasTrustDialogAccepted` unset in `~/.claude.json`) loads none
+  of its `.claude/settings.json` — no allow rules, no hooks — even under
+  `-p`, silently: a probe project made under `/tmp` or `~/.claude/jobs`
+  measures nothing until it is trusted (2.1.263).
+- A `permissions.allow` rule for file writes is `Edit(<pattern>)`, which
+  governs `Write` too; a `Write(<pattern>)` rule is accepted and ignored
+  (probed 2.1.263). Relative patterns resolve from the project root, so
+  `Edit(workbench/reviews/**)` and `Edit(/workbench/reviews/**)` are the
+  same rule.
 - A `type: agent` Stop hook's subagent runs in `dontAsk` whatever the parent
   session's mode — probed 2.1.258 with the parent in `auto` and in `default`:
   `PermissionRequest` never fired for it, so `gate permission` cannot reach
