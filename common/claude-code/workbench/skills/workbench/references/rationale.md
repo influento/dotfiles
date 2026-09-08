@@ -95,9 +95,9 @@ the copy's own hash beside the source's, `status` names an edited copy
 apart from a stale one, and `init` overwrites it only with `--force`. The
 edit belongs in the source.
 
-The session hook, status line and `Bash(workbench:*)` go in the tracked
-`.claude/settings.json` for the same reason; the setup checklist names all
-three so the user can strike any.
+The session hook, status line and allow rules go in the tracked
+`.claude/settings.json` for the same reason; the setup checklist names them
+so the user can strike any.
 
 A project skill wins over a Claude Code builtin of the same name, so the
 names were chosen against that list. `/bug` shadows the builtin bug-report
@@ -171,7 +171,15 @@ is the `wb-gate` agent's `tools:` that does this, not the skill's
 probed on Claude Code 2.1.248; the docs say the second, and were once read to
 say the opposite). `Bash` has to stay so the sweep can build, test and grep,
 and `Bash` can write through a redirect. So the tool set removes the
-convenient path and nothing more. `workbench review-check` is the only thing
+convenient path and nothing more. The paths the contract allows are the
+other half: `init` merges `Edit(workbench/reviews/**)` and
+`Edit(workbench/scratch/**)` into `permissions.allow`, because a fork takes
+the permission mode of the session that opened it, and under `dontAsk` a
+`Write` with no rule is refused — the sweep then falls back to a `Bash`
+redirect, two turns later, and the tool set has bounded nothing. An allow
+rule is honoured there, and it is the `Edit(...)` form that governs `Write`:
+a `Write(...)` rule is accepted and ignored (both probed 2.1.263). So the
+gate's `Write` lands whatever mode the lead runs in. `workbench review-check` is the only thing
 that actually proves the contract held, which is why it is run on every
 returned report rather than only on a suspicious one.
 
@@ -305,4 +313,14 @@ reworded, template only. A fresh fork each time, that never sees the
 previous report, and a worker that fixes or asks. Merging the two would make
 the gate persuadable, and the record of what was once persuaded away is what
 `review-check` and `rounds:` exist to keep.
+
+Round two always runs, a clean first round included. The dialog is the only
+reading of the code for defects — the gate reads the item against its
+evidence and template, not the code — and a clean round is one reviewer's
+opinion of a branch it saw once; the second reviewer reads the branch the
+first round changed, or confirms that a clean one really was. It is also the
+cheapest context in the loop: an agent restricted to `Read`, `Glob`, `Grep`
+and `Bash` opens at under four thousand tokens, the diff on top, against a
+gate that opens at twelve and reads everything again. Dropping it would save
+cents and remove the only independent second read before the gate.
 
