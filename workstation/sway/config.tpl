@@ -142,6 +142,15 @@ bindsym --inhibited $mod+Ctrl+Shift+9 move container to workspace number 9
 # misbehaving or unresponsive remote viewer can always be dismissed.
 bindsym --inhibited $mod+Ctrl+q kill
 
+# --- Keybindings: Brightness ---
+# Fn brightness keys (XF86MonBrightness*), plus $mod+F5/F6 as a fallback for
+# keyboards without them. Backend (laptop backlight / DDC) is picked by
+# display-brightness from gtk-widgets. --locked: works on the lock screen.
+bindsym --locked XF86MonBrightnessDown exec display-brightness down
+bindsym --locked XF86MonBrightnessUp exec display-brightness up
+bindsym --locked $mod+F5 exec display-brightness down
+bindsym --locked $mod+F6 exec display-brightness up
+
 # --- Keybindings: Resize mode ---
 mode "resize" {
   bindsym h resize shrink width 10px
