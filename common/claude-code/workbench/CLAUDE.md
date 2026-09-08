@@ -49,7 +49,8 @@ and the signal/gate hooks.
 `workbench lead` opens tmux session `wb-<repo>` with the lead in window 0; each
 `start` then opens the item's worker as its own Claude session in its own window
 (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it
-may hold), titled by the hooks with what it needs (`?` needs you, `↑` asked the
+may hold; at `--effort` `workbench.workerEffort`, low, while the lead keeps the
+global setting — the lead plans, the workers execute), titled by the hooks with what it needs (`?` needs you, `↑` asked the
 lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped); `open <id|lead>`
 switches or resumes, `mode attended|unattended` decides live whether questions go
 to the user in-window or are parked; `round` keeps the review dialog honest
@@ -103,6 +104,17 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
   in the `--agent` path; `tools:` in the same file was enforced in the same run,
   so the frontmatter was parsed. `wb-worker` lists `workbench-review` regardless,
   because the day the field starts restricting is the day the gate stops running.
+- An `--agent` definition's `model:` **does** apply on that path — probed
+  2.1.263: `model: haiku` on the agent, the session's usage billed to Haiku.
+  Its `effort:` does **not** — same probe, `effort: low` and `effort: max`
+  both ran at the global level. The same `effort:` is honoured when the agent
+  is spawned by the Agent tool and when a `context: fork` skill names it in
+  `agent:` (both read the level under a parent set higher), and so is
+  `model:` on the fork path. That is why the worker's effort is a `claude`
+  flag in `claude_cmd` and the reviewer's is frontmatter.
+- `--effort` is not kept by `--resume` — probed 2.1.263: a session started
+  at low resumed at the global level. `claude_cmd` passes it on every
+  invocation, as it does `--agent`.
 - `SendMessage` to a reply target carries `uds:` sockets, not names.
 - Idle notices are documented as same-permission-class only, though one crossed
   classes in practice.

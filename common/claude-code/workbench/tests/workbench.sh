@@ -1386,7 +1386,8 @@ s2=$(newc bug "two")
 run "start under a lead opens a worker window" 0 "opened window $s2 in wb-sessions" env TMUX=x "$WB" start "$s2"
 w2=$(reg_of "$s2"); p2="%${w2#@}"
 check "the window is named by the item id" [ "$(title_of "$w2")" = "$s2" ]
-check "the worker runs claude as the wb-worker agent under its name" bash -c "tlog | grep -q 'claude -n wb-sessions-$s2 --agent wb-worker'"
+check "the worker runs claude as the wb-worker agent under its name, at the default effort" bash -c "tlog | grep -q 'claude -n wb-sessions-$s2 --effort low --agent wb-worker'"
+check "the lead took no --effort: it keeps the global setting" bash -c "tlog | grep 'claude -n wb-sessions-lead' | grep -qv -- --effort"
 check "the dispatch names the lead and the mode" bash -c "tlog | grep -q 'lead: wb-sessions-lead — mode: attended'"
 check "the worker window opens in the worktree" bash -c "tlog | grep -q -- '-c $PWD/.worktrees/$s2-two '"
 s3=$(newc bug "three")
@@ -1507,7 +1508,14 @@ s5=$(newc bug five)
 run "start under unattended dispatches the mode" 0 "dispatch: wb-worker $s5 in .* — resources: account, client" "$WB" start "$s5" --resources "account, client"
 check "the dispatch says unattended" bash -c "tlog | grep -q 'mode: unattended'"
 check "the dispatch names the resources granted" bash -c "tlog | tail -1 | grep -q -- '— resources: account, client — lead:'"
-check "workers take the lead's permission mode" bash -c "tlog | tail -1 | grep -q -- '--permission-mode acceptEdits --agent wb-worker'"
+check "workers take the lead's permission mode" bash -c "tlog | tail -1 | grep -q -- '--effort low --permission-mode acceptEdits --agent wb-worker'"
+git config workbench.workerEffort medium
+run "start under workbench.workerEffort" 0 "dispatch: wb-worker" "$WB" start "$(newc bug five-b)"
+check "the worker takes the configured effort" bash -c "tlog | tail -1 | grep -q -- '--effort medium --permission-mode'"
+git config workbench.workerEffort sometimes
+run "start under an unknown workerEffort" 0 "dispatch: wb-worker" "$WB" start "$(newc bug five-c)"
+check "an unknown level falls back to the default" bash -c "tlog | tail -1 | grep -q -- '--effort low --permission-mode'"
+git config --unset workbench.workerEffort
 run "start wants a value after --resources" 2 "usage" "$WB" start "$(newc bug six-b)" --resources
 w5=$(reg_of "$s5")
 tmux kill-window -t "$w5"
@@ -1525,6 +1533,7 @@ tmux kill-window -t "$w2"
 run "open reopens a window that is gone, resuming the session" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
 check "claude was resumed by id" bash -c "tlog | grep -q -- '--resume sid-2'"
 check "the resumed worker is still the wb-worker agent" bash -c "tlog | grep -q -- '--agent wb-worker --resume sid-2$'"
+check "the resume carries the effort again: claude does not keep it" bash -c "tlog | grep -- '--resume sid-2$' | grep -q -- '--effort low '"
 check "the old registry file is gone" [ ! -e ".git/workbench/sessions/$w2" ]
 w2=$(reg_of "$s2")
 check "the item is registered under its new window" [ -n "$w2" ]

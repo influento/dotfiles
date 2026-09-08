@@ -33,6 +33,11 @@ REVIEW_HOLDS=3
 # Started items at once — work a person or the lead can still account for.
 # 'git config workbench.maxWorkers' overrides.
 WB_MAX_WORKERS=5
+# The effort a worker session runs at. The lead keeps the user's global
+# setting: it plans and sizes, the workers execute. 'git config
+# workbench.workerEffort' overrides; the reviewer and gate inherit the
+# worker's level unless their agent definition says otherwise.
+WB_WORKER_EFFORT=low
 
 usage() {
   # Help asked for goes to stdout; help printed because a call was wrong is
@@ -777,7 +782,7 @@ setup_checklist() {
 
   echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>'"
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
-  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)). Without it one session works items itself"
+  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)), each at --effort $(worker_effort) (workbench.workerEffort) while the lead keeps the global setting. Without it one session works items itself"
   echo "  mode              $(mode) — 'workbench mode unattended' before leaving: questions are refused by the hooks and parked, the lead told; live for every session"
   local premerge
   premerge=$(git config --get workbench.premerge 2>/dev/null || true)
@@ -2121,6 +2126,13 @@ max_workers() {
   case "$n" in ''|*[!0-9]*) echo "$WB_MAX_WORKERS" ;; *) echo "$n" ;; esac
 }
 
+# The levels 'claude --effort' takes; anything else falls back to the default.
+worker_effort() {
+  local e
+  e=$(git config --get workbench.workereffort 2>/dev/null || true)
+  case "$e" in low|medium|high|xhigh|max) echo "$e" ;; *) echo "$WB_WORKER_EFFORT" ;; esac
+}
+
 # Started items: branches with a worktree. What the cap counts, whether or
 # not a session is alive for them — a dead session still holds work someone
 # has to close.
@@ -2228,14 +2240,18 @@ shell_quote() {
 
 # claude_cmd <name> <pmode> <resume> <agent> [prompt]: the command a window
 # runs. 'claude' exits, the window closes; the registry keeps the session
-# id, so 'open' brings the conversation back. --agent is per invocation,
-# not part of the session, so a resume carries it again; only the opening
-# prompt is dropped, the conversation already holds it.
+# id, so 'open' brings the conversation back. --agent and --effort are per
+# invocation, not part of the session, so a resume carries them again; only
+# the opening prompt is dropped, the conversation already holds it. The
+# effort rides the command line because the agent definition's 'effort:'
+# is inert on the --agent path (probed 2.1.263; "Platform facts" in
+# CLAUDE.md); an agent set means a worker, and the lead is never given one.
 claude_cmd() {
   local name="$1" pmode="$2" resume="$3" agent="$4"
   shift 4
   local cmd
   cmd="claude -n $(shell_quote "$name")"
+  [ -z "$agent" ] || cmd="$cmd --effort $(worker_effort)"
   [ -z "$pmode" ] || cmd="$cmd --permission-mode $(shell_quote "$pmode")"
   [ -z "$agent" ] || cmd="$cmd --agent $(shell_quote "$agent")"
   if [ -n "$resume" ]; then
