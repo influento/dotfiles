@@ -171,12 +171,14 @@ cmd_create() {
   [[ -e "$desktop_file" ]] && action="Updated"
 
   # Exec uses $HOME expanded at write time so the entry is self-contained.
+  # TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME stops the instance from writing a
+  # random userapp-*.desktop and hijacking tg:// in mimeapps.list on launch.
   cat > "$desktop_file" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Telegram ($name)
 Comment=Isolated Telegram instance ($slug)
-Exec=sh -c '${bin} -workdir "${workdir}"'
+Exec=sh -c 'TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME=1 ${bin} -workdir "${workdir}"'
 Icon=telegram
 Terminal=false
 StartupWMClass=TelegramDesktop
