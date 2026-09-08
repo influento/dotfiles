@@ -307,7 +307,9 @@ session of its own in its own window, named by the item id, running the
 prompt — `start <id> --resources "account, client"` names what the worker
 may hold; without it, none, and a resource it turns out to need is a
 `needs:` line to the lead. Up to `workbench.maxWorkers` (5) items may be started at once,
-sessions alive or not; `start` refuses past that. Without a lead, `start` is
+sessions alive or not; `start` refuses past that. A worker runs at `--effort`
+`workbench.workerEffort` (low) and the lead at the user's global setting: the
+lead plans and sizes, the workers execute; the reviewer runs at medium. Without a lead, `start` is
 the git-only command it always was and the session that ran it works the
 item itself.
 
