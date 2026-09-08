@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# git-private — Host the current repository on the private git server.
+#
+# Reads `private.root` from git config (<ssh-host>:<dir>, set by setup-github),
+# creates <dir>/<name>.git as a bare repo on that host over SSH, adds it as a
+# remote, and pushes every branch and tag. Idempotent: an existing bare repo
+# or remote is reused.
+#
+# Usage: git private [-n NAME] [-r REMOTE] [--no-push]
+#   -n NAME     repo name on the server (default: current directory name)
+#   -r REMOTE   remote name (default: origin, or mirror if origin already
+#               points elsewhere)
+#   --no-push   create the repo and remote only
+
+usage() { sed -n '4,15p' "$0" | sed 's/^# \{0,1\}//'; }
+
+name=""
+remote=""
+push=1
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n) name="$2"; shift 2 ;;
+    -r) remote="$2"; shift 2 ;;
+    --no-push) push=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "git-private: unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+root="$(git config --get private.root || true)"
+if [[ -z "$root" ]]; then
+  echo "git-private: private.root is not set." >&2
+  echo "  git config --file ~/.gitconfig.local private.root '<ssh-host>:<dir>'" >&2
+  exit 1
+fi
+case "$root" in
+  *:*) ;;
+  *) echo "git-private: private.root must be <ssh-host>:<dir>, got: $root" >&2; exit 1 ;;
+esac
+host="${root%%:*}"
+dir="${root#*:}"
+dir="${dir%/}"
+
+toplevel="$(git rev-parse --show-toplevel)"
+name="${name:-$(basename "$toplevel")}"
+name="${name%.git}"
+url="${host}:${dir}/${name}.git"
+
+if [[ -z "$remote" ]]; then
+  origin_url="$(git remote get-url origin 2>/dev/null || true)"
+  if [[ -z "$origin_url" || "$origin_url" == "$url" ]]; then
+    remote="origin"
+  else
+    remote="mirror"
+  fi
+fi
+
+# shellcheck disable=SC2029  # $dir/$name expand client-side on purpose
+ssh "$host" "d=\"$dir/$name.git\"; if [ -d \"\$d\" ]; then echo exists; else git init --bare -q \"\$d\" && echo created; fi" \
+  | sed "s|^|git-private: remote repo ${url} |"
+
+existing="$(git remote get-url "$remote" 2>/dev/null || true)"
+if [[ -z "$existing" ]]; then
+  git remote add "$remote" "$url"
+  echo "git-private: added remote $remote -> $url"
+elif [[ "$existing" != "$url" ]]; then
+  echo "git-private: remote $remote already points to $existing, not $url" >&2
+  echo "  pick another name with -r, or: git remote set-url $remote $url" >&2
+  exit 1
+else
+  echo "git-private: remote $remote already set"
+fi
+
+if [[ "$push" -eq 1 ]]; then
+  git push -u "$remote" --all
+  git push "$remote" --tags
+fi

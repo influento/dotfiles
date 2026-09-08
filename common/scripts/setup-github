@@ -118,7 +118,24 @@ EOF
   fi
 fi
 
-# --- Step 7: Switch dotfiles remote to SSH ---
+# --- Step 7: Private git root ---
+step "Private git root"
+
+if [[ -n "$(git config --file "$gitconfig_local" private.root 2>/dev/null || true)" ]]; then
+  info "Private git root already set: $(git config --file "$gitconfig_local" private.root)"
+else
+  echo "Optional: an SSH host and directory holding bare repos for private projects,"
+  echo "as <ssh-host>:<dir> (e.g. myserver:git). Used by 'git private'."
+  read -rp "Private git root (press Enter to skip): " private_root
+  if [[ -n "$private_root" ]]; then
+    git config --file "$gitconfig_local" private.root "$private_root"
+    info "Wrote private.root to $gitconfig_local"
+  else
+    info "Skipped."
+  fi
+fi
+
+# --- Step 8: Switch dotfiles remote to SSH ---
 step "Dotfiles remote"
 
 # Find dotfiles repo: check new location first, fall back to legacy
