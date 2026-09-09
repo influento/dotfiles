@@ -13,3 +13,4 @@ workbench tracks projects, this tracks workbench and ts-gate.
 ## ts-gate
 
 - Effect migration of brownfield code: not written
+- ladder probe: whether ts-lean-code's seven rungs beat one sentence ("prefer, in order, what this codebase has, the stdlib, Effect, an installed dependency; add nothing for what a few lines do"). Throwaway project with ts-gate, a seeded `src/util/slug.ts` and Effect installed; three tasks that hit rungs 2, 4 and 5 (slug a title, retry a fetch with backoff, parse an ISO date); `claude -p --effort low`, two to four runs per cell; record reuse, `Schedule` used, dependency added, gate green, turns and cost. Run once a usage review shows worker cost worth chasing; the round-two rule needs no probe, its yield is `grep '^rounds: r1 0/0'` over the archive at twenty records
