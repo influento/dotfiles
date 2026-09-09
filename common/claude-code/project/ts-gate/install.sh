@@ -20,7 +20,7 @@ fi
 grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile repos/effect. Add \"include\": [\"src\"]"
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
 
-# 1. Files. Stale files from an earlier version go; the manifest stays.
+# 1. Files. Everything but the manifest is replaced, so a re-run carries changes.
 [ -d ts-gate ] && find ts-gate -mindepth 1 ! -name .install.json -delete
 command mkdir -p ts-gate
 command cp -r "$SRC"/. ts-gate/
@@ -77,9 +77,8 @@ fi
 command mkdir -p .claude/rules
 command cp ts-gate/rules/*.md .claude/rules/
 
-# 6. Stop hook: the deterministic gate. Existing ts-gate entries are replaced, so a
-#    re-run carries changes and drops the agent hook of earlier versions; foreign
-#    entries are untouched. Judgment review is wb-reviewer's job under workbench.
+# 6. Stop hook: the deterministic gate. Our entry is replaced, foreign entries
+#    are untouched. Judgment review is wb-reviewer's job under workbench.
 #    The allow rules cover the commands the rules tell the agent to run by hand;
 #    an unattended workbench worker is denied anything not listed.
 node -e '
@@ -87,8 +86,7 @@ const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
 s.hooks??={}; s.hooks.Stop??=[];
 const command="bash ts-gate/scripts/stop-hook.sh";
-const ours=h=>h.command===command||(h.type==="agent"&&/ts-lean-code\.md/.test(h.prompt));
-s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>!ours(h))})).filter(e=>e.hooks.length);
+s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==command)})).filter(e=>e.hooks.length);
 s.hooks.Stop.push({hooks:[{type:"command",command,timeout:600}]});
 s.permissions??={}; s.permissions.allow??=[];
 for(const r of ["Bash(npm ci)","Bash(npm run gate:*)"]) s.permissions.allow.includes(r)||s.permissions.allow.push(r);

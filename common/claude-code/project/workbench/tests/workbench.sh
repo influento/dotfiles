@@ -708,12 +708,6 @@ run "status no longer lists it" 0 "" bash -c "! '$WB' status | grep -q $idx-netc
 new_repo settings
 mkdir -p .claude && echo '{"statusLine":{"type":"command","command":"echo mine"}}' > .claude/settings.json
 run "init leaves a user statusLine alone" 0 "statusLine is already set" "$WB" init
-python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));d['env']={'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS':'0'};json.dump(d,open(p,'w'))"
-run "init leaves a teams opt-out alone" 0 "" bash -c "! '$WB' init | grep -q AGENT_TEAMS"
-check "the opt-out survives" grep -q '"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0"' .claude/settings.json
-python3 -c "import json;p='.claude/settings.json';d=json.load(open(p));d['env']={'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS':'1','KEEP':'x'};json.dump(d,open(p,'w'))"
-run "init removes the teams flag it once set" 0 "AGENT_TEAMS removed" "$WB" init
-check "the flag is gone and the rest of env stays" bash -c "! grep -q AGENT_TEAMS .claude/settings.json && grep -q '\"KEEP\"' .claude/settings.json"
 check "the user statusLine survives" grep -q '"echo mine"' .claude/settings.json
 check "the hook is still added beside it" grep -q 'workbench status ||' .claude/settings.json
 echo 'not json' > .claude/settings.json
@@ -728,12 +722,6 @@ echo '{"permissions":[],"hooks":"odd"}' > .claude/settings.json
 run "init survives odd permissions and hooks shapes" 0 "permissions.allow is not a list" "$WB" init
 check "init still reached the checklist" bash -c "'$WB' init | grep -q 'decide these with the user'"
 check "the odd permissions were left alone" grep -q '"permissions": \[\]' .claude/settings.json
-# a bare command from an earlier init is upgraded in place, once
-echo '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"workbench status"}]}]},"statusLine":{"type":"command","command":"workbench statusline"}}' > .claude/settings.json
-run "init guards a bare hook from an earlier init" 0 "workbench status now guarded on PATH" "$WB" init
-check "the bare hook is gone" bash -c "! grep -q '\"workbench status\"' .claude/settings.json"
-check "the bare status line is gone" bash -c "! grep -q '\"workbench statusline\"' .claude/settings.json"
-check "the upgraded hook is the only one" [ "$(grep -c 'workbench status ||' .claude/settings.json)" -eq 1 ]
 check "init reached the checklist" bash -c "'$WB' init | grep -q 'decide these with the user'"
 
 # --- memory in the tree -------------------------------------------------------
@@ -849,15 +837,13 @@ printf 'notes\n' > "$TMP/src/agents/NOTES.md"
 env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
 check "a stray file under agents/ is not rendered as an agent" [ ! -e .claude/agents/NOTES.md ]
 rm "$TMP/src/agents/NOTES.md"
-# The other half of naming them: a source that no longer exists under its own
-# name stops the init instead of leaving the project silently short an agent,
-# which is what the glob did to anything renamed or turned into a .tpl.
+# The other half of naming them: a source that does not exist under its own
+# name stops the init instead of leaving the project silently short an agent.
 mv "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-gate.md.tpl"
 run "a renamed agent source fails the init" 1 "agent source not found" env WORKBENCH_ROOT="$TMP/src" "$WB" init
 mv "$TMP/src/agents/wb-gate.md.tpl" "$TMP/src/agents/wb-gate.md"
-# An agent copy that no longer matches its source was invisible: skill_drift
-# walks skill_sources, which is skills and commands, so status never said a
-# word about agents however far behind they were.
+# An agent copy that no longer matches its source: skill_drift walks
+# skill_sources, which is skills and commands, so agents need their own check.
 env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
 run "status is quiet while the agents match" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
 printf '\nmoved on\n' >> "$TMP/src/agents/wb-gate.md"
@@ -868,8 +854,8 @@ run "init clears the agent drift" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' 
 
 # An agent this tool no longer ships. Only reachable by the deliberate
 # two-step: out of WB_AGENTS and deleted from agents/ — agent_sources dies on
-# a name it lists but cannot find. The copy used to stay in the project for
-# good, with nothing said by init or status.
+# a name it lists but cannot find. Without the reap the copy would stay in the
+# project for good, with nothing said by init or status.
 printf -- '---\nname: my-own\ndescription: a project agent, nothing to do with workbench\n---\nmine\n' > .claude/agents/my-own.md
 cp "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-spare.md"
 sed -i 's/^name: wb-gate$/name: wb-spare/' "$TMP/src/agents/wb-spare.md"
@@ -1005,11 +991,11 @@ run "and gives the command that finishes it" 1 "branch -D $idk-locked" "$WB" mer
 git branch -D "$idk-locked" >/dev/null
 run "with nothing left behind it is the plain refusal" 1 "already carries 'Item: $idk'" "$WB" merge "$idk" "locked" --no-review
 
-# an item on its branch alone — started under an older workbench, so never
-# on main at the cut — with the worktree gone: archive reads the branch, the
-# guard above does not fire, and no temp file is left behind on a refusal
-# branch_only <id> <slug> <status> — the old-model shape: an item file that
-# exists on its branch and nowhere else, worktree already gone.
+# an item on its branch alone — never on main at the cut — with the worktree
+# gone: archive reads the branch, the guard above does not fire, and no temp
+# file is left behind on a refusal
+# branch_only <id> <slug> <status> — an item file that exists on its branch
+# and nowhere else, worktree already gone.
 branch_only() {
   local f="workbench/items/bugs/$1-$2.md"
   git rm -q "$f" && git commit -qm "old-model shape for $1" -- "$f"

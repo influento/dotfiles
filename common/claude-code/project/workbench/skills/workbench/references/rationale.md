@@ -143,11 +143,10 @@ findings would wait for triage anyway.
 The statuses `awaiting` and `unverified`, a research concept's terminal
 state, a parked call — each is the user's because it is a claim about what
 the project accepts as done, and the agent's incentive at that moment runs
-the other way. Unattended, the agent used to have two choices: stop, or
-decide and say so in prose. It chose prose — "what this did not prove" as a
+the other way. Unattended, with only two choices — stop, or decide and say
+so in prose — the agent chooses prose: "what this did not prove" as a
 section, "the operator call lapsed" as a heading, a two-hundred-word line in
-the backlog — and the result was decisions that were made in fact and
-recorded nowhere a grep could find.
+the backlog. Decisions made in fact and recorded nowhere a grep could find.
 
 The ` (agent)` marker and `DECISIONS.md` are the third choice: the decision
 is made in the one form the tools read — the status line, the state line —
@@ -168,9 +167,9 @@ The tool set narrows the fork instead — no `Edit`, no subagents, no web. It
 is the `wb-gate` agent's `tools:` that does this, not the skill's
 `allowed-tools`: a fork takes its agent's tool set and nothing else, while
 `allowed-tools` only pre-approves what is listed and removes nothing (both
-probed on Claude Code 2.1.248; the docs say the second, and were once read to
-say the opposite). `Bash` has to stay so the sweep can build, test and grep,
-and `Bash` can write through a redirect. So the tool set removes the
+probed on Claude Code 2.1.248, not taken from the docs). `Bash` has to stay
+so the sweep can build, test and grep, and `Bash` can write through a
+redirect. So the tool set removes the
 convenient path and nothing more. The paths the contract allows are the
 other half: `init` merges `Edit(workbench/reviews/**)` and
 `Edit(workbench/scratch/**)` into `permissions.allow`, because a fork takes
@@ -294,11 +293,11 @@ A subagent worker dies with the session that spawned it and with its
 the user answers there — every decision on five items funnelled through one
 window, relayed twice. A worker that is a session of its own in a tmux window
 outlives the lead, is resumed by id when its window is gone, and takes the
-user's answer where the question arose. The lead keeps what it had: the
-workbench commands, the merges, one message per worker event. What replaced
-the agent-teams flag is `workbench lead` plus the hooks: the window title is
-the only signal a person needs, and the mode switch reaches a running session
-through the hooks rather than a restart. Only windows workbench opened are
+user's answer where the question arose. The lead keeps the workbench
+commands, the merges, one message per worker event; `workbench lead` plus the
+hooks do the rest: the window title is the only signal a person needs, and
+the mode switch reaches a running session through the hooks rather than a
+restart. Only windows workbench opened are
 in its registry, so a window the user made is never renamed or killed.
 
 ## Why the review dialog is a subagent and the gate a fork

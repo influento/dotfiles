@@ -1,5 +1,5 @@
 // One line per problem, no colour: what the Stop hook feeds back. ESLint 10
-// dropped the core `unix` formatter; this is that format, relative paths.
+// has no core `unix` formatter; this is that format, relative paths.
 import { relative } from "node:path";
 export default (results) =>
   results

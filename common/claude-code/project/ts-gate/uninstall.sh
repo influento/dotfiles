@@ -34,7 +34,7 @@ if [ -f "$S" ]; then
   node -e '
 const fs=require("fs"),p=process.argv[1],s=JSON.parse(fs.readFileSync(p,"utf8")),cmd="bash ts-gate/scripts/stop-hook.sh";
 if(s.hooks?.Stop){
-  s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==cmd&&!(h.type==="agent"&&/ts-lean-code\.md/.test(h.prompt)))})).filter(e=>e.hooks.length);
+  s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==cmd)})).filter(e=>e.hooks.length);
   if(!s.hooks.Stop.length) delete s.hooks.Stop;
   if(!Object.keys(s.hooks).length) delete s.hooks;
 }

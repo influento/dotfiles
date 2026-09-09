@@ -33,3 +33,18 @@ tree and `workbench init` writes tracked files.
 - A change to a skill, agent or command under `workbench/` marks every rendered
   copy stale; a change under `ts-gate/scripts/` reaches a project on its next
   `install.sh`. Say which in the commit.
+
+## ts-gate
+
+Rejected tools: jscpd (`sonarjs/no-identical-functions` covers it), cloc
+comment ratio, madge (dependency-cruiser covers it), api-extractor,
+size-limit, type-coverage, Stryker, diff coverage. Each returns only with a
+reason from a real codebase. No `agent` Stop hook: judgment review is
+wb-reviewer's job.
+
+- Decide tools, rules, severities in chat first; wire after agreement. Less code.
+- Verify rule names and hook contracts against the installed package or the docs, never memory.
+- After any change: scaffold a throwaway TypeScript project in a temp
+  directory (`git init`, `package.json`, strict `tsconfig.json`, one commit),
+  install, then `npm run gate:verify`.
+- Smoke test for install/uninstall: install, install again, uninstall, diff against the pre-install tree.
