@@ -78,7 +78,7 @@ export default function gate({
         "@typescript-eslint/no-useless-empty-export": E,
         "@typescript-eslint/no-unnecessary-parameter-property-assignment": E,
         "@typescript-eslint/no-useless-constructor": E,
-        "no-useless-constructor": "off", // superseded by the TS-aware version
+        "no-useless-constructor": "off", // the TS-aware rule above covers it
         "no-useless-catch": E,
         "no-useless-return": E,
         "no-useless-rename": E,

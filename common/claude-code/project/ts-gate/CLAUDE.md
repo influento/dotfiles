@@ -1,12 +1,8 @@
 # ts-gate
 
 Gate for AI-written TypeScript: deterministic checks in a Stop hook plus a
-judgment checklist in `.claude/rules/`. Installed into a project as one unit,
-alongside workbench, whose wb-reviewer applies the checklist in fresh context.
-The two are separate tools; the `project-setup` skill installs both in order.
-
-`../BACKLOG.md` holds what is still to do on the tools under `project/`; read it
-before changing anything here.
+judgment checklist in `.claude/rules/`, which workbench's wb-reviewer applies
+in fresh context. Workbench is a separate tool; the touchpoints are below.
 
 ## Commands
 
@@ -33,18 +29,17 @@ is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 unset (set to something else: printed, chain it by hand) → manifest
 `ts-gate/.install.json`.
 
-Run it before `workbench init`; commit between the two. `effect` is in knip's
-`ignoreDependencies`: install adds it before any code imports it.
+`effect` is in knip's `ignoreDependencies`: install adds it before any code
+imports it.
 
 The Stop hook runs `gate:local` and blocks on every stop while red, capped: the
 same output three stops running gets one last block that says to park it, and
 the next stop is allowed — a fight the model is not winning costs a full turn
 per round. A failure that changes resets the count. What it feeds back is the
 first 80 lines, `tsc --pretty false` and eslint through `ts-gate/eslint-line.mjs`
-(one line per problem; ESLint 10 has no core `unix` formatter); CI keeps the
-readable formats. It exits in milliseconds when no TypeScript changed.
-Re-running install replaces the entry and removes the agent hook of earlier
-versions. `gate.sh --list` prints the files the checklist applies to, for the
+(one line per problem); CI keeps the readable formats. It exits in
+milliseconds when no TypeScript changed. Re-running install replaces the hook
+entry. `gate.sh --list` prints the files the checklist applies to, for the
 worker and for wb-reviewer.
 
 Workbench touchpoints, all on this side: the `premerge` key (its merge runs
@@ -85,24 +80,3 @@ before wiring, no allowlist.
 changes are their own commit, never with the code that needed them. Runtime
 wiring (DI container, dynamic `import()`, registries) is invisible to import
 analysis: layer rules must also cover the file holding the registrations.
-
-## Rejected
-
-jscpd (`sonarjs/no-identical-functions` covers it), cloc comment ratio,
-madge (dependency-cruiser covers it), api-extractor, size-limit,
-type-coverage, Stryker, diff coverage. Each returns only with a reason from a
-real codebase. Details in `~/dev/projects/code-metrics/research.md`.
-
-An `agent` Stop hook applying `ts-lean-code.md` was built and measured: about
-13 s and a model call per stop, chat-only turns included, and redundant with
-wb-reviewer. Removed 2026-09-03. Platform facts if it ever returns: its subagent runs in
-don't-ask mode, where read-only git is auto-allowed but running a script needs
-`permissions.allow` (`Bash(bash ts-gate/scripts/gate.sh --list)`), piped
-commands are refused, and it reads the session transcript unless told not to.
-
-## Working on ts-gate itself
-
-- Decide tools, rules, severities in chat first; wire after agreement. Less code.
-- Verify rule names and hook contracts against the installed package or the docs, never memory.
-- After any change: install on `~/dev/projects/code-metrics/sample/` (own git repo, Effect v4 wallet tracker), commit there, `npm run gate:verify`.
-- Smoke test for install/uninstall: install, install again, uninstall, diff against the pre-install tree.

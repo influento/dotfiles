@@ -11,9 +11,8 @@ WB=workbench
 # 'set -o pipefail' is on, and such a reader closes the pipe the moment it has
 # what it needs; if the writer is still sending (anything past a few KB) it
 # takes SIGPIPE, the pipeline reports 141, and the test reads as the OPPOSITE
-# of what the data says. Measured here: a 23KB unfenced section made
-# 'section_filled' report empty in 281 of 300 runs. Capture into a variable and
-# read a herestring, or use a reader that consumes all of its input.
+# of what the data says — intermittently, since it is a race. Capture into a
+# variable and read a herestring, or use a reader that consumes all of its input.
 # The project-scoped commands, one thin skill each under commands/.
 # Rendered as committed copies by init, so the list
 # lives here. No /rename — a rename is '/wb rename'; why is in the skill's
@@ -667,12 +666,6 @@ else:
         bare = cmd.rsplit("workbench ", 1)[1].split(" ||")[0]
         if any(h.get("command") == cmd for h in entries):
             continue
-        ours = [h for h in entries if h.get("command") == "workbench " + bare]
-        if ours:
-            for h in ours:
-                h["command"] = cmd
-            changed.append("hooks." + event + ": workbench " + bare + " now guarded on PATH")
-            continue
         # A matcher of "" or "*" is the bare group by another name.
         home = next((grp for grp in groups if isinstance(grp, dict) and isinstance(grp.get("hooks"), list)
                      and (None if grp.get("matcher") in ("", "*") else grp.get("matcher")) == matcher), None)
@@ -687,19 +680,8 @@ line = data.get("statusLine")
 if line is None:
     data["statusLine"] = {"type": "command", "command": LINE}
     changed.append("statusLine = workbench statusline")
-elif isinstance(line, dict) and line.get("command") == "workbench statusline":
-    line["command"] = LINE
-    changed.append("statusLine: workbench statusline now guarded on PATH")
 elif not isinstance(line, dict) or "workbench statusline" not in str(line.get("command", "")):
     print("  statusLine is already set in .claude/settings.json; left alone")
-# Workers were agent-team teammates once, behind a flag init set to "1";
-# they are sessions now, so a "1" of ours goes. A "0" was the user's word.
-env = data.get("env")
-if isinstance(env, dict) and env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1":
-    del env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"]
-    if not env:
-        del data["env"]
-    changed.append("env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS removed — workers are sessions now, see 'workbench lead'")
 if mem:
     cur = data.get("autoMemoryDirectory")
     if cur is None:
@@ -815,9 +797,9 @@ setup_checklist() {
 cmd_adopt() {
   # Work sitting uncommitted at adoption has no item and never will — the
   # criterion cannot precede code that exists — and the first merge needs a
-  # clean tree anyway. It was swept onto the default branch once, 791 lines
-  # under one subject, and nothing can find it since. Commit it first, as
-  # the last pre-adoption commit, so that is at least on record.
+  # clean tree anyway. Swept into the first merge it lands under an unrelated
+  # subject and nothing can find it. Commit it first, as the last
+  # pre-adoption commit, so that is at least on record.
   local dirt
   dirt=$(git -C "$(repo_root)" status --porcelain --untracked-files=no || true)
   [ -z "$dirt" ] || die "the tree has uncommitted changes; commit them as the last pre-adoption commit, then adopt:
@@ -1732,8 +1714,8 @@ repeated_headings() {
   without_fences "$1" | sed -n 's/^## //p' | sort | uniq -d
 }
 
-# The statuses items.md defines, and nothing else: 'done' slipped into an
-# archive once and every listing showed it beside 'archived'.
+# The statuses items.md defines, and nothing else: an unknown status in an
+# archive shows in every listing beside 'archived'.
 known_status() {
   case "$1" in
     open|awaiting*|unverified*|unreproduced*|abandoned*) return 0 ;;
@@ -2742,11 +2724,10 @@ cmd_mode() {
 # every hook and every status-line repaint, so a call per field was most of
 # what either cost.
 #
-# No jq leg. jq is on none of the machines this runs on, so it was a third
-# implementation no test could reach — and an unreachable leg is exactly
-# where the greedy scan below sat wrong for as long as it did. (Elsewhere in
-# this repo the convention is "jq, or fall back"; this is a call about this
-# tool, not about that convention.)
+# No jq leg. jq is on none of the machines this runs on, so it would be a
+# third implementation no test could reach, and an unreachable leg is where a
+# bug lives longest. (Elsewhere in this repo the convention is "jq, or fall
+# back"; this is a call about this tool, not about that convention.)
 json_fields() {
   local input k
   input=$(cat 2>/dev/null || true)
@@ -3161,9 +3142,9 @@ cmd_idea() {
   [ $# -eq 1 ] && [ -n "$line" ] || usage
   require_init
   case "$line" in *$'\n'*) die "an idea is one line" ;; esac
-  # One obvious sentence. The backlog became a mailbox once — status reports
-  # and parked questions at two hundred words a line — and those have a
-  # place of their own: 'workbench call'.
+  # One obvious sentence. A status report or a parked question at two hundred
+  # words makes the backlog a mailbox; those have a place of their own:
+  # 'workbench call'.
   [ "${#line}" -le "$IDEA_MAX" ] || die "an idea is one obvious sentence, under $IDEA_MAX characters; a question for the user is 'workbench call', a status is nowhere"
   f="$(main_root)/$WB/BACKLOG.md"
   [ -f "$f" ] || die "no $f; run 'workbench init' in the main checkout"
