@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Confirms the install works here: gate passes clean, blocks on a seeded violation
-# (type error, unused export), the Stop hook blocks a session on it and releases
+# (type error, unused local, unused export: one finding per tool), the Stop hook blocks a session on it and releases
 # once it removes the file, and the tree is clean again after.
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}"
@@ -15,13 +15,15 @@ echo "1/3 gate passes on clean tree"
 cat > "$F" <<'TS'
 export function add(a: number, b: number): number {
   const wrong: number = "no";
+  const dead = 1;
   return a + b + wrong;
 }
 TS
 OUT=$(npm run -s gate:local 2>&1) && fail "gate passed with a seeded type error"
 grep -q 'TS2322' <<<"$OUT" || fail "tsc did not report the seeded type error"
-grep -qi 'unused' <<<"$OUT" || fail "knip/eslint did not report the unused export"
-echo "2/3 gate blocks on type error and unused export"
+grep -q 'no-unused-vars' <<<"$OUT" || fail "eslint did not report the unused local"
+grep -q '^Unused' <<<"$OUT" || fail "knip did not report the unused export"
+echo "2/3 gate blocks on type error, unused local and unused export"
 
 # stream-json carries the hook feedback turns themselves, so the check does not
 # depend on the model echoing them.

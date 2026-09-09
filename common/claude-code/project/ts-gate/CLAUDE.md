@@ -40,7 +40,8 @@ The Stop hook runs `gate:local` and blocks on every stop while red, capped: the
 same output three stops running gets one last block that says to park it, and
 the next stop is allowed — a fight the model is not winning costs a full turn
 per round. A failure that changes resets the count. What it feeds back is the
-first 80 lines, `tsc --pretty false` and `eslint --format unix`; CI keeps the
+first 80 lines, `tsc --pretty false` and eslint through `ts-gate/eslint-line.mjs`
+(one line per problem; ESLint 10 has no core `unix` formatter); CI keeps the
 readable formats. It exits in milliseconds when no TypeScript changed.
 Re-running install replaces the entry and removes the agent hook of earlier
 versions. `gate.sh --list` prints the files the checklist applies to, for the
