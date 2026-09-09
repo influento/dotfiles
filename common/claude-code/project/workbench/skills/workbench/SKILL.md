@@ -49,7 +49,7 @@ idea (workbench/BACKLOG.md line)
    proved instead of pretending: `unreproduced`, and `unverified` for a criterion
    only a third party can settle. A third, `abandoned — <why>`, archives a
    decision: work the user dropped, never deleted. See
-   [items.md](references/items.md).
+   [statuses.md](references/statuses.md).
 
 4. **State the root cause before writing a fix.** The requirement exists to
    force the investigation, not to produce a sentence.
@@ -411,6 +411,7 @@ only as the contract says. It never fixes. [reviews.md](references/reviews.md).
 | Class | Reference |
 |---|---|
 | feature, bug, rename — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
+| statuses, abandoning, what merge and archive ask | [statuses.md](references/statuses.md) |
 | research — scope, concepts and their states, iterations, closing | [items.md](references/items.md), "Research items" |
 | milestones — big-picture goals, optional attachment | [milestones.md](references/milestones.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |

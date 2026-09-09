@@ -99,7 +99,7 @@ pretending otherwise.
 
 Merge asks whether everything that *can* be verified now has been; archive
 asks whether the criterion is satisfied — the table is in
-[items.md](items.md), "What each gate asks". Collapsing the two produces a
+[statuses.md](statuses.md), "What each gate asks". Collapsing the two produces a
 deadlock: a fix that can only be exercised by a real third-party event cannot
 be verified until it ships, and cannot ship until it is verified. So an item
 may merge while still open. The worktree goes, the change ships, and nothing
@@ -128,7 +128,7 @@ Reading the code is not verification. Running it against a synthesised event is.
 | yes — next deploy, tomorrow's cron, the monthly run | `awaiting`, merged and open; it resolves shortly |
 | no — "whenever they push one" | archive as `unverified` |
 
-What each status lets merge and archive do is in [items.md](items.md), "What
+What each status lets merge and archive do is in [statuses.md](statuses.md), "What
 each gate asks". Entering either state is the user's decision at pre-merge,
 once the agent has shown what it verified and what it could not. Unattended,
 the agent enters it with ` (agent)` and a `DECISIONS.md` line — the
