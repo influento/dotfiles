@@ -50,9 +50,38 @@ bind -r L resize-pane -R 5
 # --- Sessions ---
 bind S new-session
 bind X confirm-before -p "kill session #S? (y/n)" "run-shell 'tmux switch-client -n \\; kill-session -t \"#S\"'"
-bind f display-popup -E "tmux list-sessions -F '#{session_name}' \
-  | fzf --reverse --header='Switch session' \
-  | xargs tmux switch-client -t"
+
+# --- Attention: what each pane needs (common/scripts/CLAUDE.md) ---
+# Panes flag themselves through tmux-attention; Claude Code does it via the
+# hooks in common/claude-code/settings.json. The glyph sits before the window
+# name, the counts on the status right, and split windows label their panes.
+# In wb-* sessions workbench titles the windows itself, so no glyph there.
+set -g @attention_fg_needs_you "@@RED@@"
+set -g @attention_fg_done "@@GREEN@@"
+set -g @attention_fg_working "@@BLUE@@"
+set -g @attention_fg_dim "@@OVERLAY0@@"
+set -g @attention_glyph "#{?#{m:wb-*,#{session_name}},,#{?#{==:#{@attention_win},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention_win},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention_win},working},#[fg=@@BLUE@@]● ,}}}}"
+set -g @attention_pane_glyph "#{?#{==:#{@attention},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention},working},#[fg=@@BLUE@@]● ,}}}"
+bind f display-popup -E -w 70% -h 60% "tmux-attention pick"
+bind o run-shell "tmux-attention jump"
+set-hook -g pane-focus-in 'run-shell -b "tmux-attention seen #{pane_id}"'
+set-hook -g after-select-window 'run-shell -b "tmux-attention seen #{pane_id}"'
+set-hook -g after-select-pane 'run-shell -b "tmux-attention seen #{pane_id}"'
+set-hook -g after-split-window 'run-shell -b "tmux-attention borders #{window_id}"'
+set-hook -g after-kill-pane 'run-shell -b "tmux-attention borders #{window_id}"'
+set-hook -g pane-exited 'run-shell -b "tmux-attention borders #{window_id}"'
+set-hook -g session-closed 'run-shell -b "tmux-attention status"'
+set -g pane-border-status off
+set -g pane-border-format "#[fg=@@OVERLAY0@@] #{E:@attention_pane_glyph}#[fg=@@SUBTEXT0@@]#{pane_current_command}#{?@attention_reason, · #{@attention_reason},#{?#{==:#{pane_current_command},claude}, · #{s/^[^A-Za-z0-9]* *//:pane_title},}} "
+
+# --- Popups ---
+bind g display-popup -E -w 85% -h 85% -d "#{pane_current_path}" lazygit
+bind t display-popup -E -w 80% -h 80% -d "#{pane_current_path}"
+# One nvim per tmux session, kept alive in a hidden session; the same key
+# inside the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
+bind v run-shell "tmux-overlay nvim nvim"
+# The pane's whole history in nvim, in a window of its own; :q cleans up.
+bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'
 
 # --- Vi copy mode ---
 setw -g mode-keys vi
@@ -70,13 +99,13 @@ set -g status-interval 5
 set -g status-style "bg=@@BASE@@,fg=@@TEXT@@"
 set -g status-left "#[bg=@@BLUE@@,fg=@@BASE@@,bold] #S #[default] "
 set -g status-left-length 30
-set -g status-right "#[fg=@@SUBTEXT0@@] %H:%M "
-set -g status-right-length 30
+set -g status-right "#{E:@attention_status}#[fg=@@SUBTEXT0@@] %H:%M "
+set -g status-right-length 60
 
 # Active window
-setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #I:#W "
+setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #{E:@attention_glyph}#[fg=@@TEXT@@]#I:#W "
 # Inactive window
-setw -g window-status-format "#[fg=@@OVERLAY0@@] #I:#W "
+setw -g window-status-format "#[fg=@@OVERLAY0@@] #{E:@attention_glyph}#[fg=@@OVERLAY0@@]#I:#W "
 
 # Pane borders
 set -g pane-border-style "fg=@@SURFACE0@@"
