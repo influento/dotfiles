@@ -10,6 +10,8 @@ workbench tracks projects, this tracks workbench and ts-gate.
 - reviewer effort: try `effort: low` on `wb-reviewer` once a usage review has a baseline at `medium`; the usage line records the worker's effort only, so note the item range the change applies from
 - model per role: Sonnet 5 at low effort where the work is bounded — a `wb-watch` agent with `model: sonnet` for watch ticks (a fresh fork every 15 minutes against a written contract, the one place the price gap compounds), and a per-class `workbench.workerModel.<class>` for rename and migrate items, whose criteria are grep-shaped. Not the reviewer (it must win arguments on evidence), not the lead, not feature or bug workers (a hold costs more than the model saves), and not the gate on cost grounds (about 6% of an item). Needs `model=` on the `usage:` line so the three-item cohort rule that compares effort compares models, holds included — which retires usage.md's "the model is not a lever". Revisit only after real measurements: ten `workbench usage` records on Fable first, then a Sonnet cohort of the same class; under 10% on the item total, leave it
 
+- long-running projects: https://claude.com/blog/ai-ci-cd-on-call — the ladder incident → item → recurring pattern → investigation playbook → deterministic check, and the promotion loop that climbs it. Not before a project has an archive: the playbook earns itself at three items in one bug class, the watch tuning line at a check that fires on noise, the digest at a second reader, the rollout agent at feature flags. Build the promotion loop first, the rest hang off it
+
 ## ts-gate
 
 - Effect migration of brownfield code: not written
