@@ -323,16 +323,20 @@ may hold; without it, none, and a resource it turns out to need is a
 `needs:` line to the lead. Up to `workbench.maxWorkers` (5) items may be started at once,
 sessions alive or not; `start` refuses past that. A worker runs at `--effort`
 `workbench.workerEffort` (low) and the lead at the user's global setting: the
-lead plans and sizes, the workers execute; the reviewer runs at medium. An
+lead plans and sizes, the workers execute; the reviewer and the gate run at
+medium, whatever the worker's level. An
 item that has held at the gate reopens its worker one level up
 (`workbench.workerEffortOnHold`, medium) — a running session keeps its level,
 so the step applies at the next `open`, which is how a worker blocked after
-three holds runs the item again. Without a lead, `start` is
+three holds runs the item again. That reopen is a fresh session, its
+dispatch line ending ` — held: <n>`: the branch, the Evidence and the parked
+call are what it reads, not the conversation that held. Without a lead, `start` is
 the git-only command it always was and the session that ran it works the
 item itself.
 
 The user talks to any session in its window; `workbench open <id|lead>` goes
-there, and reopens a closed one resumed where it stopped. The window title
+there, and reopens a closed one resumed where it stopped — fresh instead when
+a hold moved its effort up. The window title
 says what the session needs, set by the hooks `init` merged: `b-038` working
 · `? b-038` needs a person · `↑ b-038` reported to the lead · `⟳ b-038` a
 reviewer is running · `✓ b-038` ready · `! b-038` parked a call · `· b-038`

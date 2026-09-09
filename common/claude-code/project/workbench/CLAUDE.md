@@ -54,8 +54,11 @@ and the signal/gate hooks.
 (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it
 may hold; at `--effort` `workbench.workerEffort`, low, one level up once the
 item has held at the gate and the worker is opened again —
-`workbench.workerEffortOnHold`, medium, `off` to keep the base — while the lead keeps the
-global setting — the lead plans, the workers execute; with `--strict-mcp-config`,
+`workbench.workerEffortOnHold`, medium, `off` to keep the base; that reopen is
+a fresh session with ` — held: <n>` on its dispatch line, never a resume,
+since a resume at a new effort re-reads its whole history uncached — while the lead keeps the
+global setting — the lead plans, the workers execute; the reviewer and the gate
+run at medium by their own `effort:`, whatever the worker's; with `--strict-mcp-config`,
 so no user-level MCP server rides in a worker's requests, plus `--mcp-config
 workbench.workerMcp` when the project sets one), titled by the hooks with what it needs (`?` needs you, `↑` asked the
 lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped); `open <id|lead>`

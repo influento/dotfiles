@@ -65,7 +65,7 @@ usage:
                                        under 'workbench lead', open its worker session in a tmux window,
                                        holding the resources named
   workbench lead                       the lead session: tmux session wb-<repo>, window 0, main checkout
-  workbench open <id|lead>             switch to a session's window; reopen it, resumed, when it is gone
+  workbench open <id|lead>             switch to a session's window; reopen it, resumed, when it is gone (fresh, when a hold moved its effort up)
   workbench mode [attended|unattended] show or set who answers a session's questions; live for every session
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
   workbench merge <id> "<subject>" [--no-review]
@@ -796,7 +796,7 @@ setup_checklist() {
 
   echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>'"
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
-  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)), each at --effort $(worker_effort) (workbench.workerEffort; one level up, workbench.workerEffortOnHold or medium, when the item has held at the gate and the worker is opened again) while the lead keeps the global setting, and with --strict-mcp-config (plus --mcp-config workbench.workerMcp when set) so no user-level MCP server rides in a worker's requests; the tmux session pins Claude Code with DISABLE_AUTOUPDATER=1. Without it one session works items itself"
+  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)), each at --effort $(worker_effort) (workbench.workerEffort; one level up, workbench.workerEffortOnHold or medium, as a fresh session when the item has held at the gate and the worker is opened again) while the lead keeps the global setting, and with --strict-mcp-config (plus --mcp-config workbench.workerMcp when set) so no user-level MCP server rides in a worker's requests; the tmux session pins Claude Code with DISABLE_AUTOUPDATER=1. Without it one session works items itself"
   echo "  mode              $(mode) — 'workbench mode unattended' before leaving: questions are refused by the hooks and parked, the lead told; live for every session"
   local premerge
   premerge=$(git config --get workbench.premerge 2>/dev/null || true)
@@ -2161,6 +2161,7 @@ worker_mcp() {
 # running claude keeps its level: the worker blocked after three holds and
 # reopened by the user runs the same item again at the higher level, which
 # is the cheap form of "run everything at low, re-run the failures higher".
+# That reopen is a fresh session, not a resume — see cmd_open.
 effort_rank() {
   case "$1" in low) echo 1 ;; medium) echo 2 ;; high) echo 3 ;; xhigh) echo 4 ;; max) echo 5 ;; *) echo 0 ;; esac
 }
@@ -2174,6 +2175,13 @@ worker_effort() {
     [ "$(effort_rank "$h")" -le "$(effort_rank "$e")" ] || e=$h
   fi
   echo "$e"
+}
+
+# session_effort <sid>: the level a session ran at, from its usage snapshot;
+# empty when the status line never recorded one.
+session_effort() {
+  [ -n "${1:-}" ] && [ -f "$(usage_dir)/$1" ] || return 0
+  cut -f3 "$(usage_dir)/$1"
 }
 
 # Started items: branches with a worktree. What the cap counts, whether or
@@ -2348,7 +2356,9 @@ usage_fold() {
     cost=$(awk -v a="$cost" -v b="${banked:-0}" -v c="${last:-0}" 'BEGIN { printf "%.2f", a + b + c }')
     reqs=$((reqs + ${req:-0})); misses=$((misses + ${miss:-0}))
     [ "${hit:--}" = "-" ] || hits="$hits $hit"
-    eff=${effort:--}; vers=${ver:--}
+    # Two sessions when a hold reopened the worker higher: record the higher.
+    [ "$(effort_rank "${effort:-}")" -le "$(effort_rank "$eff")" ] || eff=$effort
+    vers=${ver:--}
   done
   [ "${#sids[@]}" -gt 0 ] || return 0
   local sid counts cache='-' holds=0
@@ -2561,9 +2571,13 @@ spawn_window() {
 
 # dispatch_prompt <id> <worktree> [resources]: the worker's opening prompt,
 # everything it is given in one line the agent definition tells it how to
-# read.
+# read. An item that has held at the gate says so: the worker opening on it
+# is picking up a branch, not starting one.
 dispatch_prompt() {
-  printf '%s in %s — resources: %s — lead: %s — mode: %s\n' "$1" "$2" "${3:-none}" "$(session_name lead)" "$(mode)"
+  local holds
+  holds=$(cat "$(usage_dir)/holds/$1" 2>/dev/null || echo 0)
+  printf '%s in %s — resources: %s — lead: %s — mode: %s%s\n' "$1" "$2" "${3:-none}" "$(session_name lead)" "$(mode)" \
+    "$([ "$holds" -ge 1 ] && printf ' — held: %s' "$holds")"
 }
 
 # spawn_worker <id> <worktree> [resources]
@@ -2649,14 +2663,27 @@ cmd_open() {
       go_to_window "$wid"
       return 0
     fi
-    # The window is gone; the conversation is not. Resume it where it ran.
-    local cmd
+    # The window is gone; the conversation is not. Resume it where it ran —
+    # unless a hold moved the worker's effort up. A resume at a new effort
+    # re-reads the whole history uncached (the prefix changed), and what it
+    # would re-read is the reasoning that led to the hold. The branch, the
+    # item's evidence and the parked call are on disk: a fresh session at
+    # the higher level reads those instead. Unknown level (no snapshot):
+    # resume, as before.
+    local cmd due ran how=''
     [ "$sid" != "-" ] || sid=""
+    if [ "$role" = worker ] && [ -n "$sid" ]; then
+      due=$(worker_effort "$what"); ran=$(session_effort "$sid")
+      if [ -n "$ran" ] && [ "$(effort_rank "$due")" -gt "$(effort_rank "$ran")" ]; then
+        how=", fresh at $due (ran at $ran)"; sid=""
+      fi
+    fi
+    [ -n "$how" ] || [ -z "$sid" ] || how=", resuming $sid"
     cmd=$(claude_cmd "$(session_name "$what")" "$(lead_pmode)" "$sid" wb-worker "$(dispatch_prompt "$what" "$dir")")
     [ "$role" != lead ] || cmd=$(claude_cmd "$(session_name lead)" "" "$sid" "")
     rm -f "$(registry_dir)/$wid"
     wid=$(spawn_window "$role" "$what" "$name" "$dir" "$cmd")
-    echo "reopened $name$([ -n "$sid" ] && echo ", resuming $sid")" >&2
+    echo "reopened $name$how" >&2
     go_to_window "$wid"
     return 0
   fi
