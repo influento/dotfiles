@@ -9,11 +9,8 @@ disable-model-invocation: true
 
 The `workbench` skill's rules apply; load it if it is not in context.
 
-**No argument** — run `workbench status` and report it: open items with
-their branches, research with open-concept counts,
-merged items still awaiting a trigger, merged items still open — a fault
-to repair first — calls waiting in `DECISIONS.md`, reports awaiting triage
-or left unchecked, duplicate ids. Name what is actionable now; omit what is not.
+**No argument** — run `workbench status` and report it. Name what is
+actionable now; omit what is not.
 
 **An id** — pick that item up:
 

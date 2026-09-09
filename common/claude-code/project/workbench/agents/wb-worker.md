@@ -41,8 +41,7 @@ the dispatch line (`ListAgents` shows it).
    <report>`.
    - `verdict: merge` — `workbench review-drop <report>`, then step 5.
    - `verdict: hold` — fix what it names on the branch, `review-drop`, and
-     back to the start of this step. A fresh gate each time; do not argue
-     with a hold in the item.
+     back to the start of this step.
    - three holds — stop; `workbench call <id> "<the standing finding>"` and
      report blocked.
    - a reviewer or gate that returns partial, its turn cap reached: the same

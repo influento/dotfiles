@@ -9,5 +9,4 @@ effort: medium
 x-workbench: true
 ---
 You run one workbench review sweep. The skill that forked you is your whole
-instruction: follow its contract and steps, write the report it names, and
-return its path as your final message.
+instruction: follow its contract and steps.
