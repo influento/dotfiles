@@ -53,7 +53,9 @@ case "$cmd" in
   kill-window) grep -vP "^$t\t" "$S/windows" > "$S/windows.tmp" || true; mv "$S/windows.tmp" "$S/windows" ;;
   rename-window) awk -F'\t' -v w="$t" -v name="${rest[0]}" 'BEGIN{OFS="\t"} $1==w {$3=name} {print}' "$S/windows" > "$S/windows.tmp"; mv "$S/windows.tmp" "$S/windows" ;;
   display-message) case "$t" in %*) w=$(win_by_pane "$t") ;; *) w=$t ;; esac
-    case "${rest[0]}" in '#{window_id}') [ -n "$w" ] && echo "$w" ;; '#{window_name}') grep -P "^$w\t" "$S/windows" | cut -f3 ;; esac ;;
+    case "${rest[0]}" in '#{window_id}') [ -n "$w" ] && echo "$w" ;;
+      '#{window_name}') grep -P "^$w\t" "$S/windows" | cut -f3 ;;
+      '#{pane_current_command}') if [ -f "$S/gone/$w" ]; then echo zsh; else echo claude; fi ;; esac ;;
   switch-client|select-window|attach) ;;
   *) echo "shim: unhandled $cmd" >&2; exit 1 ;;
 esac
@@ -1455,7 +1457,8 @@ check "the registry holds the session id, state and permission mode" grep -qxP "
 # from a registered session files them under its id, a stranger's leaves nothing.
 usession() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"},"session_id":"%s","version":"2.1.266","cost":{"total_cost_usd":%s},"context_window":{"used_percentage":8},"prompt_cache":{"requests":14,"misses":2,"hit_ratio":%s},"effort":{"level":"low"}}' "$1" "$2" "$3" "$4"; }
 export -f usession
-run "statusline shows the session's cost and cache" 0 '· [$]0[.]42 · cache 91%$' bash -c "usession '$PWD' sid-2 0.4213 0.91 | '$WB' statusline"
+run "statusline shows the session's cost and cache" 0 '· context 8% · [$]0[.]42 · cache 91%$' bash -c "usession '$PWD' sid-2 0.4213 0.91 | '$WB' statusline"
+check "and records the context fill beside the snapshot" [ "$(cat .git/workbench/usage/sid-2.ctx)" = 8 ]
 check "and records the worker's snapshot under its session id" grep -qP "^worker\t$s2\tlow\t0\.0000\t0\.4213\t14\t2\t0\.91\t2\.1\.266\t[0-9]+$" .git/workbench/usage/sid-2
 run "a cost that dropped is banked" 0 '· [$]0[.]10 · cache 91%$' bash -c "usession '$PWD' sid-2 0.10 0.91 | '$WB' statusline"
 check "banked plus last is the whole cost" grep -qP "^worker\t$s2\tlow\t0\.4213\t0\.1000\t" .git/workbench/usage/sid-2
@@ -1517,6 +1520,35 @@ run "signal stopped with a passed review" 0 "" bash -c "hook sid-2 '$wt2' | TMUX
 check "✓ when the review mark matches the branch" [ "$(title_of "$w2")" = "✓ $s2" ]
 run "status shows the worker's state" 0 "$s2-.*\[ready\]" "$WB" status
 run "statusline carries mode, cap and the flagged workers" 0 " · attended · 4/4 workers · ✓ $s2$" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+
+# Context fill: recorded on every repaint, on the title and in the flags once
+# it nears compaction, and gone from both with the record.
+ctxsession() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"},"session_id":"%s","context_window":{"used_percentage":%s}}' "$1" "$2" "$3"; }
+export -f ctxsession
+check "the title is untouched under the warning line" [ "$(title_of "$w2")" = "✓ $s2" ]
+run "statusline at 82% names the fill" 0 '· context 82%' bash -c "ctxsession '$PWD' sid-2 82.4 | '$WB' statusline"
+check "the title carries the fill" [ "$(title_of "$w2")" = "✓ $s2 82%" ]
+run "status names the fill beside the state" 0 "$s2-.*\[ready · context 82%, compaction soon\]" "$WB" status
+run "the lead's statusline carries it" 0 " · ✓ $s2 82%$" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+run "signal working keeps the fill on the title" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"
+check "working at 82% shows the fill alone" [ "$(title_of "$w2")" = "$s2 82%" ]
+run "a working worker near compaction is still flagged" 0 " · $s2 82%$" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+run "a repaint under the line takes the fill off the title" 0 '· context 40%' bash -c "ctxsession '$PWD' sid-2 40 | '$WB' statusline"
+check "the title is the bare id again" [ "$(title_of "$w2")" = "$s2" ]
+
+# A window alive with a shell in it: claude died without a SessionEnd.
+mkdir -p "$TMUX_SHIM_STATE/gone" && touch "$TMUX_SHIM_STATE/gone/$w2"
+run "a status line repaint marks a worker whose claude is gone" 0 " · ✗ $s2$" bash -c "$(declare -f session); session '$PWD' | '$WB' statusline"
+check "and retitles its window" [ "$(title_of "$w2")" = "✗ $s2" ]
+check "the registry says gone" grep -qP "\tgone\t" ".git/workbench/sessions/$w2"
+run "status says open resumes it" 0 "$s2-.*\[gone — 'workbench open $s2' resumes it\]" "$WB" status
+run "open closes the dead window and resumes the session" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
+check "the dead window was killed" bash -c "tlog | grep -q '^kill-window -t $w2$'"
+check "claude was resumed by id" bash -c "tlog | tail -3 | grep -q -- '--resume sid-2'"
+rm -rf "$TMUX_SHIM_STATE/gone"
+w2=$(reg_of "$s2"); p2="%${w2#@}"
+run "the reopened worker registers on start" 0 "" bash -c "hook sid-2 | TMUX_PANE=$p2 '$WB' signal start"
+check "and is titled by the bare id" [ "$(title_of "$w2")" = "$s2" ]
 n=$(tlog | grep -c rename-window)
 run "a pane the registry does not know is left alone" 0 "" bash -c "hook | TMUX_PANE=%99 '$WB' signal needs-you"
 check "no rename for a stranger" [ "$(tlog | grep -c rename-window)" -eq "$n" ]

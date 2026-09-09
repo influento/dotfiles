@@ -316,8 +316,9 @@ there, and reopens a closed one resumed where it stopped. The window title
 says what the session needs, set by the hooks `init` merged: `b-038` working
 · `? b-038` needs a person · `↑ b-038` reported to the lead · `⟳ b-038` a
 reviewer is running · `✓ b-038` ready · `! b-038` parked a call · `· b-038`
-stopped on nothing. `status` shows the same beside each started item,
-`statusline` the flags. Only windows workbench opened are ever renamed or
+stopped on nothing · `✗ b-038` its claude died, `open` resumes it · `b-038 82%`
+its context is filling, compaction and an uncached re-read are near. `status`
+shows the same beside each started item, `statusline` the flags. Only windows workbench opened are ever renamed or
 closed.
 
 **Mode.** `workbench mode` is `attended` or `unattended`, per project and

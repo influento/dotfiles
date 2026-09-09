@@ -71,6 +71,7 @@ set-hook -g after-split-window 'run-shell -b "tmux-attention borders #{window_id
 set-hook -g after-kill-pane 'run-shell -b "tmux-attention borders #{window_id}"'
 set-hook -g pane-exited 'run-shell -b "tmux-attention borders #{window_id}"'
 set-hook -g session-closed 'run-shell -b "tmux-attention status"'
+set-hook -g client-focus-in 'run-shell -b "tmux-attention status"'
 set -g pane-border-status off
 set -g pane-border-format "#[fg=@@OVERLAY0@@] #{E:@attention_pane_glyph}#[fg=@@SUBTEXT0@@]#{pane_current_command}#{?@attention_reason, · #{@attention_reason},#{?#{==:#{pane_current_command},claude}, · #{s/^[^A-Za-z0-9]* *//:pane_title},}} "
 
@@ -80,7 +81,8 @@ bind t display-popup -E -w 80% -h 80% -d "#{pane_current_path}"
 # One nvim per tmux session, kept alive in a hidden session; the same key
 # inside the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
 bind v run-shell "tmux-overlay nvim nvim"
-# The pane's whole history in nvim, in a window of its own; :q cleans up.
+# The pane's whole history in nvim, in a window of its own; :q cleans up. The
+# file name is what lua/scrollback.lua keys on for ]] and [[ between prompts.
 bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'
 
 # --- Vi copy mode ---

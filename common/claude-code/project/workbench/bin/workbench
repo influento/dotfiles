@@ -41,6 +41,10 @@ WB_WORKER_EFFORT=low
 # says a review is due once this many have landed since the last one, so the
 # numbers get read whether or not anything in them looks wrong.
 USAGE_REVIEW_EVERY=10
+# Context fill, in percent, from which a session's window title and the
+# status line carry it: compaction is near, and a resume re-reads the whole
+# history uncached, so the lead should decide about it rather than find out.
+CTX_WARN=75
 
 usage() {
   # Help asked for goes to stdout; help printed because a call was wrong is
@@ -2105,6 +2109,13 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
 # exact conversation after the window is gone, and the lead's permission mode
 # is what its workers are spawned with — a peer's idle notice reaches the
 # lead only from the same permission class.
+#
+# A window that is alive with a shell in it is one whose claude died without
+# a SessionEnd — a crash, an OOM kill, a closed terminal. Its title would
+# otherwise keep saying whatever the last hook said. A live process means
+# busy whatever its silence, so the check is the pane's foreground command
+# and never a timer: 'status' and the status line read it, retitle the window
+# '✗ <id>', and 'open' closes the shell and resumes the conversation.
 
 # '.' and ':' are tmux's window and pane separators; a session named with
 # either cannot be targeted, even with '='.
@@ -2229,6 +2240,11 @@ window_alive() {
   grep -qx "$1" <<<"$ids"
 }
 
+# Is claude still the foreground command of the window's pane?
+claude_in_window() {
+  [ "$(tmux display-message -p -t "$1" '#{pane_current_command}' 2>/dev/null || true)" = claude ]
+}
+
 # The window this process runs in, when it is one of ours. A registry row is not
 # enough on its own: tmux hands out window ids from @0 again after a restart, so
 # a row left by a previous server can name a window that now belongs to another
@@ -2338,7 +2354,7 @@ usage_fold() {
   [ -d "$d" ] || return 0
   for f in "$d"/*; do
     [ -f "$f" ] || continue
-    case "$f" in *.calls) continue ;; esac
+    case "$f" in *.calls|*.ctx) continue ;; esac
     IFS=$'\t' read -r role iid effort banked last req miss hit ver _ < "$f" || true
     [ "$role" = worker ] && [ "$iid" = "$id" ] || continue
     sids+=("$(basename "$f")")
@@ -2364,7 +2380,7 @@ usage_fold() {
   set -- $counts
   printf 'usage: cost=%s effort=%s calls=%s reviewer=%s gate=%s cache=%s misses=%s holds=%s claude=%s at=%s\n' \
     "$cost" "$eff" "$1" "$2" "$3" "$cache" "$misses" "$holds" "$vers" "$(date +%s)"
-  for sid in "${sids[@]}"; do rm -f "$d/$sid" "$d/$sid.calls"; done
+  for sid in "${sids[@]}"; do rm -f "$d/$sid" "$d/$sid.calls" "$d/$sid.ctx"; done
   rm -f "$d/holds/$id"
 }
 
@@ -2483,7 +2499,7 @@ cmd_usage() {
   if [ -d "$d" ]; then
     for f in "$d"/*; do
       [ -f "$f" ] || continue
-      case "$f" in *.calls) continue ;; esac
+      case "$f" in *.calls|*.ctx) continue ;; esac
       IFS=$'\t' read -r role id effort banked last req miss hit ver _ < "$f" || true
       local pct=-
       [ "${hit:--}" = "-" ] || pct=$(awk -v h="$hit" 'BEGIN { printf "%d%%", h * 100 }')
@@ -2649,8 +2665,13 @@ cmd_open() {
     wid=$(printf '%s' "$row" | cut -f1)
     sid=$(printf '%s' "$row" | cut -f4)
     if window_alive "$wid"; then
-      go_to_window "$wid"
-      return 0
+      if claude_in_window "$wid"; then
+        go_to_window "$wid"
+        return 0
+      fi
+      # Alive with a shell in it: claude died without a SessionEnd. Close it
+      # and carry on as for a window that is gone.
+      tmux kill-window -t "$wid" 2>/dev/null || true
     fi
     # The window is gone; the conversation is not. Resume it where it ran —
     # unless a hold moved the worker's effort up. A resume at a new effort
@@ -2810,8 +2831,29 @@ state_prefix() {
     ready) echo '✓ ' ;;
     blocked) echo '! ' ;;
     stopped) echo '· ' ;;
+    gone) echo '✗ ' ;;
     *) echo '' ;;
   esac
+}
+
+# ctx_record <sid> <percent>: the session's context fill, from the status
+# line, beside its usage snapshot; ctx_suffix reads it back as ' 82%' once
+# it is CTX_WARN or more, and nothing under that.
+ctx_record() {
+  local d tmp
+  d=$(usage_dir)
+  mkdir -p "$d"
+  tmp=$(mktemp "$d/.tmp.XXXXXX")
+  awk -v c="$2" 'BEGIN { printf "%d\n", c }' > "$tmp"
+  mv -f "$tmp" "$d/$1.ctx"
+}
+
+ctx_suffix() {
+  local pct
+  [ -n "${1:-}" ] && [ -f "$(usage_dir)/$1.ctx" ] || return 0
+  pct=$(cat "$(usage_dir)/$1.ctx")
+  [ "${pct:-0}" -ge "$CTX_WARN" ] || return 0
+  printf ' %s%%' "$pct"
 }
 
 # set_state <window_id> <role> <id> <sid> <state> <pmode>: record, and rename
@@ -2820,7 +2862,7 @@ set_state() {
   local wid="$1" role="$2" id="$3" sid="$4" state="$5" pmode="$6" name title
   registry_write "$wid" "$role" "$id" "$sid" "$state" "$pmode"
   name=$id; [ "$role" != lead ] || name=lead
-  title="$(state_prefix "$state")$name"
+  title="$(state_prefix "$state")$name$(ctx_suffix "$sid")"
   [ "$(tmux display-message -p -t "$wid" '#{window_name}' 2>/dev/null)" = "$title" ] \
     || tmux rename-window -t "$wid" "$title" 2>/dev/null || true
 }
@@ -3023,15 +3065,19 @@ cmd_round() {
 
 # What 'status' shows beside a started item, and 'statusline' as flags.
 session_state() {
-  local row wid state
+  local row wid sid state ctx
   row=$(registry_row "$1")
   [ -n "$row" ] || { echo "no session"; return 0; }
   wid=$(printf '%s' "$row" | cut -f1)
+  sid=$(printf '%s' "$row" | cut -f4)
   state=$(printf '%s' "$row" | cut -f5)
-  if window_alive "$wid"; then
-    printf '%s\n' "$state" | sed 's/needs-you/needs you/'
-  else
+  if ! window_alive "$wid"; then
     echo "no session — 'workbench open $1' resumes it"
+  elif ! claude_in_window "$wid"; then
+    echo "gone — 'workbench open $1' resumes it"
+  else
+    ctx=$(ctx_suffix "$sid")
+    printf '%s%s\n' "$state" "${ctx:+ · context${ctx}, compaction soon}" | sed 's/needs-you/needs you/'
   fi
 }
 
@@ -3045,9 +3091,16 @@ worker_flags() {
     IFS=$'\t' read -r role id sid state pmode < "$f" || true
     w=$(basename "$f")
     [ "$role" = worker ] || continue
-    case "$state" in working|opening|ended) continue ;; esac
     window_alive "$w" || continue
-    printf ' · %s%s' "$(state_prefix "$state")" "$id"
+    # The one place a dead claude is noticed without a hook: every repaint
+    # of any session's status line. Recorded, so the title changes once.
+    if ! claude_in_window "$w"; then
+      [ "$state" = gone ] || set_state "$w" "$role" "$id" "$sid" gone "$pmode"
+      state=gone
+    fi
+    # A worker simply working is not a flag — unless its context is filling.
+    case "$state" in working|opening|ended) [ -n "$(ctx_suffix "$sid")" ] || continue ;; esac
+    printf ' · %s%s%s' "$(state_prefix "$state")" "$id" "$(ctx_suffix "$sid")"
   done
 }
 
@@ -3068,7 +3121,8 @@ cmd_statusline() {
   # The usage fields ride the same pass: cost and cache as running totals,
   # the session id to file them under.
   mapfile -t vals < <(printf '%s' "$input" | json_fields workspace.current_dir cwd model.display_name \
-    session_id cost.total_cost_usd prompt_cache.requests prompt_cache.misses prompt_cache.hit_ratio effort.level version)
+    session_id cost.total_cost_usd prompt_cache.requests prompt_cache.misses prompt_cache.hit_ratio effort.level version \
+    context_window.used_percentage)
   dir=${vals[0]:-}; [ -n "$dir" ] || dir=${vals[1]:-}
   model=${vals[2]:-}
   [ -n "$dir" ] && [ -d "$dir" ] || return 0
@@ -3083,11 +3137,19 @@ cmd_statusline() {
   # Recorded for sessions the registry knows — the lead and the workers —
   # so a snapshot always has a role and an item to fold into. A session
   # working alone leaves none: its cost spans whatever it touched.
-  local sid=${vals[3]:-} cost=${vals[4]:-} hit=${vals[7]:-} row
-  if [ -n "$sid" ] && [ -n "$cost" ]; then
-    row=$(registry_row_of_sid "$sid")
-    [ -z "$row" ] || usage_record "$sid" "$(cut -f2 <<<"$row")" "$(cut -f3 <<<"$row")" \
+  local sid=${vals[3]:-} cost=${vals[4]:-} hit=${vals[7]:-} ctx=${vals[10]:-} row=''
+  [ -z "$sid" ] || row=$(registry_row_of_sid "$sid")
+  if [ -n "$row" ] && [ -n "$cost" ]; then
+    usage_record "$sid" "$(cut -f2 <<<"$row")" "$(cut -f3 <<<"$row")" \
       "${vals[8]:-}" "$cost" "${vals[5]:-}" "${vals[6]:-}" "$hit" "${vals[9]:-}"
+  fi
+  # The context fill rides the same repaint, and the window title follows it
+  # past CTX_WARN: set_state renames only when the title changed.
+  if [ -n "$row" ] && [ -n "$ctx" ]; then
+    ctx_record "$sid" "$ctx"
+    local rwid rrole rid rstate rpmode
+    IFS=$'\t' read -r rwid rrole rid _ rstate rpmode <<<"$row"
+    ! window_alive "$rwid" || set_state "$rwid" "$rrole" "$rid" "$sid" "$rstate" "$rpmode"
   fi
 
   local out="" here f names=() name n
@@ -3132,6 +3194,7 @@ cmd_statusline() {
     out="$out · $(mode) · $(started_items | grep -c . || true)/$(max_workers) workers$(worker_flags)"
   fi
   # This session's own running figures, when the payload carries them.
+  [ -z "$ctx" ] || out="$out · context $(awk -v c="$ctx" 'BEGIN { printf "%d%%", c }')"
   [ -z "$cost" ] || out="$out · \$$(awk -v c="$cost" 'BEGIN { printf "%.2f", c }')"
   [ -z "$hit" ] || out="$out · cache $(awk -v h="$hit" 'BEGIN { printf "%d%%", h * 100 }')"
 

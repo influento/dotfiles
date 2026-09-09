@@ -17,8 +17,17 @@ set -euo pipefail
 #
 # Where the state lives (tmux options, gone with the server):
 #   pane    @attention, @attention_reason, @attention_at
+#           @attention_owner   the command the flag belongs to, when one was named
+#           @attention_gone    what a sweep dropped: "<state> · <owner> exited"
 #   window  @attention_win   the highest-ranked state among its panes
 #   global  @attention_status   the rendered counts, read as #{E:@attention_status}
+#
+# A flag set with --owner lives only while that command is still the pane's
+# foreground command. A live process means busy, whatever its silence; one
+# that died without clearing its flag would otherwise stay "working" for
+# ever. `sweep` drops such flags, and runs before every count, list and seen,
+# so any event anywhere clears them. No timer: an agent is legitimately
+# quiet for a long time.
 #
 # Colours come from tmux options so the theme stays in tmux.conf:
 #   @attention_fg_needs_you, @attention_fg_done, @attention_fg_working, @attention_fg_dim
@@ -26,14 +35,16 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 usage:
-  tmux-attention set <needs-you|done|working> [--reason TEXT] [--pane ID] [--quiet]
-                                       flag a pane; prints the previous state when it changed
+  tmux-attention set <needs-you|done|working> [--reason TEXT] [--pane ID] [--quiet] [--owner CMD]
+                                       flag a pane; prints the previous state when it changed;
+                                       --owner: the flag lives while CMD is the pane's command
   tmux-attention clear [--pane ID]     back to idle
   tmux-attention seen [ID]             done → idle; run when a pane gets focus
   tmux-attention list                  every pane, flagged first: rank, id, glyph, name, target, detail, age
   tmux-attention pick                  fzf over 'list'; switches to the chosen pane
   tmux-attention jump [--pane ID]      go to the next pane that needs you, else the next unread done
   tmux-attention status                re-render the counts into @attention_status
+  tmux-attention sweep                 drop flags whose owner command is gone
   tmux-attention borders <window-id>   pane-border-status on for split windows, off otherwise
 EOF
   exit 2
@@ -108,8 +119,24 @@ refresh_clients() {
   done < <(tmux list-clients -F '#{client_name}' 2>/dev/null || true)
 }
 
+# Drop every flag whose owner is no longer the pane's foreground command, and
+# leave a note the picker shows. Returns 0 when something was dropped.
+cmd_sweep() {
+  local id st owner cmd dropped=1
+  while IFS=$'\x1f' read -r id st owner cmd; do
+    [ -n "$st" ] && [ -n "$owner" ] && [ "$owner" != "$cmd" ] || continue
+    tmux set -pu -t "$id" @attention \; set -pu -t "$id" @attention_reason \; \
+      set -pu -t "$id" @attention_at \; set -pu -t "$id" @attention_owner \; \
+      set -p -t "$id" @attention_gone "$st · $owner exited"
+    window_rollup "$id"
+    dropped=0
+  done < <(tmux list-panes -a -F $'#{pane_id}\x1f#{@attention}\x1f#{@attention_owner}\x1f#{pane_current_command}' 2>/dev/null || true)
+  return "$dropped"
+}
+
 cmd_status() {
   local st needs=0 done_=0 working=0 out=''
+  cmd_sweep || true
   while IFS= read -r st; do
     case "$st" in
       needs-you) needs=$((needs + 1)) ;;
@@ -164,7 +191,7 @@ notify_later() {
 }
 
 cmd_set() {
-  local state="${1:-}" reason='' pane='' quiet=0
+  local state="${1:-}" reason='' pane='' quiet=0 owner=''
   case "$state" in needs-you|done|working) ;; *) usage ;; esac
   shift
   while [ $# -gt 0 ]; do
@@ -172,6 +199,7 @@ cmd_set() {
       --reason) reason="${2:-}"; shift 2 ;;
       --pane) pane="${2:-}"; shift 2 ;;
       --quiet) quiet=1; shift ;;
+      --owner) owner="${2:-}"; shift 2 ;;
       *) usage ;;
     esac
   done
@@ -185,7 +213,9 @@ cmd_set() {
   fi
   tmux set -p -t "$pane" @attention "$state" \; \
     set -p -t "$pane" @attention_reason "$reason" \; \
-    set -p -t "$pane" @attention_at "$(date +%s)"
+    set -p -t "$pane" @attention_at "$(date +%s)" \; \
+    set -p -t "$pane" @attention_owner "$owner" \; \
+    set -pu -t "$pane" @attention_gone
   window_rollup "$pane"
   cmd_status
   printf '%s\n' "${prev:-idle}"
@@ -204,7 +234,8 @@ cmd_clear() {
   done
   pane=$(resolve_pane "$pane")
   [ -n "$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)" ] || return 0
-  tmux set -pu -t "$pane" @attention \; set -pu -t "$pane" @attention_reason \; set -pu -t "$pane" @attention_at
+  tmux set -pu -t "$pane" @attention \; set -pu -t "$pane" @attention_reason \; \
+    set -pu -t "$pane" @attention_at \; set -pu -t "$pane" @attention_owner \; set -pu -t "$pane" @attention_gone
   window_rollup "$pane"
   cmd_status
 }
@@ -212,26 +243,33 @@ cmd_clear() {
 cmd_seen() {
   local pane
   pane=$(resolve_pane "${1:-}")
+  # Focus is the one event that reaches every pane; a dead flag is dropped
+  # here even when nothing else in the server changes.
+  ! cmd_sweep || cmd_status
   [ "$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)" = "done" ] || return 0
   cmd_clear --pane "$pane"
 }
 
 # One line per pane, tab-separated: rank, pane id, glyph, name, target,
 # detail, age. Flagged panes first by rank then oldest first; then idle
-# panes running an agent-looking command; then everything else.
+# panes running an agent-looking command, or whose flag a sweep dropped;
+# then everything else.
 cmd_list() {
   local now
   now=$(date +%s)
+  ! cmd_sweep || cmd_status
   # Unit separator, not tab: tab is IFS whitespace, so read would collapse the
   # empty fields of an idle pane and shift every column after them.
-  tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\x1f#{pane_id}\x1f#{window_name}\x1f#{@attention}\x1f#{@attention_reason}\x1f#{@attention_at}\x1f#{pane_current_command}\x1f#{pane_title}' \
-  | while IFS=$'\x1f' read -r target id name state reason at cmd title; do
+  tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\x1f#{pane_id}\x1f#{window_name}\x1f#{@attention}\x1f#{@attention_reason}\x1f#{@attention_at}\x1f#{pane_current_command}\x1f#{pane_title}\x1f#{@attention_gone}' \
+  | while IFS=$'\x1f' read -r target id name state reason at cmd title gone; do
       case "$target" in ov-*) continue ;; esac   # tmux-overlay's hidden sessions
       local r detail age=''
       if [ -n "$state" ]; then
         r=$(rank "$state")
         detail=${reason:-$state}
         [ -z "$at" ] || age=$(humanize $((now - at)))
+      elif [ -n "$gone" ]; then
+        r=3; detail="flag dropped · $gone"
       elif [ "$cmd" = claude ]; then
         r=3; detail="idle · ${title#[^[:alnum:]] }"
       else
@@ -320,6 +358,7 @@ case "$cmd" in
   pick) cmd_pick ;;
   jump) cmd_jump "$@" ;;
   status) cmd_status ;;
+  sweep) cmd_sweep || true ;;
   borders) cmd_borders "$@" ;;
   -h|--help|help) usage ;;
   *) usage ;;

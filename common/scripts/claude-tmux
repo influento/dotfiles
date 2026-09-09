@@ -23,6 +23,15 @@ set -euo pipefail
 #   SessionEnd                              idle; the record is dropped unless
 #                                           the reason is "other" (a kill)
 #
+# Every flag is set --owner claude, so a claude that dies without SessionEnd
+# firing takes its flag with it on the next tmux-attention sweep.
+#
+# Outside workbench a window running claude is named "claude" like every
+# other. On Stop, while the window still carries tmux's automatic name, it
+# takes the first words of the first prompt; SessionEnd hands the name back
+# to tmux when it is still the one set here. A window the user named is never
+# touched: renaming turns automatic-rename off, and that is the check.
+#
 # What a restored flag means: the state is information, not a live prompt.
 # A permission or question that was pending before the restart is gone with
 # the process; the pane comes back as needs-you with "before restart: …" so
@@ -128,10 +137,79 @@ in_workbench_session() {
   esac
 }
 
+# The flag belongs to the claude process: tmux-attention drops it on its own
+# once the pane's foreground command is something else, which is what a
+# crash, an OOM kill or a closed terminal look like when no SessionEnd fires.
 flag() {
   local quiet=()
   ! in_workbench_session || quiet=(--quiet)
-  tmux-attention set "$@" --pane "$TMUX_PANE" "${quiet[@]}"
+  tmux-attention set "$@" --pane "$TMUX_PANE" --owner claude "${quiet[@]}"
+}
+
+# --- window title ------------------------------------------------------------
+
+TITLE_WORDS=4
+TITLE_CHARS=28
+
+# The first real prompt of a transcript, cut to a window name: slash commands
+# and the harness's own <tagged> messages are skipped, tool results are not
+# prompts. Nothing when the transcript has no prompt yet.
+first_prompt_title() {
+  [ -f "${1:-}" ] && command -v python3 >/dev/null 2>&1 || return 0
+  python3 - "$1" "$TITLE_WORDS" "$TITLE_CHARS" <<'PY'
+import json, re, sys
+path, words, chars = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+for line in open(path, encoding="utf-8", errors="replace"):
+    try:
+        d = json.loads(line)
+    except Exception:
+        continue
+    if d.get("type") != "user":
+        continue
+    c = (d.get("message") or {}).get("content")
+    if isinstance(c, list):
+        if any(isinstance(p, dict) and p.get("type") == "tool_result" for p in c):
+            continue
+        c = " ".join(p.get("text", "") for p in c if isinstance(p, dict) and p.get("type") == "text")
+    if not isinstance(c, str):
+        continue
+    t = re.sub(r"\s+", " ", c).strip()
+    if not t or t[0] in "</":
+        continue
+    # Openers carry no meaning in four words: "can you fix the" says less
+    # than "fix the waybar cpu".
+    t = re.sub(r"^(?:(?:hey|hi|hello|ok|okay|so|now|please|pls|also|and|can you|could you|would you|will you|let'?s|i want you to|i need you to|i'd like you to)[ ,:]+)+", "", t, flags=re.I)
+    t = " ".join(t.replace("#", "").split(" ")[:words])
+    if len(t) > chars:
+        t = t[:chars].rsplit(" ", 1)[0] if " " in t[:chars] else t[:chars]
+    print(t.rstrip(" .,;:!?-"))
+    break
+PY
+}
+
+# On Stop: name the window from the first prompt, once, while tmux still
+# names it automatically. Records the name so `end` can tell it apart from
+# one the user set later.
+title_window() {
+  ! in_workbench_session || return 0
+  [ "$(tmux display -p -t "$TMUX_PANE" '#{automatic-rename}' 2>/dev/null || true)" = 1 ] || return 0
+  local key transcript title
+  key=$(pane_key)
+  transcript=$(json_fields transcript_path)
+  [ -n "$transcript" ] || transcript=$(record_get "$key" transcript)
+  title=$(first_prompt_title "$transcript")
+  [ -n "$title" ] || return 0
+  tmux rename-window -t "$TMUX_PANE" "$title" 2>/dev/null || return 0
+  [ -z "$key" ] || record_write "$key" "title=$title"
+}
+
+# On SessionEnd: the name goes back to tmux when it is still the one set here.
+untitle_window() {
+  local title
+  title=$(record_get "${1:-}" title)
+  [ -n "$title" ] || return 0
+  [ "$(tmux display -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || true)" = "$title" ] || return 0
+  tmux set -w -t "$TMUX_PANE" automatic-rename on 2>/dev/null || true
 }
 
 # --- signal ------------------------------------------------------------------
@@ -181,13 +259,14 @@ cmd_signal() {
         tmux-attention clear --pane "$TMUX_PANE"
         state=idle; reason=''
       fi
-      record_write "$key" "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore="
+      record_write "$key" "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore=" "title="
       ;;
     end)
       local reason
       reason=$(json_fields reason)
       key=$(pane_key)
       tmux-attention clear --pane "$TMUX_PANE"
+      untitle_window "$key"
       [ -z "$key" ] || case "$reason" in
         other) record_write "$key" "state=$(record_get "$key" state)" ;;
         *) record_drop "$key" ;;
@@ -217,6 +296,7 @@ cmd_signal() {
     stop)
       prev=$(flag "done" --reason "turn ended") || true
       [ -z "$prev" ] || record_write "$(pane_key)" "state=done" "reason=turn ended"
+      title_window
       ;;
     *) usage ;;
   esac
