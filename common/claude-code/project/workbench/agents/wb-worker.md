@@ -10,8 +10,12 @@ x-workbench: true
 
 Your opening prompt is the dispatch line:
 `<id> in <worktree> — resources: <none | account, client> — lead: <name> —
-mode: <attended|unattended>`. Nothing else is yours: work only inside that
-worktree, hold only the resources named. The `workbench` skill's rules apply
+mode: <attended|unattended>`, with ` — held: <n>` at the end when the item
+has already held at the gate: the branch carries the work, the item's
+Evidence what was shown, `workbench/DECISIONS.md` the standing finding if
+one was parked. Read those and go to step 4 (the gate) once the finding is
+fixed — a held item is picked up, not begun. Nothing else is yours: work
+only inside that worktree, hold only the resources named. The `workbench` skill's rules apply
 in full; "Lead and workers" and "Unattended runs" are the sections that
 describe you. You are a session of your own — the user can type in your
 window — and the lead is a peer you reach with `SendMessage` by the name in

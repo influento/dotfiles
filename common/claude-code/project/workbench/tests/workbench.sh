@@ -1587,12 +1587,22 @@ check "switch-client targeted it" bash -c "tlog | grep -q '^switch-client -t $w2
 run "open lead" 0 "" env TMUX=x "$WB" open lead
 check "the lead's window was targeted" bash -c "tlog | grep -q '^switch-client -t @1$'"
 tmux kill-window -t "$w2"
-# A held item reopens one level up; the running session before it kept low.
+# A held item reopens one level up — fresh, since the snapshot says sid-2 ran
+# at low: a resume at a new effort would re-read the whole history uncached.
 mkdir -p .git/workbench/usage/holds && echo 1 > ".git/workbench/usage/holds/$s2"
-run "open reopens a held item's worker one level up" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
-check "the resume after a hold carries --effort medium" bash -c "tlog | grep -- '--resume sid-2$' | grep -q -- '--effort medium '"
-rm -f ".git/workbench/usage/holds/$s2"
+run "open reopens a held item's worker one level up, fresh" 0 "reopened $s2, fresh at medium [(]ran at low[)]" env TMUX=x "$WB" open "$s2"
+check "fresh: the dispatch line again, no resume" bash -c "tlog | grep -- '--effort medium --permission-mode acceptEdits --agent wb-worker --strict-mcp-config .$s2 in ' | grep -qv -- --resume"
+check "the dispatch line says the item held" bash -c "tlog | grep -- '--agent wb-worker --strict-mcp-config .$s2 in ' | grep -q -- '— mode: attended — held: 1.$'"
 # The reopened window registers its session again on start, as a real one would.
+wh=$(reg_of "$s2")
+hook sid-2 | TMUX_PANE="%${wh#@}" "$WB" signal start
+tmux kill-window -t "$wh"
+# No snapshot for the session: the level it ran at is unknown, so it resumes.
+mv .git/workbench/usage/sid-2 .git/workbench/usage/sid-2.aside
+run "open resumes a held item whose session left no snapshot" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
+check "the resume after a hold carries --effort medium" bash -c "tlog | grep -- '--resume sid-2$' | grep -q -- '--effort medium '"
+mv .git/workbench/usage/sid-2.aside .git/workbench/usage/sid-2
+rm -f ".git/workbench/usage/holds/$s2"
 wh=$(reg_of "$s2")
 hook sid-2 | TMUX_PANE="%${wh#@}" "$WB" signal start
 tmux kill-window -t "$wh"
