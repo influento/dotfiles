@@ -432,6 +432,7 @@ done
 check "rules.sh appends both references for adopt" bash -c \
   "bash '$RULES' adopt | grep -qx '# Adopting an existing project' && bash '$RULES' adopt | grep -qx '# Documentation'"
 check "rules.sh appends the usage reference for usage" bash -c "bash '$RULES' usage | grep -qx '## Levers'"
+check "rules.sh appends the statuses reference for pre-merge" bash -c "bash '$RULES' pre-merge | grep -qx '# Statuses' && ! bash '$RULES' pre-merge | grep -qx '## Bug items'"
 for r in sweep pre-merge watch; do
   check "rules.sh appends no reference for $r" bash -c "! bash '$RULES' $r | grep -qx '# Documentation'"
 done

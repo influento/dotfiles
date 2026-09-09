@@ -50,8 +50,9 @@ Never simplify away: validation at trust boundaries (user input, network,
 files), error handling that prevents data loss, security, accessibility,
 anything explicitly requested. Two forms the same size: take the boring one
 that is correct on edge cases. Non-trivial logic (a branch, loop, parser,
-money or security path) leaves one test that fails if it breaks; trivial
-one-liners get none, and that one test is never a deletion finding.
+money or security path) that the change adds leaves one test that fails if
+it breaks, within what the criterion describes; trivial one-liners get none,
+and that one test is never a deletion finding.
 
 ## Report
 

@@ -45,7 +45,7 @@ not a second item; only the copy on the item's own branch is edited.
 The one thing the default branch cannot show is an item merged as `awaiting`:
 it has no branch left, so in-flight is branches **plus** that status.
 `workbench status` reports both halves; do not reconstruct it. Which statuses
-merge and which archive: [items.md](items.md), "What each gate asks".
+merge and which archive: [statuses.md](statuses.md), "What each gate asks".
 
 An item written by hand, untracked, is landed by `start` the same way —
 moved to the main checkout first if it was written in a worktree, once the
@@ -95,7 +95,7 @@ missing, has an unclosed fence, carries a status that is not one, says
 `awaiting` or `unverified` without naming a trigger, or is `open` with no fenced
 block under `## Evidence`. Those are structural questions — is there evidence at
 all — not whether the evidence shows what it claims, which is the pre-merge
-review's question; see [items.md](items.md), "What each gate asks".
+review's question; see [statuses.md](statuses.md), "What each gate asks".
 
 A pre-merge report lives untracked in the worktree, so it counts as
 uncommitted there: `workbench review-drop` it after triage, before merging.
@@ -132,7 +132,7 @@ This survives adding a hosting service later, so adopting one changes nothing.
 Move the item to `workbench/items/archive/` and record the commit SHA in it.
 
 **What triggers it is the criterion being satisfied, not the merge.** The two
-usually coincide; when they do not, the statuses in [items.md](items.md) apply.
+usually coincide; when they do not, the statuses in [statuses.md](statuses.md) apply.
 
 The recorded SHA is resolved from the trailer, on the default branch:
 
