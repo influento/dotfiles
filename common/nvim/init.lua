@@ -16,6 +16,7 @@ require("options")
 require("keymaps")
 require("autocmds")
 require("markdown-reader")
+require("scrollback")
 
 require("lazy").setup("plugins", {
   change_detection = { notify = false },

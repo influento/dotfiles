@@ -22,7 +22,8 @@ the other's internals; the seam is `tmux-attention set`.
 | unset | idle: seen, nothing pending | none |
 
 State lives in tmux options and dies with the server: `@attention`,
-`@attention_reason`, `@attention_at` on the pane; `@attention_win` on the
+`@attention_reason`, `@attention_at`, `@attention_owner` on the pane;
+`@attention_win` on the
 window, the highest-ranked pane's state, because a window-status format sees
 only the active pane's options and a flagged pane may not be the active one;
 `@attention_status` globally, the rendered counts that `status-right` reads
@@ -31,7 +32,17 @@ the next status-interval. Colours are read from `@attention_fg_*` options set
 in `tmux.conf.tpl`, so the theme never leaves the template.
 
 `set` prints the previous state only when the state changed, and nothing
-otherwise; callers use that to write records on transitions alone. `list`
+otherwise; callers use that to write records on transitions alone.
+`set --owner <cmd>` ties the flag to a process: `sweep` drops it once the
+pane's foreground command is something else, which is what a crash, an OOM
+kill or a closed terminal look like when no hook ran to clear it, and leaves
+`@attention_gone` ("working · claude exited") for the picker to show. The
+sweep runs inside `status`, `list` and `seen`, so any event anywhere, a
+focus change included, clears a dead flag; there is no timer, because an
+agent is legitimately silent for a long time. A flag set without an owner is
+never swept. claude-tmux sets every flag with `--owner claude`.
+
+`list`
 joins fields with the unit separator, not tab: tab is IFS whitespace, so
 `read` collapses an idle pane's empty fields and shifts every later column.
 
@@ -41,7 +52,8 @@ What the config wires (`common/tmux/tmux.conf.tpl`, "Attention"):
 | --- | --- |
 | `prefix f` | fzf popup over every pane, flagged first; supersedes the old session-only switcher on the same key |
 | `prefix o` | jump to the next pane that needs you, else the next unread done; a second press walks on |
-| `pane-focus-in`, `after-select-window`, `after-select-pane` | `seen`: a focused `done` pane goes idle |
+| `pane-focus-in`, `after-select-window`, `after-select-pane` | `seen`: a focused `done` pane goes idle; sweeps dead flags first |
+| `client-focus-in` | `status`: sweep and recount when the terminal regains focus |
 | `after-split-window`, `after-kill-pane`, `pane-exited` | `borders`: `pane-border-status top` only while the window is split |
 
 In `wb-*` sessions the window-list glyph is suppressed by the format itself
@@ -68,6 +80,16 @@ Records under `~/.local/state/claude-tmux/`, one per pane keyed
 state. They are dropped on `SessionEnd` unless the reason is `other`. A kill
 reports `other`, which is what a reboot looks like; so does a finished
 `claude -p`, which is why a record alone never triggers a resume.
+
+Outside `wb-*` sessions the Stop hook also names the window from the first
+prompt — its first four words after any opener ("can you", "please"), at
+most 28 characters — but only while the window still has tmux's automatic
+name: a rename turns `automatic-rename` off, and that option is the whole
+check, so a name the user set is never touched and a window named once is
+never renamed again. The name is kept in the record, and SessionEnd sets
+`automatic-rename` back on when the window still carries it, so a window
+whose claude ended names itself again. Workbench windows are titled by
+workbench.
 
 `restore`, run by `tmux-attach` after tmux-resurrect has rebuilt the layout,
 types `claude --resume <id>` into every pane that resurrect's last save shows

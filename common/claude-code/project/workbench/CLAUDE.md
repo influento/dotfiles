@@ -61,7 +61,13 @@ global setting — the lead plans, the workers execute; the reviewer and the gat
 run at medium by their own `effort:`, whatever the worker's; with `--strict-mcp-config`,
 so no user-level MCP server rides in a worker's requests, plus `--mcp-config
 workbench.workerMcp` when the project sets one), titled by the hooks with what it needs (`?` needs you, `↑` asked the
-lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped); `open <id|lead>`
+lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped, `✗` its claude
+died and `open` resumes it — a window alive with a shell in it, noticed on
+any session's status-line repaint, never by a timer) and with the context
+fill once it reaches `CTX_WARN` (`f-041 82%`; the status line records it
+under `usage/<sid>.ctx` on every repaint and `status` says "compaction
+soon", because a compacted or resumed session re-reads its history
+uncached); `open <id|lead>`
 switches or resumes, `mode attended|unattended` decides live whether questions go
 to the user in-window or are parked; `round` keeps the review dialog honest
 before the gate.
