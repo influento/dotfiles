@@ -3,7 +3,10 @@ set -euo pipefail
 
 # auto-update — Silent background system update on sway startup.
 # Runs yay -Syu (official repos + AUR) with a 12-hour cooldown. Recovers from
-# stale-keyring signature failures by repairing the keyring before retrying.
+# stale-keyring signature failures by repairing the keyring before retrying, and
+# from "X conflicts with Y. Remove Y?" when Y was dropped upstream and is only
+# needed by packages being upgraded (see resolve_conflict). Other conflicts fail
+# fast with the manual fix command in the notification.
 # Sends mako
 # notifications on success (low urgency, auto-dismiss) or failure (critical, persistent).
 
@@ -121,6 +124,47 @@ repair_keyring() {
   echo "$repair_out" >> "$LOG_FILE"
 }
 
+# Resolve a "X and Y are in conflict. Remove Y?" failure, which --noconfirm
+# answers No to. Auto-removes Y only in the provably safe case — Y was dropped
+# from every sync repo, was installed as a dependency, and nothing outside the
+# upgrade set requires it — i.e. a split package superseded by its parent's new
+# version. Prints the removed package name; returns 1 (and prints the manual fix
+# command) otherwise.
+resolve_conflict() {
+  local output="$1" victim requirers
+  victim="$(echo "$output" | grep -oP "are in conflict\. Remove \K[^?]+(?=\?)" | head -n1)"
+  [[ -n "$victim" ]] || return 1
+  if pacman -Si "$victim" &> /dev/null; then
+    echo "[$(date)] Conflict: ${victim} still in repos — not removing automatically." >> "$LOG_FILE"
+    return 1
+  fi
+  if [[ "$(pacman -Qi "$victim" 2>/dev/null | awk -F': ' '/^Install Reason/ {print $2}')" != Installed\ as\ a\ dependency* ]]; then
+    echo "[$(date)] Conflict: ${victim} was installed explicitly — not removing automatically." >> "$LOG_FILE"
+    return 1
+  fi
+  # Requirers must all be in the upgrade set (their new version drops the dep)
+  requirers="$(pacman -Qi "$victim" 2>/dev/null | awk -F': ' '/^Required By/ {print $2}')"
+  # Captured once: piping into grep -q would SIGPIPE yay and trip pipefail.
+  local upgrades r
+  upgrades="$(yay -Qu 2>/dev/null || true)"
+  for r in $requirers; do
+    [[ "$r" == None ]] && continue
+    if ! grep -qP "^\Q${r}\E\s" <<< "$upgrades"; then
+      echo "[$(date)] Conflict: ${victim} is required by ${r}, which is not being upgraded — not removing." >> "$LOG_FILE"
+      return 1
+    fi
+  done
+  echo "[$(date)] Conflict: ${victim} dropped upstream and orphaned by the upgrade — removing." >> "$LOG_FILE"
+  notify-send -u low "Resolving Conflict" "Removing superseded package ${victim}..."
+  local rm_out
+  if rm_out="$(sudo pacman -Rdd --noconfirm "$victim" 2>&1)"; then
+    echo "$rm_out" >> "$LOG_FILE"
+    return 0
+  fi
+  echo "$rm_out" >> "$LOG_FILE"
+  return 1
+}
+
 # Check for available updates
 pending="$(yay -Qu 2>/dev/null | wc -l || true)"
 if (( pending == 0 )); then
@@ -152,16 +196,38 @@ else
       signature_fail=1
       error_detail="Signature/trust failure"
     fi
+    pkg_conflict="$(echo "$output" | grep -oP "^:: \K\S+ and \S+ are in conflict" | head -n1 || true)"
+    conflict_victim="$(echo "$output" | grep -oP "are in conflict\. Remove \K[^?]+(?=\?)" | head -n1 || true)"
     retrieval_fails="$(echo "$output" | grep -oP "failed retrieving file '\K[^']+(?=')" | sed 's/-[0-9].*//;s/\.pkg.*//' | sort -u | paste -sd', ' || true)"
     conflict_fails="$(echo "$output" | grep -oP "^[^:]+(?=: /)" | grep -v "^error$" | sort -u | paste -sd', ' || true)"
     if [[ -n "$signature_fail" ]]; then
       : # error_detail already set above
+    elif [[ -n "$pkg_conflict" ]]; then
+      error_detail="Package conflict: ${pkg_conflict}"
+      [[ -n "$conflict_victim" ]] && error_detail+=". Fix: sudo pacman -Rdd ${conflict_victim}"
     elif [[ -n "$retrieval_fails" ]]; then
       error_detail="Failed to retrieve: ${retrieval_fails}"
     elif [[ -n "$conflict_fails" ]]; then
       error_detail="File conflict in: ${conflict_fails}"
     else
       error_detail="yay -Syu failed"
+    fi
+
+    # Package/file conflicts fail identically on every attempt — do not retry.
+    # A package conflict gets one shot at automatic resolution, then a retry.
+    if [[ -n "$pkg_conflict" ]]; then
+      if (( attempt == 1 )) && resolve_conflict "$output"; then
+        echo "[$(date)] Update FAILED (conflict). Retrying after removing ${conflict_victim}..." >> "$LOG_FILE"
+        pending="$(yay -Qu 2>/dev/null | wc -l || true)"
+        continue
+      fi
+      echo "[$(date)] Update FAILED (conflict). Giving up." >> "$LOG_FILE"
+      notify-send -u critical "Update Failed" "${error_detail}"
+      break
+    elif [[ -n "$conflict_fails" ]]; then
+      echo "[$(date)] Update FAILED (file conflict). Giving up." >> "$LOG_FILE"
+      notify-send -u critical "Update Failed" "${error_detail}. Check ${LOG_FILE}"
+      break
     fi
 
     if (( attempt < MAX_ATTEMPTS )); then
