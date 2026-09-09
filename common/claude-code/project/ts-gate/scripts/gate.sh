@@ -9,7 +9,7 @@ FAIL=0
 # per problem and no colour, so the same findings cost a fraction of the tokens.
 # CI keeps the readable formats.
 TSC_OPTS=(); ESLINT_OPTS=()
-case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format unix) ;; esac
+case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs) ;; esac
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo, gate skipped"; exit 0; }
 
 default_branch() {

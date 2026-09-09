@@ -11,5 +11,4 @@ workbench tracks projects, this tracks workbench and ts-gate.
 
 ## ts-gate
 
-- `gate.sh --local` now runs `tsc --pretty false` and `eslint --format unix`; run `npm run gate:verify` in a real project once, the sample repo was not on the machine that made the change
 - Effect migration of brownfield code: not written
