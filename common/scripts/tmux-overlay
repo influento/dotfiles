@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tmux-overlay — a persistent program in a popup, one per tmux session.
+#
+#   tmux-overlay <name> <command...>
+#
+# First press: creates a hidden session `ov-<name>-<session>` running the
+# command in the current pane's directory, and shows it in a popup. Press
+# again inside the popup: the popup closes, the program keeps running with
+# its state. Press again outside: the same program comes back. When the
+# program exits the hidden session dies and the next press starts it fresh.
+#
+# The popup is a nested tmux client attached to the hidden session, so the
+# prefix works inside it — that is how the toggle key reaches this script
+# from within. tmux-resurrect saves hidden sessions like any other and brings
+# them back as plain shells; a session found in that state is replaced.
+
+usage() {
+  echo "usage: tmux-overlay <name> <command...>" >&2
+  exit 2
+}
+
+[ $# -ge 2 ] || usage
+name="$1"; shift
+[ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
+
+pane="${TMUX_PANE:-}"
+here=$(tmux display -p ${pane:+-t "$pane"} '#{session_name}')
+
+# Inside the overlay: close it. The client to detach is the one attached to
+# this hidden session, named explicitly so no "current client" guess is made.
+case "$here" in
+  "ov-$name-"*)
+    while IFS= read -r c; do
+      [ -z "$c" ] || tmux detach-client -t "$c"
+    done < <(tmux list-clients -t "=$here" -F '#{client_name}' 2>/dev/null || true)
+    exit 0 ;;
+esac
+
+inner="ov-$name-$here"
+cwd=$(tmux display -p ${pane:+-t "$pane"} '#{pane_current_path}')
+
+# A restored hidden session runs a shell, not the program: start over.
+if tmux has-session -t "=$inner" 2>/dev/null; then
+  case "$(tmux display -p -t "$inner:" '#{pane_current_command}')" in
+    zsh|bash|fish|sh) tmux kill-session -t "$inner:" ;;
+  esac
+fi
+
+if ! tmux has-session -t "=$inner" 2>/dev/null; then
+  tmux new-session -d -s "$inner" -c "$cwd" "$*"
+  tmux set -t "$inner:" status off
+  tmux set -t "$inner:" detach-on-destroy on
+fi
+
+# $TMUX must be unset for the nested attach, tmux refuses it otherwise; the
+# socket it named is passed explicitly so a non-default server still works.
+sock="${TMUX%%,*}"
+exec tmux display-popup -E -w 92% -h 92% "TMUX= exec tmux -S '$sock' attach -t '=$inner'"

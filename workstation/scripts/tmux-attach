@@ -51,6 +51,11 @@ restore_once() {
   if [ -x "$restore_script" ]; then
     tmux run-shell "$restore_script" 9>&-
   fi
+  # Panes that ran Claude Code come back as shells; claude-tmux resumes the
+  # conversations it recorded and re-flags what they were waiting on.
+  if command -v claude-tmux >/dev/null 2>&1; then
+    claude-tmux restore 9>&- || true
+  fi
   tmux set-option -g "$restored_flag" 1 9>&-
 }
 

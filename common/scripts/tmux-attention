@@ -1,0 +1,326 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tmux-attention — a pane says what it needs; tmux shows, counts and finds it.
+#
+# Any process may flag the pane it runs in. tmux renders the flag in the window
+# list and on pane borders, keeps counts in the status bar, offers a picker and
+# a jump key, and sends a desktop notification when a flagged pane is out of
+# view. Nothing here knows what runs in the pane: claude-tmux translates Claude
+# Code hooks into these calls, and `make; tmux-attention set done` works too.
+#
+# States, by rank:
+#   needs-you   the process is waiting on a decision
+#   done        the process finished and nobody has looked yet
+#   working     the process is busy
+#   (unset)     idle — seen, nothing pending
+#
+# Where the state lives (tmux options, gone with the server):
+#   pane    @attention, @attention_reason, @attention_at
+#   window  @attention_win   the highest-ranked state among its panes
+#   global  @attention_status   the rendered counts, read as #{E:@attention_status}
+#
+# Colours come from tmux options so the theme stays in tmux.conf:
+#   @attention_fg_needs_you, @attention_fg_done, @attention_fg_working, @attention_fg_dim
+
+usage() {
+  cat >&2 <<'EOF'
+usage:
+  tmux-attention set <needs-you|done|working> [--reason TEXT] [--pane ID] [--quiet]
+                                       flag a pane; prints the previous state when it changed
+  tmux-attention clear [--pane ID]     back to idle
+  tmux-attention seen [ID]             done → idle; run when a pane gets focus
+  tmux-attention list                  every pane, flagged first: rank, id, glyph, name, target, detail, age
+  tmux-attention pick                  fzf over 'list'; switches to the chosen pane
+  tmux-attention jump [--pane ID]      go to the next pane that needs you, else the next unread done
+  tmux-attention status                re-render the counts into @attention_status
+  tmux-attention borders <window-id>   pane-border-status on for split windows, off otherwise
+EOF
+  exit 2
+}
+
+die() { echo "tmux-attention: $*" >&2; exit 1; }
+
+glyph() {
+  case "$1" in
+    needs-you) printf '?' ;;
+    done) printf '✓' ;;
+    working) printf '●' ;;
+    *) printf ' ' ;;
+  esac
+}
+
+rank() {
+  case "$1" in
+    needs-you) echo 0 ;;
+    done) echo 1 ;;
+    working) echo 2 ;;
+    *) echo 9 ;;
+  esac
+}
+
+colour() {
+  local v
+  v=$(tmux show -gqv "@attention_fg_${1//-/_}" 2>/dev/null || true)
+  case "$1" in
+    needs-you) printf '%s' "${v:-red}" ;;
+    done) printf '%s' "${v:-green}" ;;
+    working) printf '%s' "${v:-blue}" ;;
+    *) printf '%s' "${v:-default}" ;;
+  esac
+}
+
+# The pane a call is about: --pane, else the pane the caller runs in.
+resolve_pane() {
+  local p="${1:-${TMUX_PANE:-}}"
+  [ -n "$p" ] || die "no pane: pass --pane or run inside tmux"
+  printf '%s' "$p"
+}
+
+humanize() {
+  local s="$1"
+  if [ "$s" -lt 60 ]; then printf '%ss' "$s"
+  elif [ "$s" -lt 3600 ]; then printf '%sm' $((s / 60))
+  elif [ "$s" -lt 86400 ]; then printf '%sh' $((s / 3600))
+  else printf '%sd' $((s / 86400)); fi
+}
+
+# The window's flag is its highest-ranked pane's.
+window_rollup() {
+  local pane="$1" best='' best_rank=9 st r
+  while IFS= read -r st; do
+    [ -n "$st" ] || continue
+    r=$(rank "$st")
+    if [ "$r" -lt "$best_rank" ]; then best=$st; best_rank=$r; fi
+  done < <(tmux list-panes -t "$pane" -F '#{@attention}' 2>/dev/null || true)
+  if [ -n "$best" ]; then
+    tmux set -w -t "$pane" @attention_win "$best"
+  else
+    tmux set -wu -t "$pane" @attention_win 2>/dev/null || true
+  fi
+}
+
+refresh_clients() {
+  local c
+  while IFS= read -r c; do
+    [ -n "$c" ] || continue
+    tmux refresh-client -S -t "$c" 2>/dev/null || true
+  done < <(tmux list-clients -F '#{client_name}' 2>/dev/null || true)
+}
+
+cmd_status() {
+  local st needs=0 done_=0 working=0 out=''
+  while IFS= read -r st; do
+    case "$st" in
+      needs-you) needs=$((needs + 1)) ;;
+      done) done_=$((done_ + 1)) ;;
+      working) working=$((working + 1)) ;;
+    esac
+  done < <(tmux list-panes -a -F '#{@attention}' 2>/dev/null || true)
+  [ "$needs" -eq 0 ] || out="$out#[fg=$(colour needs-you)]$(glyph needs-you) $needs  "
+  [ "$working" -eq 0 ] || out="$out#[fg=$(colour working)]$(glyph working) $working  "
+  [ "$done_" -eq 0 ] || out="$out#[fg=$(colour "done")]$(glyph "done") $done_  "
+  [ -z "$out" ] || out="$out#[fg=$(colour dim)]│"
+  tmux set -g @attention_status "$out"
+  refresh_clients
+}
+
+# Is the pane the one on screen in a focused client?
+pane_visible() {
+  local pane="$1" flags session focused
+  flags=$(tmux display -p -t "$pane" '#{window_active}#{pane_active}' 2>/dev/null || echo 00)
+  [ "$flags" = 11 ] || return 1
+  session=$(tmux display -p -t "$pane" '#{session_name}')
+  focused=$(tmux list-clients -t "$session" -F '#{client_focused}' 2>/dev/null | grep -c '^1$' || true)
+  [ "$focused" -gt 0 ]
+}
+
+# Desktop notification for a pane that changed state out of view. Waits a
+# moment and re-reads the state, so a prompt that resolves at once stays
+# quiet. Clicking the notification lands on the pane.
+notify_later() {
+  local pane="$1" state="$2"
+  command -v notify-send >/dev/null 2>&1 || return 0
+  (
+    sleep 1
+    [ "$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)" = "$state" ] || exit 0
+    ! pane_visible "$pane" || exit 0
+    local name reason title body action
+    name=$(tmux display -p -t "$pane" '#{window_name}' 2>/dev/null || echo pane)
+    reason=$(tmux show -pqv -t "$pane" @attention_reason 2>/dev/null || true)
+    case "$state" in
+      needs-you) title="$name needs you"; body="${reason:-waiting for a decision}" ;;
+      done) title="$name is done"; body="${reason:-turn ended}" ;;
+      *) exit 0 ;;
+    esac
+    if notify-send --help 2>/dev/null | grep -q -- '--action'; then
+      action=$(notify-send -a tmux -A default=Open "$title" "$body" 2>/dev/null || true)
+      [ "$action" = default ] && "$0" jump --pane "$pane" || true
+    else
+      notify-send -a tmux "$title" "$body" 2>/dev/null || true
+    fi
+  ) >/dev/null 2>&1 </dev/null &
+  disown 2>/dev/null || true
+}
+
+cmd_set() {
+  local state="${1:-}" reason='' pane='' quiet=0
+  case "$state" in needs-you|done|working) ;; *) usage ;; esac
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --reason) reason="${2:-}"; shift 2 ;;
+      --pane) pane="${2:-}"; shift 2 ;;
+      --quiet) quiet=1; shift ;;
+      *) usage ;;
+    esac
+  done
+  pane=$(resolve_pane "$pane")
+  local prev prev_reason
+  prev=$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)
+  prev_reason=$(tmux show -pqv -t "$pane" @attention_reason 2>/dev/null || true)
+  if [ "$prev" = "$state" ]; then
+    [ "$prev_reason" = "$reason" ] || tmux set -p -t "$pane" @attention_reason "$reason"
+    return 0
+  fi
+  tmux set -p -t "$pane" @attention "$state" \; \
+    set -p -t "$pane" @attention_reason "$reason" \; \
+    set -p -t "$pane" @attention_at "$(date +%s)"
+  window_rollup "$pane"
+  cmd_status
+  printf '%s\n' "${prev:-idle}"
+  if [ "$quiet" -eq 0 ]; then
+    case "$state" in needs-you|done) notify_later "$pane" "$state" ;; esac
+  fi
+}
+
+cmd_clear() {
+  local pane=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pane) pane="${2:-}"; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  pane=$(resolve_pane "$pane")
+  [ -n "$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)" ] || return 0
+  tmux set -pu -t "$pane" @attention \; set -pu -t "$pane" @attention_reason \; set -pu -t "$pane" @attention_at
+  window_rollup "$pane"
+  cmd_status
+}
+
+cmd_seen() {
+  local pane
+  pane=$(resolve_pane "${1:-}")
+  [ "$(tmux show -pqv -t "$pane" @attention 2>/dev/null || true)" = "done" ] || return 0
+  cmd_clear --pane "$pane"
+}
+
+# One line per pane, tab-separated: rank, pane id, glyph, name, target,
+# detail, age. Flagged panes first by rank then oldest first; then idle
+# panes running an agent-looking command; then everything else.
+cmd_list() {
+  local now
+  now=$(date +%s)
+  # Unit separator, not tab: tab is IFS whitespace, so read would collapse the
+  # empty fields of an idle pane and shift every column after them.
+  tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\x1f#{pane_id}\x1f#{window_name}\x1f#{@attention}\x1f#{@attention_reason}\x1f#{@attention_at}\x1f#{pane_current_command}\x1f#{pane_title}' \
+  | while IFS=$'\x1f' read -r target id name state reason at cmd title; do
+      case "$target" in ov-*) continue ;; esac   # tmux-overlay's hidden sessions
+      local r detail age=''
+      if [ -n "$state" ]; then
+        r=$(rank "$state")
+        detail=${reason:-$state}
+        [ -z "$at" ] || age=$(humanize $((now - at)))
+      elif [ "$cmd" = claude ]; then
+        r=3; detail="idle · ${title#[^[:alnum:]] }"
+      else
+        r=4; detail=$cmd
+      fi
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$r" "$id" "$(glyph "$state")" "$name" "$target" "$detail" "${age:--}" "${at:-0}"
+    done \
+  | sort -t $'\t' -k1,1n -k8,8n -k5,5 \
+  | cut -f1-7
+}
+
+goto_pane() {
+  local pane="$1"
+  tmux switch-client -t "$pane" 2>/dev/null || tmux select-window -t "$pane"
+  tmux select-pane -t "$pane" 2>/dev/null || true
+  cmd_seen "$pane"
+}
+
+cmd_pick() {
+  command -v fzf >/dev/null 2>&1 || die "fzf is not installed"
+  local choice
+  choice=$(cmd_list \
+    | awk -F'\t' '{ printf "%s\t%s %-12.12s %-22.22s %-36.36s %5s\n", $2, $3, $4, $5, $6, $7 }' \
+    | fzf --reverse --delimiter=$'\t' --with-nth=2 --header='panes: ? needs you  ✓ done  ● working' --no-info \
+    | cut -f1) || true
+  [ -n "$choice" ] || return 0
+  goto_pane "$choice"
+}
+
+cmd_jump() {
+  local pane=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pane) pane="${2:-}"; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  if [ -n "$pane" ]; then
+    goto_pane "$pane"
+    # The terminal itself, when a notification click brought us here.
+    if [ -n "${SWAYSOCK:-}" ] && command -v swaymsg >/dev/null 2>&1; then
+      swaymsg '[app_id="com.mitchellh.ghostty"] focus' >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+  local here ids=() id state found='' i
+  here=$(tmux display -p '#{pane_id}' 2>/dev/null || true)
+  while IFS=$'\t' read -r _ id _ _ _ state _; do
+    ids+=("$id")
+  done < <(cmd_list | awk -F'\t' '$1 <= 1')
+  if [ "${#ids[@]}" -eq 0 ]; then
+    tmux display-message "nothing needs you"
+    return 0
+  fi
+  # Walk past the current pane so a second press reaches the next one.
+  for i in "${!ids[@]}"; do
+    if [ "${ids[$i]}" = "$here" ]; then
+      found=${ids[$(( (i + 1) % ${#ids[@]} ))]}
+      break
+    fi
+  done
+  goto_pane "${found:-${ids[0]}}"
+}
+
+cmd_borders() {
+  local win="${1:-}" n
+  [ -n "$win" ] || usage
+  n=$(tmux list-panes -t "$win" 2>/dev/null | wc -l)
+  if [ "$n" -gt 1 ]; then
+    tmux set -w -t "$win" pane-border-status top
+  else
+    tmux set -w -t "$win" pane-border-status off
+  fi
+  # A pane that left took its flag with it; the counts follow.
+  cmd_status
+}
+
+[ $# -ge 1 ] || usage
+command -v tmux >/dev/null 2>&1 || exit 0
+cmd="$1"; shift
+case "$cmd" in
+  set) cmd_set "$@" ;;
+  clear) cmd_clear "$@" ;;
+  seen) cmd_seen "$@" ;;
+  list) cmd_list ;;
+  pick) cmd_pick ;;
+  jump) cmd_jump "$@" ;;
+  status) cmd_status ;;
+  borders) cmd_borders "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage ;;
+esac

@@ -60,6 +60,10 @@ Three things in the script are load-bearing and look removable:
   not once per terminal, and the server may be started by something other than
   ghostty — `workbench lead` creates a tmux session too.
 
+After the resurrect restore it runs `claude-tmux restore`, which types
+`claude --resume` into the panes that ran Claude Code and re-flags what they
+were waiting on: `common/scripts/CLAUDE.md`.
+
 ## tg
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and

@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# claude-tmux — Claude Code hooks in, tmux-attention flags out.
+#
+# `signal` is run by the hooks in common/claude-code/settings.json, one call per
+# event, and translates the event into a tmux-attention state for the pane the
+# session runs in ($TMUX_PANE, inherited by every hook). It also keeps one
+# record per pane under ~/.local/state/claude-tmux/ — session id, transcript,
+# cwd, last state — which `restore` reads after a reboot to bring the
+# conversation back with `claude --resume` and re-flag the pane.
+#
+#   event                                  state
+#   UserPromptSubmit, PreToolUse,           working
+#   PostToolUse
+#   PreToolUse AskUserQuestion              needs-you   "question: …"
+#   PermissionRequest                       needs-you   "Bash(…)", "Edit(file)"
+#   Notification elicitation_dialog,        needs-you   the message
+#   Notification agent_needs_input
+#   Stop                                    done
+#   SessionStart                            idle, or the recorded flag when
+#                                           `restore` launched this resume
+#   SessionEnd                              idle; the record is dropped unless
+#                                           the reason is "other" (a kill)
+#
+# What a restored flag means: the state is information, not a live prompt.
+# A permission or question that was pending before the restart is gone with
+# the process; the pane comes back as needs-you with "before restart: …" so
+# you know to answer or say "continue". A turn cut mid-work comes back as
+# needs-you "interrupted mid-turn". An unread done stays done.
+#
+# Outside tmux every subcommand exits 0 silently. In wb-* sessions workbench
+# owns the window title and the needs-you notification, so flags there are set
+# --quiet and restore leaves those panes to `workbench open`.
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-tmux"
+
+usage() {
+  cat >&2 <<'EOF'
+usage:
+  claude-tmux signal <start|end|working|question|permission|notification|stop>
+                        run by the Claude Code hooks; reads the hook JSON on stdin
+  claude-tmux restore   after tmux-attach restored the layout: resume recorded
+                        sessions in their panes and re-flag them
+  claude-tmux records   print the records
+EOF
+  exit 2
+}
+
+# --- hook input --------------------------------------------------------------
+
+# Dotted paths out of the JSON on stdin, one line each in argument order,
+# empty for a missing path. One python3 start per call, so `signal` only
+# parses when the state depends on the payload.
+json_fields() {
+  local input
+  input=$(cat 2>/dev/null || true)
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$input" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = {}
+for p in sys.argv[1:]:
+    v = d
+    for k in p.split("."):
+        if isinstance(v, list):
+            try:
+                v = v[int(k)]
+            except Exception:
+                v = None
+        elif isinstance(v, dict):
+            v = v.get(k)
+        else:
+            v = None
+        if v is None:
+            break
+    if isinstance(v, bool):
+        v = "true" if v else "false"
+    print("" if v is None or isinstance(v, (dict, list)) else str(v).replace("\n", " "))
+' "$@"
+  else
+    local p
+    for p in "$@"; do
+      printf '%s' "$input" | sed -n "s/.*\"${p##*.}\" *: *\"\([^\"]*\)\".*/\1/p" | head -1
+      echo
+    done
+  fi
+}
+
+# --- pane records ------------------------------------------------------------
+
+pane_key() {
+  tmux display -p -t "$TMUX_PANE" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true
+}
+
+record_path() { printf '%s/%s\n' "$STATE_DIR" "${1//\//_}"; }
+
+# record_write <key> <field=value>...: merge fields into the record.
+record_write() {
+  local key="$1" f tmp
+  shift
+  mkdir -p "$STATE_DIR"
+  f=$(record_path "$key")
+  tmp=$(mktemp "$STATE_DIR/.tmp.XXXXXX")
+  {
+    [ ! -f "$f" ] || cat "$f"
+    printf '%s\n' "$@"
+    printf 'updated=%s\n' "$(date +%s)"
+  } | awk -F= '{ v[$1] = substr($0, index($0, "=") + 1); if (!($1 in seen)) { seen[$1] = 1; order[++n] = $1 } } END { for (i = 1; i <= n; i++) printf "%s=%s\n", order[i], v[order[i]] }' > "$tmp"
+  mv -f "$tmp" "$f"
+}
+
+record_get() {
+  local f
+  f=$(record_path "$1")
+  [ -f "$f" ] || return 0
+  sed -n "s/^$2=//p" "$f" | head -1
+}
+
+record_drop() { rm -f "$(record_path "$1")"; }
+
+in_workbench_session() {
+  case "$(tmux display -p -t "$TMUX_PANE" '#{session_name}' 2>/dev/null || true)" in
+    wb-*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+flag() {
+  local quiet=()
+  ! in_workbench_session || quiet=(--quiet)
+  tmux-attention set "$@" --pane "$TMUX_PANE" "${quiet[@]}"
+}
+
+# --- signal ------------------------------------------------------------------
+
+# A short label for what a tool wants: Bash(the command), Edit(the file).
+tool_label() {
+  local name="$1" command="$2" file="$3" pattern="$4"
+  case "$name" in
+    Bash) printf 'Bash(%.48s)' "$command" ;;
+    Edit|Write|Read|NotebookEdit) printf '%s(%s)' "$name" "${file##*/}" ;;
+    Grep|Glob) printf '%s(%.32s)' "$name" "$pattern" ;;
+    *) printf '%s' "$name" ;;
+  esac
+}
+
+cmd_signal() {
+  local what="${1:-}" key prev
+  [ -n "$what" ] || usage
+  [ $# -eq 1 ] || usage
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  command -v tmux-attention >/dev/null 2>&1 || return 0
+  case "$what" in
+    working)
+      prev=$(flag working) || true
+      [ -z "$prev" ] || record_write "$(pane_key)" "state=working" "reason="
+      ;;
+    start)
+      local vals=() sid transcript cwd source
+      mapfile -t vals < <(json_fields session_id transcript_path cwd source)
+      sid=${vals[0]:-}; transcript=${vals[1]:-}; cwd=${vals[2]:-}; source=${vals[3]:-}
+      # Compaction restarts the session mid-turn: nothing changed for the pane.
+      [ "$source" != compact ] || return 0
+      key=$(pane_key)
+      [ -n "$key" ] || return 0
+      local restoring state reason
+      restoring=$(record_get "$key" restore)
+      state=$(record_get "$key" state)
+      reason=$(record_get "$key" reason)
+      if [ "$restoring" = 1 ] && [ "$source" = resume ] && [ "$sid" = "$(record_get "$key" session_id)" ]; then
+        case "$state" in
+          needs-you) flag needs-you --reason "before restart: ${reason:-waiting on you}" >/dev/null ;;
+          working) flag needs-you --reason "interrupted mid-turn" >/dev/null; state=needs-you; reason="interrupted mid-turn" ;;
+          done) flag "done" --reason "$reason" >/dev/null ;;
+          *) tmux-attention clear --pane "$TMUX_PANE"; state=idle ;;
+        esac
+      else
+        tmux-attention clear --pane "$TMUX_PANE"
+        state=idle; reason=''
+      fi
+      record_write "$key" "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore="
+      ;;
+    end)
+      local reason
+      reason=$(json_fields reason)
+      key=$(pane_key)
+      tmux-attention clear --pane "$TMUX_PANE"
+      [ -z "$key" ] || case "$reason" in
+        other) record_write "$key" "state=$(record_get "$key" state)" ;;
+        *) record_drop "$key" ;;
+      esac
+      ;;
+    question)
+      local q
+      q=$(json_fields tool_input.questions.0.question)
+      q="question: ${q:-Claude asks}"
+      prev=$(flag needs-you --reason "$q") || true
+      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=$q"
+      ;;
+    permission)
+      local vals=() label
+      mapfile -t vals < <(json_fields tool_name tool_input.command tool_input.file_path tool_input.pattern)
+      label=$(tool_label "${vals[0]:-tool}" "${vals[1]:-}" "${vals[2]:-}" "${vals[3]:-}")
+      prev=$(flag needs-you --reason "$label") || true
+      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=$label"
+      ;;
+    notification)
+      local msg
+      msg=$(json_fields message)
+      msg=${msg:-needs input}
+      prev=$(flag needs-you --reason "${msg:0:64}") || true
+      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=${msg:0:64}"
+      ;;
+    stop)
+      prev=$(flag "done" --reason "turn ended") || true
+      [ -z "$prev" ] || record_write "$(pane_key)" "state=done" "reason=turn ended"
+      ;;
+    *) usage ;;
+  esac
+  return 0
+}
+
+# --- restore -----------------------------------------------------------------
+
+# The panes tmux-resurrect last saw running claude, as "session:window.pane"
+# keys. A record alone is not enough: `claude -p` ends its session with
+# reason "other" too, the same as a kill, so a pane that ran a one-shot and
+# went back to its shell would otherwise be resumed on the next boot.
+RESURRECT_DIR="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+resurrect_claude_panes() {
+  [ -f "$RESURRECT_DIR/last" ] || return 0
+  awk -F'\t' '$1 == "pane" && $10 == "claude" { print $2 ":" $3 "." $6 }' "$RESURRECT_DIR/last"
+}
+
+# For every record whose pane resurrect saw running claude, is back as a
+# plain shell in the same directory, and whose transcript still exists: type
+# `claude --resume <id>` into it and mark the record so the SessionStart hook
+# re-applies the flag. Records with no transcript, or older than a week, are
+# dropped.
+cmd_restore() {
+  [ -d "$STATE_DIR" ] || return 0
+  command -v tmux >/dev/null 2>&1 || return 0
+  local f key sid transcript cwd updated now cmd path saved
+  saved=$(resurrect_claude_panes)
+  now=$(date +%s)
+  for f in "$STATE_DIR"/*; do
+    [ -f "$f" ] || continue
+    key=$(basename "$f")
+    sid=$(sed -n 's/^session_id=//p' "$f" | head -1)
+    transcript=$(sed -n 's/^transcript=//p' "$f" | head -1)
+    cwd=$(sed -n 's/^cwd=//p' "$f" | head -1)
+    updated=$(sed -n 's/^updated=//p' "$f" | head -1)
+    if [ -z "$sid" ] || [ ! -f "$transcript" ] || [ $((now - ${updated:-0})) -gt 604800 ]; then
+      rm -f "$f"
+      continue
+    fi
+    case "$key" in wb-*) continue ;; esac
+    grep -qxF "$key" <<< "$saved" || continue
+    IFS=$'\t' read -r cmd path < <(tmux display -p -t "$key" $'#{pane_current_command}\t#{pane_current_path}' 2>/dev/null || true)
+    case "$cmd" in zsh|bash|fish|sh) ;; *) continue ;; esac
+    [ "$path" = "$cwd" ] || continue
+    record_write "$key" "restore=1"
+    tmux send-keys -t "$key" "claude --resume $sid" Enter
+    echo "claude-tmux: resuming $sid in $key" >&2
+  done
+}
+
+cmd_records() {
+  [ -d "$STATE_DIR" ] || return 0
+  local f
+  for f in "$STATE_DIR"/*; do
+    [ -f "$f" ] || continue
+    echo "$(basename "$f"): $(tr '\n' ' ' < "$f")"
+  done
+}
+
+[ $# -ge 1 ] || usage
+cmd="$1"; shift
+case "$cmd" in
+  signal) cmd_signal "$@" ;;
+  restore) cmd_restore ;;
+  records) cmd_records ;;
+  -h|--help|help) usage ;;
+  *) usage ;;
+esac
