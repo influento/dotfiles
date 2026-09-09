@@ -8,11 +8,11 @@ description: Install workbench and ts-gate into the current project, greenfield 
 Two separate tools, one order. Neither installer knows the other; the order is
 what makes them fit. Run each step, show its output, stop where it says.
 
-Paths: `workbench` is on PATH. ts-gate lives beside this skill in dotfiles,
+Paths: `workbench` is on PATH. ts-gate lives under `project/` beside the skills tree in dotfiles,
 reached through the `~/.claude/skills` symlink:
 
 ```
-TS_GATE=$(readlink -f ~/.claude/skills/project-setup/../../ts-gate)
+TS_GATE=$(readlink -f ~/.claude/skills/project-setup/../../project/ts-gate)
 ```
 
 Read `$TS_GATE/CLAUDE.md` first: it is the gate's own contract and its

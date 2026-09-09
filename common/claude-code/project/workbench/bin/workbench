@@ -38,6 +38,10 @@ WB_MAX_WORKERS=5
 # workbench.workerEffort' overrides; the reviewer and gate inherit the
 # worker's level unless their agent definition says otherwise.
 WB_WORKER_EFFORT=low
+# Archived items carrying a usage record between two usage reviews: 'status'
+# says a review is due once this many have landed since the last one, so the
+# numbers get read whether or not anything in them looks wrong.
+USAGE_REVIEW_EVERY=10
 
 usage() {
   # Help asked for goes to stdout; help printed because a call was wrong is
@@ -70,8 +74,10 @@ usage:
                                        runs 'git config workbench.premerge' in the worktree first, refusing on non-zero
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what a research or abandoned branch carries
-  workbench status                     in flight, duplicate ids, reports
+  workbench status                     in flight, duplicate ids, reports; says when a usage review is due
   workbench statusline                 one line for the Claude Code status line; reads the session JSON on stdin
+                                       and records the session's cost and cache figures for 'archive'
+  workbench usage [<n>]                cost, calls, cache and holds of the last <n> archived items; the sessions recording now
   workbench watch "<title>"            write the contract a watch shift runs under
   workbench review-check <report>      prove a sweep changed nothing tracked
   workbench review-drop [--force] <report>  delete a report, its baseline and scratch
@@ -79,7 +85,7 @@ usage:
   workbench signal <state>             window title + session registry; run by the hooks, not by hand
   workbench gate <ask|permission>      attended: flag the window; unattended: refuse, say where to park it
 
-  reasons: sweep, pre-merge, docs, memory, adopt, watch
+  reasons: sweep, pre-merge, docs, memory, adopt, watch, usage
   state lives under workbench/
 EOF
   exit "${1:-2}"
@@ -790,7 +796,7 @@ setup_checklist() {
 
   echo "  commands          /bug /feature /research /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run. A rename is '/wb rename <old> to <new>'"
   echo "  session           .claude/settings.json runs 'workbench status' at session start, shows 'workbench statusline', allows Bash(workbench:*) — the user may strike any of the three. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
-  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)), each at --effort $(worker_effort) (workbench.workerEffort) while the lead keeps the global setting. Without it one session works items itself"
+  echo "  sessions          'workbench lead' opens tmux session wb-$(repo_slug) with the lead in window 0; every 'start' then opens the item's worker in its own window, up to workbench.maxWorkers ($(max_workers)), each at --effort $(worker_effort) (workbench.workerEffort; one level up, workbench.workerEffortOnHold or medium, when the item has held at the gate and the worker is opened again) while the lead keeps the global setting, and with --strict-mcp-config (plus --mcp-config workbench.workerMcp when set) so no user-level MCP server rides in a worker's requests; the tmux session pins Claude Code with DISABLE_AUTOUPDATER=1. Without it one session works items itself"
   echo "  mode              $(mode) — 'workbench mode unattended' before leaving: questions are refused by the hooks and parked, the lead told; live for every session"
   local premerge
   premerge=$(git config --get workbench.premerge 2>/dev/null || true)
@@ -2084,6 +2090,11 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
     mv "$path" "$dest"
   fi
   printf '\ncommit: %s\n' "$sha" >> "$dest"
+  # What the item cost, when a worker session recorded it — the line the
+  # usage review reads. Written last: the file is the record from here on.
+  local usage_line
+  usage_line=$(usage_fold "$id")
+  [ -z "$usage_line" ] || printf '%s\n' "$usage_line" >> "$dest"
 
   echo "archived $id at $sha"
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
@@ -2134,11 +2145,35 @@ max_workers() {
   case "$n" in ''|*[!0-9]*) echo "$WB_MAX_WORKERS" ;; *) echo "$n" ;; esac
 }
 
-# The levels 'claude --effort' takes; anything else falls back to the default.
+# The MCP config a worker may load, or none: a worker session runs with
+# --strict-mcp-config, so the user-level servers — browsers, mail, design
+# tools — stay out of every request it makes. 'git config workbench.workerMcp
+# <path>' names a file for the project that needs one.
+worker_mcp() {
+  git config --get workbench.workermcp 2>/dev/null || true
+}
+
+# worker_effort [<id>]: the level a worker session runs at. The base is
+# 'workbench.workerEffort' (low; the levels 'claude --effort' takes, anything
+# else falls back). Once the item has held at the gate, one level higher —
+# 'workbench.workerEffortOnHold' names it (medium; 'off' keeps the base) and
+# it never lowers. Applied when the worker's session is next opened, since a
+# running claude keeps its level: the worker blocked after three holds and
+# reopened by the user runs the same item again at the higher level, which
+# is the cheap form of "run everything at low, re-run the failures higher".
+effort_rank() {
+  case "$1" in low) echo 1 ;; medium) echo 2 ;; high) echo 3 ;; xhigh) echo 4 ;; max) echo 5 ;; *) echo 0 ;; esac
+}
 worker_effort() {
-  local e
+  local id="${1:-}" e h
   e=$(git config --get workbench.workereffort 2>/dev/null || true)
-  case "$e" in low|medium|high|xhigh|max) echo "$e" ;; *) echo "$WB_WORKER_EFFORT" ;; esac
+  case "$e" in low|medium|high|xhigh|max) ;; *) e=$WB_WORKER_EFFORT ;; esac
+  if [ -n "$id" ] && [ "$(cat "$(usage_dir)/holds/$id" 2>/dev/null || echo 0)" -ge 1 ]; then
+    h=$(git config --get workbench.workereffortonhold 2>/dev/null || true)
+    case "$h" in off) ;; low|medium|high|xhigh|max) ;; *) h=medium ;; esac
+    [ "$(effort_rank "$h")" -le "$(effort_rank "$e")" ] || e=$h
+  fi
+  echo "$e"
 }
 
 # Started items: branches with a worktree. What the cap counts, whether or
@@ -2226,6 +2261,244 @@ registry_prune() {
   done
 }
 
+# --- usage: what a session cost, kept until its item archives -------------
+#
+# The status line receives the session's running totals on every repaint —
+# cost at list price, cache hit ratio, request and miss counts — and 'signal
+# working' sees every tool call, the reviewer's and the gate's included. Both
+# land here, one snapshot and one call log per session, beside the registry;
+# 'archive' folds a worker's into its item as one 'usage:' line. That line is
+# the durable record: 'workbench usage' tabulates the archive, 'status' says
+# when the numbers want reading, and the 'usage' review reason reads them.
+# Why the item and not a log: rationale.md, "Why usage is recorded on the
+# item".
+usage_dir() { printf '%s/workbench/usage\n' "$(git_common_dir)"; }
+
+# The registry row whose session id is $1: how a repaint learns its role.
+registry_row_of_sid() {
+  local d f role id sid state pmode
+  d=$(registry_dir)
+  [ -d "$d" ] || return 0
+  for f in "$d"/@*; do
+    [ -f "$f" ] || continue
+    IFS=$'\t' read -r role id sid state pmode < "$f" || true
+    [ "$sid" = "$1" ] || continue
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(basename "$f")" "$role" "$id" "$sid" "$state" "$pmode"
+    return 0
+  done
+}
+
+# usage_record <sid> <role> <id> <effort> <cost> <requests> <misses> <hit_ratio> <version>
+# The snapshot: 'role id effort banked last requests misses hit version epoch'.
+# Cost arrives as a running total that restarts at zero when Claude Code opens
+# a new conversation under the same session (/clear); a drop banks what came
+# before, so banked + last is the session's whole cost. Atomic by rename, like
+# the registry.
+usage_record() {
+  local sid="$1" role="$2" id="$3" effort="$4" cost="$5" req="$6" miss="$7" hit="$8" ver="$9"
+  local d f banked=0 last=0 tmp
+  d=$(usage_dir); f="$d/$sid"
+  mkdir -p "$d"
+  [ ! -f "$f" ] || IFS=$'\t' read -r _ _ _ banked last _ < "$f" || true
+  # Fixed to four places: the JSON legs disagree on the text of a number
+  # (0.10 arrives as 0.1 through python3, as written through the scan).
+  cost=$(awk -v c="${cost:-0}" 'BEGIN { printf "%.4f", c }')
+  banked=$(awk -v b="${banked:-0}" -v l="${last:-0}" -v c="$cost" 'BEGIN { printf "%.4f", (c + 0 < l + 0) ? b + l : b }')
+  tmp=$(mktemp "$d/.tmp.XXXXXX")
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$role" "$id" "${effort:--}" "$banked" "$cost" "${req:-0}" "${miss:-0}" "${hit:--}" "${ver:--}" "$(date +%s)" > "$tmp"
+  mv -f "$tmp" "$f"
+}
+
+# usage_count_call <sid> <agent_type> <agent_id>: one line per tool call,
+# 'main' for the session's own turns. Counted at archive: the worker's calls,
+# the reviewer's and the gate's per instance — the numbers a turn cap is set
+# from.
+usage_count_call() {
+  local d
+  [ -n "$1" ] || return 0
+  d=$(usage_dir)
+  mkdir -p "$d"
+  printf '%s\t%s\n' "${2:-main}" "${3:--}" >> "$d/$1.calls"
+}
+
+# usage_hold <id>: one more gate hold, kept across merge verdicts — the
+# review-holds counter resets on a merge, and archive wants the whole count.
+usage_hold() {
+  local d
+  d="$(usage_dir)/holds"
+  mkdir -p "$d"
+  printf '%s\n' "$(( $(cat "$d/$1" 2>/dev/null || echo 0) + 1 ))" > "$d/$1"
+}
+
+# usage_fold <id>: the item's 'usage:' line from its worker sessions'
+# snapshots and call logs, and the hold count; deletes what it read. Prints
+# nothing when no worker session recorded anything — an item worked without
+# a lead has no record, and the archive says nothing rather than 'none'.
+usage_fold() {
+  local id="$1" d f role iid effort banked last req miss hit ver
+  local sids=() cost=0 reqs=0 misses=0 hits='' eff='-' vers='-'
+  d=$(usage_dir)
+  [ -d "$d" ] || return 0
+  for f in "$d"/*; do
+    [ -f "$f" ] || continue
+    case "$f" in *.calls) continue ;; esac
+    IFS=$'\t' read -r role iid effort banked last req miss hit ver _ < "$f" || true
+    [ "$role" = worker ] && [ "$iid" = "$id" ] || continue
+    sids+=("$(basename "$f")")
+    cost=$(awk -v a="$cost" -v b="${banked:-0}" -v c="${last:-0}" 'BEGIN { printf "%.2f", a + b + c }')
+    reqs=$((reqs + ${req:-0})); misses=$((misses + ${miss:-0}))
+    [ "${hit:--}" = "-" ] || hits="$hits $hit"
+    eff=${effort:--}; vers=${ver:--}
+  done
+  [ "${#sids[@]}" -gt 0 ] || return 0
+  local sid counts cache='-' holds=0
+  counts=$(for sid in "${sids[@]}"; do cat "$d/$sid.calls" 2>/dev/null; done \
+    | awk -F'\t' '
+      $1 == "main" { m++ }
+      $1 == "wb-reviewer" { r++; ri[$2] = 1 }
+      $1 == "wb-gate" { g++; gi[$2] = 1 }
+      END { rn = 0; for (k in ri) rn++; gn = 0; for (k in gi) gn++
+            printf "%d %d/%d %d/%d", m, r, rn, g, gn }')
+  [ -z "$hits" ] || cache=$(awk -v h="$hits" 'BEGIN { n = split(h, a, " "); s = 0; for (i = 1; i <= n; i++) s += a[i]; printf "%d%%", s / n * 100 }')
+  holds=$(cat "$d/holds/$id" 2>/dev/null || echo 0)
+  # shellcheck disable=SC2086
+  set -- $counts
+  printf 'usage: cost=%s effort=%s calls=%s reviewer=%s gate=%s cache=%s misses=%s holds=%s claude=%s at=%s\n' \
+    "$cost" "$eff" "$1" "$2" "$3" "$cache" "$misses" "$holds" "$vers" "$(date +%s)"
+  for sid in "${sids[@]}"; do rm -f "$d/$sid" "$d/$sid.calls"; done
+  rm -f "$d/holds/$id"
+}
+
+# Snapshots and call logs a month old: sessions that ended without their item
+# archiving, or that never had one. Run when the lead starts, like
+# registry_prune.
+usage_prune() {
+  local d
+  d=$(usage_dir)
+  [ -d "$d" ] || return 0
+  find "$d" -type f -mtime +30 -delete 2>/dev/null || true
+}
+
+# The archived items carrying a usage line, oldest first by its 'at=', as
+# '<id>\t<line without the usage: prefix>'.
+usage_records() {
+  local mainr
+  mainr=$(main_root)
+  [ -d "$mainr/$WB/items/archive" ] || return 0
+  grep -H '^usage: ' "$mainr/$WB/items/archive"/*.md 2>/dev/null \
+    | sed 's|^.*/\([bfrx]-[0-9]\{1,\}\)-[^/]*\.md:usage: |\1\t|' \
+    | awk -F'\t' '{ at = 0; if (match($2, /at=[0-9]+/)) at = substr($2, RSTART + 3, RLENGTH - 3); print at "\t" $0 }' \
+    | sort -n | cut -f2- || true
+}
+
+# usage_field <line> <key>: the value of key= on a usage line, or nothing.
+usage_field() {
+  printf '%s\n' "$1" | sed -n "s/.*[ 	]$2=\([^ ]*\).*/\1/p; s/^$2=\([^ ]*\).*/\1/p" | head -1
+}
+
+# The line 'status' prints when the numbers want reading, or nothing. Two
+# triggers: the cadence — USAGE_REVIEW_EVERY records since the last usage
+# review — and, over the last five records against the median of the last
+# twenty, an item at twice the median cost, under 80% cache, or two holds or
+# more. Silent otherwise, so the line means something when it appears.
+usage_alert() {
+  local recs n reviewed since why='' costs cnt median id line c h ho
+  recs=$(usage_records)
+  [ -n "$recs" ] || return 0
+  n=$(grep -c . <<<"$recs")
+  reviewed=$(git config --get workbench.usagereviewedat 2>/dev/null || echo 0)
+  case "$reviewed" in ''|*[!0-9]*) reviewed=0 ;; esac
+  since=$((n - reviewed)); [ "$since" -ge 0 ] || since=$n
+  [ "$since" -lt "$USAGE_REVIEW_EVERY" ] || why="$since items archived since the last usage review"
+  costs=$(tail -20 <<<"$recs" | sed -n 's/.*[ 	]cost=\([0-9.]*\).*/\1/p' | sort -n)
+  cnt=$(grep -c . <<<"$costs")
+  if [ "$cnt" -ge 5 ]; then
+    median=$(sed -n "$(( (cnt + 1) / 2 ))p" <<<"$costs")
+    while IFS=$'\t' read -r id line; do
+      c=$(usage_field "$line" cost); h=$(usage_field "$line" cache); ho=$(usage_field "$line" holds)
+      if awk -v c="${c:-0}" -v m="${median:-0}" 'BEGIN { exit !(m > 0 && c > 2 * m) }'; then
+        why="${why:+$why · }$id cost $c against a median of $median"
+      fi
+      case "$h" in ''|-) ;; *) [ "${h%\%}" -ge 80 ] || why="${why:+$why · }$id cache ${h}" ;; esac
+      case "$ho" in ''|0|1) ;; *) why="${why:+$why · }$id $ho holds" ;; esac
+    done < <(tail -5 <<<"$recs")
+  fi
+  [ -z "$why" ] || printf 'usage: %s — run /workbench-review usage\n' "$why"
+}
+
+# workbench usage [<n>]: the last n archived records as a table, the medians
+# and p95s a review reasons from, then the sessions recording now. The usage
+# review runs this rather than reading the archive by hand, so the arithmetic
+# is done once, here, and the report's judgment starts from the same numbers
+# every time.
+cmd_usage() {
+  local n="${1:-20}" recs total
+  case "$n" in ''|*[!0-9]*) usage ;; esac
+  [ $# -le 1 ] || usage
+  require_init
+  recs=$(usage_records)
+  total=$(grep -c . <<<"$recs" || true)
+  if [ -z "$recs" ]; then
+    echo "usage: no archived item carries a record yet — a worker session under 'workbench lead' records one at archive"
+  else
+    recs=$(tail -"$n" <<<"$recs")
+    echo "usage — last $(grep -c . <<<"$recs") archived items with a record, of $total"
+    printf '  %-8s %-7s %8s %7s %9s %7s %6s %6s %5s\n' item effort cost calls reviewer gate cache misses holds
+    local id line
+    while IFS=$'\t' read -r id line; do
+      printf '  %-8s %-7s %8s %7s %9s %7s %6s %6s %5s\n' "$id" \
+        "$(usage_field "$line" effort)" "$(usage_field "$line" cost)" "$(usage_field "$line" calls)" \
+        "$(usage_field "$line" reviewer)" "$(usage_field "$line" gate)" "$(usage_field "$line" cache)" \
+        "$(usage_field "$line" misses)" "$(usage_field "$line" holds)"
+    done <<<"$recs"
+    # p95 by rank on the sorted column; the reviewer's is calls per instance,
+    # each item's mean, so a cap reads against one reviewer, not a dialog of
+    # three.
+    local stats
+    stats=$(cut -f2 <<<"$recs" | awk '
+      function val(s, k,   m) { m = " " s; if (match(m, " " k "=[^ ]+")) return substr(m, RSTART + length(k) + 2, RLENGTH - length(k) - 2); return "" }
+      function per(s,   a) { split(s, a, "/"); return (a[2] + 0 > 0) ? a[1] / a[2] : 0 }
+      function p95(arr, n,   i, j, t, k) {
+        for (i = 2; i <= n; i++) { t = arr[i]; j = i - 1; while (j > 0 && arr[j] > t) { arr[j + 1] = arr[j]; j-- } arr[j + 1] = t }
+        k = int(n * 0.95 + 0.999); if (k < 1) k = 1; return arr[k]
+      }
+      { n++; c[n] = val($0, "cost") + 0; w[n] = val($0, "calls") + 0; r[n] = per(val($0, "reviewer")); g[n] = per(val($0, "gate"))
+        h = val($0, "cache"); sub(/%/, "", h); if (h != "" && h != "-") { hs += h; hn++ }
+        ho += val($0, "holds") + 0 }
+      END {
+        if (n == 0) exit
+        med = c[1]; if (n > 1) { p95(c, n); med = c[int((n + 1) / 2)] }
+        printf "  median cost %.2f · p95 calls: worker %d, reviewer per instance %d, gate %d · mean cache %s · holds %d over %d items\n",
+          med, p95(w, n), p95(r, n), p95(g, n), (hn ? sprintf("%d%%", hs / hn) : "-"), ho, n
+      }')
+    printf '%s\n' "$stats"
+    local reviewed since
+    reviewed=$(git config --get workbench.usagereviewedat 2>/dev/null || echo 0)
+    case "$reviewed" in ''|*[!0-9]*) reviewed=0 ;; esac
+    since=$((total - reviewed)); [ "$since" -ge 0 ] || since=$total
+    echo "  since the last usage review: $since items (a review is due at $USAGE_REVIEW_EVERY)"
+  fi
+
+  local d f role id effort banked last req miss hit ver live=''
+  d=$(usage_dir)
+  if [ -d "$d" ]; then
+    for f in "$d"/*; do
+      [ -f "$f" ] || continue
+      case "$f" in *.calls) continue ;; esac
+      IFS=$'\t' read -r role id effort banked last req miss hit ver _ < "$f" || true
+      local pct=-
+      [ "${hit:--}" = "-" ] || pct=$(awk -v h="$hit" 'BEGIN { printf "%d%%", h * 100 }')
+      live="$live$(printf '  %-7s %-8s %8s  cache %-5s effort %s\n' "$role" "$id" \
+        "$(awk -v b="${banked:-0}" -v l="${last:-0}" 'BEGIN { printf "%.2f", b + l }')" "$pct" "${effort:--}")"$'\n'
+    done
+  fi
+  if [ -n "$live" ]; then
+    echo
+    echo "sessions recording now — folded into the item at archive"
+    printf '%s' "$live"
+  fi
+}
+
 # --- spawning --------------------------------------------------------------
 
 # The lead's permission mode, recorded when its session started; empty
@@ -2259,9 +2532,15 @@ claude_cmd() {
   shift 4
   local cmd
   cmd="claude -n $(shell_quote "$name")"
-  [ -z "$agent" ] || cmd="$cmd --effort $(worker_effort)"
+  # The item is the tail of the session name; a held item reopens one level up.
+  [ -z "$agent" ] || cmd="$cmd --effort $(worker_effort "$(printf '%s' "$name" | grep -oE '[bfrx]-[0-9]+$' || true)")"
   [ -z "$pmode" ] || cmd="$cmd --permission-mode $(shell_quote "$pmode")"
   [ -z "$agent" ] || cmd="$cmd --agent $(shell_quote "$agent")"
+  if [ -n "$agent" ]; then
+    local mcp
+    mcp=$(worker_mcp)
+    cmd="$cmd --strict-mcp-config${mcp:+ --mcp-config $(shell_quote "$mcp")}"
+  fi
   if [ -n "$resume" ]; then
     cmd="$cmd --resume $(shell_quote "$resume")"
   else
@@ -2328,10 +2607,15 @@ cmd_lead() {
   # Before anything is opened: a session that outlived its tmux server leaves
   # rows pointing at ids the new server has handed to someone else.
   ! have_tmux_session || registry_prune
+  usage_prune
   if ! have_tmux_session; then
     local cmd wid
     cmd=$(claude_cmd "$(session_name lead)" "" "$(registry_row lead | cut -f4 | grep -v '^-$' || true)" "")
-    wid=$(tmux new-session -dP -F '#{window_id}' -s "$(tmux_session)" -n lead -c "$root" "$cmd") \
+    # -e pins Claude Code for the session's life: an update applying between a
+    # worker's stop and its 'open' rebuilds that worker's whole cache — the new
+    # binary has a new system prompt — and workers are resumed often. Updates
+    # land when the lead session is next created.
+    wid=$(tmux new-session -dP -F '#{window_id}' -e DISABLE_AUTOUPDATER=1 -s "$(tmux_session)" -n lead -c "$root" "$cmd") \
       || die "tmux could not create $(tmux_session)"
     registry_write "$wid" lead - "-" "opening" "-"
     echo "started $(tmux_session): window lead runs $(session_name lead) in $root" >&2
@@ -2452,7 +2736,14 @@ for path in sys.argv[1:]:
     v = d
     for k in path.split("."):
         v = v.get(k) if isinstance(v, dict) else None
-    print(re.sub(r"\s+", " ", v) if isinstance(v, str) else "")' "$@" 2>/dev/null || true
+    if isinstance(v, str):
+        print(re.sub(r"\s+", " ", v))
+    elif isinstance(v, bool):
+        print("true" if v else "false")
+    elif isinstance(v, (int, float)):
+        print(v)
+    else:
+        print("")' "$@" 2>/dev/null || true
     return 0
   fi
   # No python3: a text scan, one key at a time, matching the FIRST occurrence
@@ -2469,9 +2760,9 @@ for path in sys.argv[1:]:
   # 'set -o pipefail' is a 141 the caller reads as failure.
   for k in "$@"; do
     printf '%s' "$input" | awk -v key="${k##*.}" '
-      !done && match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\"[^\"]*\"") {
+      !done && match($0, "\"" key "\"[[:space:]]*:[[:space:]]*(\"[^\"]*\"|-?[0-9][0-9.eE+-]*|true|false)") {
         s = substr($0, RSTART, RLENGTH)
-        sub(/^[^:]*:[[:space:]]*"/, "", s); sub(/"$/, "", s)
+        sub(/^[^:]*:[[:space:]]*/, "", s); gsub(/^"|"$/, "", s)
         print s; done = 1
       }
       END { if (!done) print "" }'
@@ -2479,8 +2770,8 @@ for path in sys.argv[1:]:
 }
 
 hook_input=""
-HOOK_FIELDS="session_id cwd permission_mode agent_type tool_name tool_input.to message source"
-h_session_id="" h_cwd="" h_permission_mode="" h_agent_type="" h_tool_name="" h_tool_input_to="" h_message="" h_source=""
+HOOK_FIELDS="session_id cwd permission_mode agent_type agent_id tool_name tool_input.to message source"
+h_session_id="" h_cwd="" h_permission_mode="" h_agent_type="" h_agent_id="" h_tool_name="" h_tool_input_to="" h_message="" h_source=""
 read_hook_input() {
   hook_input=$(cat 2>/dev/null || true)
   [ -n "$hook_input" ] || return 0
@@ -2567,6 +2858,11 @@ cmd_signal() {
     end)
       set_state "$wid" "$role" "$id" "$sid" ended "$pmode" ;;
     working)
+      # Every tool call is counted against the session the registry knows —
+      # a subagent's hook input may carry an id of its own, so the row's is
+      # the key, the hook's only before 'signal start' recorded one.
+      local csid=$sid; [ "${csid:--}" != "-" ] || csid=$h_session_id
+      usage_count_call "$csid" "$h_agent_type" "$h_agent_id"
       # A reviewer's tool calls are the review, not the worker back at work;
       # the question tool is the gate's to title.
       case "$h_agent_type" in wb-reviewer|wb-gate) return 0 ;; esac
@@ -2754,7 +3050,10 @@ cmd_statusline() {
   input=$(cat)
   # One pass for both fields, where this was two interpreter starts per
   # repaint. 'cwd' stands in for a payload without a workspace block.
-  mapfile -t vals < <(printf '%s' "$input" | json_fields workspace.current_dir cwd model.display_name)
+  # The usage fields ride the same pass: cost and cache as running totals,
+  # the session id to file them under.
+  mapfile -t vals < <(printf '%s' "$input" | json_fields workspace.current_dir cwd model.display_name \
+    session_id cost.total_cost_usd prompt_cache.requests prompt_cache.misses prompt_cache.hit_ratio effort.level version)
   dir=${vals[0]:-}; [ -n "$dir" ] || dir=${vals[1]:-}
   model=${vals[2]:-}
   [ -n "$dir" ] && [ -d "$dir" ] || return 0
@@ -2765,6 +3064,16 @@ cmd_statusline() {
     [ -d "$root/$WB" ] && ok=1
   done < <(wb_roots 2>/dev/null)
   [ "$ok" -eq 1 ] || return 0
+
+  # Recorded for sessions the registry knows — the lead and the workers —
+  # so a snapshot always has a role and an item to fold into. A session
+  # working alone leaves none: its cost spans whatever it touched.
+  local sid=${vals[3]:-} cost=${vals[4]:-} hit=${vals[7]:-} row
+  if [ -n "$sid" ] && [ -n "$cost" ]; then
+    row=$(registry_row_of_sid "$sid")
+    [ -z "$row" ] || usage_record "$sid" "$(cut -f2 <<<"$row")" "$(cut -f3 <<<"$row")" \
+      "${vals[8]:-}" "$cost" "${vals[5]:-}" "${vals[6]:-}" "$hit" "${vals[9]:-}"
+  fi
 
   local out="" here f names=() name n
   [ -z "$model" ] || out="[$model] "
@@ -2807,6 +3116,9 @@ cmd_statusline() {
   if have_tmux_session; then
     out="$out · $(mode) · $(started_items | grep -c . || true)/$(max_workers) workers$(worker_flags)"
   fi
+  # This session's own running figures, when the payload carries them.
+  [ -z "$cost" ] || out="$out · \$$(awk -v c="$cost" 'BEGIN { printf "%.2f", c }')"
+  [ -z "$hit" ] || out="$out · cache $(awk -v h="$hit" 'BEGIN { printf "%d%%", h * 100 }')"
 
   printf '%s\n' "$out"
 }
@@ -3257,6 +3569,14 @@ cmd_status() {
 
   if have_tmux_session; then
     echo "sessions: $(tmux_session) · mode $(mode) · workers $(started_items | grep -c . || true)/$(max_workers)"
+    echo
+  fi
+  # Before the items, so a session start reads it first: the one line that
+  # says the usage numbers want a review, and nothing when they do not.
+  local alert
+  alert=$(usage_alert)
+  if [ -n "$alert" ]; then
+    echo "$alert"
     echo
   fi
   echo "open items"
@@ -3928,6 +4248,7 @@ coverage, then re-run review-check; or review-drop --force to discard it."
         mkdir -p "$(git_common_dir)/review-holds"
         holds=$(( $(cat "$(git_common_dir)/review-holds/$pid" 2>/dev/null || echo 0) + 1 ))
         printf '%s\n' "$holds" > "$(git_common_dir)/review-holds/$pid"
+        usage_hold "$pid"
         rm -f "$(git_common_dir)/review-passed/$pid"
         echo "verdict: ${verdict} — hold $holds of $REVIEW_HOLDS for $pid; fix on the branch, review-drop this report, then review again"
         [ "$holds" -lt "$REVIEW_HOLDS" ] || echo "$REVIEW_HOLDS holds: stop, 'workbench call $pid \"<the standing finding>\"', and leave the merge to the user" ;;
@@ -3995,6 +4316,11 @@ cmd_review() {
 
   case "$reason" in
     sweep|pre-merge|docs|memory|adopt) ;;
+    usage)
+      # Opening the review is what resets the cadence: the count of records
+      # it could read, so 'status' counts from here whether or not triage
+      # changes anything.
+      git -C "$(main_root)" config workbench.usageReviewedAt "$(usage_records | grep -c . || true)" ;;
     watch)
       # A watch is a sweep with a clock: the loop calls this every tick, and
       # the ticks share one report. An open shift — report and baseline both
@@ -4015,7 +4341,7 @@ cmd_review() {
         find_report "$open"
         return 0
       fi ;;
-    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch" ;;
+    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch, usage" ;;
   esac
 
   root=$(repo_root)
@@ -4262,6 +4588,7 @@ case "${1:-}" in
   review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
   statusline) shift; cmd_statusline "$@" ;;
+  usage) shift; cmd_usage "$@" ;;
   review-check) shift; cmd_review_check "$@" ;;
   review-drop) shift; cmd_review_drop "$@" ;;
   lead) shift; cmd_lead "$@" ;;

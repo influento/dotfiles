@@ -529,13 +529,13 @@ deploy_configs() {
         ensure_dir "${user_home}/.claude"
         link_config "${item}skills" "${user_home}/.claude/skills"
         merge_json_config "${item}settings.json" "${user_home}/.claude/settings.json"
-        # workbench/ is a whole tool, not a config: its skills, agents and
+        # project/workbench/ is a whole tool, not a config: its skills, agents and
         # commands are rendered into a project by its own CLI ('workbench
         # init'), never deployed from here. Only the CLI is, because it is what
         # does the opting in — it has to be runnable before a project can ask
         # for any of the rest.
         ensure_dir "${user_home}/.local/bin"
-        link_config "${item}workbench/bin/workbench" \
+        link_config "${item}project/workbench/bin/workbench" \
           "${user_home}/.local/bin/workbench"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/

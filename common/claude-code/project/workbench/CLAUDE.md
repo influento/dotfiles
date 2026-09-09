@@ -5,6 +5,9 @@ Only `bin/workbench` is deployed out of this tree (→ `~/.local/bin/workbench`)
 because it is what opts a project in; everything else reaches a project through
 `workbench init`.
 
+`../BACKLOG.md` holds what is still to do on the tools under `project/`; read it
+before changing anything here.
+
 ## Layout
 
 | Path        | What it is                                                                               |
@@ -49,13 +52,25 @@ and the signal/gate hooks.
 `workbench lead` opens tmux session `wb-<repo>` with the lead in window 0; each
 `start` then opens the item's worker as its own Claude session in its own window
 (up to `git config workbench.maxWorkers`, 5; `--resources "<list>"` names what it
-may hold; at `--effort` `workbench.workerEffort`, low, while the lead keeps the
-global setting — the lead plans, the workers execute), titled by the hooks with what it needs (`?` needs you, `↑` asked the
+may hold; at `--effort` `workbench.workerEffort`, low, one level up once the
+item has held at the gate and the worker is opened again —
+`workbench.workerEffortOnHold`, medium, `off` to keep the base — while the lead keeps the
+global setting — the lead plans, the workers execute; with `--strict-mcp-config`,
+so no user-level MCP server rides in a worker's requests, plus `--mcp-config
+workbench.workerMcp` when the project sets one), titled by the hooks with what it needs (`?` needs you, `↑` asked the
 lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped); `open <id|lead>`
 switches or resumes, `mode attended|unattended` decides live whether questions go
 to the user in-window or are parked; `round` keeps the review dialog honest
 before the gate.
 Without a lead `start` is git-only.
+
+The status line records each registered session's cost and cache figures,
+and `signal working` counts tool calls per agent type; both live under
+`<git-common-dir>/workbench/usage/` until `archive` folds a worker's into its
+item as one `usage:` line. `status` prints a `usage:` line when a review is
+due (`USAGE_REVIEW_EVERY` records, or a threshold in the last five);
+`workbench usage` tabulates; the `usage` review reason judges. The levers a
+review may name: `skills/workbench/references/usage.md`.
 
 ## Extension points
 
@@ -76,7 +91,7 @@ belong at the root of this tree instead.
 
 ## Commands
 
-Run from this directory (`common/claude-code/workbench/`):
+Run from this directory (`common/claude-code/project/workbench/`):
 
 - Lint: `shellcheck -x bin/workbench skills/workbench-review/scripts/*.sh tests/*.sh`
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for
@@ -114,7 +129,17 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
   flag in `claude_cmd` and the reviewer's is frontmatter.
 - `--effort` is not kept by `--resume` — probed 2.1.263: a session started
   at low resumed at the global level. `claude_cmd` passes it on every
-  invocation, as it does `--agent`.
+  invocation, as it does `--agent`, `--strict-mcp-config` and `--mcp-config`.
+- Subagents get the five-minute cache TTL whatever the plan; the main
+  conversation gets an hour on a subscription within plan usage. The
+  reviewer idles while the worker fixes, so `wb-reviewer` carries
+  `experimental: cacheTtl: 1h` (honoured from 2.1.248; ignored while the
+  subscription is drawing on usage credits). The gate runs in one sitting
+  and keeps the default.
+- A new Claude Code version changes the system prompt, so a session resumed
+  under it re-reads its whole history uncached. The lead's tmux session is
+  created with `DISABLE_AUTOUPDATER=1` in its environment: workers and lead
+  stay on one version until the session is next created.
 - `SendMessage` to a reply target carries `uds:` sockets, not names.
 - Idle notices are documented as same-permission-class only, though one crossed
   classes in practice.
