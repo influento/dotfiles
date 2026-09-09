@@ -131,24 +131,12 @@ not the backlog, not a milestone, not a memory entry.
 
 ## Commands
 
-`workbench init` renders seven project-scoped skills: this one, `workbench-review`, and five thin commands. `/bug`, `/feature` and
-`/research` open an item of that class from a one-line description; `/idea`
-appends a backlog line; `/wb` reports what is in flight, with an id picks
-that item up where it was left, and with `rename <old> to <new>` opens a
-rename item. Each is a thin instruction — the sizing check, the command to
-run, the fields to draft — so the rules stay here. The sizing check comes
-before any id is allocated.
-
-Two settings come with them, in `.claude/settings.json`: `workbench status`
-runs at session start so what is in flight is in context before the first
-prompt, and `workbench statusline` keeps one line of it in the footer — and
-records the session's cost and cache figures, which `archive` writes onto
-the item. The user may strike either; striking the status line ends the
-record.
-
-Skills and settings are copies, committed with the project, so every
-worktree and clone has them. `workbench status` says when a copy is behind
-its source; `workbench init` refreshes it, and never edit the copy itself.
+`/bug`, `/feature`, `/research`, `/idea` and `/wb` are thin instructions —
+the sizing check, the command to run, the fields to draft — so the rules
+stay here. Skills, agents and settings are copies, committed with the
+project, so every worktree and clone has them. `workbench status` says when
+a copy is behind its source; `workbench init` refreshes it, and never edit
+the copy itself.
 
 ## Starting work
 
@@ -283,8 +271,7 @@ workbench review-check <report-path>
 ```
 
 A failure names what went wrong; say so and do not triage until the user has
-seen it. A pass proves the contract held, never that the work was done — what
-it checks and where it stops are in [rationale.md](references/rationale.md).
+seen it. A pass proves the contract held, never that the work was done.
 
 **Triage.** With the user when there is one. Without one, each finding gets
 exactly one of: fixed inside the item before merge, when it is within the
@@ -311,7 +298,8 @@ session of its own in its own window, named by the item id, running the
 `wb-worker` agent from `.claude/agents/` with the dispatch line as its first
 prompt — `start <id> --resources "account, client"` names what the worker
 may hold; without it, none, and a resource it turns out to need is a
-`needs:` line to the lead. Up to `workbench.maxWorkers` (5) items may be started at once,
+`needs:` line to the lead; items that need the same resource run one at a
+time. Up to `workbench.maxWorkers` (5) items may be started at once,
 sessions alive or not; `start` refuses past that. A worker runs at `--effort`
 `workbench.workerEffort` (low) and the lead at the user's global setting: the
 lead plans and sizes, the workers execute; the reviewer and the gate run at
@@ -319,9 +307,7 @@ medium, whatever the worker's level. An
 item that has held at the gate reopens its worker one level up
 (`workbench.workerEffortOnHold`, medium) — a running session keeps its level,
 so the step applies at the next `open`, which is how a worker blocked after
-three holds runs the item again. That reopen is a fresh session, its
-dispatch line ending ` — held: <n>`: the branch, the Evidence and the parked
-call are what it reads, not the conversation that held. Without a lead, `start` is
+three holds runs the item again. Without a lead, `start` is
 the git-only command it always was and the session that ran it works the
 item itself.
 
@@ -337,11 +323,9 @@ closed.
 **Mode.** `workbench mode` is `attended` or `unattended`, per project and
 live: the hooks read it on every call, so a switch reaches running sessions.
 Attended, a worker asks the user in its own window, and the lead never hears
-of decisions that are the user's. Unattended, `AskUserQuestion` and any
-permission not on the allow-list are refused by the hooks with where to put
-the question instead — `workbench call`, then `blocked` to the lead. The
-mode is the project's, so a session working an item alone is refused the
-same way. After
+of decisions that are the user's. Unattended, the hooks refuse what
+"Unattended runs" lists — for a session working an item alone as much as
+for a worker, since the mode is the project's. After
 `workbench mode unattended` the lead sends each live worker the line the
 command prints.
 
@@ -375,21 +359,14 @@ workbench review-check <report>       merge → recorded; hold → counted
 
 The dialog is where judgement is argued: the reviewer keeps its context
 across the exchange, and a finding that stands gets one line under Evidence
-saying why. Round two always runs; `round` decides the rest by count —
-another while the last round fixed three or more, or as many as the round
-before it (two at least); one fix after a clean round is a tail, not a
-trend; five at most — and records `rounds:` on the item, which the gate
-reads. The
-gate is not argued with: it checks the item against its evidence and the
+saying why. Round two always runs; `round` decides the rest by count and
+records `rounds:` on the item, which the gate reads. The gate is not argued
+with: it checks the item against its evidence and the
 template (`rules/pre-merge.md`), never sees the worker's context or the
 last report, and holds only on what must change. Three holds and the worker
 stops: `workbench call <id>` with the standing finding, and the merge is the
 user's — `merge --no-review` is their override, and unattended the command
 refuses it: the mode says nobody is here to take it.
-
-Resources a worker may hold — a live client, an account — are named in the
-dispatch line, and a worker without one does not take one. Items that need
-the same resource run one at a time.
 
 ## Watching a running app
 

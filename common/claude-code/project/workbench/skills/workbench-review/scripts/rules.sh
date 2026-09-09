@@ -3,15 +3,11 @@ set -euo pipefail
 
 # Prints the rules a sweep needs for its reason: the reason's own file from
 # rules/, then the reference the reason audits against — docs.md for docs and
-# memory, adopt.md plus docs.md for adopt, statuses.md for pre-merge, usage.md
-# for usage. Whole files,
+# memory, adopt.md plus docs.md for adopt, usage.md for usage. Whole files,
 # never a section cut out by heading: the block this feeds is fail-closed, and
-# a heading edit would abort the sweep silently.
-#
-# pre-merge is here because its rules ask for the status vocabulary ("one of
-# the five, with a trigger or a why when it needs one") and statuses.md is
-# where that lives — "What each gate asks" is the one place the status rules
-# live. Without it the gate that guards every merge audits from memory.
+# a heading edit would abort the sweep silently. pre-merge gets none: the
+# two statuses its rules judge are defined in the rules, and a status the
+# CLI refuses is refused at 'workbench merge', not by the gate.
 #
 # One script rather than a shell one-liner in the skill body, because the
 # preprocessed block is permission-parsed per statement and a compound command
@@ -37,9 +33,6 @@ case "$reason" in
     cat "$refs/adopt.md"
     echo
     cat "$refs/docs.md" ;;
-  pre-merge)
-    echo
-    cat "$refs/statuses.md" ;;
   usage)
     echo
     cat "$refs/usage.md" ;;

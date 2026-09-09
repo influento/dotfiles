@@ -15,7 +15,7 @@ line may follow it — see [milestones.md](milestones.md).
 | `abandoned — <why>` | never | yes | the user dropped it after it was opened — started or not; the why is the record |
 
 The trigger or the why goes in the status line rather than in prose so that
-these can be found by grep — see [git.md](git.md) for what is in flight.
+these can be found by grep.
 Those five are the whole set — `archive` refuses any other word, `done`
 included. An
 archived item keeps `open`; under `archive/` that reads as verified and
@@ -23,7 +23,7 @@ shipped.
 
 A status entered with nobody to decide it carries ` (agent)` at the end —
 `awaiting — the next deploy (agent)` — and a line in `DECISIONS.md` points
-at it (SKILL.md, "Unattended runs"). The user confirms by deleting the
+at it. The user confirms by deleting the
 marker. `merge` and `archive` read the status the same with or without it;
 only `status` and grep tell them apart.
 
@@ -68,14 +68,4 @@ This is the one place the status rules live; the other references link here.
 
 Research never passes the merge gate: there is nothing to ship, and what it
 decided is spawned as items that pass it themselves.
-
-An item may merge while still open: the worktree goes, the change ships, and
-nothing claims success until the criterion runs. `awaiting` is then the only
-in-flight state with no branch — `workbench status` reports it beside the
-branches. An `unreproduced` bug's branch never merges; `workbench archive`
-retires it, provided it carries nothing but the item file — as it retires an
-`abandoned` item's, with `--discard` when work is on it. Entering `awaiting`
-or `unverified` is the user's decision; unattended, the agent enters it
-provisionally with ` (agent)` and a `DECISIONS.md` line, and never merges an
-item as plain `open` with its criterion unrun (SKILL.md, "Unattended runs").
 

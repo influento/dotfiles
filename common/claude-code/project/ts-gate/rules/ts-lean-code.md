@@ -54,9 +54,4 @@ money or security path) that the change adds leaves one test that fails if
 it breaks, within what the criterion describes; trivial one-liners get none,
 and that one test is never a deletion finding.
 
-## Report
-
-State lines and dependencies added and removed, and what you deleted. Justify
-every new file and new dependency; the default is none.
-
 Before adding code, check whether deleting code solves it instead.
