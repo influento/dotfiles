@@ -89,7 +89,7 @@ idea (workbench/BACKLOG.md line)
     A review sweep's probes go under `workbench/scratch/<report>/` and leave
     with the report. Nothing else is scratch: a fact worth keeping is a line
     in the item's Evidence, a research concept, or a backlog entry, never a
-    file of its own. Do not create `scratch/`, `notes/`, `tmp/` or the like.
+    file of its own.
 
 ## Setting up
 

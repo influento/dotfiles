@@ -1,10 +1,7 @@
 # Adopt
 
-Survey how this project tracks work today and report it with counts and real
-examples. Convert nothing and ask nothing — every decision is taken at triage,
-outside this fork. The checklist follows.
-
-Also report, as facts: how the app runs — service, start command, health
-endpoint, logs, what a restart is — and any big-picture goals the README or a
-roadmap states. Setup turns these into a watch contract and milestones with
-the user; you do not.
+Survey how this project tracks work today and report it. The reference
+printed after these rules says where to look and what the report carries;
+its "Survey" section is yours, the rest is the invoking context's. Convert
+nothing and ask nothing — every decision is taken at triage, outside this
+fork.

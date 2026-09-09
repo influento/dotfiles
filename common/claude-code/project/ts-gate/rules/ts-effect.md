@@ -22,10 +22,10 @@ Then only what the task needs:
 - `repos/effect/ai-docs/src/` — runnable examples per topic; `06_schedule/` for retry, repeat, Schedule composition.
 - `repos/effect/MIGRATION.md` and `repos/effect/migration/` — where a name you expected went, if one is missing.
 
-Unsure how an API behaves? Read that ONE module:
+Unsure how an API behaves? Read that one module:
 `repos/effect/packages/effect/src/<M>.ts` and
 `repos/effect/packages/effect/test/<M>.test.ts`. Never read the tree broadly —
-it is 451 source files.
+it is hundreds of source files.
 
 Read-only. Never edit `repos/effect`, never import from it — the dependency is
 `node_modules/effect`, the same rc as `package.json` pins.

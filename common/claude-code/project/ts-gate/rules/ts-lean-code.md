@@ -5,10 +5,9 @@ paths: ["**/*.{ts,tsx}"]
 # Lean code
 
 Everything countable is gated in `ts-gate/`. This pass covers only what needs
-intent to judge, over the files `bash ts-gate/scripts/gate.sh --list` prints:
-the branch since the default branch plus the working tree. Apply it as you
-write, and in review — where what `npm run gate:local` reports is not a
-finding: the author's Stop hook blocks on it.
+intent to judge, over the files `bash ts-gate/scripts/gate.sh --list` prints.
+Apply it as you write, and in review — where what `npm run gate:local`
+reports is not a finding: the author's Stop hook blocks on it.
 
 ## Before writing
 
