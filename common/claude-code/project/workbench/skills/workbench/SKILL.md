@@ -31,10 +31,8 @@ idea (workbench/BACKLOG.md line)
    small, once someone opens them; until then `/idea` is the user's deferral
    ("Sizing"). Housekeeping that is not domain work — configs, agent
    settings, tooling — gets none and may go straight to the main branch.
-   Work that cannot yet be described as an item — an area not understood,
-   or not clear how it fits — is a research item, and it ends by spawning
-   what it decided. Which level a piece of work gets is decided by "Sizing"
-   below, the same way every time.
+   Which level a piece of work gets is "Sizing" below, the same way every
+   time.
 
 2. **The criterion is written before the code, and it is the contract.**
    Evidence is matched against the criterion, never against a test. Run it
@@ -82,9 +80,8 @@ idea (workbench/BACKLOG.md line)
    reasoning that produced the code; that is in the code, or in the commit.
 
 9. **Some decisions are the user's, and an absent user does not transfer
-   them.** Entering `awaiting`, `unverified` or `abandoned`, closing a research concept,
-   confirming a sizing, answering a parked call: when nobody is there to
-   decide, "Unattended runs" below says what to do instead of deciding.
+   them.** "Unattended runs" below says what to do at each instead of
+   deciding.
 
 10. **The project has no scratch folder.** A file that exists only for this
     session — a probe, a capture, a diagram, a rendered page, a call stack —
@@ -124,7 +121,7 @@ what changes is what happens at a gate that is the user's:
 | research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
 | a question only the user can answer | `AskUserQuestion` is refused by the hook: `workbench call <id> "<the question, with options>"`, then `blocked — <the question>` to the lead and stop when there is one, or move to work that is describable when there is not |
 | a permission not on the allow-list | refused by the hook the same way — the refusal is what Claude Code sees, so the tool call never runs; park it, never work around it |
-| review | the dialog, then the gate, yourself — `/workbench-review pre-merge <id>`, `review-check`, then triage as "Review sweeps" says. `workbench merge` refuses without a passed review |
+| review | the dialog, then the gate, yourself — "The review loop" below — then triage as "Review sweeps" says |
 
 `(agent)` is what the user greps for when they return: every provisional
 decision, in the file that holds it, plus the one-line index in
@@ -139,10 +136,8 @@ not the backlog, not a milestone, not a memory entry.
 appends a backlog line; `/wb` reports what is in flight, with an id picks
 that item up where it was left, and with `rename <old> to <new>` opens a
 rename item. Each is a thin instruction — the sizing check, the command to
-run, the fields to draft — so the rules stay here and the agent runs
-`workbench` itself; why they are shaped this way is in
-[rationale.md](references/rationale.md), "Why the commands are thin". The
-sizing check comes before any id is allocated.
+run, the fields to draft — so the rules stay here. The sizing check comes
+before any id is allocated.
 
 Two settings come with them, in `.claude/settings.json`: `workbench status`
 runs at session start so what is in flight is in context before the first
@@ -201,10 +196,9 @@ decisions are relied on.
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 Read the rows from the item down: whatever fits the item row is an item
-("Domain work is an item"). The idea row is the one the agent never proposes
-for something item-shaped — "crash on save" is a bug. It is not a level of
-description but the user's decision to defer, reached only by the user
-saying so: `/idea`, or "backlog it". Nothing else in the rule defers.
+("Domain work is an item"). The idea row is never the agent's proposal for
+something item-shaped — "crash on save" is a bug; it is the user's deferral,
+reached only by the user saying so: `/idea`, or "backlog it".
 
 Research is a scope, not a large idea: many concepts, each ending at a row
 above, as another research item when an area turns out to be two, or dropped. A milestone is not a large feature: its done-criterion is at the
@@ -300,15 +294,12 @@ stands. No finding is dropped silently, and a finding that says the criterion
 is not met stops the merge. Then `workbench review-drop`.
 
 **Usage.** What each item cost is on its archived file, one `usage:` line,
-recorded by the worker's session and folded in at archive. `status` prints a
-`usage:` line when the numbers want reading — every ten records, or an item
-in the last five at twice the median cost, under 80% cache, or held twice —
-and nothing otherwise. That line is the trigger, and it is yours: run the
-review, `review-check` it, and bring its `suggestions:` block to the user.
-Every suggestion is a setting the user changes — never you, never code — and
-[usage.md](references/usage.md) is the list of settings a suggestion may
-name. Unattended: run it, leave the report, `workbench call - "usage review:
-<report path>"`. The user is not expected to ask; the line is what asks.
+recorded by the worker's session and folded in at archive. When `status`
+prints a `usage:` line, run the review, `review-check` it, and bring its
+`suggestions:` block to the user. Every suggestion is a setting the user
+changes — never you, never code — from the list in
+[usage.md](references/usage.md). Unattended: run it, leave the report,
+`workbench call - "usage review: <report path>"`.
 
 ## Lead and workers — one session dispatches, sessions work
 
@@ -335,8 +326,7 @@ the git-only command it always was and the session that ran it works the
 item itself.
 
 The user talks to any session in its window; `workbench open <id|lead>` goes
-there, and reopens a closed one resumed where it stopped — fresh instead when
-a hold moved its effort up. The window title
+there, and reopens a closed one resumed where it stopped. The window title
 says what the session needs, set by the hooks `init` merged: `b-038` working
 · `? b-038` needs a person · `↑ b-038` reported to the lead · `⟳ b-038` a
 reviewer is running · `✓ b-038` ready · `! b-038` parked a call · `· b-038`
