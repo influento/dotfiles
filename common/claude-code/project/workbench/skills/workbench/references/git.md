@@ -148,7 +148,8 @@ archive` resolves the branch as `git config workbench.main`, then
 The command refuses while the item's branch still exists — archived first, the
 item would record `commit: none` for good while the squash commit arrives
 later. Two branches never merge, and `archive` retires those itself: the branch's
-copy of the item replaces main's, the worktree and branch go. An `unreproduced`
+copy of the item replaces main's, the worktree and branch go, and a tag named
+by the id is left at the branch's tip so its commits stay reachable. An `unreproduced`
 bug's holds nothing but the item file — nothing to fix — and anything else on
 it is work, which merges or is discarded by hand. A research item's may hold
 prototypes, throwaway by definition, and an `abandoned` item's whatever was
