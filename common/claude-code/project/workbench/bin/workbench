@@ -1792,15 +1792,22 @@ $hint"
   else
     git -C "$root" show "$branch:$rel" > "$root/$rel"
   fi
+  # The branch's commits are the only record of what each iteration
+  # believed — research rewrites its concepts in place, and the archived
+  # copy is the last one. A tag named by the id keeps them reachable once
+  # the branch is gone: 'git log <id> -- <item file>' walks them. Annotated,
+  # so push.followTags carries it with the next ordinary push.
+  git -C "$root" tag -a -m "$id" "$id" "$branch" \
+    || die "tag $id already exists; the branch's history would be lost under it — 'git tag -d $id' if it is a leftover, then retry"
   # --force only because of the item file just copied out; everything else
   # was verified clean above.
   [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
   git -C "$root" branch -D --quiet "$branch"
   close_session "$id"
   if [ "$dropped" -eq 1 ]; then
-    echo "retired $branch; its prototypes are gone" >&2
+    echo "retired $branch as tag $id; its prototypes are gone from the tree" >&2
   else
-    echo "retired $branch; nothing but the item was on it" >&2
+    echo "retired $branch as tag $id; nothing but the item was on it" >&2
   fi
   printf '%s\n' "$root/$rel"
 }

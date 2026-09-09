@@ -82,7 +82,10 @@ sources — lives there, throwaway by definition.
 
 Research takes several sessions. Each one rewrites Concepts and Next to the
 current understanding; nothing is appended as a log, and git holds what the
-earlier understanding was (SKILL.md, "Deleting means deleting"). A discovered fact about a system
+earlier understanding was (SKILL.md, "Deleting means deleting"): the branch's
+commits while it is open, and after archive the tag `archive` leaves in the
+branch's place, named by the id — `git log x-041 -- <the item file>` walks
+every rewrite. A discovered fact about a system
 we do not control goes into the concept that needed it, as it would go into a
 bug's root cause.
 

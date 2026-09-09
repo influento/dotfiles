@@ -690,9 +690,12 @@ run "status ignores headings and states inside a fence" 0 "$idx-netcode +open +s
 ( cd "$rwt" && echo proto > proto.txt && git add -A && git commit -qm prototype )
 run "archive refuses to drop prototypes unasked" 1 "archive $idx --discard" "$WB" archive "$idx"
 check "the refusal names the prototype" bash -c "'$WB' archive $idx 2>&1 | grep -q proto.txt"
+( cd "$rwt" && sed -i 's/^words$/words, rewritten/' "workbench/items/research/$idx-netcode.md" && git commit -qam "iteration two" )
 ( cd "$rwt" && echo more > scratch.txt )
 rc=0; out=$("$WB" archive "$idx" --discard 2>&1) || rc=$?
 check "archive --discard retires the research branch" [ "$rc" -eq 0 ]
+check "the branch's history stays reachable as a tag named by the id" [ "$(git rev-list --count "$idx" -- "workbench/items/research/$idx-netcode.md")" -ge 2 ]
+check "the archive names the tag" grep -q "retired $idx-netcode as tag $idx" <<< "$out"
 check "--discard says the prototypes are gone" grep -q 'its prototypes are gone' <<< "$out"
 check "--discard names the committed prototype" grep -q 'proto.txt' <<< "$out"
 check "--discard names the uncommitted scratch" grep -q 'scratch.txt' <<< "$out"
