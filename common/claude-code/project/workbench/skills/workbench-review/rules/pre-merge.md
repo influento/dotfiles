@@ -60,7 +60,7 @@ verdict: hold — <what must change before this merges>
 ```
 
 `hold` when any finding says the criterion is not met, a criterion slot holds a
-guard or was reworded to fit, evidence is a summary rather than output, or a
-section is outside the template. Everything else is a finding under `merge` —
-recorded, acted on at triage, not a reason to stop. `review-check` refuses a
-report with no verdict.
+guard or was reworded to fit, evidence is a summary rather than output, a
+section is outside the template, or no review dialog ran. Everything else is a
+finding under `merge` — recorded, acted on at triage, not a reason to stop.
+`review-check` refuses a report with no verdict.

@@ -315,13 +315,15 @@ the gate persuadable, and the record of what was once persuaded away is what
 
 Round two always runs, a clean first round included. The dialog is the only
 reading of the code for defects — the gate reads the item against its
-evidence and template, not the code — and a clean round is one reviewer's
+evidence and template, and the code only for what the item promised — and a
+clean round is one reviewer's
 opinion of a branch it saw once; the second reviewer reads the branch the
 first round changed, or confirms that a clean one really was. It is also the
 cheapest context in the loop: an agent restricted to `Read`, `Glob`, `Grep`
-and `Bash` opens at under four thousand tokens, the diff on top, against a
-gate that opens at twelve and reads everything again. Dropping it would save
-cents and remove the only independent second read before the gate.
+and `Bash` opens on a short definition and the diff, against a gate that
+opens on the whole sweep skill and its rules and reads everything again.
+Dropping it would save cents and remove the only independent second read
+before the gate.
 
 
 ## Why usage is recorded on the item, and the agent raises it
