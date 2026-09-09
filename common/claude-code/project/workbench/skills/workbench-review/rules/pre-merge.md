@@ -27,8 +27,6 @@ missing. Read it and name it; the checks below are made against it. Check:
   The set is per class and lives in one place, `template_headings()` in the
   CLI: read it rather than recall it —
   `sed -n '/^template_headings()/,/^}/p' "$(command -v workbench)"`
-- the status is one of the five, with a trigger or a why when it needs one — `abandoned` never reaches a merge; an item
-  about to merge as plain `open` has a fenced block under Evidence
 - no script was written to satisfy a step and then deleted, and no scratch
   file is cited that the tree does not hold
 - documentation: written where it should not have been, or a discovered fact
@@ -38,8 +36,10 @@ missing. Read it and name it; the checks below are made against it. Check:
   `workbench/GLOSSARY.md` — an identifier in the old word after a rename
   merged is a finding
 - whether anything left unverified could in fact be verified now, by
-  synthesising the event — `awaiting` and `unverified` are the user's call, not
-  the agent's; report what could be verified, do not decide
+  synthesising the event — `awaiting — <trigger>` (a time can be named for
+  it) and `unverified — <trigger>` (none can) are the user's call, not the
+  agent's, and ` (agent)` at the end marks one entered unattended for the user
+  to confirm; report what could be verified, do not decide
 - the item is one item: a rule applied to N files is not N items, and a
   bug found and fixed inside a feature branch is a bug item
 - the review dialog ran before you: `rounds:` under the status line holds

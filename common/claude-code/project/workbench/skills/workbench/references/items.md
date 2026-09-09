@@ -172,8 +172,7 @@ turns out to be deeper than first written has its item updated to match.
 `start` freezes the criterion — it is the contract the evidence is matched
 against, and the pre-merge review holds a step reworded after the code
 ([verification.md](verification.md)). What changes on the branch after that
-is root cause, evidence and status; a miss is recorded as a miss. Where the
-file lives at each step: [git.md](git.md).
+is root cause, evidence and status; a miss is recorded as a miss.
 
 The single ordering rule behind this: the criterion is written before the
 code, the evidence after. Never the reverse — a criterion written afterwards
@@ -183,22 +182,10 @@ Archived items are locked.
 
 ## What came before: `workbench find`
 
-Retrieval is keyed to files, not topics. `git log` already knows which items
-touched a path, through the trailer, so `workbench find <path>...` is exact
-and maintains nothing. Words (`--grep <word>`, repeatable) narrow that set, or search every item
-when no path is given.
+When to run it and how much of the index to read: SKILL.md, "What came
+before". `--grep <word>` is repeatable. Two classes the index shows:
 
-The gates, so it narrows reading instead of adding to it:
-
-| Gate | Rule |
+| Class | Means |
 |---|---|
-| when | once, while writing **Root cause** or **What it touches** — the fields that already force a pause. Never during implementation |
-| input | the paths about to change. Words are opt-in |
-| output | an index, one line per item, never bodies. Newest ten; the rest as a count |
-| order | `unreproduced` and `unverified` first regardless of age — an unproved claim on the file about to change is the hit that bites. They have no commit on the path, so they are matched by naming the path in their text. An `abandoned` item is matched the same way — it was tried and dropped, and says why — but sorts with the rest |
+| `unreproduced`, `unverified`, `abandoned` | no commit on the path — matched by naming it in their text. The first two sort first regardless of age: an unproved claim on the file about to change is the hit that bites. `abandoned` was tried and dropped, and says why; it sorts with the rest |
 | `on-branch` | an open item on a sibling worktree's branch that names the path — work about to collide with this. A text match, not a trailer, so it can be wrong; shown as its own class for that reason |
-| reading | only an item whose line matches the problem; at most the two most recent |
-| recording | nothing. A prior item that changes the decision is cited in the root cause |
-
-If the index routinely sends the agent into five items per bug, the cap is
-what to tighten, not the habit to drop.

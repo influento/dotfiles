@@ -30,11 +30,9 @@ Findings, worst first, each with the item ids and the numbers that show it:
   when `workbench usage <2n>` shows one
 
 The first usage review in a project — `workbench usage` says so when the
-count since the last review equals the total — also raises the two decisions
-that wait on exactly this data: turn caps for the reviewer and the gate, at
-twice their p95 here, and whether the reviewer's effort comes down from
-`medium`. Both are settings in the agent definitions' source, so the
-suggestion names that, not a project file.
+count since the last review equals the total — also says whether the
+reviewer's effort comes down from `medium`: a setting in the agent
+definition's source, so the suggestion names that, not a project file.
 
 End the report with a `suggestions:` block, one line each: the lever, the
 value, the finding it answers. Only levers the reference names. Under ten

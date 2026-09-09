@@ -9,19 +9,7 @@ whether the work succeeded.
 Weak: "confirm the positions are correct"
 Strong: "`mobcheck.ts` reports drift under 0.05 tiles for mobs on a boundary row"
 
-Everything else follows from this:
-
-- Evidence is matched against **the criterion**, never against a test.
-- A test may satisfy only what the criterion describes. Nothing beyond it.
-- The item carries the rationale — why these steps demonstrate it works.
-
-It also settles what gets tested. Scope is bounded by the criterion, so config
-files, deployment scripts, and wiring get no tests unless a criterion asked
-for one.
-
 ## A criterion must fail on the unchanged tree
-
-Run it before writing anything. If it passes, it is not a criterion.
 
 A bug's fails — the thing is still broken. A feature's fails — the behaviour is
 absent. A rename's fails — the count is N, not 0. One that is already green has
@@ -68,9 +56,8 @@ paragraph of design inside the criterion is what made items twice their
 length. If a step needs a sentence of rationale to be understood, the step
 is wrong.
 
-Never write a script whose only purpose is to satisfy a criterion. Real tooling
-that does real work and happens to prove something is right; a test harness
-created to make an item closable is not.
+Real tooling that does real work and happens to prove something is right; a
+test harness created to make an item closable is not.
 
 ## Who runs it
 
@@ -90,10 +77,6 @@ interpretation of the numbers is not the reader's problem to be spared.
 
 An item may mix automatable and manual parts. Test what is testable, have the
 user verify the rest, record both.
-
-**Nothing is archived without verified evidence.** The exceptions are named in
-[items.md](items.md), and each of them records what was *not* proved rather than
-pretending otherwise.
 
 ## Merging and archiving are different questions
 
@@ -127,15 +110,6 @@ Reading the code is not verification. Running it against a synthesised event is.
 |---|---|
 | yes — next deploy, tomorrow's cron, the monthly run | `awaiting`, merged and open; it resolves shortly |
 | no — "whenever they push one" | archive as `unverified` |
-
-What each status lets merge and archive do is in [statuses.md](statuses.md), "What
-each gate asks". Entering either state is the user's decision at pre-merge,
-once the agent has shown what it verified and what it could not. Unattended,
-the agent enters it with ` (agent)` and a `DECISIONS.md` line — the
-decision is still the user's, made visible for when they return — and what
-it never does instead is merge the item as plain `open`, or write "what this
-did not prove" as a section and call that honesty. The status is the honest
-form; a section is a status nobody can grep.
 
 ## Tests
 

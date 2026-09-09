@@ -54,7 +54,5 @@ the dispatch line (`ListAgents` shows it).
    the answer: the lead's reply wakes you, and `workbench status` carries the
    state whether or not the message arrived.
 
-Mode, permissions, overlap and resources are the skill's "Lead and workers"
-and "Unattended runs" — `workbench mode` says which mode, and it changes
-while you run. An overlap you cannot work past is a stop, not a workaround.
+An overlap you cannot work past is a stop, not a workaround.
 `workbench merge` and `workbench archive` are the lead's, never yours.

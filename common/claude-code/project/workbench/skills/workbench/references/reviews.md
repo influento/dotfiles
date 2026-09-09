@@ -4,28 +4,16 @@ A review is a deliberate sweep that produces a report. It is not tracked work
 — it is how work gets found — and one of them, `pre-merge`, is the gate every
 item passes on its way to `workbench merge`.
 
-Run one with `/workbench-review <reason> ["scope"]`, which forks so the sweep's
-reading stays out of the main context: the fork starts with none of the
-conversation, so the reviewer has never seen the reasoning that produced the
-code, and that is the point. The agent invokes it at the gates SKILL.md
-"Review sweeps" names, and the user at any other time; the baseline and
-`review-check` hold either way. A scope is paths or words, quoted when
-it has spaces; paths get a manifest, words do not. It is substituted inside a
-double-quoted shell argument, so a quote, backtick, `$` or backslash in it
-aborts the skill with no message.
+Run one with `/workbench-review <reason> ["scope"]` — a fork with none of
+the conversation in it, at the gates SKILL.md "Review sweeps" names or when
+the user asks. A scope is paths or words, quoted when it has spaces; paths
+get a manifest, words do not. It is substituted inside a double-quoted shell
+argument, so a quote, backtick, `$` or backslash in it aborts the skill with
+no message.
 
 The sweep is held to its contract by `workbench review-check`, run in the
-invoking context on the returned path; how, and where the check stops, is in
-[rationale.md](rationale.md). The sweep's own rules per reason live with the
-sweep skill, in `workbench-review/rules/`.
-
-Every `path:line` in the report must resolve against the tree. A token with a
-slash resolves as written. One without — the form test runners and compilers
-print, `pos_test.go:42` — resolves by basename against every file of that
-name, and passes when any of them reaches the line: ambiguity resolves in the
-sweep's favour, since the check asks "cites nowhere?", not "cites precisely?".
-A slashless name no file carries is taken for a host (`db.internal:5432`) when
-nothing in the tree has its extension, and for a bogus citation otherwise.
+invoking context on the returned path. The sweep's own rules per reason live
+with the sweep skill, in `workbench-review/rules/`.
 
 ## Reasons
 
@@ -54,16 +42,10 @@ before being promoted.
 **Never create items automatically from a report.** Only findings that survive
 triage become items, using `workbench new`.
 
-Unattended, the agent triages a pre-merge alone, and every finding gets one
-of four dispositions and nothing else: fixed on the branch before merge, when
-it is inside the item's criterion — then the review runs again, since the
-branch moved; a bug item, when it is outside; a backlog line, when it is an
-idea; or one line under the item's Evidence saying why it stands. A finding
-that the criterion is not met, or that a step is a guard, stops the merge —
-the item goes back to work, or takes `awaiting`/`unverified` with ` (agent)`.
-No finding disappears between the report and `review-drop`. Sweeps other
-than pre-merge wait for the user: their findings are a report under
-`workbench/reviews/`, and `status` says "awaiting triage".
+Unattended, the agent triages a pre-merge alone, as SKILL.md "Review
+sweeps" says. Sweeps other than pre-merge wait for the user: their findings
+are a report under `workbench/reviews/`, and `status` says "awaiting
+triage".
 
 ## What a sweep may write
 

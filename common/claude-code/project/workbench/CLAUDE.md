@@ -166,6 +166,11 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
   or compound forms were refused (2.1.259). Anything else needs an explicit
   `permissions.allow` rule in the project's settings, which the hook agent
   does honour.
+- A `#` comment inside a skill's or an agent's frontmatter never reaches the
+  model — probed 2.1.266, a canary in the comment and one in the body, four
+  runs, only the body's reported. The maintainer notes in
+  `workbench-review/SKILL.md`'s frontmatter and `wb-gate.md`'s cost nothing
+  at runtime.
 - `.claude/rules/*.md` with a `paths:` glob loads into a subagent spawned with
   the Agent tool once it reads a matching file — probed 2.1.258 with a canary
   line, for `wb-reviewer` and `general-purpose`; the unscoped rules load

@@ -9,8 +9,8 @@ disable-model-invocation: true
 
 The `workbench` skill's rules apply; load it if it is not in context.
 
-**No argument** — run `workbench status` and report it in at most five
-lines: open items with their branches, research with open-concept counts,
+**No argument** — run `workbench status` and report it: open items with
+their branches, research with open-concept counts,
 merged items still awaiting a trigger, merged items still open — a fault
 to repair first — calls waiting in `DECISIONS.md`, reports awaiting triage
 or left unchecked, duplicate ids. Name what is actionable now; omit what is not.
@@ -28,8 +28,8 @@ or left unchecked, duplicate ids. Name what is actionable now; omit what is not.
 2. Read the item file. For research, **Next** is the entry point; for a bug
    or feature, the criterion and whatever Root cause or Evidence already
    holds.
-3. State in two lines where the work stands and what you will do next, and
-   wait for the user. Change nothing before that.
+3. State where the work stands and what you will do next, and wait for the
+   user. Change nothing before that.
 
 **`open <id|lead>`** — `workbench open <id|lead>`: switches to that
 session's window, reopening it resumed if it is gone. Report the line it
