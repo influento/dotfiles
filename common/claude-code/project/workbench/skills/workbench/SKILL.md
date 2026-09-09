@@ -146,8 +146,10 @@ sizing check comes before any id is allocated.
 
 Two settings come with them, in `.claude/settings.json`: `workbench status`
 runs at session start so what is in flight is in context before the first
-prompt, and `workbench statusline` keeps one line of it in the footer. The
-user may strike either.
+prompt, and `workbench statusline` keeps one line of it in the footer — and
+records the session's cost and cache figures, which `archive` writes onto
+the item. The user may strike either; striking the status line ends the
+record.
 
 Skills and settings are copies, committed with the project, so every
 worktree and clone has them. `workbench status` says when a copy is behind
@@ -273,6 +275,7 @@ path. Three gates invoke it, whoever is driving:
 | an item is about to merge | `/workbench-review pre-merge <id>` — `workbench merge` refuses without a passed one on the branch's last commit |
 | a milestone's items are all archived | `/workbench-review sweep "<the paths it moved>"` before `milestone archive` |
 | `.claude/memory/` changed this session | `/workbench-review memory` before the session ends |
+| `workbench status` printed a `usage:` line | `/workbench-review usage`, before dispatching work; its suggestions go to the user at triage — see "Usage" below |
 
 Any other sweep is the user's to ask for — `sweep`, `docs`, `adopt`,
 `watch` — never started because the code looks like it needs one.
@@ -296,6 +299,17 @@ line when it is an idea; or a one-line reason in the item's Evidence why it
 stands. No finding is dropped silently, and a finding that says the criterion
 is not met stops the merge. Then `workbench review-drop`.
 
+**Usage.** What each item cost is on its archived file, one `usage:` line,
+recorded by the worker's session and folded in at archive. `status` prints a
+`usage:` line when the numbers want reading — every ten records, or an item
+in the last five at twice the median cost, under 80% cache, or held twice —
+and nothing otherwise. That line is the trigger, and it is yours: run the
+review, `review-check` it, and bring its `suggestions:` block to the user.
+Every suggestion is a setting the user changes — never you, never code — and
+[usage.md](references/usage.md) is the list of settings a suggestion may
+name. Unattended: run it, leave the report, `workbench call - "usage review:
+<report path>"`. The user is not expected to ask; the line is what asks.
+
 ## Lead and workers — one session dispatches, sessions work
 
 `workbench lead` opens tmux session `wb-<repo>` with the **lead** in window
@@ -309,7 +323,11 @@ may hold; without it, none, and a resource it turns out to need is a
 `needs:` line to the lead. Up to `workbench.maxWorkers` (5) items may be started at once,
 sessions alive or not; `start` refuses past that. A worker runs at `--effort`
 `workbench.workerEffort` (low) and the lead at the user's global setting: the
-lead plans and sizes, the workers execute; the reviewer runs at medium. Without a lead, `start` is
+lead plans and sizes, the workers execute; the reviewer runs at medium. An
+item that has held at the gate reopens its worker one level up
+(`workbench.workerEffortOnHold`, medium) — a running session keeps its level,
+so the step applies at the next `open`, which is how a worker blocked after
+three holds runs the item again. Without a lead, `start` is
 the git-only command it always was and the session that ran it works the
 item itself.
 
@@ -404,6 +422,7 @@ only as the contract says. It never fixes. [reviews.md](references/reviews.md).
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
 | review sweeps, reports, triage, watch shifts | [reviews.md](references/reviews.md) |
+| what an item cost, the `usage:` line, the levers a usage review may name | [usage.md](references/usage.md) |
 | what to document and where | [docs.md](references/docs.md) |
 | branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |
 | bringing an existing project in | [adopt.md](references/adopt.md) |

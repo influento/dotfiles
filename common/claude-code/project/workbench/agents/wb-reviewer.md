@@ -3,6 +3,8 @@ name: wb-reviewer
 description: The worker's review partner — reads one item's branch, raises findings with evidence, and argues each to fixed, stands or withdrawn with the worker over SendMessage. Spawned by wb-worker with the Agent tool, never forked; edits nothing.
 tools: Read, Glob, Grep, Bash
 effort: medium
+experimental:
+  cacheTtl: 1h
 x-workbench: true
 ---
 

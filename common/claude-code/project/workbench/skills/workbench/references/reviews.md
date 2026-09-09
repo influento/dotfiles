@@ -37,6 +37,7 @@ nothing in the tree has its extension, and for a bogus citation otherwise.
 | `memory` | audit the agent's stored memory for facts that belong in the repo, or are stale |
 | `adopt` | bringing an existing project in — see [adopt.md](adopt.md) |
 | `watch` | a shift over a running app: observe, recover as contracted, investigate, report — see "Watch shifts" below |
+| `usage` | what the last items cost and which setting would make the next ones cheaper. The agent runs it when `workbench status` prints a `usage:` line; the report ends in a `suggestions:` block of settings, each the user's to change — see [usage.md](usage.md) |
 
 ## Reports
 

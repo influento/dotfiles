@@ -5,6 +5,11 @@
 #   gate.sh --list       the files --local would check, one per line, nothing else
 set -uo pipefail
 FAIL=0
+# --local is what the Stop hook and the worker read back into context: one line
+# per problem and no colour, so the same findings cost a fraction of the tokens.
+# CI keeps the readable formats.
+TSC_OPTS=(); ESLINT_OPTS=()
+case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format unix) ;; esac
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo, gate skipped"; exit 0; }
 
 default_branch() {
@@ -32,11 +37,11 @@ if [ ${#FILES[@]} -eq 0 ]; then echo "no TS changes"; exit 0; fi
 echo "== ${#FILES[@]} changed TS files =="
 
 # 1. Compile. Repo-wide: a wrong API name in a changed file fails here, not at build.
-npx tsc --noEmit || FAIL=1
+npx tsc --noEmit "${TSC_OPTS[@]}" || FAIL=1
 
 # 2. Volume lint, changed files only. Type-aware rules are per-file with full
 #    type info, so scoping to the diff is exact, not an approximation.
-npx eslint "${FILES[@]}" || FAIL=1
+npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 3. Dead code / abandoned attempts. Repo-wide: an export dies when its last
 #    *caller* is deleted, which need not be in the changed set.

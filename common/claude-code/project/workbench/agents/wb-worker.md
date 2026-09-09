@@ -43,6 +43,8 @@ the dispatch line (`ListAgents` shows it).
      with a hold in the item.
    - three holds — stop; `workbench call <id> "<the standing finding>"` and
      report blocked.
+   - a reviewer or gate that returns partial, its turn cap reached: the same
+     as three holds. Park it, report blocked; never spawn it again to finish.
 5. Report to the lead: one `SendMessage`, three lines — the item id;
    `ready`, `blocked — <one question, with the options>` or `needs:
    <resource>`; the gate's last verdict, or `none` when no gate has run.

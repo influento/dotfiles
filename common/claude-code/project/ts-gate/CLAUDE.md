@@ -5,6 +5,9 @@ judgment checklist in `.claude/rules/`. Installed into a project as one unit,
 alongside workbench, whose wb-reviewer applies the checklist in fresh context.
 The two are separate tools; the `project-setup` skill installs both in order.
 
+`../BACKLOG.md` holds what is still to do on the tools under `project/`; read it
+before changing anything here.
+
 ## Commands
 
 | Command | Does |
@@ -33,8 +36,12 @@ unset (set to something else: printed, chain it by hand) → manifest
 Run it before `workbench init`; commit between the two. `effect` is in knip's
 `ignoreDependencies`: install adds it before any code imports it.
 
-The Stop hook runs `gate:local` and blocks on every stop while red (Claude Code
-ends the turn after 8). It exits in milliseconds when no TypeScript changed.
+The Stop hook runs `gate:local` and blocks on every stop while red, capped: the
+same output three stops running gets one last block that says to park it, and
+the next stop is allowed — a fight the model is not winning costs a full turn
+per round. A failure that changes resets the count. What it feeds back is the
+first 80 lines, `tsc --pretty false` and `eslint --format unix`; CI keeps the
+readable formats. It exits in milliseconds when no TypeScript changed.
 Re-running install replaces the entry and removes the agent hook of earlier
 versions. `gate.sh --list` prints the files the checklist applies to, for the
 worker and for wb-reviewer.
@@ -69,7 +76,7 @@ Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
 
 knip: first run's legitimate findings go into `ignore` / `ignoreDependencies`
 in `ts-gate/knip.json`; that is the baseline. dependency-cruiser: fix cycles
-before wiring, no allowlist. Effect migration of brownfield code: TODO.
+before wiring, no allowlist.
 
 ## Architecture record
 

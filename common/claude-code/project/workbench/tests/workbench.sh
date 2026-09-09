@@ -306,8 +306,43 @@ check "worktree removed" [ ! -e "$wt" ]
 run "status no longer marks it started" 0 "b-001-crash-on-save +open$" "$WB" status
 run "status lists a merged item still open as a fault" 0 "b-001-crash-on-save +merged as [0-9a-f]+" bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
 
+# What a worker session recorded — snapshot, call log, holds — folds into the
+# archive as one line; the lead's snapshot is not the item's and stays.
+mkdir -p .git/workbench/usage/holds
+printf 'worker\tb-001\tlow\t0.5000\t1.00\t40\t1\t0.9\t2.1.266\t1\n' > .git/workbench/usage/sid-w
+printf 'main\t-\nmain\t-\nmain\t-\nwb-reviewer\ta1\nwb-reviewer\ta1\nwb-gate\tg1\n' > .git/workbench/usage/sid-w.calls
+echo 1 > .git/workbench/usage/holds/b-001
+printf 'lead\t-\thigh\t0\t0.10\t3\t0\t0.8\t2.1.266\t1\n' > .git/workbench/usage/sid-lead
 run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "archived b-001" "$WB" archive b-01
+arch=workbench/items/archive/b-001-crash-on-save.md
+check "archive folds the worker's usage into the item" grep -qE '^usage: cost=1.50 effort=low calls=3 reviewer=2/1 gate=1/1 cache=90% misses=1 holds=1 claude=2.1.266 at=[0-9]+$' "$arch"
+check "the usage line follows commit:" bash -c "tail -2 '$arch' | head -1 | grep -q '^commit: '"
+check "archive deleted the worker's working files and kept the lead's" bash -c \
+  "[ ! -e .git/workbench/usage/sid-w ] && [ ! -e .git/workbench/usage/sid-w.calls ] && [ ! -e .git/workbench/usage/holds/b-001 ] && [ -f .git/workbench/usage/sid-lead ]"
 git add -A && git commit -qm 'archive b-001'
+run "usage tabulates the record" 0 "b-001 +low +1.50 +3 +2/1 +1/1 +90% +1 +1$" "$WB" usage
+run "usage prints the medians and p95s" 0 "median cost 1.50 · p95 calls: worker 3, reviewer per instance 2, gate 1 · mean cache 90% · holds 1 over 1 items" "$WB" usage
+run "usage lists the session recording now" 0 "lead +- +0.10 +cache 80% +effort high" "$WB" usage
+run "usage counts records since the last review" 0 "since the last usage review: 1 items" "$WB" usage
+run "usage refuses a count that is not a number" 2 "workbench usage" "$WB" usage ten
+check "status says nothing about usage under five records" bash -c "! '$WB' status | grep -q '^usage:'"
+# The thresholds judge the last five records against the median of the last
+# twenty; the cadence counts records since the last usage review. Records are
+# archived files, so the fixtures are archived files.
+fake() { printf 'status: open\n\ncommit: abc\nusage: cost=%s effort=low calls=10 reviewer=4/1 gate=3/1 cache=%s misses=0 holds=0 claude=2.1.266 at=%s\n' "$2" "$3" "$4" > "workbench/items/archive/$1-fake.md"; }
+for i in 1 2 3 4; do fake "f-90$i" 1.00 90% "10$i"; done
+check "status stays silent while the last five sit at the median" bash -c "! '$WB' status | grep -q '^usage:'"
+fake f-905 3.00 70% 200
+run "status flags an item at twice the median and under 80% cache" 0 '^usage: f-905 cost 3.00 against a median of 1.00 · f-905 cache 70% — run /workbench-review usage$' bash -c "'$WB' status | grep '^usage:'"
+for i in 6 7 8 9; do fake "f-90$i" 1.00 90% "30$i"; done
+run "status says a review is due at ten records" 0 '^usage: 10 items archived since the last usage review — run /workbench-review usage$' bash -c "'$WB' status | grep '^usage:'"
+report=$("$WB" review usage)
+check "review usage opens a report" bash -c "[ -f '$report' ] && [[ '$report' == *-usage.md ]]"
+check "opening the review resets the cadence" [ "$(git config workbench.usagereviewedat)" = 10 ]
+check "status is silent again after the review" bash -c "! '$WB' status | grep -q '^usage:'"
+"$WB" review-drop --force "$report" >/dev/null 2>&1
+rm -f workbench/items/archive/f-90*-fake.md
+git config --unset workbench.usagereviewedat
 
 run "find by path" 0 "b-001" "$WB" find src.txt
 run "find is cwd-relative" 0 "b-001" bash -c "cd sub && '$WB' find x.txt"
@@ -396,6 +431,7 @@ for r in docs memory; do
 done
 check "rules.sh appends both references for adopt" bash -c \
   "bash '$RULES' adopt | grep -qx '# Adopting an existing project' && bash '$RULES' adopt | grep -qx '# Documentation'"
+check "rules.sh appends the usage reference for usage" bash -c "bash '$RULES' usage | grep -qx '## Levers'"
 for r in sweep pre-merge watch; do
   check "rules.sh appends no reference for $r" bash -c "! bash '$RULES' $r | grep -qx '# Documentation'"
 done
@@ -1389,8 +1425,13 @@ w2=$(reg_of "$s2"); p2="%${w2#@}"
 check "the window is named by the item id" [ "$(title_of "$w2")" = "$s2" ]
 check "the worker runs claude as the wb-worker agent under its name, at the default effort" bash -c "tlog | grep -q 'claude -n wb-sessions-$s2 --effort low --agent wb-worker'"
 check "the lead took no --effort: it keeps the global setting" bash -c "tlog | grep 'claude -n wb-sessions-lead' | grep -qv -- --effort"
+check "the worker loads no MCP server" bash -c "tlog | grep 'claude -n wb-sessions-$s2' | grep -q -- '--agent wb-worker --strict-mcp-config '"
+check "the lead keeps its MCP servers" bash -c "tlog | grep 'claude -n wb-sessions-lead' | grep -qv -- --strict-mcp-config"
+check "the lead's tmux session pins the Claude Code version" bash -c "tlog | grep '^new-session' | grep -q -- '-e DISABLE_AUTOUPDATER=1'"
+check "the reviewer keeps its cache for an hour" grep -qx '  cacheTtl: 1h' .claude/agents/wb-reviewer.md
 check "the dispatch names the lead and the mode" bash -c "tlog | grep -q 'lead: wb-sessions-lead — mode: attended'"
 check "the worker window opens in the worktree" bash -c "tlog | grep -q -- '-c $PWD/.worktrees/$s2-two '"
+git config workbench.workerMcp .claude/workers.mcp.json
 s3=$(newc bug "three")
 n=$(tlog | grep -c new-window)
 run "start --no-open opens nothing" 0 "started $s3" "$WB" start "$s3" --no-open
@@ -1406,6 +1447,8 @@ check "the refused item has no branch" bash -c "! git branch --list '$s4-*' | gr
 run "at the cap, a started item is refused as started, not as one too many" 1 "$s2 is already started; its worktree is" "$WB" start "$s2"
 git config workbench.maxWorkers 4
 run "a raised cap admits it" 0 "opened window $s4" "$WB" start "$s4"
+check "a project's workerMcp reaches the worker beside --strict-mcp-config" bash -c "tlog | grep 'claude -n wb-sessions-$s4' | grep -q -- '--strict-mcp-config --mcp-config .claude/workers.mcp.json'"
+git config --unset workbench.workerMcp
 
 # signals, from a pane the registry knows
 run "the lead's session start records its permission mode" 0 "" bash -c "hook sid-lead | TMUX_PANE=%1 '$WB' signal start"
@@ -1418,6 +1461,19 @@ check "from the hook input" grep -qP "\tsid-4\tworking\tacceptEdits$" ".git/work
 check "workers before that took no permission mode" bash -c "! tlog | grep -q -- '--permission-mode'"
 run "signal start records the session" 0 "" bash -c "hook sid-2 | TMUX_PANE=$p2 '$WB' signal start"
 check "the registry holds the session id, state and permission mode" grep -qxP "worker\t$s2\tsid-2\tworking\tacceptEdits" ".git/workbench/sessions/$w2"
+# The status line's payload carries the session's running totals; a repaint
+# from a registered session files them under its id, a stranger's leaves nothing.
+usession() { printf '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"%s"},"session_id":"%s","version":"2.1.266","cost":{"total_cost_usd":%s},"context_window":{"used_percentage":8},"prompt_cache":{"requests":14,"misses":2,"hit_ratio":%s},"effort":{"level":"low"}}' "$1" "$2" "$3" "$4"; }
+export -f usession
+run "statusline shows the session's cost and cache" 0 '· [$]0[.]42 · cache 91%$' bash -c "usession '$PWD' sid-2 0.4213 0.91 | '$WB' statusline"
+check "and records the worker's snapshot under its session id" grep -qP "^worker\t$s2\tlow\t0\.0000\t0\.4213\t14\t2\t0\.91\t2\.1\.266\t[0-9]+$" .git/workbench/usage/sid-2
+run "a cost that dropped is banked" 0 '· [$]0[.]10 · cache 91%$' bash -c "usession '$PWD' sid-2 0.10 0.91 | '$WB' statusline"
+check "banked plus last is the whole cost" grep -qP "^worker\t$s2\tlow\t0\.4213\t0\.1000\t" .git/workbench/usage/sid-2
+run "statusline without jq or python3 reads the same numbers" 0 '· [$]0[.]10 · cache 91%$' bash -c "usession '$PWD' sid-2 0.10 0.91 | PATH=\"\$NOJSON\" '$WB' statusline"
+check "a session the registry does not know leaves no snapshot" bash -c "usession '$PWD' sid-nobody 0.5 0.9 | '$WB' statusline >/dev/null; [ ! -e .git/workbench/usage/sid-nobody ]"
+run "signal working counts the call" 0 "" bash -c "hook sid-2 | TMUX_PANE=$p2 '$WB' signal working"
+run "a reviewer's call counts under its agent type" 0 "" bash -c "hook sid-2 '$PWD' Bash '' wb-reviewer | TMUX_PANE=$p2 '$WB' signal working"
+check "the call log keys by agent type" bash -c "grep -qP '^main\t-$' .git/workbench/usage/sid-2.calls && grep -qP '^wb-reviewer\t-$' .git/workbench/usage/sid-2.calls"
 check "the title is the bare id while working" [ "$(title_of "$w2")" = "$s2" ]
 run "signal needs-you" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal needs-you"
 check "needs-you titles the window with ?" [ "$(title_of "$w2")" = "? $s2" ]
@@ -1521,7 +1577,7 @@ run "start wants a value after --resources" 2 "usage" "$WB" start "$(newc bug si
 w5=$(reg_of "$s5")
 tmux kill-window -t "$w5"
 run "open reopens a window whose session never registered, fresh" 0 "reopened $s5$" env TMUX=x "$WB" open "$s5"
-check "fresh means the agent and the dispatch line again, no resume" bash -c "tlog | grep -- '--agent wb-worker .$s5 in .* — resources: none — lead: wb-sessions-lead' | grep -qv -- --resume"
+check "fresh means the agent and the dispatch line again, no resume" bash -c "tlog | grep -- '--agent wb-worker --strict-mcp-config .$s5 in .* — resources: none — lead: wb-sessions-lead' | grep -qv -- --resume"
 run "mode rejects other words" 2 "usage" "$WB" mode sometimes
 "$WB" mode attended >/dev/null
 
@@ -1531,9 +1587,18 @@ check "switch-client targeted it" bash -c "tlog | grep -q '^switch-client -t $w2
 run "open lead" 0 "" env TMUX=x "$WB" open lead
 check "the lead's window was targeted" bash -c "tlog | grep -q '^switch-client -t @1$'"
 tmux kill-window -t "$w2"
+# A held item reopens one level up; the running session before it kept low.
+mkdir -p .git/workbench/usage/holds && echo 1 > ".git/workbench/usage/holds/$s2"
+run "open reopens a held item's worker one level up" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
+check "the resume after a hold carries --effort medium" bash -c "tlog | grep -- '--resume sid-2$' | grep -q -- '--effort medium '"
+rm -f ".git/workbench/usage/holds/$s2"
+# The reopened window registers its session again on start, as a real one would.
+wh=$(reg_of "$s2")
+hook sid-2 | TMUX_PANE="%${wh#@}" "$WB" signal start
+tmux kill-window -t "$wh"
 run "open reopens a window that is gone, resuming the session" 0 "reopened $s2, resuming sid-2" env TMUX=x "$WB" open "$s2"
 check "claude was resumed by id" bash -c "tlog | grep -q -- '--resume sid-2'"
-check "the resumed worker is still the wb-worker agent" bash -c "tlog | grep -q -- '--agent wb-worker --resume sid-2$'"
+check "the resumed worker is still the wb-worker agent" bash -c "tlog | grep -q -- '--agent wb-worker --strict-mcp-config --resume sid-2$'"
 check "the resume carries the effort again: claude does not keep it" bash -c "tlog | grep -- '--resume sid-2$' | grep -q -- '--effort low '"
 check "the old registry file is gone" [ ! -e ".git/workbench/sessions/$w2" ]
 w2=$(reg_of "$s2")

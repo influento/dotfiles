@@ -324,3 +324,27 @@ and `Bash` opens at under four thousand tokens, the diff on top, against a
 gate that opens at twelve and reads everything again. Dropping it would save
 cents and remove the only independent second read before the gate.
 
+
+## Why usage is recorded on the item, and the agent raises it
+
+The figures a session can see about itself — cost at list price, cache hit
+ratio, tool calls — vanish with the session. Written to a log they would be
+read by nobody: the log grows, the numbers are never beside the work that
+produced them, and the one person who could act on them is the one least
+likely to remember to look. So `archive` writes them onto the item, after
+`commit:`, where a review already reads `rounds:` and Evidence. The record
+is per merged item, in git, and a `grep usage:` over the archive is the whole
+dataset.
+
+The reading is the agent's to start, not the user's. `status` runs at every
+session start and prints a `usage:` line on a cadence and on thresholds —
+silent otherwise, so the line carries information when it appears. The
+review it names computes nothing itself: `workbench usage` does the
+arithmetic once, deterministically, and the fork judges what the numbers
+mean and ends with suggestions. Each suggestion is a setting, because the
+settings are what the figures measure — worker effort, the reviewer's,
+cache lifetime, caps — and a setting is the user's to change, at triage,
+with the item range it applies from visible in the next window's `effort=`
+column. A loop that measured, judged and changed its own settings would tune
+itself to the metric; one that measures, judges and asks keeps the user as
+the part that knows what the work was worth.

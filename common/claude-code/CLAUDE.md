@@ -7,7 +7,7 @@ Four things live here, deployed four different ways:
 | `settings.json`    | deep-merged into `~/.claude/settings.json`, never symlinked  |
 | `skills/`          | symlinked to `~/.claude/skills/` (global)                    |
 | `skills-optional/` | never deployed — opted into per project                      |
-| `workbench/`       | only `bin/workbench` → `~/.local/bin/`                       |
+| `project/`         | only `workbench/bin/workbench` → `~/.local/bin/`             |
 
 Why the trees are split, and which tree a new skill belongs in: the root
 CLAUDE.md, "Claude Code Skills".
@@ -31,15 +31,12 @@ Two consequences of merging rather than replacing:
 - **`/config` edits do not show up in `git diff`.** Mirror anything worth keeping
   into the tracked file.
 
-## workbench
+## project
 
-Item-tracking workflow CLI, opted into per project. `workbench init` renders its
-skills, commands and agents into a project as committed copies and merges the
-session wiring into that project's `.claude/settings.json`; `workbench lead` runs
-the item's workers as their own Claude sessions in a tmux session.
-
-Layout, `init` mechanics, session model, extension points and its lint/test
-commands: `workbench/CLAUDE.md`.
+The tools a project installs, as opposed to skills it links: `workbench`, the
+item-tracking workflow CLI, and `ts-gate`, the TypeScript Stop-hook gate. Both
+are copied into a project and committed there, never symlinked. How they fit
+together, their shared backlog, and the pointers into each: `project/CLAUDE.md`.
 
 ## skills-optional
 
