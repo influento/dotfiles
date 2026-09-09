@@ -47,8 +47,9 @@ the dispatch line (`ListAgents` shows it).
    - a reviewer or gate that returns partial, its turn cap reached: the same
      as three holds. Park it, report blocked; never spawn it again to finish.
 5. Report to the lead: one `SendMessage`, three lines — the item id;
-   `ready`, `blocked — <one question, with the options>` or `needs:
-   <resource>`; the gate's last verdict, or `none` when no gate has run.
+   `ready`, `blocked — <one question, with the options>`, `needs:
+   <resource>` or `overlap: <path> with <id>`; the gate's last verdict, or
+   `none` when no gate has run.
    Then stop. Never wait in a loop for
    the answer: the lead's reply wakes you, and `workbench status` carries the
    state whether or not the message arrived.

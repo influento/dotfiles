@@ -361,9 +361,10 @@ The dialog is where judgement is argued: the reviewer keeps its context
 across the exchange, and a finding that stands gets one line under Evidence
 saying why. Round two always runs; `round` decides the rest by count and
 records `rounds:` on the item, which the gate reads. The gate is not argued
-with: it checks the item against its evidence and the
-template (`rules/pre-merge.md`), never sees the worker's context or the
-last report, and holds only on what must change. Three holds and the worker
+with: it checks the item against its evidence and the template
+(`rules/pre-merge.md`), reads the code only for vocabulary, tests and
+documentation, never sees the worker's context or the last report, and holds
+only on what must change. Three holds and the worker
 stops: `workbench call <id>` with the standing finding, and the merge is the
 user's — `merge --no-review` is their override, and unattended the command
 refuses it: the mode says nobody is here to take it.

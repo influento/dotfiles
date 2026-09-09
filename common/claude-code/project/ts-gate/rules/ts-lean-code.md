@@ -11,8 +11,7 @@ reports is not a finding: the author's Stop hook blocks on it.
 
 ## Before writing
 
-Read the task and trace the real flow through every file the change touches.
-Then stop at the first rung that holds:
+Stop at the first rung that holds:
 
 1. Needs to exist at all? Speculative need: skip it, say so in one line.
 2. Already in this codebase? Reuse the helper, type, or pattern. Look before you write.
