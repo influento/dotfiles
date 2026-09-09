@@ -23,8 +23,7 @@ missing. Read it and name it; the checks below are made against it. Check:
 - the RED value for each step was measured and written in, not guessed and
   "corrected before the evidence was run"
 - the root cause is stated, for a bug, and is a mechanism
-- only the template's headings are present — no "For the operator", no
-  "What this did not prove", no dated appendix; `archive` will refuse them.
+- only the template's headings are present; `archive` refuses any other.
   The set is per class and lives in one place, `template_headings()` in the
   CLI: read it rather than recall it —
   `sed -n '/^template_headings()/,/^}/p' "$(command -v workbench)"`
@@ -64,9 +63,4 @@ verdict: hold — <what must change before this merges>
 guard or was reworded to fit, evidence is a summary rather than output, or a
 section is outside the template. Everything else is a finding under `merge` —
 recorded, acted on at triage, not a reason to stop. `review-check` refuses a
-report with no verdict, records a `merge` for the branch commit it read, and
-counts a `hold`; the branch is reviewed again, by a fresh reviewer, after the
-fix.
-
-The report sits untracked in the worktree and blocks `workbench merge` until
-triage has `review-drop`ped it.
+report with no verdict.

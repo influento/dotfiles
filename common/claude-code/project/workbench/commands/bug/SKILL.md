@@ -19,6 +19,5 @@ The `workbench` skill's rules apply; load it if it is not in context.
    **Root cause** for the investigation.
 4. Draft **How to confirm it is fixed**, run it on the unchanged tree so it
    is seen failing, and bring it to the user. Nothing else happens until the
-   criterion is agreed — unattended, `workbench call <id>` it in one line and
-   proceed; the pre-merge review reads it again.
+   criterion is agreed — unattended, as "Unattended runs" says.
 5. `workbench start <id>`, then work in the worktree it prints.

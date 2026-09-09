@@ -20,6 +20,11 @@ agent: wb-gate
 # worker's review loop stays one step. Do not restore the default. Needs
 # Claude Code 2.1.218 or later, where the field exists.
 background: false
+# The first '!' block below reads $reason and writes nothing, and comes before
+# the one that opens the report on purpose: every '!' block runs before the
+# first turn, not when the model reads down to it, so a reason with no rules
+# behind it must abort before the skeleton and baseline are on disk —
+# otherwise the leftover has to be 'review-drop'ed by hand.
 # Pre-approval for the two preprocessed blocks below — Bash for the scripts,
 # the rest so the fork's first turn is not a prompt. It restricts nothing;
 # the agent does. '$reason' and '$scope' inside those blocks are substituted
@@ -44,13 +49,6 @@ only after triage, and that happens outside this fork.
 
 ## Rules for this reason
 
-Every `!` block here runs before the first turn, not when you read down to
-it, so this one comes first on purpose: it reads `$reason` and writes
-nothing. Opening the report is the step with side effects, and a reason with
-no rules behind it must abort before that happens — otherwise the skeleton
-and the baseline are already on disk when the abort comes, and the leftover
-has to be `review-drop`ed by hand.
-
 ```!
 ${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
 ```
@@ -71,11 +69,7 @@ other message — return it verbatim as your final message and do nothing
 else. It is the reason no report was opened.
 
 That path holds a skeleton with the reason and date. `Read` it before you
-`Write` it — `Write` refuses a file it has not seen. For `watch`, never
-`Write` it: the report is the shift's whole timeline, and a rewrite can drop
-what earlier ticks recorded. Append through Bash instead —
-`cat >> "<report>" <<'EOF' … EOF`. The one in-place edit a watch makes is
-the liveness line, with `sed -i` on that line alone.
+`Write` it — `Write` refuses a file it has not seen.
 
 ## Steps
 

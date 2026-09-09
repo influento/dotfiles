@@ -19,9 +19,5 @@ The `workbench` skill's rules apply — "Sizing", "Research", and
    it — and the first **Concepts** as `state: open`, each in the project's
    own words. Bring both to the user before reading anything.
 4. Work the iteration. Rewrite Concepts to the current understanding, never
-   as a log. Propose a terminal state for any concept that reached one —
-   `-> <id>`, `-> milestone <slug>`, `-> backlog`, `dropped — <why>` — and
-   let the user confirm; spawn what they confirm right then, its **Why**
-   citing this id. Unattended, write the state with ` (agent)` appended
-   and `workbench call <id>` it; spawn only what the state names. End by writing **Next**: where the following session
-   picks up.
+   as a log; close concepts as the skill's "Research" says, and end by
+   writing **Next**: where the following session picks up.
