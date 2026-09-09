@@ -1,7 +1,6 @@
 {
   "respectGitignore": true,
   "cleanupPeriodDays": 30,
-  "autoCompactWindow": 400000,
   "includeGitInstructions": true,
   "permissions": {
     "allow": [
@@ -71,18 +70,24 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
+  "outputStyle": "Concise",
   "language": "English",
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    }
+  },
+  "autoCompactWindow": 400000,
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
+  "prefersReducedMotion": true,
+  "skipWorkflowUsageWarning": true,
   "editorMode": "vim",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true,
-  "outputStyle": "Concise",
-  "prefersReducedMotion": true,
-  "skipWorkflowUsageWarning": true
+  "skipAutoPermissionPrompt": true
 }
