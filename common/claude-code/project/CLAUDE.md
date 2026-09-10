@@ -1,17 +1,18 @@
 # project/ (source tree)
 
-The tools a project installs, as opposed to the skills it links. Two of them,
+The tools a project installs, as opposed to the skills it links. Three of them,
 installed in this order by the `project-setup` skill:
 
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `ts-gate/`   | `bash ts-gate/install.sh <project>`   | `ts-gate/` copied in, a `Stop` hook, `.claude/rules/ts-*.md`, two allow rules, `workbench.premerge` |
+| `stack/`     | `stack add <name>...` (the CLI is on PATH) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
 | `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies, hooks, status line, `workbench/` state              |
 
-Only one file leaves this tree at deploy: `workbench/bin/workbench` →
-`~/.local/bin/workbench`, because it is what opts a project in. Everything else
-reaches a project through the two installers and is committed there, so
-worktrees and clones carry it.
+Two files leave this tree at deploy: `workbench/bin/workbench` and
+`stack/bin/stack` → `~/.local/bin/`, because they are what opts a project in.
+Everything else reaches a project through the installers and is committed
+there, so worktrees and clones carry it.
 
 ## How the two fit
 
@@ -23,6 +24,14 @@ config ignores `.worktrees/**`; its `ts-lean-code.md` checklist is what
 `wb-reviewer` applies in fresh context, which is why no hook runs it. Install
 ts-gate first and commit between the two: its `git subtree add` needs a clean
 tree and `workbench init` writes tracked files.
+
+`stack` follows ts-gate's Effect pattern for every package — reference
+subtree, dependency, rule — and knows about ts-gate only where the gate would
+otherwise go red: a dependency it installs goes into `ts-gate/knip.json`'s
+`ignoreDependencies` when that file exists, and `repos/**` is already in the
+gate's ignores. It goes between the two because its subtrees need a clean tree
+and `workbench init` should render its CLAUDE.md block after the stack's.
+Workbench knows nothing of either.
 
 ## Working here
 

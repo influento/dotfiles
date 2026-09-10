@@ -537,6 +537,10 @@ deploy_configs() {
         ensure_dir "${user_home}/.local/bin"
         link_config "${item}project/workbench/bin/workbench" \
           "${user_home}/.local/bin/workbench"
+        # project/stack/ likewise: the registry of packages a project may
+        # choose stays here, 'stack add' copies from it.
+        link_config "${item}project/stack/bin/stack" \
+          "${user_home}/.local/bin/stack"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/
       scripts)
