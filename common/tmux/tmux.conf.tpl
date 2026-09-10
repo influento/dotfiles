@@ -36,6 +36,14 @@ unbind %
 # New window in current path
 bind c new-window -c "#{pane_current_path}"
 
+# Windows name themselves after the foreground command; an ssh window takes
+# the destination as typed instead, `crisp-desktop(ssh)` or the IP when that is
+# what was typed. The shell's preexec hook puts it in the pane option
+# @ssh_host (common/zsh/.zshrc.tpl) and clears it at the next prompt, so the
+# name falls back to the shell when ssh ends. A window renamed by hand has
+# automatic-rename off, so it keeps its name.
+setw -g automatic-rename-format "#{?pane_in_mode,[tmux],#{?#{==:#{pane_current_command},ssh},#{?@ssh_host,#{@ssh_host}(ssh),ssh},#{pane_current_command}}}#{?pane_dead,[dead],}"
+
 # Reload config
 bind r source-file ~/.config/tmux/tmux.conf \; display-message "Config reloaded"
 
