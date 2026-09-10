@@ -161,8 +161,8 @@ flag() {
 
 # --- window title ------------------------------------------------------------
 
-TITLE_WORDS=4
-TITLE_CHARS=28
+TITLE_WORDS=3
+TITLE_CHARS=15
 
 # The first real prompt of a transcript, cut to a window name: slash commands
 # and the harness's own <tagged> messages are skipped, tool results are not
@@ -189,12 +189,12 @@ for line in open(path, encoding="utf-8", errors="replace"):
     t = re.sub(r"\s+", " ", c).strip()
     if not t or t[0] in "</":
         continue
-    # Openers carry no meaning in four words: "can you fix the" says less
-    # than "fix the waybar cpu".
+    # Openers carry no meaning in three words: "can you fix" says less
+    # than "fix the waybar".
     t = re.sub(r"^(?:(?:hey|hi|hello|ok|okay|so|now|please|pls|also|and|can you|could you|would you|will you|let'?s|i want you to|i need you to|i'd like you to)[ ,:]+)+", "", t, flags=re.I)
-    t = " ".join(t.replace("#", "").split(" ")[:words])
-    if len(t) > chars:
-        t = t[:chars].rsplit(" ", 1)[0] if " " in t[:chars] else t[:chars]
+    # A hard cut at the character limit, mid-word if need be; the trailing
+    # space or punctuation it can leave behind is trimmed.
+    t = " ".join(t.replace("#", "").split(" ")[:words])[:chars]
     print(t.rstrip(" .,;:!?-"))
     break
 PY

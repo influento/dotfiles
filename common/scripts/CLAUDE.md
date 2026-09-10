@@ -82,8 +82,8 @@ reports `other`, which is what a reboot looks like; so does a finished
 `claude -p`, which is why a record alone never triggers a resume.
 
 Outside `wb-*` sessions the Stop hook also names the window from the first
-prompt — its first four words after any opener ("can you", "please"), at
-most 28 characters — but only while the window still has tmux's automatic
+prompt — its first three words after any opener ("can you", "please"), cut
+at 15 characters and trimmed of trailing space — but only while the window still has tmux's automatic
 name: a rename turns `automatic-rename` off, and that option is the whole
 check, so a name the user set is never touched and a window named once is
 never renamed again. The name is kept in the record, across a restore too,

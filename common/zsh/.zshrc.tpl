@@ -153,6 +153,55 @@ alias reload='source ~/.zshrc'
 alias path='echo $PATH | tr ":" "\n"'
 alias ip='ip -color=auto'
 
+# --- tmux: ssh windows named after the host ---
+# preexec sees the command line before it runs. The ssh destination, as
+# typed and without the user part, goes into the pane option @ssh_host;
+# tmux's automatic-rename-format (common/tmux/tmux.conf.tpl) renders it as
+# `host(ssh)` while ssh is the foreground command. The next prompt clears it.
+if [[ -n "$TMUX" ]]; then
+  _tmux_ssh_host() {
+    setopt local_options extended_glob
+    local -a words
+    local w host= skip=0 seen=0
+    words=(${(z)1})
+    for w in "${words[@]}"; do
+      if (( ! seen )); then
+        case "$w" in
+          [A-Za-z_][A-Za-z0-9_]#=*|nocorrect|noglob|command|exec) continue ;;
+          ssh) seen=1; continue ;;
+          *) return 1 ;;
+        esac
+      fi
+      if (( skip )); then skip=0; continue; fi
+      case "$w" in
+        '|'|'||'|'&&'|';'|'&') break ;;
+        # a flag cluster ending in an option that takes a value: skip the value
+        -[46AaCfGgKkMNnqsTtVvXxYy]#[bcDEeFIiJLlmOopQRSWw]) skip=1 ;;
+        -*) ;;
+        *) host="$w"; break ;;
+      esac
+    done
+    [[ -n "$host" ]] || return 1
+    if [[ "$host" == ssh://* ]]; then
+      host="${host#ssh://}"; host="${host%%/*}"; host="${host%:[0-9]##}"
+    fi
+    print -r -- "${host##*@}"
+  }
+  _tmux_ssh_preexec() {
+    local host
+    host=$(_tmux_ssh_host "$2") || return 0
+    tmux set -p @ssh_host "$host" 2>/dev/null && _tmux_ssh_set=1
+  }
+  _tmux_ssh_precmd() {
+    [[ -n "${_tmux_ssh_set:-}" ]] || return 0
+    unset _tmux_ssh_set
+    tmux set -pu @ssh_host 2>/dev/null
+  }
+  autoload -Uz add-zsh-hook
+  add-zsh-hook preexec _tmux_ssh_preexec
+  add-zsh-hook precmd _tmux_ssh_precmd
+fi
+
 # --- FZF ---
 eval "$(fzf --zsh)"
 
