@@ -75,9 +75,9 @@ the payload parse the JSON (one python3 start, about 60 ms); `working` does
 not, and costs a few milliseconds. Every subcommand is a silent no-op outside
 tmux, so the same global settings are safe on a machine without it.
 
-Records under `~/.local/state/claude-tmux/`, one per pane keyed
-`session:window.pane`, hold the session id, transcript path, cwd and last
-state. They are dropped on `SessionEnd` unless the reason is `other`. A kill
+Records under `~/.local/state/claude-tmux/`, one per pane keyed by pane id
+(`%12`), hold the session id, transcript path, cwd, last state and title,
+plus the `session:window.pane` target that `sync` refreshes after each save. They are dropped on `SessionEnd` unless the reason is `other`. A kill
 reports `other`, which is what a reboot looks like; so does a finished
 `claude -p`, which is why a record alone never triggers a resume.
 
@@ -86,10 +86,26 @@ prompt — its first three words after any opener ("can you", "please"), cut
 at 15 characters and trimmed of trailing space — but only while the window still has tmux's automatic
 name: a rename turns `automatic-rename` off, and that option is the whole
 check, so a name the user set is never touched and a window named once is
-never renamed again. The name is kept in the record, across a restore too,
-and SessionEnd sets `automatic-rename` back on when the window still
-carries it, so a window whose claude ended names itself again. Workbench
-windows are titled by workbench.
+never renamed again. The name is kept in the record and in the window option
+`@claude_title`, and SessionEnd sets `automatic-rename` back on when the
+window still carries it, so a window whose claude ended names itself again.
+Workbench windows are titled by workbench.
+
+A title must never outlive its claude, and two things would let it.
+tmux-resurrect saves a titled window as user-named and restores names by
+window index, so after windows close and the rest renumber, a restore (a
+reboot, `prefix C-r`, or `tmux-attach` on a server it thinks is fresh)
+stamps a dead session's title on whatever window sits at that index now —
+an ssh window, say — with `automatic-rename` off, for good. So `sync`, run
+after every save, rewrites the save: every window whose name is a known
+title becomes `claude` under automatic rename, and the record puts the title
+back on the pane that actually resumes the session. And a pane killed with
+claude inside fires no SessionEnd, so `sweep` — from `sync`, and from the
+`pane-exited` and `after-kill-pane` hooks — hands the name back on any
+window that carries `@claude_title` or a recorded title and runs no claude,
+and puts a recorded title back on any claude running under the automatic
+name, which is what a restore onto a live server (`prefix C-r`) leaves,
+since the save says `claude`; resurrect's `post-restore-all` hook runs it.
 
 `restore`, run by `tmux-attach` after tmux-resurrect has rebuilt the layout,
 types `claude --resume <id>` into every recorded target that resurrect's

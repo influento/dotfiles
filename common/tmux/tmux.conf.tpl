@@ -76,8 +76,8 @@ set-hook -g pane-focus-in 'run-shell -b "tmux-attention seen #{pane_id}"'
 set-hook -g after-select-window 'run-shell -b "tmux-attention seen #{pane_id}"'
 set-hook -g after-select-pane 'run-shell -b "tmux-attention seen #{pane_id}"'
 set-hook -g after-split-window 'run-shell -b "tmux-attention borders #{window_id}"'
-set-hook -g after-kill-pane 'run-shell -b "tmux-attention borders #{window_id}"'
-set-hook -g pane-exited 'run-shell -b "tmux-attention borders #{window_id}"'
+set-hook -g after-kill-pane 'run-shell -b "tmux-attention borders #{window_id}; claude-tmux sweep"'
+set-hook -g pane-exited 'run-shell -b "tmux-attention borders #{window_id}; claude-tmux sweep"'
 set-hook -g session-closed 'run-shell -b "tmux-attention status"'
 set-hook -g client-focus-in 'run-shell -b "tmux-attention status"'
 set -g pane-border-status off
@@ -145,7 +145,13 @@ set -g @plugin 'tmux-plugins/tmux-continuum'
 set -g @resurrect-capture-pane-contents 'on'
 # claude-tmux's records name the pane each conversation runs in; window and
 # pane indexes shift as windows close, so they are refreshed as of each save.
+# The same pass rewrites the save so claude-titled windows come back as
+# "claude" under automatic-rename: resurrect restores names by window index,
+# and a dead session's title on the wrong window would stick for good.
 set -g @resurrect-hook-post-save-all 'claude-tmux sync'
+# A restore onto a live server (prefix C-r) renames those windows to "claude";
+# the sweep gives every running claude its title back.
+set -g @resurrect-hook-post-restore-all 'claude-tmux sweep'
 set -g @continuum-restore 'off'
 
 run '~/.local/share/tmux/plugins/tpm/tpm'

@@ -36,6 +36,18 @@ set -euo pipefail
 # to tmux when it is still the one set here. A window the user named is never
 # touched: renaming turns automatic-rename off, and that is the check.
 #
+# A title must not outlive its claude. tmux-resurrect saves a titled window
+# as user-named and restores names by window index, so after windows close
+# and the rest renumber, a restore stamps a dead session's title on whatever
+# window sits at that index now, and it can never rename itself again. So
+# `sync` rewrites each save to show those windows as "claude" with
+# automatic-rename on (the record keeps the title and SessionStart puts it
+# back on a resume), and `sweep` hands the name back on any titled window
+# with no claude in it, which is what a pane killed with claude inside
+# leaves behind. The titled window carries @claude_title so the sweep needs
+# no record. The sweep also runs the other way, putting a recorded title
+# back on a claude that is running under the automatic name again.
+#
 # What a restored flag means: the state is information, not a live prompt.
 # A permission or question that was pending before the restart is gone with
 # the process; the pane comes back as needs-you with "before restart: …" so
@@ -55,8 +67,11 @@ usage:
                         run by the Claude Code hooks; reads the hook JSON on stdin
   claude-tmux restore   after tmux-attach restored the layout: resume recorded
                         sessions in their panes and re-flag them
-  claude-tmux sync      refresh every record's target from the live panes; run
-                        by tmux-resurrect after each save
+  claude-tmux sync      refresh every record's target from the live panes and
+                        keep claude titles out of the save; run by
+                        tmux-resurrect after each save
+  claude-tmux sweep     hand back the name of every claude-titled window that
+                        no longer runs claude
   claude-tmux records   print the records
 EOF
   exit 2
@@ -212,8 +227,13 @@ title_window() {
   [ -n "$transcript" ] || transcript=$(record_get "$key" transcript)
   title=$(first_prompt_title "$transcript")
   [ -n "$title" ] || return 0
-  tmux rename-window -t "$TMUX_PANE" "$title" 2>/dev/null || return 0
+  apply_title "$title" || return 0
   [ -z "$key" ] || mark "title=$title"
+}
+
+apply_title() {
+  tmux rename-window -t "$TMUX_PANE" "$1" 2>/dev/null || return 1
+  tmux set -w -t "$TMUX_PANE" @claude_title "$1" 2>/dev/null || true
 }
 
 # On SessionEnd: the name goes back to tmux when it is still the one set here.
@@ -222,7 +242,53 @@ untitle_window() {
   title=$(record_get "${1:-}" title)
   [ -n "$title" ] || return 0
   [ "$(tmux display -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || true)" = "$title" ] || return 0
-  tmux set -w -t "$TMUX_PANE" automatic-rename on 2>/dev/null || true
+  release_title "$TMUX_PANE"
+}
+
+# The window named by <target> names itself again.
+release_title() {
+  tmux set -w -t "$1" automatic-rename on 2>/dev/null || true
+  tmux set -wu -t "$1" @claude_title 2>/dev/null || true
+}
+
+# Every title on record, one per line.
+recorded_titles() {
+  [ -d "$STATE_DIR" ] || return 0
+  sed -n 's/^title=\(.\+\)$/\1/p' "$STATE_DIR"/* 2>/dev/null | sort -u
+}
+
+# Windows that carry a claude title and run no claude name themselves again.
+# A pane killed with claude inside fires no SessionEnd, so nothing else
+# would; the title is known from @claude_title or from a record.
+cmd_sweep() {
+  command -v tmux >/dev/null 2>&1 || return 0
+  local us=$'\x1f' titles win name marked cmds
+  titles=$(recorded_titles)
+  while IFS="$us" read -r win name marked cmds; do
+    if [ "$marked" != "$name" ]; then
+      [ -n "$titles" ] || continue
+      grep -qxF "$name" <<< "$titles" || continue
+    fi
+    case "$cmds" in *" claude "*) continue ;; esac
+    release_title "$win"
+  done < <(tmux list-panes -a -F "#{window_id}${us}#{window_name}${us}#{@claude_title}${us}#{pane_current_command}" 2>/dev/null \
+    | awk -F "$us" -v OFS="$us" '{ w = $1; if (!(w in name)) { order[++n] = w; name[w] = $2; marked[w] = $3; cmds[w] = " " } cmds[w] = cmds[w] $4 " " }
+        END { for (i = 1; i <= n; i++) print order[i], name[order[i]], marked[order[i]], cmds[order[i]] }')
+  # And the other way round: a claude still running under tmux's automatic
+  # name gets its recorded title back. A restore onto a live server does
+  # that, since the save shows the window as "claude".
+  [ -d "$STATE_DIR" ] || return 0
+  local f key title cmd auto
+  for f in "$STATE_DIR"/*; do
+    [ -f "$f" ] || continue
+    key=$(basename "$f")
+    title=$(sed -n 's/^title=//p' "$f" | head -1)
+    [ -n "$title" ] || continue
+    IFS="$us" read -r cmd auto < <(tmux display -p -t "$key" "#{pane_current_command}${us}#{automatic-rename}" 2>/dev/null) || continue
+    [ "$cmd" = claude ] && [ "$auto" = 1 ] || continue
+    tmux rename-window -t "$key" "$title" 2>/dev/null || continue
+    tmux set -w -t "$key" @claude_title "$title" 2>/dev/null || true
+  done
 }
 
 # --- signal ------------------------------------------------------------------
@@ -272,11 +338,12 @@ cmd_signal() {
         tmux-attention clear --pane "$TMUX_PANE"
         state=idle; reason=''
       fi
-      # The title stays across a restore: the window came back with that
-      # name and automatic-rename off, and it is the record that lets
-      # SessionEnd hand the name back to tmux.
+      # The title stays across a restore: the save shows the window as
+      # "claude", so the record is what puts the name back, and what lets
+      # SessionEnd hand it to tmux again.
       local title=''
       [ "$restoring" != 1 ] || title=$(record_get "$key" title)
+      [ -z "$title" ] || apply_title "$title" || true
       mark "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore=" "title=$title"
       ;;
     end)
@@ -374,13 +441,34 @@ cmd_restore() {
 # the old indexes; tmux-resurrect runs this right after each save, so the
 # targets match the layout `restore` will read back.
 cmd_sync() {
-  [ -d "$STATE_DIR" ] || return 0
-  local id target f
-  while IFS=$'\t' read -r id target; do
-    f=$(record_path "$id")
-    [ -f "$f" ] || continue
-    [ "$(sed -n 's/^target=//p' "$f" | head -1)" = "$target" ] || record_write "$id" "target=$target"
-  done < <(tmux list-panes -a -F $'#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)
+  cmd_sweep
+  if [ -d "$STATE_DIR" ]; then
+    local id target f
+    while IFS=$'\t' read -r id target; do
+      f=$(record_path "$id")
+      [ -f "$f" ] || continue
+      [ "$(sed -n 's/^target=//p' "$f" | head -1)" = "$target" ] || record_write "$id" "target=$target"
+    done < <(tmux list-panes -a -F $'#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)
+  fi
+  untitle_save
+}
+
+# The save tmux-resurrect just wrote, with every claude-titled window shown
+# as "claude" under automatic-rename, so no restore ever re-applies a title:
+# the record does that, on the pane that actually resumes the session.
+untitle_save() {
+  local save titles tmp
+  save=$(readlink -f "$RESURRECT_DIR/last" 2>/dev/null || true)
+  [ -n "$save" ] && [ -f "$save" ] || return 0
+  titles=$( { recorded_titles; tmux list-windows -a -F '#{@claude_title}' 2>/dev/null; } | sed '/^$/d' | sort -u)
+  [ -n "$titles" ] || return 0
+  tmp=$(mktemp "$save.XXXXXX")
+  awk -F'\t' -v OFS='\t' -v titles="$titles" '
+    BEGIN { n = split(titles, t, "\n"); for (i = 1; i <= n; i++) claude[t[i]] = 1 }
+    $1 == "window" && substr($4, 2) in claude { $4 = ":claude"; $8 = ":" }
+    { print }
+  ' "$save" > "$tmp" || { rm -f "$tmp"; return 0; }
+  mv -f "$tmp" "$save"
 }
 
 cmd_records() {
@@ -398,6 +486,7 @@ case "$cmd" in
   signal) cmd_signal "$@" ;;
   restore) cmd_restore ;;
   sync) cmd_sync ;;
+  sweep) cmd_sweep ;;
   records) cmd_records ;;
   -h|--help|help) usage ;;
   *) usage ;;

@@ -35,6 +35,24 @@ already_restored() {
   [ "$(tmux show-options -gv "$restored_flag" 2>/dev/null || true)" = "1" ]
 }
 
+# A server holding nothing but the bare `main` this script creates, or the
+# wb-* session `workbench lead` starts, is one a restore may fill. Anything
+# else is live work, and restoring onto it is never right whatever the flag
+# says: tmux-resurrect names windows by index, so on a layout that has since
+# closed windows and renumbered it stamps saved names on the wrong windows,
+# with automatic-rename off, and they keep them for good.
+server_is_bare() {
+  local name windows
+  while IFS=$'\t' read -r name windows; do
+    case "$name" in
+      main) [ "$windows" -le 1 ] || return 1 ;;
+      wb-*) ;;
+      *) return 1 ;;
+    esac
+  done < <(tmux list-sessions -F $'#{session_name}\t#{session_windows}' 2>/dev/null 9>&-)
+  return 0
+}
+
 # Every tmux command here closes fd 9. This is load-bearing: the tmux server
 # inherits the fds of whichever client forks it and then outlives this script,
 # so a server holding fd 9 holds the lock forever and every later terminal
@@ -42,6 +60,10 @@ already_restored() {
 restore_once() {
   server_running || tmux new-session -d -s main 9>&-
   if already_restored; then
+    return 0
+  fi
+  if ! server_is_bare; then
+    tmux set-option -g "$restored_flag" 1 9>&-
     return 0
   fi
   # run-shell, not a direct call: restore.sh derives the server socket from
