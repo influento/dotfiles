@@ -12,7 +12,7 @@ fails `review-check` like a tree file would.
 A finding is a memory that:
 
 - a commit could make wrong — a technical fact about this project, which
-  belongs in the repository or in the item whose work found it
+  belongs in the repository, in the code that depends on it
 - is already wrong — names a file, flag, function or behaviour that no longer
   exists; cite the check that shows it
 - duplicates a repository document

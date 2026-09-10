@@ -109,3 +109,25 @@ identifiers. Inconsistent vocabulary in an item is a pre-merge review finding.
 Because it binds code, a rename obliges the symbols to move with it, which is
 exactly why the rename is its own item with its own criterion instead of being
 absorbed into whatever work exposed the problem.
+
+## Rejected words
+
+A word rejected at coinage — the user said `customer`, not `account` — is
+settled in that session and forgotten by the next, which reads a request
+that says "account" and has no record the word was already refused. An
+alias records only a rename, so a rejection has no home without this table:
+
+```markdown
+## Use, never
+
+| Use | Never | Because |
+|---|---|---|
+| customer | account | `account` is the login record in `src/auth` |
+```
+
+One row per rejection, written in the same commit as the item that first
+used the chosen word, as a new term is. `Because` names what the rejected
+word already means here, or is empty when it means nothing and was merely
+the second word for one thing. The pre-merge gate greps every `Never` word
+over the item and the diff, so a row makes the check mechanical where it
+was judgment.

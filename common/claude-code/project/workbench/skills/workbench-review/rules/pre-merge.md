@@ -29,12 +29,14 @@ missing. Read it and name it; the checks below are made against it. Check:
   `sed -n '/^template_headings()/,/^}/p' "$(command -v workbench)"`
 - no script was written to satisfy a step and then deleted, and no scratch
   file is cited that the tree does not hold
-- documentation: written where it should not have been, or a discovered fact
-  left out of the item that found it
+- documentation: written where it should not have been, or a fact the code
+  depends on written only in prose — an item line, a document — where the
+  code cannot reach it
 - tests, if any, stay within what the criterion describes
 - the item's prose, the code it adds and the commit subject use the words in
   `workbench/GLOSSARY.md` — an identifier in the old word after a rename
-  merged is a finding
+  merged is a finding, and so is any word from the glossary's `Never`
+  column: `grep -riw` each one over the item and the diff
 - whether anything left unverified could in fact be verified now, by
   synthesising the event — `awaiting — <trigger>` (a time can be named for
   it) and `unverified — <trigger>` (none can) are the user's call, not the
@@ -49,7 +51,7 @@ missing. Read it and name it; the checks below are made against it. Check:
   code is a finding that stops the merge
 
 The three most often missed: a guard standing in a criterion slot, a
-discovered fact left out of the item whose work found it, and a test that
+discovered fact recorded in the item instead of in the code, and a test that
 reaches past what the criterion describes.
 
 End the report with one line, the last line, and nothing after it:

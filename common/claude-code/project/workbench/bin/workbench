@@ -275,7 +275,11 @@ write_glossary() {
 
      A term is renamed by `workbench new rename`, and the entry changes in the
      same commit as the code. Aliases are written as (was: old-term), and only
-     once the old word survives in an archived item or a merged commit. -->
+     once the old word survives in an archived item or a merged commit.
+
+     A word rejected at coinage gets a row under a "Use, never" table
+     (| Use | Never | Because |), in the same commit as the item that first
+     used the chosen word, so the next session does not reach for it. -->
 EOF
 }
 
@@ -3671,6 +3675,19 @@ status_lines() {
 cmd_status() {
   local dirs=()
   require_init
+  # Run by the SessionStart hook, which also fires on compaction — and the
+  # compacted context has lost every invoked skill body and every path rule
+  # it had read; only CLAUDE.md and this output come back (agent-kit's
+  # README; not probed here). Say so first, so the next step is the skill.
+  # Stdin is read only when something is already there: by hand it is a tty,
+  # and a pipe with nothing on it must not block.
+  if [ ! -t 0 ] && read -t 0 -r _ 2>/dev/null; then
+    read_hook_input
+    if [ "$h_source" = compact ]; then
+      echo "compaction dropped the workbench skill body and every .claude/rules file from this context; invoke the workbench skill before the next step"
+      echo
+    fi
+  fi
   # Every checkout: an item on a sibling worktree's branch is in flight too.
   mapfile -t dirs < <(wb_dirs items < <(all_roots))
 

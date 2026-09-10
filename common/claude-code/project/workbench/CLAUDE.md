@@ -185,6 +185,11 @@ is `agent_type`), `Stop`. Every hook input carries `session_id`, `cwd` and
   the Agent tool once it reads a matching file — probed 2.1.258 with a canary
   line, for `wb-reviewer` and `general-purpose`; the unscoped rules load
   regardless. A project's per-file rules reach the reviewer and the gate.
+- A compact keeps `CLAUDE.md` and the `SessionStart` hook output and nothing
+  else that was injected: an invoked skill's body and every `.claude/rules`
+  file the session had read are gone from the compacted context, and a path
+  rule returns only on the next Read of a file it matches. From agent-kit's
+  README, not probed here. `status` says so when its `source` is `compact`.
 
 The CLI surface these sit under: `workbench lead`, `open`, `signal`, `gate`, and
 the definitions in `agents/`.

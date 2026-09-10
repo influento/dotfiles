@@ -86,8 +86,9 @@ earlier understanding was (SKILL.md, "Deleting means deleting"): the branch's
 commits while it is open, and after archive the tag `archive` leaves in the
 branch's place, named by the id — `git log x-041 -- <the item file>` walks
 every rewrite. A discovered fact about a system
-we do not control goes into the concept that needed it, as it would go into a
-bug's root cause.
+we do not control is stated in the concept only where its state depends on
+it, as it would appear in a bug's root cause; it becomes code in the item
+the concept spawns.
 
 ### Concept states
 
