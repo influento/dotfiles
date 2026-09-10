@@ -59,6 +59,13 @@ Three things in the script are load-bearing and look removable:
 - **The `@dotfiles-restored` server option.** Restore must happen once per server,
   not once per terminal, and the server may be started by something other than
   ghostty — `workbench lead` creates a tmux session too.
+- **`server_is_bare` behind the flag.** A restore ran onto a live server once
+  with the flag somehow unset (2026-09-10; the trigger was never found), and
+  resurrect renames windows by index, so after windows had closed and the rest
+  renumbered, a dead Claude session's title landed on an ssh window for good.
+  So the flag is not trusted alone: a server holding anything beyond a
+  one-window `main` or a `wb-*` session is never restored onto, and gets the
+  flag set instead.
 
 After the resurrect restore it runs `claude-tmux restore`, which types
 `claude --resume` into the panes that ran Claude Code and re-flags what they
