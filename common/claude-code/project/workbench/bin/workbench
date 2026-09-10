@@ -2240,9 +2240,24 @@ window_alive() {
   grep -qx "$1" <<<"$ids"
 }
 
-# Is claude still the foreground command of the window's pane?
+# Is claude still the foreground command of any pane in the window? Every
+# pane, not the active one: a shell the user split open beside the worker
+# is what is active while they type in it, and the claude next to it is alive.
 claude_in_window() {
-  [ "$(tmux display-message -p -t "$1" '#{pane_current_command}' 2>/dev/null || true)" = claude ]
+  tmux list-panes -t "$1" -F '#{pane_current_command}' 2>/dev/null | grep -qx claude
+}
+
+# window_named <window_id> <name>: does the window still carry the title we
+# gave it — the name, with at most a state glyph before and a context fill
+# after? tmux hands out window ids from @0 again after a restart, so a row
+# left by a previous server can name a window that is now the user's own.
+# The gone path renames and kills; this keeps it to our windows until 'lead'
+# prunes the registry.
+window_named() {
+  case "$(tmux display-message -p -t "$1" '#{window_name}' 2>/dev/null || true)" in
+    "$2"|?" $2"|"$2 "*%|?" $2 "*%) return 0 ;;
+  esac
+  return 1
 }
 
 # The window this process runs in, when it is one of ours. A registry row is not
@@ -2670,8 +2685,9 @@ cmd_open() {
         return 0
       fi
       # Alive with a shell in it: claude died without a SessionEnd. Close it
-      # and carry on as for a window that is gone.
-      tmux kill-window -t "$wid" 2>/dev/null || true
+      # and carry on as for a window that is gone — when it is still ours;
+      # a stale id names someone else's window, which is left alone.
+      ! window_named "$wid" "$name" || tmux kill-window -t "$wid" 2>/dev/null || true
     fi
     # The window is gone; the conversation is not. Resume it where it ran —
     # unless a hold moved the worker's effort up. A resume at a new effort
@@ -2856,15 +2872,26 @@ ctx_suffix() {
   printf ' %s%%' "$pct"
 }
 
-# set_state <window_id> <role> <id> <sid> <state> <pmode>: record, and rename
-# the window when the title changes — a rename per tool call would be noise.
-set_state() {
-  local wid="$1" role="$2" id="$3" sid="$4" state="$5" pmode="$6" name title
-  registry_write "$wid" "$role" "$id" "$sid" "$state" "$pmode"
+# retitle <window_id>: the window's name from its row as it is now — a
+# rename only when the title changed, since one per tool call would be noise.
+# Reads the row rather than taking the state as an argument, so a caller
+# that is not the source of the state (the status line, carrying the context
+# fill) never paints one it read a moment ago and a hook has since replaced.
+retitle() {
+  local wid="$1" row role id sid state name title
+  row=$(registry_row_of_window "$wid")
+  [ -n "$row" ] || return 0
+  IFS=$'\t' read -r _ role id sid state _ <<<"$row"
   name=$id; [ "$role" != lead ] || name=lead
   title="$(state_prefix "$state")$name$(ctx_suffix "$sid")"
   [ "$(tmux display-message -p -t "$wid" '#{window_name}' 2>/dev/null)" = "$title" ] \
     || tmux rename-window -t "$wid" "$title" 2>/dev/null || true
+}
+
+# set_state <window_id> <role> <id> <sid> <state> <pmode>: record, then title.
+set_state() {
+  registry_write "$1" "$2" "$3" "$4" "$5" "$6"
+  retitle "$1"
 }
 
 # What a stopped worker's turn ended on. The item file and the review mark
@@ -3071,7 +3098,7 @@ session_state() {
   wid=$(printf '%s' "$row" | cut -f1)
   sid=$(printf '%s' "$row" | cut -f4)
   state=$(printf '%s' "$row" | cut -f5)
-  if ! window_alive "$wid"; then
+  if ! window_alive "$wid" || { ! claude_in_window "$wid" && ! window_named "$wid" "$1"; }; then
     echo "no session — 'workbench open $1' resumes it"
   elif ! claude_in_window "$wid"; then
     echo "gone — 'workbench open $1' resumes it"
@@ -3093,8 +3120,10 @@ worker_flags() {
     [ "$role" = worker ] || continue
     window_alive "$w" || continue
     # The one place a dead claude is noticed without a hook: every repaint
-    # of any session's status line. Recorded, so the title changes once.
+    # of any session's status line. Recorded, so the title changes once. A
+    # window that is neither claude's nor titled as ours is a stale row.
     if ! claude_in_window "$w"; then
+      window_named "$w" "$id" || continue
       [ "$state" = gone ] || set_state "$w" "$role" "$id" "$sid" gone "$pmode"
       state=gone
     fi
@@ -3144,12 +3173,15 @@ cmd_statusline() {
       "${vals[8]:-}" "$cost" "${vals[5]:-}" "${vals[6]:-}" "$hit" "${vals[9]:-}"
   fi
   # The context fill rides the same repaint, and the window title follows it
-  # past CTX_WARN: set_state renames only when the title changed.
+  # past CTX_WARN. The registry is not written here: a repaint lands on the
+  # same events as the hooks — a permission prompt appearing, a turn ending —
+  # and a row read at the top of this call and written back would undo the
+  # state a hook set in between.
   if [ -n "$row" ] && [ -n "$ctx" ]; then
     ctx_record "$sid" "$ctx"
-    local rwid rrole rid rstate rpmode
-    IFS=$'\t' read -r rwid rrole rid _ rstate rpmode <<<"$row"
-    ! window_alive "$rwid" || set_state "$rwid" "$rrole" "$rid" "$sid" "$rstate" "$rpmode"
+    local rwid
+    rwid=$(cut -f1 <<<"$row")
+    ! window_alive "$rwid" || retitle "$rwid"
   fi
 
   local out="" here f names=() name n

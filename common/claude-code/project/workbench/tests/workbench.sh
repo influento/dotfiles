@@ -56,6 +56,7 @@ case "$cmd" in
     case "${rest[0]}" in '#{window_id}') [ -n "$w" ] && echo "$w" ;;
       '#{window_name}') grep -P "^$w\t" "$S/windows" | cut -f3 ;;
       '#{pane_current_command}') if [ -f "$S/gone/$w" ]; then echo zsh; else echo claude; fi ;; esac ;;
+  list-panes) if [ -f "$S/gone/$t" ]; then echo zsh; else echo claude; fi ;;
   switch-client|select-window|attach) ;;
   *) echo "shim: unhandled $cmd" >&2; exit 1 ;;
 esac
@@ -71,7 +72,7 @@ NOJSON="$TMP/nojson"
 mkdir -p "$NOJSON"
 for _t in bash sh sed awk gawk grep head tail cut sort uniq comm wc tr find git \
           basename dirname date mktemp cat printf readlink sha256sum paste rm \
-          rmdir mkdir mv cp touch env expr seq id tee xargs; do
+          rmdir mkdir mv cp touch env expr seq id tee xargs cmp; do
   _p=$(type -P "$_t" 2>/dev/null) && [ -n "$_p" ] && ln -sf "$_p" "$NOJSON/$_t"
 done
 unset _t _p

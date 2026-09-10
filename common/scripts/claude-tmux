@@ -7,8 +7,12 @@ set -euo pipefail
 # event, and translates the event into a tmux-attention state for the pane the
 # session runs in ($TMUX_PANE, inherited by every hook). It also keeps one
 # record per pane under ~/.local/state/claude-tmux/ — session id, transcript,
-# cwd, last state — which `restore` reads after a reboot to bring the
-# conversation back with `claude --resume` and re-flag the pane.
+# cwd, last state, and the pane's session:window.pane target — which
+# `restore` reads after a reboot to bring the conversation back with
+# `claude --resume` and re-flag the pane. The file is named by the pane id,
+# which holds for the server's life; the target is refreshed on every
+# transition, because window and pane indexes shift whenever a window to the
+# left closes (renumber-windows) or a pane above is killed.
 #
 #   event                                  state
 #   UserPromptSubmit, PreToolUse,           working
@@ -51,6 +55,8 @@ usage:
                         run by the Claude Code hooks; reads the hook JSON on stdin
   claude-tmux restore   after tmux-attach restored the layout: resume recorded
                         sessions in their panes and re-flag them
+  claude-tmux sync      refresh every record's target from the live panes; run
+                        by tmux-resurrect after each save
   claude-tmux records   print the records
 EOF
   exit 2
@@ -100,7 +106,11 @@ for p in sys.argv[1:]:
 
 # --- pane records ------------------------------------------------------------
 
-pane_key() {
+# The record's key: the pane id, stable while the server lives.
+pane_key() { printf '%s' "${TMUX_PANE:-}"; }
+
+# Where the pane is right now, the form tmux-resurrect saves and send-keys takes.
+pane_target() {
   tmux display -p -t "$TMUX_PANE" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true
 }
 
@@ -129,6 +139,9 @@ record_get() {
 }
 
 record_drop() { rm -f "$(record_path "$1")"; }
+
+# mark <field=value>...: this pane's record, its target refreshed.
+mark() { record_write "$(pane_key)" "target=$(pane_target)" "$@"; }
 
 in_workbench_session() {
   case "$(tmux display -p -t "$TMUX_PANE" '#{session_name}' 2>/dev/null || true)" in
@@ -200,7 +213,7 @@ title_window() {
   title=$(first_prompt_title "$transcript")
   [ -n "$title" ] || return 0
   tmux rename-window -t "$TMUX_PANE" "$title" 2>/dev/null || return 0
-  [ -z "$key" ] || record_write "$key" "title=$title"
+  [ -z "$key" ] || mark "title=$title"
 }
 
 # On SessionEnd: the name goes back to tmux when it is still the one set here.
@@ -234,7 +247,7 @@ cmd_signal() {
   case "$what" in
     working)
       prev=$(flag working) || true
-      [ -z "$prev" ] || record_write "$(pane_key)" "state=working" "reason="
+      [ -z "$prev" ] || mark "state=working" "reason="
       ;;
     start)
       local vals=() sid transcript cwd source
@@ -259,7 +272,12 @@ cmd_signal() {
         tmux-attention clear --pane "$TMUX_PANE"
         state=idle; reason=''
       fi
-      record_write "$key" "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore=" "title="
+      # The title stays across a restore: the window came back with that
+      # name and automatic-rename off, and it is the record that lets
+      # SessionEnd hand the name back to tmux.
+      local title=''
+      [ "$restoring" != 1 ] || title=$(record_get "$key" title)
+      mark "session_id=$sid" "transcript=$transcript" "cwd=$cwd" "state=$state" "reason=$reason" "restore=" "title=$title"
       ;;
     end)
       local reason
@@ -268,7 +286,7 @@ cmd_signal() {
       tmux-attention clear --pane "$TMUX_PANE"
       untitle_window "$key"
       [ -z "$key" ] || case "$reason" in
-        other) record_write "$key" "state=$(record_get "$key" state)" ;;
+        other) mark "state=$(record_get "$key" state)" ;;
         *) record_drop "$key" ;;
       esac
       ;;
@@ -277,25 +295,25 @@ cmd_signal() {
       q=$(json_fields tool_input.questions.0.question)
       q="question: ${q:-Claude asks}"
       prev=$(flag needs-you --reason "$q") || true
-      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=$q"
+      [ -z "$prev" ] || mark "state=needs-you" "reason=$q"
       ;;
     permission)
       local vals=() label
       mapfile -t vals < <(json_fields tool_name tool_input.command tool_input.file_path tool_input.pattern)
       label=$(tool_label "${vals[0]:-tool}" "${vals[1]:-}" "${vals[2]:-}" "${vals[3]:-}")
       prev=$(flag needs-you --reason "$label") || true
-      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=$label"
+      [ -z "$prev" ] || mark "state=needs-you" "reason=$label"
       ;;
     notification)
       local msg
       msg=$(json_fields message)
       msg=${msg:-needs input}
       prev=$(flag needs-you --reason "${msg:0:64}") || true
-      [ -z "$prev" ] || record_write "$(pane_key)" "state=needs-you" "reason=${msg:0:64}"
+      [ -z "$prev" ] || mark "state=needs-you" "reason=${msg:0:64}"
       ;;
     stop)
       prev=$(flag "done" --reason "turn ended") || true
-      [ -z "$prev" ] || record_write "$(pane_key)" "state=done" "reason=turn ended"
+      [ -z "$prev" ] || mark "state=done" "reason=turn ended"
       title_window
       ;;
     *) usage ;;
@@ -315,37 +333,54 @@ resurrect_claude_panes() {
   awk -F'\t' '$1 == "pane" && $10 == "claude" { print $2 ":" $3 "." $6 }' "$RESURRECT_DIR/last"
 }
 
-# For every record whose pane resurrect saw running claude, is back as a
+# For every record whose target resurrect saw running claude, is back as a
 # plain shell in the same directory, and whose transcript still exists: type
 # `claude --resume <id>` into it and mark the record so the SessionStart hook
-# re-applies the flag. Records with no transcript, or older than a week, are
-# dropped.
+# re-applies the flag. The new server hands out pane ids afresh, so the
+# record moves to the id its target has now, where that hook will look.
+# Records with no transcript, or older than a week, are dropped.
 cmd_restore() {
   [ -d "$STATE_DIR" ] || return 0
   command -v tmux >/dev/null 2>&1 || return 0
-  local f key sid transcript cwd updated now cmd path saved
+  local f key target sid transcript cwd updated now cmd path id saved
   saved=$(resurrect_claude_panes)
   now=$(date +%s)
   for f in "$STATE_DIR"/*; do
     [ -f "$f" ] || continue
     key=$(basename "$f")
+    target=$(sed -n 's/^target=//p' "$f" | head -1)
     sid=$(sed -n 's/^session_id=//p' "$f" | head -1)
     transcript=$(sed -n 's/^transcript=//p' "$f" | head -1)
     cwd=$(sed -n 's/^cwd=//p' "$f" | head -1)
     updated=$(sed -n 's/^updated=//p' "$f" | head -1)
-    if [ -z "$sid" ] || [ ! -f "$transcript" ] || [ $((now - ${updated:-0})) -gt 604800 ]; then
+    if [ -z "$sid" ] || [ -z "$target" ] || [ ! -f "$transcript" ] || [ $((now - ${updated:-0})) -gt 604800 ]; then
       rm -f "$f"
       continue
     fi
-    case "$key" in wb-*) continue ;; esac
-    grep -qxF "$key" <<< "$saved" || continue
-    IFS=$'\t' read -r cmd path < <(tmux display -p -t "$key" $'#{pane_current_command}\t#{pane_current_path}' 2>/dev/null || true)
+    case "$target" in wb-*) continue ;; esac
+    grep -qxF "$target" <<< "$saved" || continue
+    IFS=$'\t' read -r id cmd path < <(tmux display -p -t "$target" $'#{pane_id}\t#{pane_current_command}\t#{pane_current_path}' 2>/dev/null || true)
     case "$cmd" in zsh|bash|fish|sh) ;; *) continue ;; esac
     [ "$path" = "$cwd" ] || continue
-    record_write "$key" "restore=1"
-    tmux send-keys -t "$key" "claude --resume $sid" Enter
-    echo "claude-tmux: resuming $sid in $key" >&2
+    [ "$id" = "$key" ] || mv -f "$f" "$(record_path "$id")"
+    record_write "$id" "restore=1"
+    tmux send-keys -t "$target" "claude --resume $sid" Enter
+    echo "claude-tmux: resuming $sid in $target" >&2
   done
+}
+
+# Every record's target as of now, for the panes still on this server. A pane
+# that has not transitioned since a window to its left closed still carries
+# the old indexes; tmux-resurrect runs this right after each save, so the
+# targets match the layout `restore` will read back.
+cmd_sync() {
+  [ -d "$STATE_DIR" ] || return 0
+  local id target f
+  while IFS=$'\t' read -r id target; do
+    f=$(record_path "$id")
+    [ -f "$f" ] || continue
+    [ "$(sed -n 's/^target=//p' "$f" | head -1)" = "$target" ] || record_write "$id" "target=$target"
+  done < <(tmux list-panes -a -F $'#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)
 }
 
 cmd_records() {
@@ -362,6 +397,7 @@ cmd="$1"; shift
 case "$cmd" in
   signal) cmd_signal "$@" ;;
   restore) cmd_restore ;;
+  sync) cmd_sync ;;
   records) cmd_records ;;
   -h|--help|help) usage ;;
   *) usage ;;
