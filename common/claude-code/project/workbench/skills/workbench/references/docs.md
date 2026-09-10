@@ -59,6 +59,24 @@ a dumping ground.
 `grep`. When the task is to understand an area rather than edit it, open the
 area's `CLAUDE.md` deliberately.
 
+## Line caps
+
+The documents every session reads have a length past which they cost more
+than they answer. `workbench status` counts them and prints one `cap:` line
+per file over, naming the file, its length against the cap, and the docs
+review that cuts it:
+
+| File | Cap | Override |
+|---|---|---|
+| root `CLAUDE.md` | 150 | `git config workbench.cap.claude <n>` |
+| `workbench/GLOSSARY.md` | 300 | `git config workbench.cap.glossary <n>` |
+| `workbench/BACKLOG.md` | 400 | `git config workbench.cap.backlog <n>` |
+| `workbench/DECISIONS.md` | 200 | `git config workbench.cap.decisions <n>` |
+
+The line repeats at every session start until the file is under again, so
+the review is the way to silence it; the override is for a project whose
+document is legitimately larger, and is the user's to set.
+
 ## No findings directory, no baselines file
 
 A measured number goes in the item it was evidence for, with the command that

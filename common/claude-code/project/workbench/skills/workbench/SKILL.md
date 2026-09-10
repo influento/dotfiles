@@ -259,6 +259,7 @@ path. Three gates invoke it, whoever is driving:
 | a milestone's items are all archived | `/workbench-review sweep "<the paths it moved>"` before `milestone archive` |
 | `.claude/memory/` changed this session | `/workbench-review memory` before the session ends |
 | `workbench status` printed a `usage:` line | `/workbench-review usage`, before dispatching work; its suggestions go to the user at triage — see "Usage" below |
+| `workbench status` printed a `cap:` line | `/workbench-review docs`, scoped to the file named; a document is past its line cap and the review says what to cut — [docs.md](references/docs.md), "Line caps" |
 
 Any other sweep is the user's to ask for — `sweep`, `docs`, `adopt`,
 `watch` — never started because the code looks like it needs one.

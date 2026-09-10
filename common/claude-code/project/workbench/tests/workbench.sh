@@ -347,6 +347,24 @@ check "status is silent again after the review" bash -c "! '$WB' status | grep -
 rm -f workbench/items/archive/f-90*-fake.md
 git config --unset workbench.usagereviewedat
 
+# Line caps on the four documents: a 'cap:' line per file over, none under.
+# Padding is appended to copies of the real files and undone after.
+cp workbench/BACKLOG.md "$TMP/backlog.orig"; cp CLAUDE.md "$TMP/claude.orig"
+check "status says nothing about caps while every file is under" bash -c "! '$WB' status | grep -q '^cap:'"
+pad() { local i; for ((i = $(wc -l < "$1"); i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
+pad workbench/BACKLOG.md 401 '- pad'
+run "status names a file over its cap with its length" 0 '^cap: workbench/BACKLOG.md 401/400 — run /workbench-review docs$' bash -c "'$WB' status | grep '^cap:'"
+git config workbench.cap.backlog 500
+check "git config workbench.cap.<name> raises the cap" bash -c "! '$WB' status | grep -q '^cap:'"
+git config workbench.cap.backlog many
+run "a cap that is not a number falls back to the default" 0 '^cap: workbench/BACKLOG.md 401/400' bash -c "'$WB' status | grep '^cap:'"
+git config --unset workbench.cap.backlog
+pad CLAUDE.md 151 pad
+check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — run /workbench-review docs\|cap: workbench/BACKLOG.md 401/400 — run /workbench-review docs$'"
+check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE '^(cap:|open items)' | grep -q 'cap:'"
+cp "$TMP/backlog.orig" workbench/BACKLOG.md; cp "$TMP/claude.orig" CLAUDE.md
+check "status is silent again once the files are back under" bash -c "! '$WB' status | grep -q '^cap:'"
+
 run "find by path" 0 "b-001" "$WB" find src.txt
 run "find is cwd-relative" 0 "b-001" bash -c "cd sub && '$WB' find x.txt"
 run "find unrelated path is empty" 0 "" "$WB" find README
