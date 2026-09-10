@@ -1497,6 +1497,9 @@ run "signal stopped keeps asked" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal
 check "stopped after asking stays ↑" [ "$(title_of "$w2")" = "↑ $s2" ]
 run "a session start on compaction changes nothing" 0 "" bash -c "printf '{\"session_id\":\"sid-2\",\"source\":\"compact\"}' | TMUX_PANE=$p2 '$WB' signal start"
 check "still ↑ after compacting" [ "$(title_of "$w2")" = "↑ $s2" ]
+run "status on compaction says the skill body is gone" 0 "^compaction dropped the workbench skill body" bash -c "printf '{\"session_id\":\"sid-2\",\"source\":\"compact\"}' | '$WB' status"
+check "status on a fresh start does not" bash -c "! printf '{\"session_id\":\"sid-2\",\"source\":\"startup\"}' | '$WB' status | grep -q '^compaction dropped'"
+check "status with nothing on stdin does not block" bash -c "! '$WB' status </dev/null | grep -q '^compaction dropped'"
 run "the lead replying to a worker is not asking" 0 "" bash -c "hook sid-lead '$PWD' SendMessage uds:/run/w.sock | TMUX_PANE=%1 '$WB' signal asked"
 check "the lead's title is untouched" [ "$(title_of @1)" = "lead" ]
 run "signal working" 0 "" bash -c "hook | TMUX_PANE=$p2 '$WB' signal working"

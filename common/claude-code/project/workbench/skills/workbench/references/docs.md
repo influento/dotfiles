@@ -9,11 +9,12 @@ while it is wrong is worse than no document.
 1. **Write nothing.** If reading the code answers the question cheaply, that is
    the answer.
 2. **Is it derivable from our own code?** If yes, do not write it — it will rot.
-3. **Is it a discovered fact about a system we do not control?** Then it belongs
-   in the item whose work discovered it — a bug's root cause, a feature's why,
-   a research concept — not in a document of its own. The archive is already
-   dated, searchable and locked, and the fact is attached to the change it
-   explains.
+3. **Is it a discovered fact about a system we do not control?** Then it
+   becomes code — a check, a constant, a comment at the one call site that
+   depends on it — or it is not written. It appears in an item only where a
+   root-cause or criterion line needs it to make sense, never as a line of
+   its own and never "for the record": an item is out of context the next
+   time the fact matters, so a fact kept there is a fact lost.
 4. **Only what is left** may be a document, and only if it passes the test
    below.
 
@@ -60,9 +61,9 @@ area's `CLAUDE.md` deliberately.
 
 ## No findings directory, no baselines file
 
-A discovered fact goes in the item whose work found it. A measured number goes
-in the item it was evidence for, with the command that produced it. Neither gets
-a file of its own.
+A measured number goes in the item it was evidence for, with the command that
+produced it. A discovered fact goes into the code that depends on it. Neither
+gets a file of its own.
 
 ## Repository documents or agent memory
 
@@ -74,7 +75,7 @@ fact. One question settles it:
 | Answer | Home |
 |---|---|
 | Yes — it is tied to our code | a repository document, or the item itself |
-| Yes — but it describes an external system | the item whose work discovered it |
+| Yes — but it describes an external system | the code that depends on it; an item line only where a root cause or criterion needs it |
 | No — it is about the user, their machine, preferences, or workflow | agent memory |
 | No — it is credentials-adjacent | nowhere in the repository — memory lives in the tree here, so `CLAUDE.local.md` or the user's own `~/.claude/` |
 
@@ -129,4 +130,4 @@ the one nested `CLAUDE.md` covering the area, or nothing.
 
 Any document written goes in the same change as the code. The pre-merge review
 checks the decision in both directions: something written that should not have
-been, and a discovered fact left out of the item that found it.
+been, and a fact the code depends on that is written nowhere the code can reach.

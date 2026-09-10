@@ -59,8 +59,9 @@ idea (workbench/BACKLOG.md line)
    wiring, or glue unless a criterion demanded it.
 
 6. **Do not write documentation by default.** Code is the truth. Write only
-   what cannot be derived by reading the code, and put a discovered fact in the
-   item whose work found it rather than in a document of its own. See
+   what cannot be derived by reading the code. A discovered fact becomes code
+   or a comment at its call site, never a document and never an item line of
+   its own. See
    [docs.md](references/docs.md). The standing
    exception is `workbench/GLOSSARY.md`, which holds the project's domain
    language and binds every item written — see
