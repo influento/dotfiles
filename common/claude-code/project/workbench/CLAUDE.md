@@ -62,12 +62,16 @@ run at medium by their own `effort:`, whatever the worker's; with `--strict-mcp-
 so no user-level MCP server rides in a worker's requests, plus `--mcp-config
 workbench.workerMcp` when the project sets one), titled by the hooks with what it needs (`?` needs you, `↑` asked the
 lead, `⟳` in review, `✓` ready, `!` parked a call, `·` stopped, `✗` its claude
-died and `open` resumes it — a window alive with a shell in it, noticed on
-any session's status-line repaint, never by a timer) and with the context
-fill once it reaches `CTX_WARN` (`f-041 82%`; the status line records it
-under `usage/<sid>.ctx` on every repaint and `status` says "compaction
-soon", because a compacted or resumed session re-reads its history
-uncached); `open <id|lead>`
+died and `open` resumes it — a window alive with no pane running claude,
+noticed on any session's status-line repaint, never by a timer, and only
+when the window still carries our own title: window ids restart after a
+tmux restart, so until `lead` prunes the registry a stale row can name the
+user's own window) and with the context fill once it reaches `CTX_WARN`
+(`f-041 82%`; the status line records it under `usage/<sid>.ctx` on every
+repaint and retitles from a re-read row without writing the registry — a
+repaint lands on the same events as the hooks — and `status` says
+"compaction soon", because a compacted or resumed session re-reads its
+history uncached); `open <id|lead>`
 switches or resumes, `mode attended|unattended` decides live whether questions go
 to the user in-window or are parked; `round` keeps the review dialog honest
 before the gate.

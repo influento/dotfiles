@@ -135,6 +135,9 @@ set -g @plugin 'tmux-plugins/tmux-continuum'
 # at random and corrupts window layouts. workstation/scripts/tmux-attach does
 # the restore instead, before the shell exists. `prefix + Ctrl-r` still works.
 set -g @resurrect-capture-pane-contents 'on'
+# claude-tmux's records name the pane each conversation runs in; window and
+# pane indexes shift as windows close, so they are refreshed as of each save.
+set -g @resurrect-hook-post-save-all 'claude-tmux sync'
 set -g @continuum-restore 'off'
 
 run '~/.local/share/tmux/plugins/tpm/tpm'

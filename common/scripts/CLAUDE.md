@@ -86,16 +86,17 @@ prompt — its first four words after any opener ("can you", "please"), at
 most 28 characters — but only while the window still has tmux's automatic
 name: a rename turns `automatic-rename` off, and that option is the whole
 check, so a name the user set is never touched and a window named once is
-never renamed again. The name is kept in the record, and SessionEnd sets
-`automatic-rename` back on when the window still carries it, so a window
-whose claude ended names itself again. Workbench windows are titled by
-workbench.
+never renamed again. The name is kept in the record, across a restore too,
+and SessionEnd sets `automatic-rename` back on when the window still
+carries it, so a window whose claude ended names itself again. Workbench
+windows are titled by workbench.
 
 `restore`, run by `tmux-attach` after tmux-resurrect has rebuilt the layout,
-types `claude --resume <id>` into every pane that resurrect's last save shows
-running `claude` (column 10 of its `pane` lines), that is back as a plain
-shell in the recorded directory, and whose transcript is still on disk; it
-marks the record `restore=1`, and the `SessionStart` hook that follows
+types `claude --resume <id>` into every recorded target that resurrect's
+last save shows running `claude` (column 10 of its `pane` lines), that is
+back as a plain shell in the recorded directory, and whose transcript is
+still on disk; it moves the record to the pane id the target has on the new
+server, marks it `restore=1`, and the `SessionStart` hook that follows
 re-applies the flag.
 What comes back is information, not a live prompt: a pending permission or
 question is gone with the process, so the pane returns as `needs-you`
