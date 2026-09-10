@@ -84,6 +84,8 @@ item as one `usage:` line. `status` prints a `usage:` line when a review is
 due (`USAGE_REVIEW_EVERY` records, or a threshold in the last five);
 `workbench usage` tabulates; the `usage` review reason judges. The levers a
 review may name: `skills/workbench/references/usage.md`.
+`status` also prints a `cap:` line per document over its line cap (`CAP_*`,
+`git config workbench.cap.<name>` overrides) naming the `docs` review.
 
 ## Extension points
 

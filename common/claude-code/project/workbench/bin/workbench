@@ -41,6 +41,14 @@ WB_WORKER_EFFORT=low
 # says a review is due once this many have landed since the last one, so the
 # numbers get read whether or not anything in them looks wrong.
 USAGE_REVIEW_EVERY=10
+# Line caps on the documents every session reads: root CLAUDE.md and the
+# three under workbench/. Over one, 'status' names it and the docs review
+# that cuts it. 'git config workbench.cap.<claude|glossary|backlog|decisions>'
+# overrides, for a project whose document is legitimately larger.
+CAP_CLAUDE=150
+CAP_GLOSSARY=300
+CAP_BACKLOG=400
+CAP_DECISIONS=200
 # Context fill, in percent, from which a session's window title and the
 # status line carry it: compaction is near, and a resume re-reads the whole
 # history uncached, so the lead should decide about it rather than find out.
@@ -2430,6 +2438,26 @@ usage_field() {
   printf '%s\n' "$1" | sed -n "s/.*[ 	]$2=\([^ ]*\).*/\1/p; s/^$2=\([^ ]*\).*/\1/p" | head -1
 }
 
+# One line per document over its cap: the file, its length against the cap,
+# and the review that cuts it. Silent when every one is under. Caps are the
+# CAP_* defaults unless 'git config workbench.cap.<name>' says otherwise; a
+# value that is not a number falls back to the default rather than refusing.
+cap_alert() {
+  local mainr f name key cap n
+  mainr=$(main_root)
+  for f in "CLAUDE.md:claude:$CAP_CLAUDE" \
+           "$WB/GLOSSARY.md:glossary:$CAP_GLOSSARY" \
+           "$WB/BACKLOG.md:backlog:$CAP_BACKLOG" \
+           "$WB/DECISIONS.md:decisions:$CAP_DECISIONS"; do
+    name=${f%%:*}; key=${f#*:}; key=${key%%:*}; cap=${f##*:}
+    [ -f "$mainr/$name" ] || continue
+    n=$(git config --get "workbench.cap.$key" 2>/dev/null || true)
+    case "$n" in ''|*[!0-9]*) ;; *) cap=$n ;; esac
+    n=$(wc -l < "$mainr/$name")
+    [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — run /workbench-review docs\n' "$name" "$n" "$cap"
+  done
+}
+
 # The line 'status' prints when the numbers want reading, or nothing. Two
 # triggers: the cadence — USAGE_REVIEW_EVERY records since the last usage
 # review — and, over the last five records against the median of the last
@@ -3702,6 +3730,13 @@ cmd_status() {
   # says the usage numbers want a review, and nothing when they do not.
   local alert
   alert=$(usage_alert)
+  if [ -n "$alert" ]; then
+    echo "$alert"
+    echo
+  fi
+  # Same shape for the documents: a file past its line cap is a docs review
+  # to run, and the number says how far past.
+  alert=$(cap_alert)
   if [ -n "$alert" ]; then
     echo "$alert"
     echo
