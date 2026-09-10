@@ -1,0 +1,475 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# stack — the libraries, toolkits and tools a project has chosen, one at a time.
+#
+# A package is a directory under packages/ in this tree: a package.conf, an
+# optional rule.md and optional skills/. 'stack add <name>' brings the package
+# into the project: a read-only --squash subtree at repos/<name> when the
+# package names a REFERENCE worth reading (the way ts-gate holds Effect), the
+# dependency when it has a DEP, the rule as .claude/rules/<name>.md, the skills
+# as committed copies under .claude/skills/ — from this registry, from the
+# reference checkout, or through 'npx skills add' (skills.sh) — and one line in
+# a marked block of CLAUDE.md. What was added is recorded in .claude/stack.conf
+# so status, update and rm know it.
+
+STACK_ROOT=${STACK_ROOT:-$(readlink -f "$(dirname "$(readlink -f "$0")")/..")}
+PACKAGES="$STACK_ROOT/packages"
+MANIFEST=.claude/stack.conf
+MARK_START='<!-- stack:start -->'
+MARK_END='<!-- stack:end -->'
+REPOS=repos
+# The skills.sh CLI. Under Claude Code it detects the agent and runs without
+# prompts anyway; the flags make that true from any shell.
+SKILLS_CMD=${STACK_SKILLS_CMD:-npx -y skills}
+
+usage() {
+  [ "${1:-2}" -eq 0 ] || exec >&2
+  cat <<'USAGE'
+usage:
+  stack list                  every package in the registry, with its kind and note
+  stack show <name>           the package's conf and what add would bring in
+  stack add <name>...         subtree at repos/<name>, dependency, rule, skills, CLAUDE.md line
+  stack update <name>...      each part its own way: subtree pull, 'npx skills update', re-copied
+                              rule and registry skills (all added packages when none named)
+  stack rm <name>             remove what add put in, from .claude/stack.conf; the dependency stays
+  stack status                added packages, and copies that differ from their source
+
+A package: packages/<name>/package.conf (KIND, REFERENCE, REF, DEP, SKILLS_ADD,
+SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE), packages/<name>/rule.md,
+packages/<name>/skills/. REFERENCE is 'private:<repo>' (git config
+private.root, <root>/<repo>.git) or 'git:<url>'; SKILLS_ADD is a skills.sh
+package ('shadcn/ui'). STACK_ROOT overrides where the registry is read from;
+STACK_SKILLS_CMD what runs for skills.sh (default 'npx -y skills').
+USAGE
+  exit "${1:-2}"
+}
+
+die() { echo "stack: $*" >&2; exit 1; }
+
+repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
+}
+
+# ---- registry ---------------------------------------------------------------
+
+package_dir() {
+  local d="$PACKAGES/$1"
+  [ -f "$d/package.conf" ] || die "no package '$1' in $PACKAGES"
+  printf '%s\n' "$d"
+}
+
+# One KEY=value per line; a value may be double-quoted. Read, never sourced.
+conf() {
+  local dir=$1 key=$2 v
+  v=$(sed -n "s/^$key=//p" "$dir/package.conf" | head -n 1)
+  v=${v#\"}; v=${v%\"}
+  printf '%s\n' "$v"
+}
+
+# Skills shipped in the registry: packages/<name>/skills/<skill>/SKILL.md.
+registry_skills() {
+  local dir=$1 s
+  [ -d "$dir/skills" ] || return 0
+  for s in "$dir"/skills/*/; do
+    [ -f "$s/SKILL.md" ] && basename "$s"
+  done
+}
+
+# Skills the package's own repository ships, under SKILLS_FROM_REFERENCE.
+reference_skills() {
+  local name=$1 from=$2 s
+  [ -n "$from" ] && [ -d "$REPOS/$name/$from" ] || return 0
+  for s in "$REPOS/$name/$from"/*/; do
+    [ -f "$s/SKILL.md" ] && basename "$s"
+  done
+}
+
+reference_url() {
+  local src=$1 root
+  case "$src" in
+    "") ;;
+    private:*)
+      root=$(git config --get private.root || true)
+      [ -n "$root" ] || die "REFERENCE is private: but git config private.root is unset (setup-github sets it)"
+      printf '%s/%s.git\n' "$root" "${src#private:}"
+      ;;
+    git:*) printf '%s\n' "${src#git:}" ;;
+    *) die "REFERENCE must be 'private:<repo>' or 'git:<url>', got '$src'" ;;
+  esac
+}
+
+# Skills a skills.sh package installed, read back from the lockfile the CLI
+# keeps; the names are what SKILLS_PICK chose, or every skill it found.
+lock_skills() {
+  local pkg=$1
+  [ -f skills-lock.json ] || return 0
+  node -e '
+const l=JSON.parse(require("fs").readFileSync("skills-lock.json","utf8"));
+for (const [n,v] of Object.entries(l.skills||{})) if (v.source===process.argv[1]) console.log(n);' "$pkg"
+}
+
+# 'npx skills add' with every prompt answered by flag: this agent, these
+# skills, copies. It writes .claude/skills/<s>/ and skills-lock.json itself.
+skills_add() {
+  local pkg=$1 pick=$2 s
+  [ -n "$pick" ] || pick='*'
+  echo "  skills.sh $pkg ($pick)"
+  # shellcheck disable=SC2086
+  npm_config_loglevel=error $SKILLS_CMD add "$pkg" --agent claude-code --skill "$pick" -y --copy >/dev/null
+  for s in $(lock_skills "$pkg"); do
+    [ -f ".claude/skills/$s/SKILL.md" ] || die "skills.sh reported '$s' but .claude/skills/$s/SKILL.md is missing"
+  done
+}
+
+# 'npx skills update' refetches by the lockfile's hashes — the CLI's own
+# update, used when it exists. It ignores copy mode, though: the refreshed
+# skill lands in .agents/skills/<s>/ with .claude/skills/<s> a symlink to it
+# (seen with skills 1.x). Folded back into a copy afterwards, so the project
+# keeps committed files a worktree can read; the lock's hash is of the
+# content and does not care.
+skills_update() {
+  local pkg=$1 s names
+  names=$(lock_skills "$pkg" | paste -sd' ')
+  [ -n "$names" ] || die "no skills from $pkg in skills-lock.json; 'stack add' first"
+  echo "  skills.sh update $names"
+  # shellcheck disable=SC2086
+  npm_config_loglevel=error $SKILLS_CMD update $names -p -y >/dev/null
+  for s in $names; do
+    if [ -L ".claude/skills/$s" ]; then
+      local target; target=$(readlink -f ".claude/skills/$s")
+      rm ".claude/skills/$s"
+      command cp -r "$target" ".claude/skills/$s"
+      rm -rf "$target"
+    fi
+    [ -f ".claude/skills/$s/SKILL.md" ] || die "after skills.sh update, .claude/skills/$s/SKILL.md is missing"
+  done
+  rmdir -p .agents/skills 2>/dev/null || true
+}
+
+# ---- manifest: name|subtree|rule|skills(comma) ------------------------------
+# '|' rather than a tab: tab is IFS whitespace, and 'read' collapses a run of
+# it, so an empty middle field would shift the ones after it.
+
+manifest_rows() { [ -f "$MANIFEST" ] && grep -v '^#' "$MANIFEST" || true; }
+manifest_row() { manifest_rows | awk -F'|' -v n="$1" '$1 == n'; }
+manifest_names() { manifest_rows | cut -d'|' -f1; }
+
+manifest_write() {
+  local name=$1 subtree=$2 rule=$3 skills=$4 tmp
+  tmp=$(mktemp)
+  {
+    echo "# packages added with 'stack add'; one per line: name, subtree, rule, skills"
+    manifest_rows | awk -F'|' -v n="$name" '$1 != n'
+    printf '%s|%s|%s|%s\n' "$name" "$subtree" "$rule" "$skills"
+  } | { read -r h; echo "$h"; sort -t'|' -k1,1; } > "$tmp"
+  command mkdir -p .claude
+  mv "$tmp" "$MANIFEST"
+}
+
+manifest_drop() {
+  local tmp
+  tmp=$(mktemp)
+  { echo "# packages added with 'stack add'; one per line: name, subtree, rule, skills"
+    manifest_rows | awk -F'|' -v n="$1" '$1 != n'; } > "$tmp"
+  mv "$tmp" "$MANIFEST"
+}
+
+# ---- CLAUDE.md block --------------------------------------------------------
+
+claude_md_block() {
+  local name subtree rule skills dir kind note line
+  echo "$MARK_START"
+  echo "## Stack"
+  echo
+  echo "Chosen for this project with \`stack add\`. A reference under \`$REPOS/\` is"
+  echo "read-only: never edit it, never import from it. How to work with each is"
+  echo "in its rule and skills."
+  echo
+  while IFS='|' read -r name subtree rule skills; do
+    [ -n "$name" ] || continue
+    if [ -f "$PACKAGES/$name/package.conf" ]; then
+      dir="$PACKAGES/$name"; kind=$(conf "$dir" KIND); note=$(conf "$dir" NOTE)
+    else
+      kind=""; note="(package no longer in the registry)"
+    fi
+    line="- **$name**"
+    [ -n "$kind" ] && line="$line ($kind)"
+    line="$line — $note"
+    [ -n "$subtree" ] && line="$line Reference \`$subtree\`."
+    [ -n "$rule" ] && line="$line Rule \`$rule\`."
+    [ -n "$skills" ] && line="$line Skills \`${skills//,/\`, \`}\`."
+    echo "$line"
+  done < <(manifest_rows)
+  echo "$MARK_END"
+}
+
+# Through readlink -f so a CLAUDE.md that is a symlink to AGENTS.md is edited
+# in place. Regenerated from the manifest on every add, update and rm.
+ensure_claude_md() {
+  local root target tmp
+  root=$(repo_root)
+  target=$(readlink -f "$root/CLAUDE.md" 2>/dev/null || printf '%s' "$root/CLAUDE.md")
+  tmp=$(mktemp)
+  claude_md_block > "$tmp.block"
+  if [ ! -f "$target" ]; then
+    { echo "# $(basename "$root")"; echo; cat "$tmp.block"; } > "$target"
+  elif grep -qF "$MARK_START" "$target"; then
+    awk -v start="$MARK_START" -v end="$MARK_END" -v blockfile="$tmp.block" '
+      $0 == start { while ((getline line < blockfile) > 0) print line; skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }' "$target" > "$tmp"
+    mv "$tmp" "$target"
+  else
+    { cat "$target"; echo; cat "$tmp.block"; } > "$tmp"
+    mv "$tmp" "$target"
+  fi
+  rm -f "$tmp" "$tmp.block"
+}
+
+# ---- copying ----------------------------------------------------------------
+
+copy_rule() {
+  local dir=$1 name=$2
+  [ -f "$dir/rule.md" ] || return 0
+  command mkdir -p .claude/rules
+  command cp "$dir/rule.md" ".claude/rules/$name.md"
+  printf '.claude/rules/%s.md\n' "$name"
+}
+
+# A skill copied out of the package's own repository sat at
+# <repo>/<from>/<skill>/; in the project it sits at .claude/skills/<skill>/.
+# A relative link that climbed to the repo root (../ once per component of
+# <from>, plus one) now has to climb the same distance and step into the
+# subtree, so that prefix gets repos/<name>/ appended.
+copy_skill() {
+  local src=$1 skill=$2 name=$3 from=$4 depth up f
+  rm -rf ".claude/skills/$skill"
+  command mkdir -p .claude/skills
+  command cp -r "$src" ".claude/skills/$skill"
+  if [ -n "$from" ]; then
+    depth=$(( $(printf '%s' "$from" | tr -cd '/' | wc -c) + 2 ))
+    up=$(printf '../%.0s' $(seq 1 "$depth"))
+    while IFS= read -r f; do
+      sed -i -E "s#\]\(${up}([^./])#](${up}${REPOS}/${name}/\1#g" "$f"
+    done < <(find ".claude/skills/$skill" -name '*.md')
+  fi
+}
+
+# Copy rule and skills, write the manifest row. Shared by add and update;
+# the mode decides what the skills.sh skills go through.
+place() {
+  local name=$1 dir=$2 subtree=$3 mode=$4 from rule skills s pkg setup
+  from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD); setup=$(conf "$dir" SETUP)
+  rule=$(copy_rule "$dir" "$name")
+  skills=""
+  for s in $(registry_skills "$dir"); do
+    copy_skill "$dir/skills/$s" "$s" "$name" ""
+    skills="$skills,$s"
+  done
+  for s in $(reference_skills "$name" "$from"); do
+    copy_skill "$REPOS/$name/$from/$s" "$s" "$name" "$from"
+    skills="$skills,$s"
+  done
+  if [ -n "$pkg" ]; then
+    case "$mode" in
+      add) skills_add "$pkg" "$(conf "$dir" SKILLS_PICK)" ;;
+      update) skills_update "$pkg" ;;
+    esac
+    for s in $(lock_skills "$pkg"); do skills="$skills,$s"; done
+  fi
+  manifest_write "$name" "$subtree" "$rule" "${skills#,}"
+  [ -n "$rule" ] && echo "  rule    $rule"
+  [ -n "$skills" ] && echo "  skills  ${skills#,}"
+  [ -n "$setup" ] && echo "  next    $setup  (interactive; run it yourself)"
+  return 0
+}
+
+pm_add() {
+  local pm="npm i"
+  [ -f pnpm-lock.yaml ] && pm="pnpm add"
+  [ -f yarn.lock ] && pm="yarn add"
+  { [ -f bun.lockb ] || [ -f bun.lock ]; } && pm="bun add"
+  echo "  dep     $* ($pm)"
+  # shellcheck disable=SC2086
+  $pm "$@"
+}
+
+# ts-gate runs knip repo-wide and flags a dependency nothing imports yet; the
+# package is added before the code that uses it, so it goes in the ignore
+# list the way install.sh puts effect there.
+knip_ignore() {
+  [ -f ts-gate/knip.json ] || return 0
+  node -e '
+const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8"));
+j.ignoreDependencies=[...new Set([...(j.ignoreDependencies||[]),...process.argv.slice(1)])];
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$@"
+  echo "  knip    ignoreDependencies += $*"
+}
+
+require_clean() {
+  [ -z "$(git status --porcelain --untracked-files=no)" ] \
+    || die "uncommitted changes: commit or stash first, git subtree refuses a dirty tree"
+}
+
+# ---- commands ---------------------------------------------------------------
+
+cmd_list() {
+  local d name
+  for d in "$PACKAGES"/*/; do
+    [ -f "$d/package.conf" ] || continue
+    name=$(basename "$d")
+    printf '%s\t%s\t%s\n' "$name" "$(conf "$d" KIND)" "$(conf "$d" NOTE)"
+  done | column -t -s $'\t'
+}
+
+cmd_show() {
+  local name=${1:-} dir s
+  [ -n "$name" ] || usage
+  dir=$(package_dir "$name")
+  cat "$dir/package.conf"
+  echo
+  [ -n "$(conf "$dir" REFERENCE)" ] && echo "subtree: $REPOS/$name from $(reference_url "$(conf "$dir" REFERENCE)") ($(conf "$dir" REF))"
+  [ -n "$(conf "$dir" DEP)" ] && echo "dep:     $(conf "$dir" DEP)"
+  [ -f "$dir/rule.md" ] && echo "rule:    .claude/rules/$name.md"
+  for s in $(registry_skills "$dir"); do echo "skill:   .claude/skills/$s (registry)"; done
+  [ -n "$(conf "$dir" SKILLS_FROM_REFERENCE)" ] && echo "skills:  from $(conf "$dir" SKILLS_FROM_REFERENCE) in the subtree, copied after add"
+  [ -n "$(conf "$dir" SKILLS_ADD)" ] && echo "skills:  npx skills add $(conf "$dir" SKILLS_ADD) --skill '$(conf "$dir" SKILLS_PICK)' (skills.sh; empty pick = every skill)"
+  [ -n "$(conf "$dir" SETUP)" ] && echo "next:    $(conf "$dir" SETUP)  (printed after add, not run: it asks questions)"
+  return 0
+}
+
+cmd_add() {
+  [ $# -gt 0 ] || usage
+  local name dir source ref url subtree dep
+  cd "$(repo_root)"
+  for name in "$@"; do package_dir "$name" >/dev/null; done
+  for name in "$@"; do
+    dir=$(package_dir "$name")
+    source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF); dep=$(conf "$dir" DEP)
+    [ -n "$ref" ] || ref=main
+    echo "$name"
+    subtree=""
+    if [ -n "$source" ]; then
+      subtree="$REPOS/$name"
+      if [ -d "$subtree" ]; then
+        echo "  subtree $subtree exists, kept ('stack update' pulls it)"
+      else
+        git rev-parse --verify -q HEAD >/dev/null || die "no commit yet: commit the scaffold first, git subtree needs HEAD"
+        require_clean
+        url=$(reference_url "$source")
+        echo "  subtree $subtree from $url ($ref)"
+        git subtree add --prefix="$subtree" "$url" "$ref" --squash >/dev/null
+      fi
+    fi
+    if [ -n "$dep" ]; then
+      # shellcheck disable=SC2086
+      pm_add $dep
+      # shellcheck disable=SC2086,SC2046
+      knip_ignore $(printf '%s\n' $dep | sed -E 's/^(@?[^@]+)@.*/\1/')
+    fi
+    place "$name" "$dir" "$subtree" add
+  done
+  ensure_claude_md
+  echo "recorded in $MANIFEST; CLAUDE.md block updated. Commit: 'stack: add $*'"
+}
+
+cmd_update() {
+  local name dir source ref url subtree
+  cd "$(repo_root)"
+  # shellcheck disable=SC2046
+  [ $# -gt 0 ] || set -- $(manifest_names)
+  [ $# -gt 0 ] || die "nothing added yet"
+  for name in "$@"; do
+    [ -n "$(manifest_row "$name")" ] || die "'$name' is not added (see $MANIFEST)"
+    dir=$(package_dir "$name")
+    source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF)
+    [ -n "$ref" ] || ref=main
+    echo "$name"
+    subtree=""
+    if [ -n "$source" ] && [ -d "$REPOS/$name" ]; then
+      subtree="$REPOS/$name"
+      require_clean
+      url=$(reference_url "$source")
+      echo "  subtree pull $subtree from $url ($ref)"
+      git subtree pull --prefix="$subtree" "$url" "$ref" --squash -m "stack: update $name" >/dev/null
+    fi
+    place "$name" "$dir" "$subtree" update
+  done
+  ensure_claude_md
+}
+
+cmd_rm() {
+  local name=${1:-} row subtree rule skills s pkg
+  [ -n "$name" ] || usage
+  cd "$(repo_root)"
+  row=$(manifest_row "$name")
+  [ -n "$row" ] || die "'$name' is not added (see $MANIFEST)"
+  IFS='|' read -r _ subtree rule skills <<< "$row"
+  [ -n "$rule" ] && rm -f "$rule"
+  if [ -n "$(conf "$PACKAGES/$name" SKILLS_ADD 2>/dev/null || true)" ] && [ -f skills-lock.json ]; then
+    pkg=$(conf "$PACKAGES/$name" SKILLS_ADD)
+    for s in $(lock_skills "$pkg"); do
+      # shellcheck disable=SC2086
+      npm_config_loglevel=error $SKILLS_CMD remove --skill "$s" -y >/dev/null 2>&1 || true
+    done
+  fi
+  for s in ${skills//,/ }; do rm -rf ".claude/skills/$s"; done
+  if [ -n "$subtree" ] && [ -d "$subtree" ]; then
+    git rm -r -q "$subtree"
+    echo "  removed $subtree (its squash commits stay in history)"
+  fi
+  manifest_drop "$name"
+  ensure_claude_md
+  echo "removed $name; a dependency it installed stays in package.json"
+}
+
+# Differs is one bit, as for workbench's agents: a copy is compared with
+# what add would write now, without saying which side moved.
+cmd_status() {
+  local name subtree rule skills s dir from src pkg
+  cd "$(repo_root)"
+  [ -n "$(manifest_names)" ] || { echo "nothing added (stack add <name>)"; return 0; }
+  while IFS='|' read -r name subtree rule skills; do
+    [ -n "$name" ] || continue
+    if [ ! -f "$PACKAGES/$name/package.conf" ]; then
+      printf '%s\tnot in the registry any more\n' "$name"; continue
+    fi
+    dir="$PACKAGES/$name"; from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD)
+    [ -z "$subtree" ] || [ -d "$subtree" ] || printf '%s\t%s missing\n' "$name" "$subtree"
+    if [ -n "$rule" ]; then
+      if [ ! -f "$rule" ]; then printf '%s\t%s missing\n' "$name" "$rule"
+      elif ! cmp -s "$dir/rule.md" "$rule"; then printf '%s\t%s differs\n' "$name" "$rule"; fi
+    fi
+    for s in ${skills//,/ }; do
+      if [ -d "$dir/skills/$s" ]; then src="$dir/skills/$s"
+      elif [ -n "$from" ] && [ -d "$subtree/$from/$s" ]; then src="$subtree/$from/$s"
+      elif [ -n "$pkg" ] && lock_skills "$pkg" | grep -qx "$s"; then src="skills.sh"
+      else src=""; fi
+      if [ ! -d ".claude/skills/$s" ]; then printf '%s\t.claude/skills/%s missing\n' "$name" "$s"
+      elif [ "$src" = skills.sh ]; then :  # the lock's hash is the CLI's to check: 'npx skills update'
+      elif [ -z "$src" ]; then printf '%s\t.claude/skills/%s has no source\n' "$name" "$s"
+      elif [ -n "$from" ] && [ "$src" = "$subtree/$from/$s" ]; then
+        # the copy carries rewritten links; compare against a fresh rewrite
+        local tmp; tmp=$(mktemp -d)
+        ( cd "$tmp" && command mkdir -p .claude/skills && REPOS=$REPOS copy_skill "$OLDPWD/$src" "$s" "$name" "$from" )
+        diff -rq "$tmp/.claude/skills/$s" ".claude/skills/$s" >/dev/null || printf '%s\t.claude/skills/%s differs\n' "$name" "$s"
+        rm -rf "$tmp"
+      elif ! diff -rq "$src" ".claude/skills/$s" >/dev/null; then printf '%s\t.claude/skills/%s differs\n' "$name" "$s"; fi
+    done
+    printf '%s\tok\n' "$name"
+  done < <(manifest_rows) | awk -F'\t' '
+    $2 == "ok" { if (!seen[$1]) print; next }
+    { seen[$1] = 1; print }' | column -t -s $'\t'
+}
+
+case "${1:-}" in
+  list) shift; cmd_list "$@" ;;
+  show) shift; cmd_show "$@" ;;
+  add) shift; cmd_add "$@" ;;
+  update) shift; cmd_update "$@" ;;
+  rm) shift; cmd_rm "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  -h|--help|help) usage 0 ;;
+  *) usage ;;
+esac

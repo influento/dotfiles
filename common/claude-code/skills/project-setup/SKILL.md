@@ -1,14 +1,15 @@
 ---
 name: project-setup
-description: Install workbench and ts-gate into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", or invokes /project-setup. For a project without TypeScript, install workbench only.
+description: Install ts-gate, the stack packages the user names, and workbench into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /project-setup. For a project without TypeScript, skip ts-gate.
 ---
 
 # Project setup
 
-Two separate tools, one order. Neither installer knows the other; the order is
-what makes them fit. Run each step, show its output, stop where it says.
+Three separate tools, one order. None of the installers knows the others; the
+order is what makes them fit. Run each step, show its output, stop where it
+says.
 
-Paths: `workbench` is on PATH. ts-gate lives under `project/` beside the skills tree in dotfiles,
+Paths: `workbench` and `stack` are on PATH. ts-gate lives under `project/` beside the skills tree in dotfiles,
 reached through the `~/.claude/skills` symlink:
 
 ```
@@ -61,27 +62,40 @@ brownfield procedure.
    commit until `gate:full` exits 0 or every remaining red is a recorded
    warning. Commit: `ts-gate: install`.
 
-3. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
+3. **stack.** Ask which packages this project uses; `stack list` shows the
+   registry. Nothing is assumed, there are no presets — the user names them,
+   `stack add <name>...` brings each in (a read-only subtree under `repos/`,
+   the dependency, a rule, skills, a line in CLAUDE.md). Needs a clean tree,
+   which step 2's commit gives it. A package not in the registry is added to
+   dotfiles first (`common/claude-code/project/stack/CLAUDE.md`, "Adding a
+   package"), not improvised in the project. Commit: `stack: add <names>`.
+   Skip when the user names none; `stack add` works at any later time.
+
+4. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
    (refuses a dirty tree, then prints the survey command). Commit:
    `workbench: init` or `workbench: adopt`.
 
-4. **Checklist.** Init printed "setup — decide these with the user". Take
+5. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read `'npm run gate'`.
    Brownfield: run `/workbench-review adopt` and triage its report with the
    user; nothing converts without approval.
 
-5. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
-   must block a session and the fix must release it). `workbench status`.
+6. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
+   must block a session and the fix must release it). `workbench status`,
+   `stack status`.
 
 ## Order, and why
 
 ts-gate first: its `git subtree add` needs HEAD and refuses a dirty tree, and
-`workbench init` writes tracked files. Commit between them so each lands
-under its own subject.
+`workbench init` writes tracked files. `stack add` between them: its subtrees
+need the same clean tree, and its CLAUDE.md block should exist before
+workbench appends its own. Commit between each so every tool lands under its
+own subject.
 
 ## Removing
 
 `bash "$TS_GATE/uninstall.sh" .` removes exactly what its manifest lists,
 including the premerge key if it is still `npm run gate`, and leaves `effect`
-and `repos/effect`. Workbench has no uninstall; its files are the committed
-`.claude/` copies and `workbench/`.
+and `repos/effect`. `stack rm <name>` removes one package's subtree, rule and
+skills and leaves its dependency. Workbench has no uninstall; its files are
+the committed `.claude/` copies and `workbench/`.

@@ -14,6 +14,12 @@ workbench tracks projects, this tracks workbench and ts-gate.
 - external resources per item: a worker records what it starts outside the tree (port, container, temp dir) in a ledger under `<git-common-dir>/workbench/resources/<id>`, `status` lists them for the lead, `archive` reaps what is left and says so; `start --resources` names what may be held, this records what is. A dev-server picker (`ss -tlnp` matched to worktrees) is one view on the ledger. Design first: who writes the ledger (a hook on the tool call, or the worker by hand) decides whether it can be trusted
 - second reviewer from another model: once a second model CLI exists on the machine (`codex exec --full-auto` or equivalent), run it at the review dialog with the exact brief `wb-reviewer` gets, before the dialog opens, and merge its findings into the reviewer's first message marked by source; a finding both raise from one brief is rarely a hallucination, one only one raises is kept. The one signal the loop cannot produce today: worker and reviewer share a model family and the worker wrote the code. One call per item at pre-merge, not per stop; measure it on the `usage:` line before keeping it. Not taken from the same source: Bugbot, PR staleness, resolved-thread queries, polling — workbench merges locally
 
+## stack
+
+- fold `skills-optional/` in: `go/`, `manim`, `excalidraw` as packages with skills only, `stack add go` replacing the symlink dance; then retire the symlink instructions in `skills-optional/CLAUDE.md`
+- `stack update` on a skills.sh package folds the CLI's `.agents/skills/` + symlink layout back into a copy; if a later skills release honours copy mode on update, the fold becomes a no-op and can go
+- a package whose REFERENCE is public git and whose skills ship in the subtree is untested against a real repository; shardx-scripts (private, subtree) and shadcn (skills.sh) are the two real packages
+
 ## ts-gate
 
 - Effect migration of brownfield code: not written

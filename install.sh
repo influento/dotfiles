@@ -155,6 +155,7 @@ find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x 
 # workbench is a self-contained tool under common/claude-code/project/, not a script in
 # common/scripts/ — see the claude-code case in deploy_configs.
 chmod +x "${DOTFILES_DIR}/common/claude-code/project/workbench/bin/workbench" 2>/dev/null || true
+chmod +x "${DOTFILES_DIR}/common/claude-code/project/stack/bin/stack" 2>/dev/null || true
 if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
 fi
