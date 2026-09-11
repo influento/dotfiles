@@ -26,15 +26,18 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | Need | Pick | Why |
 |---|---|---|
 | runtime, HTTP, RPC, Schema, CLI, retry, streams | `effect` (core and `effect/unstable/*`) | in the box |
-| database | `drizzle` (`drizzle-orm/effect-postgres` over `@effect/sql-pg`) | native Effect v4 entry, the only ORM with one |
+| database | `drizzle` (`drizzle-orm/effect-postgres` over `@effect/sql-pg`) | native Effect v4 entry, the only ORM with one; verified against Postgres 2026-09-12 |
 | client state | `atom-react` | first party; `AtomRpc` bridges to RPC |
-| tracing, metrics | `otel` | everything downstream consumes OTLP |
+| tracing, logs, metrics | in `effect` (`effect/unstable/observability`, OTLP out) | verified 2026-09-12; `@effect/opentelemetry` is the SDK bridge, not needed |
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
 
 `effect` and every `@effect/*` share one version; the pins across `effect`,
-`drizzle`, `atom-react` and `otel` move in one commit.
+`drizzle` and `atom-react` move in one commit. `drizzle-orm` is built against
+one Effect version (`devDependencies.effect` of the release): check that its
+`effect-core/errors.js` calls a `Schema` constructor the pinned Effect still
+has before moving either pin.
 
 ## Three ways in
 
@@ -43,7 +46,7 @@ A project starts with one of three, by what it is (decided 2026-09-12):
 | Project | Entry | Brings |
 |---|---|---|
 | CLI, library, worker: owns no database | `stack add effect` | the runtime |
-| backend service | `stack add service` | effect, drizzle, otel |
+| backend service | `stack add service` | effect, drizzle |
 | app with a UI | `stack add fullstack` | service + tanstack-start, atom-react, shadcn |
 
 The packages stay separate units under the presets rather than one `effect`
@@ -59,7 +62,7 @@ CLI that grew a database) is the exception, not the way in.
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
 | `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
-| `packages/drizzle/`, `atom-react/`, `otel/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
+| `packages/drizzle/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
 | `packages/service/`, `fullstack/` | presets: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
@@ -113,7 +116,7 @@ imports it), the rule, the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add
-fullstack` records `effect`, `drizzle`, `otel`, `atom-react`,
+fullstack` records `effect`, `drizzle`, `atom-react`,
 `tanstack-start`, `shadcn`, in that order (`stack show
 fullstack` prints it).
 

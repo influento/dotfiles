@@ -43,6 +43,7 @@ Read-only. Never edit `repos/effect`, never import from it — the dependency is
 | DI, config, resources | `ServiceMap`, `Layer`, `Config`, `Scope` | inversify, tsyringe, dotenv |
 | concurrency, queues, streams | `Fiber`, `Queue`, `Stream` | p-limit, p-queue, rxjs |
 | cache, duration, logs, metrics | `Cache`, `Duration`, `Logger`, `Metric` | lru-cache, ms, pino, winston |
+| tracing, log and metric export | `effect/unstable/observability` (`Otlp`) | @effect/opentelemetry, @opentelemetry/*, Sentry SDK |
 | tests of Effect code | `@effect/vitest` | |
 
 Errors are in the signature: `Effect<A, E, R>` with tagged error classes in
@@ -50,3 +51,24 @@ Errors are in the signature: `Effect<A, E, R>` with tagged error classes in
 `unknown` left in `E` where the cause is known. A library outside the stack
 that returns Promises is wrapped once, in one service (`Effect.tryPromise`
 with a tagged error), and nothing else imports it.
+
+## Observability
+
+One layer in the main layer, verified 2026-09-12 against an OTLP receiver:
+
+```ts
+const Observability = Otlp.layerFromConfig({ resource: { serviceName: "<app>" } }).pipe(
+  Layer.provide(OtlpSerialization.layerJson),
+  Layer.provide(FetchHttpClient.layer),
+)
+export const AppLive = Handlers.pipe(Layer.provide(Db.layer), Layer.provideMerge(Observability))
+```
+
+It reads `OTEL_EXPORTER_OTLP_ENDPOINT` (and `OTEL_SDK_DISABLED`); with no
+endpoint set it exports nothing, so local runs need no receiver.
+`Otlp.layerJson({ baseUrl })` is the same with the URL in code. Spans come
+from `Effect.withSpan` and `Effect.fn("Name")` on service methods, logs from
+`Effect.log*`, metrics from `Metric`; `@effect/sql-pg` and RPC add their own
+spans underneath. `@effect/opentelemetry` is the bridge to the OpenTelemetry
+SDK and its `@opentelemetry/*` peers; it is not needed to export OTLP and is
+not installed.
