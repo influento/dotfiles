@@ -66,8 +66,25 @@ export default [
   ...gate({ tsconfigRootDir: import.meta.dirname }),
   $CFG
 ];"
+# A config this install wrote (the manifest names it) is replaced on re-run
+# like every other file, unless it was edited since — then it is kept, and not
+# offered for merging again: its gate block is already there. Only a config
+# the project brought itself gets the block to merge.
 WROTE=""
-if [ -f eslint.config.mjs ] || [ -f eslint.config.js ] || [ -f eslint.config.ts ]; then
+OWNED=""; OWNED_SHA=""
+[ -f ts-gate/.install.json ] && read -r OWNED OWNED_SHA < <(node -e '
+const m=require("./ts-gate/.install.json");console.log(m.config?m.config.file+" "+m.config.sha256:"")')
+if [ -n "$OWNED" ] && [ -f "$OWNED" ]; then
+  if [ "$(sha256sum "$OWNED" | cut -d' ' -f1)" = "$OWNED_SHA" ]; then
+    printf '%s\n' "$CONFIG" > "$OWNED"; WROTE=$OWNED
+    node -e '
+const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8"));
+m.config.sha256=c.createHash("sha256").update(fs.readFileSync(m.config.file)).digest("hex");
+fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");'
+  else
+    echo "$OWNED edited since install, kept"
+  fi
+elif [ -f eslint.config.mjs ] || [ -f eslint.config.js ] || [ -f eslint.config.ts ]; then
   echo "eslint config exists, not touched. Merge this in:"; echo "$CONFIG"
 else
   printf '%s\n' "$CONFIG" > eslint.config.mjs; WROTE=eslint.config.mjs

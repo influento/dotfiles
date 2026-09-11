@@ -167,6 +167,19 @@ new_repo() {
     || { echo "fixture: $1 does not ignore .claude/settings.local.json" >&2; exit 1; }
 }
 
+# --- a repo whose default branch cannot be resolved -------------------------
+# 'git init' then 'workbench init', or a repo on develop/trunk: default_branch
+# dies, and a die inside a substitution exits before any '|| echo' in it runs.
+# init and status must fall through, not exit 1 in silence.
+
+new_repo trunk
+git checkout -q -b trunk && git branch -q -D main
+run "init on a trunk repo completes" 0 "workbench ready" "$WB" init
+run "init on a trunk repo reports the branch unresolved" 0 "default branch    UNRESOLVED" "$WB" init
+run "status on a trunk repo completes" 0 "merged, still open" "$WB" status
+rm -rf "$TMP/nocommit"; mkdir -p "$TMP/nocommit"; cd "$TMP/nocommit"; git init -q -b main
+run "init on a repo with no commit completes" 0 "UNRESOLVED" "$WB" init
+
 # --- the happy loop ---------------------------------------------------------
 
 new_repo loop

@@ -221,6 +221,15 @@ check not grep -q '\*\*thing\*\*' CLAUDE.md
 check grep -q '\*\*plain\*\*' CLAUDE.md
 check not "$STACK" rm thing
 
+echo "== add a b: a's manifest row dirties a tracked file, b's subtree still lands"
+"$STACK" rm plain >/dev/null; git add -A && git commit -qm "rm plain"   # stack.conf is tracked now
+check "$STACK" add plain thing
+check test -f repos/thing/README.md
+check test -f .claude/skills/plain-skill/SKILL.md
+check grep -q '^thing|repos/thing|' .claude/stack.conf
+check grep -q '^plain|||plain-skill$' .claude/stack.conf
+"$STACK" rm thing >/dev/null   # the next section commits
+
 echo "== a CLAUDE.md that is a symlink is edited in place"
 git add -A && git commit -qm rm
 mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md && git add -A && git commit -qm symlink
