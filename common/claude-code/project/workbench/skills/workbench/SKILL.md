@@ -262,7 +262,7 @@ path. Three gates invoke it, whoever is driving:
 | `workbench status` printed a `cap:` line | `/workbench-review docs`, scoped to the file named; a document is past its line cap and the review says what to cut — [docs.md](references/docs.md), "Line caps" |
 
 Any other sweep is the user's to ask for — `sweep`, `docs`, `adopt`,
-`watch` — never started because the code looks like it needs one.
+`watch`, `security` — never started because the code looks like it needs one.
 
 The fork writes the report, and scratch under `workbench/scratch/` that git
 never sees — nothing tracked. When it returns with the path, prove that before

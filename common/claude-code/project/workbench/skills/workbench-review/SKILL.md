@@ -1,7 +1,7 @@
 ---
 name: workbench-review
 description: Run a workbench review sweep in a fresh forked context and return the report path. Invoke at the gates the workbench skill names — pre-merge before every 'workbench merge', sweep when a milestone's items are all archived, memory when .claude/memory changed — and otherwise only when the user asks.
-argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
+argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch|usage|security> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
 arguments: reason scope
 # Model-invocable on purpose: 'workbench merge' refuses without a passed
 # pre-merge, and an unattended session has to be able to reach it. The fork
