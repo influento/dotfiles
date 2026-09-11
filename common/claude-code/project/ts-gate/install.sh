@@ -35,10 +35,12 @@ console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have))
 [ -z "$NEW" ] || $PM $NEW
 
 # 3. Scripts
+FULL="tsc --noEmit && eslint . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
+[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**'"
 npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
   scripts.gate:local="bash ts-gate/scripts/gate.sh --local" \
-  scripts.gate:full="tsc --noEmit && eslint . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src" \
+  scripts.gate:full="$FULL" \
   scripts.gate:fix="eslint . --fix" \
   scripts.gate:verify="bash ts-gate/scripts/verify.sh"
 

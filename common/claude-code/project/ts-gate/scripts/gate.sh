@@ -50,7 +50,19 @@ npx knip --config ts-gate/knip.json || FAIL=1
 # 4. Structure: cycles, barrel chains, layers. Repo-wide, zero tolerance.
 npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 
-# 5. Diff size and new files. REPORT ONLY — the reader decides.
+# 5. Tests. Local: only the tests the diff reaches, by import graph
+#    (vitest --changed since the merge base, working tree included), so the
+#    Stop hook pays for what the change touched. CI: the whole suite. Only
+#    for a runner the gate knows; jest projects get the eslint plugin alone.
+if grep -q '"vitest"' package.json; then
+  VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**')
+  case "${1:-}" in
+    --local) npx vitest run --changed "$RANGE" --reporter=dot --no-color "${VITEST[@]}" || FAIL=1 ;;
+    *)       npx vitest run "${VITEST[@]}" || FAIL=1 ;;
+  esac
+fi
+
+# 6. Diff size and new files. REPORT ONLY — the reader decides.
 echo "== diff size =="
 git diff --shortstat "$RANGE"
 echo "== files added =="
