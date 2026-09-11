@@ -64,7 +64,7 @@ brownfield procedure.
 
 3. **stack.** Every TypeScript project starts with one of three entries;
    ask which, never for a package list: `stack add effect` for a CLI, a
-   library or a worker (owns no database); `service` (effect, drizzle, otel)
+   library or a worker (owns no database); `service` (effect, drizzle)
    for a backend; `fullstack` (service + tanstack-start, atom-react,
    shadcn) for an app with a UI. `stack show <name>` prints what
    a preset expands to; a single package later (`stack add drizzle` in a CLI

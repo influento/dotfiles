@@ -11,7 +11,8 @@ else imports `@tanstack/react-start`, and without that import the `server`
 option on `createFileRoute` does not typecheck.
 
 Verified on Start 1.168 + Effect 4.0.0-rc.115 (2026-09-12): the six files
-below compile, build with import protection on, serve SSR, and mutate.
+below compile, build with import protection on, serve SSR, and mutate,
+with the `drizzle` rule's `Db` underneath against a real Postgres.
 
 ## The shape
 
@@ -19,7 +20,7 @@ below compile, build with import protection on, serve SSR, and mutate.
 |---|---|
 | `src/rpc/contract.ts` | `RpcGroup.make(Rpc.make(...))` and the schemas: client-safe, imported by both sides |
 | `src/server/live.ts` | `Group.toLayer(...)` handlers over the app's services (`Drizzle`, `Auth`, ...) |
-| `src/server/runtime.server.ts` | `memoMap = Layer.makeMemoMapUnsafe()`, `AppLive`, `ManagedRuntime.make(AppLive, { memoMap })`, and `rpcInProcess(f)` = `RpcTest.makeClient(Group, { flatten: true })` run in it |
+| `src/server/runtime.server.ts` | `memoMap = Layer.makeMemoMapUnsafe()`, `AppLive = Handlers.pipe(Layer.provide(Db.layer), Layer.provideMerge(Observability))`, `ManagedRuntime.make(AppLive, { memoMap })`, and `rpcInProcess(f)` = `RpcTest.makeClient(Group, { flatten: true })` run in it |
 | `src/routes/api/rpc.ts` | `HttpRouter.toWebHandler(RpcServer.layerHttp({ group, path: "/api/rpc", protocol: "http" }).pipe(Layer.provide(AppLive), Layer.provide(RpcSerialization.layerNdjson)), { memoMap })`; `server: { handlers: { POST: ({ request }) => handler(request) } }` |
 | `src/rpc/client.ts` | `Protocol = RpcClient.layerProtocolHttp({ url: "/api/rpc" })` over `FetchHttpClient.layer` + `layerNdjson`; `class Client extends AtomRpc.Service<Client>()("Client", { group, protocol: Protocol })`; `rpcBrowser(f)` = `ManagedRuntime` over `Layer.effect(Client, RpcClient.make(Group, { flatten: true }))` |
 | `src/rpc/call.ts` | `rpc = createIsomorphicFn().server(rpcInProcess).client(rpcBrowser)`, typed `<A, E>(f: (client: Client["Service"]) => Effect<A, E>) => Promise<A>` |
