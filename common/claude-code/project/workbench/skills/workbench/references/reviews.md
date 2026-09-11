@@ -37,8 +37,10 @@ often with a suggested fix. Do not impose a template.
 ## Triage
 
 The user and the agent go through the report together. The decision is the
-user's, informed by the agent's opinion. Findings are commonly double-checked
-before being promoted.
+user's, informed by the agent's opinion. A finding promoted to a bug item is
+reproduced first, from the report's own command; one that does not reproduce
+is dropped, not filed — `unreproduced` is for a bug that was seen, not for
+one that was read.
 
 **Never create items automatically from a report.** Only findings that survive
 triage become items, using `workbench new`.

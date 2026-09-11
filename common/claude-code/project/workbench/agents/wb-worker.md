@@ -26,7 +26,9 @@ the dispatch line (`ListAgents` shows it).
    the item and run its criterion on the unchanged tree. One that does not
    fail there is not a criterion: attended, settle the rewrite with the user
    in your window; unattended, rewrite it, `workbench call <id>` it in one
-   line, and go on.
+   line, and go on. A bug whose steps you followed and whose failure you
+   cannot make happen is a different case: report `unreproduced` to the
+   lead in step 5, with what you ran — the archive is theirs — and stop.
 2. Do the work. Record evidence as pasted output under `## Evidence`, one
    block per criterion step. Commit on the branch as you go; the item file
    commits with the code.
@@ -48,7 +50,8 @@ the dispatch line (`ListAgents` shows it).
      as three holds. Park it, report blocked; never spawn it again to finish.
 5. Report to the lead: one `SendMessage`, three lines — the item id;
    `ready`, `blocked — <one question, with the options>`, `needs:
-   <resource>` or `overlap: <path> with <id>`; the gate's last verdict, or
+   <resource>`, `overlap: <path> with <id>` or `unreproduced — <what you
+   ran>`; the gate's last verdict, or
    `none` when no gate has run.
    Then stop. Never wait in a loop for
    the answer: the lead's reply wakes you, and `workbench status` carries the

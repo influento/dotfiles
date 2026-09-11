@@ -362,7 +362,10 @@ workbench review-check <report>       merge → recorded; hold → counted
 
 The dialog is where judgement is argued: the reviewer keeps its context
 across the exchange, and a finding that stands gets one line under Evidence
-saying why. Round two always runs; `round` decides the rest by count and
+saying why. A finding is shown, not read — the reviewer ran something on the
+branch and the output is wrong — and one the worker cannot reproduce from
+that demonstration is withdrawn; a bug nobody can show is nothing to fix,
+here as at archive (`unreproduced`). Round two always runs; `round` decides the rest by count and
 records `rounds:` on the item, which the gate reads. The gate is not argued
 with: it checks the item against its evidence and the template
 (`rules/pre-merge.md`), reads the code only for vocabulary, tests and
