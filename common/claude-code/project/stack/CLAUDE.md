@@ -6,17 +6,46 @@ the registry under `packages/` is read from this tree when a project runs
 `stack add`, and what add copies is committed in the project so worktrees and
 clones carry it.
 
-No groups, no templates: a project's stack is whatever was added to it. And
-no one shape: a private toolkit is a subtree plus its own skills
-(`shardx-scripts`); a public library with a published skill is that skill
-through skills.sh plus a short rule (`shadcn`); a plain dependency is `DEP`
-and a rule. Every key is optional, the package is whatever it needs.
+No templates: a project's stack is whatever was added to it, and a preset
+(`service`, `fullstack`) is only a list of packages — what it expands to is
+recorded, the preset is not. No one shape: a private toolkit is a subtree
+plus its own skills (`shardx-scripts`); a public library with a published
+skill is that skill through skills.sh plus a short rule (`shadcn`); a plain
+dependency is `DEP` and a rule. Every key is optional, the package is
+whatever it needs.
+
+## What enters the registry
+
+The registry is the priority list: one pick per need, chosen once, the reason
+in the conf's comment. Anything that touches control flow, errors, IO or data
+is Effect-native, or wrapped once behind a service (`better-auth`); UI,
+styling and tooling are orthogonal and free (`shadcn`). That is what keeps a
+second ORM, a second schema library or a second retry helper out of a
+project: a worker that needs one finds the pick in `stack list`, not on npm.
+
+| Need | Pick | Why |
+|---|---|---|
+| runtime, HTTP, RPC, Schema, CLI, retry, streams | `effect` (core and `effect/unstable/*`) | in the box |
+| database | `drizzle` (`drizzle-orm/effect-postgres` over `@effect/sql-pg`) | native Effect v4 entry, the only ORM with one |
+| client state | `atom-react` | first party; `AtomRpc` bridges to RPC |
+| tracing, metrics | `otel` | everything downstream consumes OTLP |
+| auth | `better-auth` | self-hosted, tables in the stack's Postgres, wrapped once until better-auth#7338 |
+| framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
+| tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
+
+`effect` and every `@effect/*` share one version; the pins across `effect`,
+`drizzle`, `atom-react` and `otel` move in one commit.
 
 ## Layout
 
 | Path                            | What it is                                                                       |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
+| `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
+| `packages/drizzle/`, `atom-react/`, `otel/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
+| `packages/better-auth/`         | `NEEDS="effect drizzle"`, subtree at its release tag (the docs), the wrap-once rule |
+| `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
+| `packages/service/`, `fullstack/` | presets: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
 | `packages/shadcn/`              | public library: the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
 | `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
@@ -28,10 +57,12 @@ and a rule. Every key is optional, the package is whatever it needs.
 
 | Key                     | Meaning                                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `KIND`                  | `toolkit` (run as scripts), `lib` (imported), `cli`, `service`; shown in `list` and the CLAUDE.md line    |
+| `KIND`                  | `toolkit` (run as scripts), `lib` (imported), `cli`, `service`, `preset` (NEEDS only, expanded, not recorded); shown in `list` and the CLAUDE.md line |
+| `NEEDS`                 | package names, space separated, added first (transitively; a cycle is refused). `rm` refuses a package another added one needs |
 | `REFERENCE`             | a repository worth reading, as a `--squash` subtree at `repos/<name>`: `private:<repo>` → `<git config private.root>/<repo>.git`, or `git:<url>`. Only when the agent should read the source or its docs; most public libraries have none |
-| `REF`                   | branch or tag for the subtree; default `main`                                                             |
-| `DEP`                   | package-manager specs, space separated (`effect@rc`); installed with the runner the lockfile says         |
+| `REF`                   | branch or tag for the subtree; default `main`. A pinned dependency pins its tag too (`effect@4.0.0-rc.115`) |
+| `DEP`                   | package-manager specs, space separated, exact versions (`effect@4.0.0-rc.115`); installed with the runner the lockfile says |
+| `DEV_DEP`               | the same, as dev dependencies (`-D`; bun `-d`)                                                            |
 | `SKILLS_ADD`            | a skills.sh package (`shadcn/ui`): `npx skills add <pkg> --agent claude-code --skill <pick> -y --copy`, every prompt answered by flag; the CLI writes `.claude/skills/` and `skills-lock.json` |
 | `SKILLS_PICK`           | which of that package's skills, comma separated; empty is every one (`--skill '*'`)                        |
 | `SKILLS_FROM_REFERENCE` | a directory inside the subtree whose `<s>/SKILL.md` children are copied as skills after the subtree lands |
@@ -58,14 +89,17 @@ through `git config private.root`, which `setup-github` sets in
 
 ## What `add` puts in a project
 
-The Effect pattern from ts-gate, per package, each part only when the conf
-names it: a `--squash` subtree at `repos/<name>` as a read-only reference
-(needs HEAD and a clean tree, like ts-gate's), the dependency (and, when `ts-gate/knip.json` exists, its name in
-`ignoreDependencies`, because the package lands before the code that imports
-it), the rule, the skills as committed copies, one line in the block between
-`<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a row in
-`.claude/stack.conf` (`name|subtree|rule|skills`) that `status`, `update` and
-`rm` read back.
+Per package, what it `NEEDS` first, each part only when the conf names it: a
+`--squash` subtree at `repos/<name>` as a read-only reference (needs HEAD and
+a clean tree), the dependencies (and, when `ts-gate/knip.json` exists, their
+names in `ignoreDependencies`, because the package lands before the code that
+imports it), the rule, the skills as committed copies, one line in the block
+between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
+row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
+`update` and `rm` read back. A preset writes no row and no line: `stack add
+fullstack` records `effect`, `drizzle`, `otel`, `atom-react`,
+`tanstack-start`, `better-auth`, `shadcn`, in that order (`stack show
+fullstack` prints it).
 
 A skill copied out of the subtree had relative links that climbed to its
 repository root (`../../../docs/x.md` from `.claude/skills/<s>/`); in the
@@ -94,6 +128,9 @@ Run from this directory (`common/claude-code/project/stack/`):
 ## Adding a package
 
 1. `mkdir packages/<name>`, write `package.conf` (at least `KIND` and `NOTE`).
+   First the "What enters the registry" test: is it the one pick for its
+   need, and Effect-native or wrapped once? The reason goes in the comment.
+   `NEEDS=effect` for anything that imports it; `DEP` at an exact version.
 2. If it publishes a skill (its docs, or `npx skills add <owner/repo> --list`):
    `SKILLS_ADD`, and `SKILLS_PICK` when not every skill applies. Nothing else
    is needed for the docs then; the skill carries them.

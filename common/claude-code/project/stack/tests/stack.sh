@@ -192,6 +192,44 @@ check grep -q '"left-pad"' ts-gate/knip.json
 check grep -q '"effect"' ts-gate/knip.json
 git add -A && git commit -qm "knip lib"
 
+echo "== NEEDS: child pulls base in first, dev dep with -D, both in knip; rm base refused while child is added"
+mkdir -p "$STACK_ROOT/packages/base" "$STACK_ROOT/packages/child" "$STACK_ROOT/packages/bundle" "$STACK_ROOT/packages/empty"
+printf 'KIND=lib\nDEP=base-pkg@1.0.0\nDEV_DEP="base-dev@2.0.0 base-dev2@2.0.0"\nNOTE="Base."\n' > "$STACK_ROOT/packages/base/package.conf"
+echo "# base rule" > "$STACK_ROOT/packages/base/rule.md"
+printf 'KIND=lib\nNEEDS=base\nNOTE="Child."\n' > "$STACK_ROOT/packages/child/package.conf"
+echo "# child rule" > "$STACK_ROOT/packages/child/rule.md"
+printf 'KIND=preset\nNEEDS="child plain"\nNOTE="Preset."\n' > "$STACK_ROOT/packages/bundle/package.conf"
+printf 'KIND=preset\nNOTE="Nothing."\n' > "$STACK_ROOT/packages/empty/package.conf"
+out=$("$STACK" show child); check grep -q '^needs:   base  (add order: base child)$' <<< "$out"
+out=$("$STACK" show bundle); check grep -q '(add order: base child plain)$' <<< "$out"
+out=$("$STACK" add child)
+check grep -q '^base: needed, added first$' <<< "$out"
+check test -f .claude/rules/base.md
+check test -f .claude/rules/child.md
+check grep -q '^npm i base-pkg@1.0.0$' "$NPM_LOG"
+check grep -q '^npm i -D base-dev@2.0.0 base-dev2@2.0.0$' "$NPM_LOG"
+check grep -q '"base-pkg"' ts-gate/knip.json
+check grep -q '"base-dev2"' ts-gate/knip.json
+check grep -q "Commit: 'stack: add base child'" <<< "$out"
+git add -A && git commit -qm "stack: add child"
+check not "$STACK" rm base
+check test -f .claude/rules/base.md
+"$STACK" rm child >/dev/null && "$STACK" rm base >/dev/null
+check not test -f .claude/rules/base.md
+git add -A && git commit -qm "stack: rm child base"
+
+echo "== preset: expands, is not recorded; plain already added is kept"
+out=$("$STACK" add bundle)
+check grep -q '^child|' .claude/stack.conf
+check grep -q '^base|' .claude/stack.conf
+check not grep -q '^bundle' .claude/stack.conf
+check not grep -q '\*\*bundle\*\*' CLAUDE.md
+check test "$(grep -c '^plain|' .claude/stack.conf)" = 1
+check grep -q "Commit: 'stack: add base child plain'" <<< "$out"
+check not "$STACK" add empty
+"$STACK" rm child >/dev/null && "$STACK" rm base >/dev/null
+check test -z "$(git status --porcelain)"   # add then rm of both leaves the tree as committed
+
 echo "== status: ok, then differs"
 out=$("$STACK" status); check grep -q '^thing *ok' <<< "$out"; check grep -q '^plain *ok' <<< "$out"
 echo "edited" >> .claude/rules/thing.md

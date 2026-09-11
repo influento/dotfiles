@@ -11,7 +11,9 @@ set -euo pipefail
 # as committed copies under .claude/skills/ — from this registry, from the
 # reference checkout, or through 'npx skills add' (skills.sh) — and one line in
 # a marked block of CLAUDE.md. What was added is recorded in .claude/stack.conf
-# so status, update and rm know it.
+# so status, update and rm know it. A package's NEEDS come in first (drizzle
+# needs effect); a preset is a package that is only NEEDS, expanded and not
+# recorded.
 
 STACK_ROOT=${STACK_ROOT:-$(readlink -f "$(dirname "$(readlink -f "$0")")/..")}
 PACKAGES="$STACK_ROOT/packages"
@@ -29,18 +31,21 @@ usage() {
 usage:
   stack list                  every package in the registry, with its kind and note
   stack show <name>           the package's conf and what add would bring in
-  stack add <name>...         subtree at repos/<name>, dependency, rule, skills, CLAUDE.md line
+  stack add <name>...         subtree at repos/<name>, dependency, rule, skills, CLAUDE.md line;
+                              what the package NEEDS first; a preset expands to its NEEDS
   stack update <name>...      each part its own way: subtree pull, 'npx skills update', re-copied
                               rule and registry skills (all added packages when none named)
-  stack rm <name>             remove what add put in, from .claude/stack.conf; the dependency stays
+  stack rm <name>             remove what add put in, from .claude/stack.conf; the dependency stays;
+                              refused while another added package NEEDS it
   stack status                added packages, and copies that differ from their source
 
-A package: packages/<name>/package.conf (KIND, REFERENCE, REF, DEP, SKILLS_ADD,
-SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE), packages/<name>/rule.md,
-packages/<name>/skills/. REFERENCE is 'private:<repo>' (git config
-private.root, <root>/<repo>.git) or 'git:<url>'; SKILLS_ADD is a skills.sh
-package ('shadcn/ui'). STACK_ROOT overrides where the registry is read from;
-STACK_SKILLS_CMD what runs for skills.sh (default 'npx -y skills').
+A package: packages/<name>/package.conf (KIND, NEEDS, REFERENCE, REF, DEP,
+DEV_DEP, SKILLS_ADD, SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE),
+packages/<name>/rule.md, packages/<name>/skills/. REFERENCE is
+'private:<repo>' (git config private.root, <root>/<repo>.git) or 'git:<url>';
+SKILLS_ADD is a skills.sh package ('shadcn/ui'); KIND=preset is NEEDS only.
+STACK_ROOT overrides where the registry is read from; STACK_SKILLS_CMD what
+runs for skills.sh (default 'npx -y skills').
 USAGE
   exit "${1:-2}"
 }
@@ -66,6 +71,25 @@ conf() {
   v=${v#\"}; v=${v%\"}
   printf '%s\n' "$v"
 }
+
+# NEEDS, transitively, into RESOLVED: what a package needs before the package
+# itself, each name once at its first place, unknown names refused by
+# package_dir. A preset is resolved like any other and dropped by the caller.
+RESOLVED=""
+RESOLVING=""
+resolve() {
+  local name
+  for name in "$@"; do
+    case " $RESOLVED " in *" $name "*) continue ;; esac
+    case " $RESOLVING " in *" $name "*) die "NEEDS cycle at $name" ;; esac
+    RESOLVING="$RESOLVING $name"
+    # shellcheck disable=SC2046
+    resolve $(conf "$(package_dir "$name")" NEEDS)
+    RESOLVED="$RESOLVED $name"
+  done
+}
+
+is_preset() { [ "$(conf "$1" KIND)" = preset ]; }
 
 # Skills shipped in the registry: packages/<name>/skills/<skill>/SKILL.md.
 registry_skills() {
@@ -285,14 +309,27 @@ place() {
   return 0
 }
 
+# pm_add dep|dev <spec>...: the runner the lockfile says; dev is its -D.
 pm_add() {
-  local pm="npm i"
+  local mode=$1 pm="npm i" flag=-D
+  shift
   [ -f pnpm-lock.yaml ] && pm="pnpm add"
   [ -f yarn.lock ] && pm="yarn add"
-  { [ -f bun.lockb ] || [ -f bun.lock ]; } && pm="bun add"
+  { [ -f bun.lockb ] || [ -f bun.lock ]; } && { pm="bun add"; flag=-d; }
+  [ "$mode" = dev ] && pm="$pm $flag"
   echo "  dep     $* ($pm)"
   # shellcheck disable=SC2086
   $pm "$@"
+}
+
+# The dependency and its knip ignore, for DEP and DEV_DEP alike.
+add_deps() {
+  local mode=$1 specs=$2
+  [ -n "$specs" ] || return 0
+  # shellcheck disable=SC2086
+  pm_add "$mode" $specs
+  # shellcheck disable=SC2086,SC2046
+  knip_ignore $(printf '%s\n' $specs | sed -E 's/^(@?[^@]+)@.*/\1/')
 }
 
 # ts-gate runs knip repo-wide and flags a dependency nothing imports yet; the
@@ -329,8 +366,15 @@ cmd_show() {
   dir=$(package_dir "$name")
   cat "$dir/package.conf"
   echo
+  if [ -n "$(conf "$dir" NEEDS)" ]; then
+    local order="" n
+    RESOLVED=""; resolve "$name"
+    for n in $RESOLVED; do is_preset "$PACKAGES/$n" || order="$order $n"; done
+    echo "needs:   $(conf "$dir" NEEDS)  (add order:$order)"
+  fi
   [ -n "$(conf "$dir" REFERENCE)" ] && echo "subtree: $REPOS/$name from $(reference_url "$(conf "$dir" REFERENCE)") ($(conf "$dir" REF))"
   [ -n "$(conf "$dir" DEP)" ] && echo "dep:     $(conf "$dir" DEP)"
+  [ -n "$(conf "$dir" DEV_DEP)" ] && echo "dev dep: $(conf "$dir" DEV_DEP)"
   [ -f "$dir/rule.md" ] && echo "rule:    .claude/rules/$name.md"
   for s in $(registry_skills "$dir"); do echo "skill:   .claude/skills/$s (registry)"; done
   [ -n "$(conf "$dir" SKILLS_FROM_REFERENCE)" ] && echo "skills:  from $(conf "$dir" SKILLS_FROM_REFERENCE) in the subtree, copied after add"
@@ -345,9 +389,17 @@ cmd_show() {
 # 'stack add a b' would refuse b's subtree after a landed.
 cmd_add() {
   [ $# -gt 0 ] || usage
-  local name dir source ref url subtree dep
+  local name dir source ref url subtree asked=" $* " names=""
   cd "$(repo_root)"
-  for name in "$@"; do package_dir "$name" >/dev/null; done
+  RESOLVED=""; resolve "$@"
+  for name in $RESOLVED; do
+    is_preset "$PACKAGES/$name" && continue
+    names="$names $name"
+    case "$asked" in *" $name "*) ;; *) echo "$name: needed, added first" ;; esac
+  done
+  # shellcheck disable=SC2086
+  set -- ${names# }
+  [ $# -gt 0 ] || die "nothing to add: a preset with no NEEDS"
   for name in "$@"; do
     dir=$(package_dir "$name")
     source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF)
@@ -366,16 +418,12 @@ cmd_add() {
   done
   for name in "$@"; do
     dir=$(package_dir "$name")
-    source=$(conf "$dir" REFERENCE); dep=$(conf "$dir" DEP)
+    source=$(conf "$dir" REFERENCE)
     echo "$name"
     subtree=""
     [ -z "$source" ] || subtree="$REPOS/$name"
-    if [ -n "$dep" ]; then
-      # shellcheck disable=SC2086
-      pm_add $dep
-      # shellcheck disable=SC2086,SC2046
-      knip_ignore $(printf '%s\n' $dep | sed -E 's/^(@?[^@]+)@.*/\1/')
-    fi
+    add_deps dep "$(conf "$dir" DEP)"
+    add_deps dev "$(conf "$dir" DEV_DEP)"
     place "$name" "$dir" "$subtree" add
   done
   ensure_claude_md
@@ -413,6 +461,10 @@ cmd_rm() {
   cd "$(repo_root)"
   row=$(manifest_row "$name")
   [ -n "$row" ] || die "'$name' is not added (see $MANIFEST)"
+  for s in $(manifest_names); do
+    [ "$s" != "$name" ] && [ -f "$PACKAGES/$s/package.conf" ] || continue
+    case " $(conf "$PACKAGES/$s" NEEDS) " in *" $name "*) die "$s needs $name: 'stack rm $s' first" ;; esac
+  done
   IFS='|' read -r _ subtree rule skills <<< "$row"
   [ -n "$rule" ] && rm -f "$rule"
   if [ -n "$(conf "$PACKAGES/$name" SKILLS_ADD 2>/dev/null || true)" ] && [ -f skills-lock.json ]; then

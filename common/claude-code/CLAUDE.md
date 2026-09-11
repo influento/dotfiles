@@ -34,9 +34,11 @@ Two consequences of merging rather than replacing:
 ## project
 
 The tools a project installs, as opposed to skills it links: `workbench`, the
-item-tracking workflow CLI, and `ts-gate`, the TypeScript Stop-hook gate. Both
-are copied into a project and committed there, never symlinked. How they fit
-together, their shared backlog, and the pointers into each: `project/CLAUDE.md`.
+item-tracking workflow CLI; `ts-gate`, the TypeScript Stop-hook gate; and
+`stack`, the Effect-first registry of the libraries a project chooses
+(`stack add effect`, or the `service` and `fullstack` presets). All are copied
+into a project and committed there, never symlinked. How they fit together,
+their shared backlog, and the pointers into each: `project/CLAUDE.md`.
 
 ## skills-optional
 

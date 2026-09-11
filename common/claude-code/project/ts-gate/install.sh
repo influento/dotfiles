@@ -8,16 +8,9 @@ T="$(cd "${1:?usage: install.sh <target-dir>}" && pwd)"
 [ -f "$T/tsconfig.json" ] || { echo "no tsconfig.json in $T"; exit 1; }
 cd "$T"
 
-# 0. Preconditions, then the Effect reference checkout before anything dirties the
-#    tree. Refused rather than warned: a gate without repos/effect has a rule
-#    pointing nowhere, and premerge is git config.
+# 0. Preconditions. Refused rather than warned: premerge is git config.
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$T is not a git repository"; exit 1; }
-git rev-parse --verify -q HEAD >/dev/null || { echo "no commit yet in $T: commit the scaffold first, git subtree needs HEAD"; exit 1; }
-if [ ! -d repos/effect ]; then
-  [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "uncommitted changes in $T: commit or stash first, git subtree refuses a dirty tree"; exit 1; }
-  git subtree add --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
-fi
-grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile repos/effect. Add \"include\": [\"src\"]"
+grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile everything, the read-only subtrees 'stack add' puts under repos/ included. Add \"include\": [\"src\"]"
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
 
 # 1. Files. Everything but the manifest is replaced, so a re-run carries changes.
@@ -39,7 +32,6 @@ NEW=$(node -e '
 const p=require("./package.json"),have={...p.dependencies,...p.devDependencies};
 console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have)).join(" "))' $DEPS)
 [ -z "$NEW" ] || $PM $NEW
-grep -q '"effect"' package.json || ${PM% -[dD]} effect@rc
 
 # 3. Scripts
 npm pkg set \
