@@ -339,6 +339,10 @@ cmd_show() {
   return 0
 }
 
+# Two passes: every subtree first, then everything else. A subtree needs a
+# clean tree, and placing the package before it — the manifest row, the
+# lockfile, a dependency in package.json — dirties tracked files, so
+# 'stack add a b' would refuse b's subtree after a landed.
 cmd_add() {
   [ $# -gt 0 ] || usage
   local name dir source ref url subtree dep
@@ -346,22 +350,26 @@ cmd_add() {
   for name in "$@"; do package_dir "$name" >/dev/null; done
   for name in "$@"; do
     dir=$(package_dir "$name")
-    source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF); dep=$(conf "$dir" DEP)
+    source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF)
+    [ -n "$source" ] || continue
     [ -n "$ref" ] || ref=main
+    subtree="$REPOS/$name"
+    if [ -d "$subtree" ]; then
+      echo "$name: subtree $subtree exists, kept ('stack update' pulls it)"
+    else
+      git rev-parse --verify -q HEAD >/dev/null || die "no commit yet: commit the scaffold first, git subtree needs HEAD"
+      require_clean
+      url=$(reference_url "$source")
+      echo "$name: subtree $subtree from $url ($ref)"
+      git subtree add --prefix="$subtree" "$url" "$ref" --squash >/dev/null
+    fi
+  done
+  for name in "$@"; do
+    dir=$(package_dir "$name")
+    source=$(conf "$dir" REFERENCE); dep=$(conf "$dir" DEP)
     echo "$name"
     subtree=""
-    if [ -n "$source" ]; then
-      subtree="$REPOS/$name"
-      if [ -d "$subtree" ]; then
-        echo "  subtree $subtree exists, kept ('stack update' pulls it)"
-      else
-        git rev-parse --verify -q HEAD >/dev/null || die "no commit yet: commit the scaffold first, git subtree needs HEAD"
-        require_clean
-        url=$(reference_url "$source")
-        echo "  subtree $subtree from $url ($ref)"
-        git subtree add --prefix="$subtree" "$url" "$ref" --squash >/dev/null
-      fi
-    fi
+    [ -z "$source" ] || subtree="$REPOS/$name"
     if [ -n "$dep" ]; then
       # shellcheck disable=SC2086
       pm_add $dep

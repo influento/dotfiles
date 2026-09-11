@@ -96,7 +96,7 @@ usage:
   workbench signal <state>             window title + session registry; run by the hooks, not by hand
   workbench gate <ask|permission>      attended: flag the window; unattended: refuse, say where to park it
 
-  reasons: sweep, pre-merge, docs, memory, adopt, watch, usage
+  reasons: sweep, pre-merge, docs, memory, adopt, watch, usage, security
   state lives under workbench/
 EOF
   exit "${1:-2}"
@@ -395,7 +395,8 @@ render_skills() {
   # The names go through sed as replacement text, where these three are
   # syntax; no project is called that, so refuse rather than escape.
   case "$project" in *[\|\&\\]*) die "project directory name '$project' holds one of | & \\, which the templates cannot render" ;; esac
-  main=$(default_branch 2>/dev/null || echo main)
+  # die exits the substitution before a "|| echo" inside it could run
+  main=$(default_branch 2>/dev/null) || main=main
   srcdir=$(readlink -f "$(wb_root)")
   mkdir -p "$root/.claude/skills"
 
@@ -3796,7 +3797,7 @@ cmd_status() {
   echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"
   local mainr mainb mid limbo=0
   mainr=$(main_root)
-  mainb=$(default_branch 2>/dev/null || true)
+  mainb=$(default_branch 2>/dev/null) || mainb=""
   if [ -n "$mainb" ]; then
     for name in "${names[@]}"; do
       mid=$(item_id "$name")
@@ -4477,7 +4478,7 @@ cmd_review() {
   require_init
 
   case "$reason" in
-    sweep|pre-merge|docs|memory|adopt) ;;
+    sweep|pre-merge|docs|memory|adopt|security) ;;
     usage)
       # Opening the review is what resets the cadence: the count of records
       # it could read, so 'status' counts from here whether or not triage
@@ -4503,7 +4504,7 @@ cmd_review() {
         find_report "$open"
         return 0
       fi ;;
-    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch, usage" ;;
+    *) die "reason must be one of: sweep, pre-merge, docs, memory, adopt, watch, usage, security" ;;
   esac
 
   root=$(repo_root)
