@@ -11,15 +11,16 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 | `bash ts-gate/install.sh <project>` | install; idempotent |
 | `bash ts-gate/uninstall.sh <project>` | remove exactly what install added, per `ts-gate/.install.json` |
 | `npm run gate:verify` | prove the install: seeded violation blocks a session, hook releases after the fix; one model call |
-| `npm run gate:local` | branch since the default branch plus working tree; what the Stop hook runs |
-| `npm run gate` | CI, default branch...HEAD |
-| `npm run gate:full` | whole repo |
+| `npm run gate:local` | branch since the default branch plus working tree, and the tests that diff reaches (`vitest --changed`); what the Stop hook runs |
+| `npm run gate` | CI, default branch...HEAD, and the whole test suite |
+| `npm run gate:full` | whole repo, whole suite |
 | `npm run gate:fix` | eslint autofix |
 
 ## Install steps
 
 Refuses outside git. Then: copy this dir → deps
-by lockfile (`typescript` included), test plugin by runner → scripts →
+by lockfile (`typescript` included), test plugin by runner (vitest also
+gets the test step in the gate; jest the plugin only) → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
 is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
@@ -56,13 +57,21 @@ Workbench knows nothing of ts-gate.
 - `tsconfig.json`: `strict: true`, `noUncheckedIndexedAccess: true` and an `include`. Type-aware rules are the point; install warns when either flag is missing.
 - Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`. A worktree without them has no gate.
 - Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
-- Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`, `vitest run --dir src`. eslint and knip ignores are written by install.
+- Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`. eslint and knip ignores are written by install; the gate's vitest calls exclude it themselves, a project's own `vitest` script should too.
 
 ## Severity
 
 Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
 1000 lines/file, 100/function, 30 statements, 6 params, depth 4): `warn`.
 `tsc --noEmit`, knip, dependency-cruiser: repo-wide, block. eslint: changed files.
+The correctness block in `eslint.gate.mjs` (`no-floating-promises`,
+`switch-exhaustiveness-check`, `no-unsafe-*`, `restrict-plus-operands`,
+`no-misused-promises`, `await-thenable`) runs at the gate severity, so a
+brownfield `warn` pass covers it; `gate({ correctness: false })` drops it.
+Tests: `--local` runs what the diff reaches (`vitest run --changed
+<merge-base>`, so a fixture-only change reruns nothing until a `.ts` file
+moves too); CI and `gate:full` run the suite. `--passWithNoTests`, and
+`repos/**` and `.worktrees/**` excluded on the command line.
 
 ## Brownfield
 

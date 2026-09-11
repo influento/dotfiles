@@ -33,7 +33,7 @@ fi
 if [ "$SAME" -eq 3 ]; then
   # shellcheck disable=SC2016  # the backticks are markdown for the model, not a command
   printf 'Gate failed the same way three times. Stop working around it: park it — under workbench, `workbench call <id> "gate: %s"`, report blocked — and end the turn. The next stop is allowed.\n%s\n' \
-    "$(printf '%s\n' "$OUT" | grep -m1 -E 'error|TS[0-9]{4}|✖|unused' | cut -c1-120)" "$OUT" >&2
+    "$(printf '%s\n' "$OUT" | grep -m1 -E 'error|TS[0-9]{4}|✖|unused|FAIL' | cut -c1-120)" "$OUT" >&2
 else
   printf 'Gate failed. Fix before finishing:\n%s\n' "$OUT" >&2
 fi

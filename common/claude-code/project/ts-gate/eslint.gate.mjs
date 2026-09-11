@@ -1,10 +1,12 @@
-// Volume gate: rules that fire on "more code than there should be".
-// Cherry-picked on purpose. This is NOT recommendedTypeChecked — adopt that
-// separately, later, as a correctness gate. Mixing them is what makes day one
-// unsurvivable.
+// Volume gate: rules that fire on "more code than there should be", plus
+// the correctness subset of recommendedTypeChecked that catches a bug the
+// compiler lets through. Cherry-picked on purpose; the rest of
+// recommendedTypeChecked is not here, and mixing all of it in is what makes
+// day one unsurvivable.
 //
-// Two tiers:
-//   error — the fix deletes or collapses code.
+// Tiers:
+//   error — the fix deletes or collapses code, or the code is wrong
+//           (correctness; `correctness: false` drops that block).
 //   warn  — size signals. Attention only; the fix would add code (splits,
 //           parameter objects), so they never block.
 //
@@ -19,11 +21,13 @@ import sonarjs from "eslint-plugin-sonarjs";
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
  * @param {"error"|"warn"} [opts.severity="error"]  use "warn" for the first rollout pass
+ * @param {boolean} [opts.correctness=true]  the type-aware correctness block
  * @param {string[]} [opts.files]
  */
 export default function gate({
   tsconfigRootDir,
   severity = "error",
+  correctness = true,
   files = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
 }) {
   const E = severity;
@@ -115,6 +119,25 @@ export default function gate({
         "prefer-object-spread": E,
         "prefer-spread": E,
         "prefer-rest-params": E,
+
+        // --- correctness (type-aware): wrong, not merely too much ---------
+        // A promise nobody awaits, a switch a new union member falls out of,
+        // `any` flowing through, string + number. Greenfield has no reason
+        // to wait for these; brownfield ratchets them with the rest.
+        ...(correctness
+          ? {
+              "@typescript-eslint/no-floating-promises": E,
+              "@typescript-eslint/no-misused-promises": E,
+              "@typescript-eslint/await-thenable": E,
+              "@typescript-eslint/switch-exhaustiveness-check": E,
+              "@typescript-eslint/restrict-plus-operands": E,
+              "@typescript-eslint/no-unsafe-argument": E,
+              "@typescript-eslint/no-unsafe-assignment": E,
+              "@typescript-eslint/no-unsafe-call": E,
+              "@typescript-eslint/no-unsafe-member-access": E,
+              "@typescript-eslint/no-unsafe-return": E,
+            }
+          : {}),
 
         // --- the one hard shape rule --------------------------------------
         "sonarjs/cognitive-complexity": [E, 15],
