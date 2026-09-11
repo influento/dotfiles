@@ -90,13 +90,19 @@ export LANG="en_US.UTF-8"
 
 # --- Aliases ---
 
-# Modern replacements
-alias ls='eza --group-directories-first --icons'
-alias ll='eza -la --group-directories-first --icons'
-alias la='eza -a --group-directories-first --icons'
-alias lt='eza -T --group-directories-first --icons --level=2'
-alias lta='eza -Ta --group-directories-first --icons --level=2'
-alias cat='bat --plain'
+# Modern replacements, interactive shells only. An agent that sources this
+# file from a `zsh -c` shell (Claude Code snapshots it that way into every
+# Bash tool call) would otherwise get eza and bat rejecting the flags a
+# model passes to ls and cat, and -i prompts hanging a tool call until its
+# timeout, since nobody is there to answer.
+if [[ -o interactive ]]; then
+  alias ls='eza --group-directories-first --icons'
+  alias ll='eza -la --group-directories-first --icons'
+  alias la='eza -a --group-directories-first --icons'
+  alias lt='eza -T --group-directories-first --icons --level=2'
+  alias lta='eza -Ta --group-directories-first --icons --level=2'
+  alias cat='bat --plain'
+fi
 alias vim='nvim'
 alias grep='rg'
 alias find='fd'
@@ -140,10 +146,12 @@ alias scu='systemctl --user'
 alias scst='systemctl status'
 alias jrn='journalctl -eu'
 
-# Safety nets
-alias rm='rm -i'
-alias mv='mv -i'
-alias cp='cp -i'
+# Safety nets, interactive shells only (see "Modern replacements")
+if [[ -o interactive ]]; then
+  alias rm='rm -i'
+  alias mv='mv -i'
+  alias cp='cp -i'
+fi
 
 # Tmux
 alias ts='tmux-session'
