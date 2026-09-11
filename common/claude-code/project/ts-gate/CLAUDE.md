@@ -22,9 +22,9 @@ Refuses outside git. Then: copy this dir → deps
 by lockfile (`typescript` included), test plugin by runner → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
 is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
-`rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and two
-`permissions.allow` rules (`npm ci`, `npm run gate:*`) in
-`.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
+`rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
+`permissions.allow` rules (`npm ci`, `npm run gate:*`, `npm test`, and
+`npx vitest` or `npx jest` by runner) in `.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
 unset (set to something else: printed, chain it by hand) → manifest
 `ts-gate/.install.json`.
 
@@ -53,7 +53,7 @@ Workbench knows nothing of ts-gate.
 
 ## Project requirements
 
-- `tsconfig.json`: `strict: true` and an `include`. Type-aware rules are the point.
+- `tsconfig.json`: `strict: true`, `noUncheckedIndexedAccess: true` and an `include`. Type-aware rules are the point; install warns when either flag is missing.
 - Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`. A worktree without them has no gate.
 - Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
 - Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`, `vitest run --dir src`. eslint and knip ignores are written by install.
