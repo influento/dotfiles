@@ -22,16 +22,23 @@ so `workbench merge` runs the gate in the branch worktree; its two
 `permissions.allow` rules are what an unattended worker is allowed; its eslint
 config ignores `.worktrees/**`; its `ts-lean-code.md` checklist is what
 `wb-reviewer` applies in fresh context, which is why no hook runs it. Install
-ts-gate first and commit between the two: its `git subtree add` needs a clean
-tree and `workbench init` writes tracked files.
+ts-gate first and commit between the two: `workbench init` writes tracked
+files.
 
-`stack` follows ts-gate's Effect pattern for every package — reference
-subtree, dependency, rule — and knows about ts-gate only where the gate would
+`stack` brings each package in the same shape — reference subtree, pinned
+dependency, rule — and knows about ts-gate only where the gate would
 otherwise go red: a dependency it installs goes into `ts-gate/knip.json`'s
 `ignoreDependencies` when that file exists, and `repos/**` is already in the
 gate's ignores. It goes between the two because its subtrees need a clean tree
 and `workbench init` should render its CLAUDE.md block after the stack's.
 Workbench knows nothing of either.
+
+Effect is a stack package, not part of the gate: `stack add effect` (alone,
+or through the `service` and `fullstack` presets) puts the subtree, the pinned
+dependency and the rule in; `project-setup` does that in every TypeScript
+project, so `ts-lean-code.md` can name Effect without the gate installing it.
+The registry is Effect-first by rule (`stack/CLAUDE.md`, "What enters the
+registry"), which is what keeps a second ORM or a second schema library out.
 
 ## Working here
 

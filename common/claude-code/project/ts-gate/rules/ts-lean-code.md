@@ -16,8 +16,8 @@ Stop at the first rung that holds:
 1. Needs to exist at all? Speculative need: skip it, say so in one line.
 2. Already in this codebase? Reuse the helper, type, or pattern. Look before you write.
 3. Stdlib does it? Use it.
-4. Effect ships it (Schedule, Cache, Duration, Stream, Schema)? Use it; check the API per `ts-effect.md`.
-5. An installed dependency does it? Use it. Never add one for what a few lines do.
+4. Effect ships it (Schedule, Cache, Duration, Stream, Schema, HTTP, RPC, CLI)? Use it; `effect.md` (from `stack add effect`) says where to check the API.
+5. An installed dependency does it? Use it. A stack package does it (`stack list`)? Propose `stack add <name>`; never install ad hoc, and never add a dependency for what a few lines do.
 6. One line? One line.
 7. Only then: the minimum code that works.
 

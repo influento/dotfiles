@@ -20,6 +20,9 @@ workbench tracks projects, this tracks workbench and ts-gate.
 - fold `skills-optional/` in: `go/`, `manim`, `excalidraw` as packages with skills only, `stack add go` replacing the symlink dance; then retire the symlink instructions in `skills-optional/CLAUDE.md`
 - `stack update` on a skills.sh package folds the CLI's `.agents/skills/` + symlink layout back into a copy; if a later skills release honours copy mode on update, the fold becomes a no-op and can go
 - a package whose REFERENCE is public git and whose skills ship in the subtree is untested against a real repository; shardx-scripts (private, subtree) and shadcn (skills.sh) are the two real packages
+- effect pin: `REF`, `DEP` and `DEV_DEP` in `packages/effect` and the `@effect/*` lines in drizzle, atom-react, otel are `4.0.0-rc.115` (2026-09-12); one bump commit per RC worth taking, and the move to `4.0.0` when stable ships (Effect targets Q3/Q4 2026). `stack update effect` in each project after
+- fullstack preset is untested against a real scaffold: `npx @tanstack/cli create` then the setup order, the RPC route (`tanstack-start` rule names v3's `HttpApp.toWebHandler`; the v4 adapter name is in `LLMS.md`), Better Auth's `src/routes/api/auth/$.ts` beside it. Run once on a throwaway app and fix the rules from what compiles
+- better-auth: drop the `Auth` wrap and take the native integration when better-auth/better-auth#7338 ships (opened 2026-01-13, open)
 
 ## ts-gate
 

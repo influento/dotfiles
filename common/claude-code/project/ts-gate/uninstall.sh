@@ -52,4 +52,4 @@ rmdir .claude 2>/dev/null || true
 
 # 7. Files
 command rm -rf ts-gate
-echo "uninstalled. Left in place because code may depend on them: effect, repos/effect"
+echo "uninstalled"

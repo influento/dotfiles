@@ -5,7 +5,7 @@
     "repos/**",
     "ts-gate/eslint-line.mjs"
   ],
-  "ignoreDependencies": ["effect"],
+  "ignoreDependencies": [],
   "rules": {
     "files": "error",
     "exports": "error",

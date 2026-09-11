@@ -9,7 +9,7 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 | Command | Does |
 |---|---|
 | `bash ts-gate/install.sh <project>` | install; idempotent |
-| `bash ts-gate/uninstall.sh <project>` | remove exactly what install added, per `ts-gate/.install.json`; leaves `effect` and `repos/effect` |
+| `bash ts-gate/uninstall.sh <project>` | remove exactly what install added, per `ts-gate/.install.json` |
 | `npm run gate:verify` | prove the install: seeded violation blocks a session, hook releases after the fix; one model call |
 | `npm run gate:local` | branch since the default branch plus working tree; what the Stop hook runs |
 | `npm run gate` | CI, default branch...HEAD |
@@ -18,8 +18,7 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 
 ## Install steps
 
-Refuses outside git, before the first commit, or (first run) on a dirty tree.
-Then: effect subtree at `repos/effect` and `effect@rc` → copy this dir → deps
+Refuses outside git. Then: copy this dir → deps
 by lockfile (`typescript` included), test plugin by runner → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
 is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
@@ -29,8 +28,11 @@ is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 unset (set to something else: printed, chain it by hand) → manifest
 `ts-gate/.install.json`.
 
-`effect` is in knip's `ignoreDependencies`: install adds it before any code
-imports it.
+knip's `ignoreDependencies` starts empty; `stack add` appends every
+dependency it installs, because a package lands before the code that imports
+it. Effect itself is a stack package (`stack add effect`, in every TypeScript
+project by `project-setup`); `ts-lean-code.md` names it because every project
+has it, and the gate installs nothing of it.
 
 The Stop hook runs `gate:local` and blocks on every stop while red, capped: the
 same output three stops running gets one last block that says to park it, and
@@ -54,7 +56,7 @@ Workbench knows nothing of ts-gate.
 - `tsconfig.json`: `strict: true` and an `include`. Type-aware rules are the point.
 - Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`. A worktree without them has no gate.
 - Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
-- Keep tools out of `repos/effect`: tsconfig `include`, `vitest run --dir src`. eslint and knip ignores are written by install.
+- Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`, `vitest run --dir src`. eslint and knip ignores are written by install.
 
 ## Severity
 

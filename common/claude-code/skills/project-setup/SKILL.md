@@ -62,14 +62,21 @@ brownfield procedure.
    commit until `gate:full` exits 0 or every remaining red is a recorded
    warning. Commit: `ts-gate: install`.
 
-3. **stack.** Ask which packages this project uses; `stack list` shows the
-   registry. Nothing is assumed, there are no presets — the user names them,
-   `stack add <name>...` brings each in (a read-only subtree under `repos/`,
-   the dependency, a rule, skills, a line in CLAUDE.md). Needs a clean tree,
-   which step 2's commit gives it. A package not in the registry is added to
-   dotfiles first (`common/claude-code/project/stack/CLAUDE.md`, "Adding a
-   package"), not improvised in the project. Commit: `stack: add <names>`.
-   Skip when the user names none; `stack add` works at any later time.
+3. **stack.** Every TypeScript project gets Effect: `stack add effect`, or a
+   preset that includes it — `service` (effect, drizzle, otel) for a backend,
+   `fullstack` (service + tanstack-start, atom-react, better-auth, shadcn) for
+   an app. Ask which preset, or which packages beyond it; `stack list` shows
+   the registry, `stack show <name>` what a preset expands to. `stack add
+   <name>...` brings each in (a read-only subtree under `repos/`, the pinned
+   dependency, a rule, skills, a line in CLAUDE.md), what a package needs
+   first. Needs a clean tree, which step 2's commit gives it. A package not in
+   the registry is added to dotfiles first (`common/claude-code/project/stack/CLAUDE.md`,
+   "Adding a package" and "What enters the registry"), not improvised in the
+   project. Commit: `stack: add <names>`. `stack add` works at any later time.
+
+   `fullstack` on a greenfield project: the TanStack CLI scaffolds into a
+   fresh directory, so run `npx @tanstack/cli create <app> --blank` before
+   step 1's scaffold commit, then continue from there with that tree.
 
 4. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
    (refuses a dirty tree, then prints the survey command). Commit:
@@ -86,16 +93,16 @@ brownfield procedure.
 
 ## Order, and why
 
-ts-gate first: its `git subtree add` needs HEAD and refuses a dirty tree, and
-`workbench init` writes tracked files. `stack add` between them: its subtrees
-need the same clean tree, and its CLAUDE.md block should exist before
-workbench appends its own. Commit between each so every tool lands under its
-own subject.
+ts-gate first: `stack add` writes its dependencies into the gate's knip
+ignores, which must exist by then, and `workbench init` writes tracked files.
+`stack add` between them: its subtrees need HEAD and a clean tree, and its
+CLAUDE.md block should exist before workbench appends its own. Commit between
+each so every tool lands under its own subject.
 
 ## Removing
 
 `bash "$TS_GATE/uninstall.sh" .` removes exactly what its manifest lists,
-including the premerge key if it is still `npm run gate`, and leaves `effect`
-and `repos/effect`. `stack rm <name>` removes one package's subtree, rule and
-skills and leaves its dependency. Workbench has no uninstall; its files are
+including the premerge key if it is still `npm run gate`. `stack rm <name>`
+removes one package's subtree, rule and skills and leaves its dependency; it
+refuses while another added package needs it. Workbench has no uninstall; its files are
 the committed `.claude/` copies and `workbench/`.
