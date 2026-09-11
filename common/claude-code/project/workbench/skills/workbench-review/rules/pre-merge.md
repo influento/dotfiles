@@ -50,6 +50,11 @@ missing. Read it and name it; the checks below are made against it. Check:
   reason under Evidence. A branch that came to the gate straight from the
   code is a finding that stops the merge
 
+A defect in the code that none of the checks above name is a finding only
+when shown — the command run and the wrong output, not a reading of a line;
+read but not shown goes in one `unshown:` line at the end, outside the
+findings and outside the verdict.
+
 The three most often missed: a guard standing in a criterion slot, a
 discovered fact recorded in the item instead of in the code, and a test that
 reaches past what the criterion describes.
