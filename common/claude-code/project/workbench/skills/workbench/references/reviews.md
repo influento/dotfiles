@@ -25,6 +25,7 @@ with the sweep skill, in `workbench-review/rules/`.
 | `memory` | audit the agent's stored memory for facts that belong in the repo, or are stale |
 | `adopt` | bringing an existing project in — see [adopt.md](adopt.md) |
 | `watch` | a shift over a running app: observe, recover as contracted, investigate, report — see "Watch shifts" below |
+| `security` | vulnerabilities the change introduces — a concrete attack path from untrusted input, nothing theoretical. On an item's branch the diff is the scope; on the default branch, the paths given. On demand, for code with an attack surface: auth, wallets, anything parsing outside input |
 | `usage` | what the last items cost and which setting would make the next ones cheaper. The agent runs it when `workbench status` prints a `usage:` line; the report ends in a `suggestions:` block of settings, each the user's to change — see [usage.md](usage.md) |
 
 ## Reports
