@@ -62,21 +62,32 @@ brownfield procedure.
    commit until `gate:full` exits 0 or every remaining red is a recorded
    warning. Commit: `ts-gate: install`.
 
-3. **stack.** Every TypeScript project gets Effect: `stack add effect`, or a
-   preset that includes it — `service` (effect, drizzle, otel) for a backend,
-   `fullstack` (service + tanstack-start, atom-react, better-auth, shadcn) for
-   an app. Ask which preset, or which packages beyond it; `stack list` shows
-   the registry, `stack show <name>` what a preset expands to. `stack add
-   <name>...` brings each in (a read-only subtree under `repos/`, the pinned
-   dependency, a rule, skills, a line in CLAUDE.md), what a package needs
-   first. Needs a clean tree, which step 2's commit gives it. A package not in
+3. **stack.** Every TypeScript project starts with one of three entries;
+   ask which, never for a package list: `stack add effect` for a CLI, a
+   library or a worker (owns no database); `service` (effect, drizzle, otel)
+   for a backend; `fullstack` (service + tanstack-start, atom-react,
+   better-auth, shadcn) for an app with a UI. `stack show <name>` prints what
+   a preset expands to; a single package later (`stack add drizzle` in a CLI
+   that grew a database) is the exception. `stack add <name>...` brings each
+   in (a read-only subtree under `repos/`, the pinned dependency, a rule,
+   skills, a line in CLAUDE.md), what a package needs first. Needs a clean tree, which step 2's commit gives it. A package not in
    the registry is added to dotfiles first (`common/claude-code/project/stack/CLAUDE.md`,
    "Adding a package" and "What enters the registry"), not improvised in the
    project. Commit: `stack: add <names>`. `stack add` works at any later time.
 
    `fullstack` on a greenfield project: the TanStack CLI scaffolds into a
-   fresh directory, so run `npx @tanstack/cli create <app> --blank` before
-   step 1's scaffold commit, then continue from there with that tree.
+   fresh directory, so before step 1's scaffold commit run
+
+   ```
+   npx @tanstack/cli create <app> --framework React --blank --package-manager npm \
+     --no-toolchain --no-intent --non-interactive
+   ```
+
+   add `src/start.ts` (`export const startInstance = createStart(() => ({}))`
+   from `@tanstack/react-start`; the blank scaffold lacks it and the `server`
+   route option does not typecheck without that import), then continue from
+   there with that tree. The wiring is `.claude/rules/tanstack-start.md` once
+   the package is in.
 
 4. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
    (refuses a dirty tree, then prints the survey command). Commit:

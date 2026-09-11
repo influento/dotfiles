@@ -36,6 +36,23 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 `effect` and every `@effect/*` share one version; the pins across `effect`,
 `drizzle`, `atom-react` and `otel` move in one commit.
 
+## Three ways in
+
+A project starts with one of three, by what it is (decided 2026-09-12):
+
+| Project | Entry | Brings |
+|---|---|---|
+| CLI, library, worker: owns no database | `stack add effect` | the runtime |
+| backend service | `stack add service` | effect, drizzle, otel |
+| app with a UI | `stack add fullstack` | service + tanstack-start, atom-react, better-auth, shadcn |
+
+The packages stay separate units under the presets rather than one `effect`
+package holding everything, because a CLI would then carry drizzle-kit and a
+Postgres driver it never imports, and a service that grows a UI later runs
+`stack add tanstack-start atom-react`, not a reinstall. `project-setup` asks
+which of the three; a single package after that (`stack add drizzle` in a
+CLI that grew a database) is the exception, not the way in.
+
 ## Layout
 
 | Path                            | What it is                                                                       |
