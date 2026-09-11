@@ -41,8 +41,9 @@ hold it. If one file tells you, read the file.
 | Rules — how work is done here | root `CLAUDE.md` | process change |
 | Intent — what the project is for | root `CLAUDE.md` | decisions |
 | Wiring — how parts fit together | `CLAUDE.md` in the deepest directory it covers | relevant code change |
+| Rules only some files need — a file type across directories, a tool's own checklist | `.claude/rules/<name>.md` with a `paths:` glob, loaded when a matching file is read | process change |
 
-That is the whole set. The minimum a project needs is rules; the other two are
+That is the whole set. The minimum a project needs is rules; the others are
 earned. Every kind has something that invalidates it, which is what makes the
 `docs` review able to act on it.
 
@@ -55,8 +56,8 @@ when a file in that directory is opened with the Read tool. Keep the
 prescriptive and descriptive parts in separate sections, or the file grows into
 a dumping ground.
 
-**Caveat:** that automatic load happens on Read, not on `cat`, `head`, or
-`grep`. When the task is to understand an area rather than edit it, open the
+**Caveat:** that automatic load, for a nested `CLAUDE.md` and for a path
+rule alike, happens on Read, not on `cat`, `head`, or `grep`. When the task is to understand an area rather than edit it, open the
 area's `CLAUDE.md` deliberately.
 
 ## Line caps
