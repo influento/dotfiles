@@ -18,7 +18,7 @@ whatever it needs.
 
 The registry is the priority list: one pick per need, chosen once, the reason
 in the conf's comment. Anything that touches control flow, errors, IO or data
-is Effect-native, or wrapped once behind a service (`better-auth`); UI,
+is Effect-native, or wrapped once behind a service; UI,
 styling and tooling are orthogonal and free (`shadcn`). That is what keeps a
 second ORM, a second schema library or a second retry helper out of a
 project: a worker that needs one finds the pick in `stack list`, not on npm.
@@ -29,7 +29,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | database | `drizzle` (`drizzle-orm/effect-postgres` over `@effect/sql-pg`) | native Effect v4 entry, the only ORM with one |
 | client state | `atom-react` | first party; `AtomRpc` bridges to RPC |
 | tracing, metrics | `otel` | everything downstream consumes OTLP |
-| auth | `better-auth` | self-hosted, tables in the stack's Postgres, wrapped once until better-auth#7338 |
+| auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
 
@@ -44,7 +44,7 @@ A project starts with one of three, by what it is (decided 2026-09-12):
 |---|---|---|
 | CLI, library, worker: owns no database | `stack add effect` | the runtime |
 | backend service | `stack add service` | effect, drizzle, otel |
-| app with a UI | `stack add fullstack` | service + tanstack-start, atom-react, better-auth, shadcn |
+| app with a UI | `stack add fullstack` | service + tanstack-start, atom-react, shadcn |
 
 The packages stay separate units under the presets rather than one `effect`
 package holding everything, because a CLI would then carry drizzle-kit and a
@@ -60,7 +60,6 @@ CLI that grew a database) is the exception, not the way in.
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
 | `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
 | `packages/drizzle/`, `atom-react/`, `otel/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
-| `packages/better-auth/`         | `NEEDS="effect drizzle"`, subtree at its release tag (the docs), the wrap-once rule |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
 | `packages/service/`, `fullstack/` | presets: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
@@ -115,7 +114,7 @@ between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add
 fullstack` records `effect`, `drizzle`, `otel`, `atom-react`,
-`tanstack-start`, `better-auth`, `shadcn`, in that order (`stack show
+`tanstack-start`, `shadcn`, in that order (`stack show
 fullstack` prints it).
 
 A skill copied out of the subtree had relative links that climbed to its

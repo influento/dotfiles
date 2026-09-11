@@ -66,7 +66,7 @@ brownfield procedure.
    ask which, never for a package list: `stack add effect` for a CLI, a
    library or a worker (owns no database); `service` (effect, drizzle, otel)
    for a backend; `fullstack` (service + tanstack-start, atom-react,
-   better-auth, shadcn) for an app with a UI. `stack show <name>` prints what
+   shadcn) for an app with a UI. `stack show <name>` prints what
    a preset expands to; a single package later (`stack add drizzle` in a CLI
    that grew a database) is the exception. `stack add <name>...` brings each
    in (a read-only subtree under `repos/`, the pinned dependency, a rule,
