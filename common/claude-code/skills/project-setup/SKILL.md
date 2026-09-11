@@ -36,13 +36,14 @@ brownfield procedure.
 
    ```
    git init -b main && npm init -y
-   # tsconfig.json: "strict": true and "include": ["src"]
+   # tsconfig.json: "strict": true, "noUncheckedIndexedAccess": true,
+   #   "erasableSyntaxOnly": true (node runs the sources as they are), "include": ["src"]
    # src/index.ts with one export (knip's entry)
    # .gitignore: node_modules
    git add -A && git commit -m "scaffold"
    ```
 
-   Brownfield: `tsconfig.json` needs `strict: true` and an `include`; `tsc
+   Brownfield: `tsconfig.json` needs `strict: true`, `noUncheckedIndexedAccess: true` and an `include`; `tsc
    --noEmit` must pass before the gate goes in — the gate runs it repo-wide
    and blocks every stop on a red compile. A project that does not compile
    gets that as its first item, gate installed after.

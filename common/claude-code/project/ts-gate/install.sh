@@ -12,6 +12,7 @@ cd "$T"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$T is not a git repository"; exit 1; }
 grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile everything, the read-only subtrees 'stack add' puts under repos/ included. Add \"include\": [\"src\"]"
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
+grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
 
 # 1. Files. Everything but the manifest is replaced, so a re-run carries changes.
 [ -d ts-gate ] && find ts-gate -mindepth 1 ! -name .install.json -delete
@@ -88,8 +89,9 @@ command cp ts-gate/rules/*.md .claude/rules/
 
 # 6. Stop hook: the deterministic gate. Our entry is replaced, foreign entries
 #    are untouched. Judgment review is wb-reviewer's job under workbench.
-#    The allow rules cover the commands the rules tell the agent to run by hand;
-#    an unattended workbench worker is denied anything not listed.
+#    The allow rules cover the commands the rules tell the agent to run by hand
+#    and the test runner a criterion names; an unattended workbench worker is
+#    denied anything not listed.
 node -e '
 const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
@@ -98,8 +100,10 @@ const command="bash ts-gate/scripts/stop-hook.sh";
 s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==command)})).filter(e=>e.hooks.length);
 s.hooks.Stop.push({hooks:[{type:"command",command,timeout:600}]});
 s.permissions??={}; s.permissions.allow??=[];
-for(const r of ["Bash(npm ci)","Bash(npm run gate:*)"]) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
-fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");'
+const rules=["Bash(npm ci)","Bash(npm run gate:*)","Bash(npm test:*)"];
+if(process.argv[1]) rules.push("Bash(npx "+process.argv[1]+":*)");
+for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
+fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 
 # 7. workbench: its merge runs this command in the branch worktree and refuses on
 #    non-zero. Per clone, like every workbench key; inert without workbench.
