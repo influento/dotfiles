@@ -32,6 +32,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
+| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and ts-gate's money lint switched on by the manifest row. decimal.js, big.js, dinero are not added |
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
 | Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
@@ -72,12 +73,14 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | `packages/drizzle-{postgres,sqlite,mysql,libsql}/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources. The four drizzle rules share one shape and differ in driver, table module and `drizzle.config.ts` dialect |
 | `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
+| `packages/money/`               | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/money.ts`; `ts-gate/eslint.gate.mjs` reads `.claude/stack.conf` and enables its money block when the row is there |
 | `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
 | `packages/shadcn/`              | public library: the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
 | `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
 | `packages/<name>/rule.md`       | optional; → `.claude/rules/<name>.md` verbatim                                    |
 | `packages/<name>/skills/<s>/`   | optional; → `.claude/skills/<s>/`, own-written or vendored from upstream          |
+| `packages/<name>/files/<path>`  | optional; → `<path>` in the project once, never overwritten and never removed: source the project owns from the moment it lands (`money`'s `src/core/money.ts`) |
 | `tests/stack.sh`                | end-to-end, in a temp project against a temp registry and a local bare "private" repo |
 
 `package.conf` keys, every one optional but `NOTE`:
@@ -120,7 +123,7 @@ Per package, what it `NEEDS` first, each part only when the conf names it: a
 `--squash` subtree at `repos/<name>` as a read-only reference (needs HEAD and
 a clean tree), the dependencies (and, when `ts-gate/knip.json` exists, their
 names in `ignoreDependencies`, because the package lands before the code that
-imports it), the rule, the skills as committed copies, one line in the block
+imports it), the rule, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet), the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add

@@ -14,10 +14,24 @@ grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
 grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
 
-# 1. Files. Everything but the manifest is replaced, so a re-run carries changes.
+# 1. Files. Everything but the manifest is replaced, so a re-run carries
+#    changes — except what the project put in: knip.json's ignore lists (the
+#    brownfield baseline, every dependency and file stack added) are merged
+#    back, and .dependency-cruiser.cjs, the architecture record, is kept
+#    once it exists (diff it against this source by hand when the gate's
+#    default rules move).
+KNIP_KEEP=""
+[ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[]})')
+DC_KEEP=""
+[ -f ts-gate/.dependency-cruiser.cjs ] && DC_KEEP=$(mktemp) && command cp ts-gate/.dependency-cruiser.cjs "$DC_KEEP"
 [ -d ts-gate ] && find ts-gate -mindepth 1 ! -name .install.json -delete
 command mkdir -p ts-gate
 command cp -r "$SRC"/. ts-gate/
+[ -z "$KNIP_KEEP" ] || node -e '
+const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8")),k=JSON.parse(process.argv[1]);
+for(const key of ["ignore","ignoreDependencies"]) j[key]=[...new Set([...(j[key]||[]),...k[key]])];
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$KNIP_KEEP"
+[ -z "$DC_KEEP" ] || { command mv "$DC_KEEP" ts-gate/.dependency-cruiser.cjs; echo "ts-gate/.dependency-cruiser.cjs kept (the architecture record); the shipped default is in $SRC"; }
 
 # 2. Dependencies. Runner detection picks the test plugin.
 PM="npm i -D"

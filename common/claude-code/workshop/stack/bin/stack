@@ -41,7 +41,8 @@ usage:
 
 A package: packages/<name>/package.conf (KIND, NEEDS, REFERENCE, REF, DEP,
 DEV_DEP, SKILLS_ADD, SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE),
-packages/<name>/rule.md, packages/<name>/skills/. REFERENCE is
+packages/<name>/rule.md, packages/<name>/skills/, packages/<name>/files/
+(copied into the project once, never overwritten). REFERENCE is
 'private:<repo>' (git config private.root, <root>/<repo>.git) or 'git:<url>';
 SKILLS_ADD is a skills.sh package ('shadcn/ui'); KIND=preset is NEEDS only.
 STACK_ROOT overrides where the registry is read from; STACK_SKILLS_CMD what
@@ -261,6 +262,24 @@ copy_rule() {
   printf '.claude/rules/%s.md\n' "$name"
 }
 
+# packages/<name>/files/<path> → <path> in the project, once: a file that is
+# there already is the project's and is kept, on add and on update alike. Not
+# in the manifest, not removed by rm — it is source the project owns from the
+# moment it lands, like a scaffold's.
+copy_files() {
+  local dir=$1 f rel
+  [ -d "$dir/files" ] || return 0
+  while IFS= read -r f; do
+    rel=${f#"$dir/files/"}
+    if [ -e "$rel" ]; then echo "  file    $rel exists, kept"
+    else
+      command mkdir -p "$(dirname "$rel")"; command cp "$f" "$rel"
+      echo "  file    $rel (yours now; add never touches it again)"
+      knip_ignore_file "$rel"
+    fi
+  done < <(find "$dir/files" -type f | sort)
+}
+
 # A skill copied out of the package's own repository sat at
 # <repo>/<from>/<skill>/; in the project it sits at .claude/skills/<skill>/.
 # A relative link that climbed to the repo root (../ once per component of
@@ -286,6 +305,7 @@ place() {
   local name=$1 dir=$2 subtree=$3 mode=$4 from rule skills s pkg setup
   from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD); setup=$(conf "$dir" SETUP)
   rule=$(copy_rule "$dir" "$name")
+  copy_files "$dir"
   skills=""
   for s in $(registry_skills "$dir"); do
     copy_skill "$dir/skills/$s" "$s" "$name" ""
@@ -335,6 +355,18 @@ add_deps() {
 # ts-gate runs knip repo-wide and flags a dependency nothing imports yet; the
 # package is added before the code that uses it, so it goes in the ignore
 # list the way install.sh puts effect there.
+# The same for a file nothing imports yet: knip's `ignore`, the way a
+# dependency goes into ignoreDependencies. Lifted by hand once the file has
+# an importer, or never; either is green.
+knip_ignore_file() {
+  [ -f ts-gate/knip.json ] || return 0
+  node -e '
+const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8"));
+j.ignore=[...new Set([...(j.ignore||[]),...process.argv.slice(1)])];
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$@"
+  echo "  knip    ignore += $*"
+}
+
 knip_ignore() {
   [ -f ts-gate/knip.json ] || return 0
   node -e '
@@ -376,6 +408,7 @@ cmd_show() {
   [ -n "$(conf "$dir" DEP)" ] && echo "dep:     $(conf "$dir" DEP)"
   [ -n "$(conf "$dir" DEV_DEP)" ] && echo "dev dep: $(conf "$dir" DEV_DEP)"
   [ -f "$dir/rule.md" ] && echo "rule:    .claude/rules/$name.md"
+  [ -d "$dir/files" ] && find "$dir/files" -type f | sort | sed "s#^$dir/files/#file:    #; s#\$#  (copied once; kept if present)#"
   for s in $(registry_skills "$dir"); do echo "skill:   .claude/skills/$s (registry)"; done
   [ -n "$(conf "$dir" SKILLS_FROM_REFERENCE)" ] && echo "skills:  from $(conf "$dir" SKILLS_FROM_REFERENCE) in the subtree, copied after add"
   [ -n "$(conf "$dir" SKILLS_ADD)" ] && echo "skills:  npx skills add $(conf "$dir" SKILLS_ADD) --skill '$(conf "$dir" SKILLS_PICK)' (skills.sh; empty pick = every skill)"

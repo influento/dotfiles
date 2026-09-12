@@ -18,7 +18,7 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 
 ## Install steps
 
-Refuses outside git. Then: copy this dir → deps
+Refuses outside git. Then: copy this dir (knip.json's `ignore` and `ignoreDependencies` merged back, `.dependency-cruiser.cjs` kept once it exists) → deps
 by lockfile (`typescript` included), test plugin by runner (vitest also
 gets the test step in the gate; jest the plugin only) → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
@@ -70,6 +70,10 @@ The correctness block in `eslint.gate.mjs` (`no-floating-promises`,
 `switch-exhaustiveness-check`, `no-unsafe-*`, `restrict-plus-operands`,
 `no-misused-promises`, `await-thenable`) runs at the gate severity, so a
 brownfield `warn` pass covers it; `gate({ correctness: false })` drops it.
+The money block (`parseFloat`, `parseInt`, `Number()`, `.toNumber()`,
+`.toFixed()` as `no-restricted-syntax`) is on when `.claude/stack.conf` has a
+`money|` row — `stack add money` — and off otherwise; `gate({ money: true })`
+forces it. That read of the manifest is the gate's only knowledge of stack.
 Tests: `--local` runs what the diff reaches (`vitest run --changed
 <merge-base>`, so a fixture-only change reruns nothing until a `.ts` file
 moves too); CI and `gate:full` run the suite. `--passWithNoTests`, and

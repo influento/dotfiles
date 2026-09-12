@@ -58,6 +58,8 @@ KIND=lib
 DEP=left-pad@1.3.0
 NOTE="A library."
 C
+mkdir -p "$STACK_ROOT/packages/lib/files/src/core"
+echo "export const one = 1" > "$STACK_ROOT/packages/lib/files/src/core/lib.ts"
 echo "# lib rule" > "$STACK_ROOT/packages/lib/rule.md"
 mkdir -p "$STACK_ROOT/packages/ui"
 cat > "$STACK_ROOT/packages/ui/package.conf" <<'C'
@@ -155,8 +157,15 @@ check test -f .claude/skills/plain-skill/SKILL.md
 check grep -q '^plain|||plain-skill$' .claude/stack.conf
 check grep -q '^npm i left-pad@1.3.0$' "$NPM_LOG"
 check test -f .claude/rules/lib.md
+check grep -q 'one = 1' src/core/lib.ts
 check test "$(grep -c '^- \*\*' CLAUDE.md)" = 3
 git add -A && git commit -qm "stack: add plain lib"
+
+echo "== files/: the project's from the first copy; add and update keep an existing one"
+echo "export const one = 2" > src/core/lib.ts; git commit -qam mine
+"$STACK" add lib >/dev/null; check grep -q 'one = 2' src/core/lib.ts
+"$STACK" update lib >/dev/null; check grep -q 'one = 2' src/core/lib.ts
+"$STACK" show lib > "$TMP/show.txt"; check grep -q '^file:    src/core/lib.ts' "$TMP/show.txt"
 
 echo "== add ui (skills.sh): flags answer every prompt, lock read back, setup printed not run"
 out=$("$STACK" add ui)
@@ -190,6 +199,10 @@ git add -A && git commit -qm knip
 "$STACK" add lib >/dev/null
 check grep -q '"left-pad"' ts-gate/knip.json
 check grep -q '"effect"' ts-gate/knip.json
+check not grep -q 'src/core/lib.ts' ts-gate/knip.json
+rm src/core/lib.ts; git commit -qam "drop the file"
+"$STACK" add lib >/dev/null
+check grep -q '"src/core/lib.ts"' ts-gate/knip.json
 git add -A && git commit -qm "knip lib"
 
 echo "== NEEDS: child pulls base in first, dev dep with -D, both in knip; rm base refused while child is added"

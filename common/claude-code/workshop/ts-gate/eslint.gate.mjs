@@ -14,20 +14,48 @@
 //   import gate from "./ts-gate/eslint.gate.mjs";
 //   export default [ ...gate({ tsconfigRootDir: import.meta.dirname }) ];
 
+import fs from "node:fs";
+import { join } from "node:path";
 import tseslint from "typescript-eslint";
 import sonarjs from "eslint-plugin-sonarjs";
+
+// The money invariant's escape hatches (stack package `money`: amounts are
+// branded bigint or BigDecimal, never a number). The types stop a number
+// from getting in; these stop one from being made on purpose.
+const moneyEscapes = [
+  {
+    selector: "CallExpression[callee.name=/^(parseFloat|parseInt|Number)$/]",
+    message: "money: no float or Number() conversion; decode through the wire Schema into a branded unit or BigDecimal (src/core/money.ts)",
+  },
+  {
+    selector: "CallExpression[callee.property.name=/^(toNumber|toFixed)$/]",
+    message: "money: format with BigDecimal.format or String(units), never through a number",
+  },
+];
+
+// Whether `stack add money` is recorded in the project (.claude/stack.conf,
+// one `name|…` row per package): the gate's only reading of the manifest.
+const stackHas = (root, name) => {
+  try {
+    return fs.readFileSync(join(root, ".claude/stack.conf"), "utf8").split("\n").some((l) => l.startsWith(`${name}|`));
+  } catch {
+    return false;
+  }
+};
 
 /**
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
  * @param {"error"|"warn"} [opts.severity="error"]  use "warn" for the first rollout pass
  * @param {boolean} [opts.correctness=true]  the type-aware correctness block
+ * @param {boolean} [opts.money]  the money escape-hatch block; default: on when `.claude/stack.conf` lists `money`
  * @param {string[]} [opts.files]
  */
 export default function gate({
   tsconfigRootDir,
   severity = "error",
   correctness = true,
+  money = stackHas(tsconfigRootDir, "money"),
   files = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
 }) {
   const E = severity;
@@ -75,6 +103,7 @@ export default function gate({
             selector: 'TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]',
             message: "Double assertion through unknown. Fix the type instead.",
           },
+          ...(money ? moneyEscapes : []),
         ],
 
         // --- ceremony with no effect --------------------------------------

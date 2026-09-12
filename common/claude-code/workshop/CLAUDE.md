@@ -29,7 +29,8 @@ files.
 dependency, rule — and knows about ts-gate only where the gate would
 otherwise go red: a dependency it installs goes into `ts-gate/knip.json`'s
 `ignoreDependencies` when that file exists, and `repos/**` is already in the
-gate's ignores. It goes between the two because its subtrees need a clean tree
+gate's ignores. The one read in the other direction: `eslint.gate.mjs`
+switches its money block on when `.claude/stack.conf` lists `money`. It goes between the two because its subtrees need a clean tree
 and `workbench init` should render its CLAUDE.md block after the stack's.
 Workbench knows nothing of either.
 
