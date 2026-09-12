@@ -21,7 +21,7 @@ Then only what the task needs:
 
 - `repos/effect/ai-docs/src/` — runnable examples per topic; `06_schedule/` for retry, repeat, Schedule composition.
 - `repos/effect/MIGRATION.md` and `repos/effect/migration/` — where a name you expected went, if one is missing.
-- `repos/effect/packages/<p>/` for `@effect/<p>`: `platform/node`, `sql/pg`, `atom/react`, `opentelemetry`, `vitest`, `ai`.
+- `repos/effect/packages/<p>/` for `@effect/<p>`: `platform/node`, `sql/<dialect>` (`pg`, `sqlite-node`, `mysql2`, `libsql`), `atom/react`, `opentelemetry`, `vitest`, `ai`.
 
 Unsure how an API behaves? Read that one module:
 `repos/effect/packages/effect/src/<M>.ts` and

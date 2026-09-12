@@ -12,7 +12,7 @@ option on `createFileRoute` does not typecheck.
 
 Verified on Start 1.168 + Effect 4.0.0-rc.115 (2026-09-12): the six files
 below compile, build with import protection on, serve SSR, and mutate,
-with the `drizzle` rule's `Db` underneath against a real Postgres.
+with the `drizzle-postgres` rule's `Db` underneath against a real Postgres.
 
 ## The shape
 

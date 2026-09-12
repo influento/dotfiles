@@ -7,7 +7,7 @@ the registry under `packages/` is read from this tree when a project runs
 clones carry it.
 
 No templates: a project's stack is whatever was added to it, and a preset
-(`service`, `fullstack`) is only a list of packages — what it expands to is
+(`fullstack`) is only a list of packages — what it expands to is
 recorded, the preset is not. No one shape: a private toolkit is a subtree
 plus its own skills (`shardx-scripts`); a public library with a published
 skill is that skill through skills.sh plus a short rule (`shadcn`); a plain
@@ -26,7 +26,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | Need | Pick | Why |
 |---|---|---|
 | runtime, HTTP, RPC, Schema, CLI, retry, streams | `effect` (core and `effect/unstable/*`) | in the box |
-| database | `drizzle` (`drizzle-orm/effect-postgres` over `@effect/sql-pg`) | native Effect v4 entry, the only ORM with one; verified against Postgres 2026-09-12 |
+| database | `drizzle-<dialect>`: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`, `drizzle-libsql` (`drizzle-orm/effect-<dialect>` over `@effect/sql-<dialect>`) | native Effect v4 entries, the only ORM with them; one package per dialect because the dialect is the project's choice, not the registry's. Verified 2026-09-12: Postgres 17, SQLite on `node:sqlite`, libSQL on a file, MySQL 8. Not in the registry: `pglite` (tests), `d1`/`sqlite-do` (Cloudflare), `sqlite-bun`/`-wasm`/`-react-native` (not Node), `mssql`/`clickhouse` (no drizzle Effect entry) |
 | client state | `atom-react` | first party; `AtomRpc` bridges to RPC |
 | tracing, logs, metrics | in `effect` (`effect/unstable/observability`, OTLP out) | verified 2026-09-12; `@effect/opentelemetry` is the SDK bridge, not needed |
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
@@ -35,30 +35,33 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
 | Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
-| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (that stays `drizzle`) |
+| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (that stays `drizzle-<dialect>`) |
 
 `effect` and every `@effect/*` share one version; the pins across `effect`,
-`drizzle` and `atom-react` move in one commit. `drizzle-orm` is built against
+the `drizzle-*` packages and `atom-react` move in one commit. `drizzle-orm` is built against
 one Effect version (`devDependencies.effect` of the release): check that its
 `effect-core/errors.js` calls a `Schema` constructor the pinned Effect still
 has before moving either pin.
 
-## Three ways in
+## Two ways in, and the database
 
-A project starts with one of three, by what it is (decided 2026-09-12):
+A project starts with one of two, by what it is, and names its database
+(decided 2026-09-12; the `service` preset went the same day, when the
+database stopped being Postgres by default):
 
 | Project | Entry | Brings |
 |---|---|---|
-| CLI, library, worker: owns no database | `stack add effect` | the runtime |
-| backend service | `stack add service` | effect, drizzle |
-| app with a UI | `stack add fullstack` | service + tanstack-start, atom-react, shadcn |
+| CLI, library, worker, backend service | `stack add effect` | the runtime |
+| app with a UI | `stack add fullstack` | effect + tanstack-start, atom-react, shadcn |
+| anything that owns a database | `stack add drizzle-<dialect>` beside the entry | Drizzle on Effect for that dialect |
 
-The packages stay separate units under the presets rather than one `effect`
+The packages stay separate units under the preset rather than one `effect`
 package holding everything, because a CLI would then carry drizzle-kit and a
-Postgres driver it never imports, and a service that grows a UI later runs
-`stack add tanstack-start atom-react`, not a reinstall. `project-setup` asks
-which of the three; a single package after that (`stack add drizzle` in a
-CLI that grew a database) is the exception, not the way in.
+database driver it never imports, and a service that grows a UI later runs
+`stack add tanstack-start atom-react`, not a reinstall. The database is never
+inside a preset: the dialect is the project's, so `project-setup` asks the
+entry and then the dialect (or none); a single package later (`stack add
+drizzle-sqlite` in a CLI that grew a database) is the same command.
 
 ## Layout
 
@@ -66,10 +69,10 @@ CLI that grew a database) is the exception, not the way in.
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
 | `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
-| `packages/drizzle/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
+| `packages/drizzle-{postgres,sqlite,mysql,libsql}/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources. The four drizzle rules share one shape and differ in driver, table module and `drizzle.config.ts` dialect |
 | `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
-| `packages/service/`, `fullstack/` | presets: `KIND=preset`, `NEEDS` only |
+| `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
 | `packages/shadcn/`              | public library: the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
 | `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
@@ -121,8 +124,7 @@ imports it), the rule, the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add
-fullstack` records `effect`, `drizzle`, `atom-react`,
-`tanstack-start`, `shadcn`, in that order (`stack show
+fullstack` records `effect`, `atom-react`, `tanstack-start`, `shadcn`, in that order (`stack show
 fullstack` prints it).
 
 A skill copied out of the subtree had relative links that climbed to its

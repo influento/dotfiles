@@ -2,10 +2,10 @@
 paths: ["src/db/**", "drizzle.config.ts", "drizzle/**"]
 ---
 
-# Drizzle on Effect
+# Drizzle on Effect (Postgres)
 
 Drizzle is used only through its Effect entry: `drizzle-orm/effect-postgres`
-over `@effect/sql-pg`; a query is `yield*`ed inside `Effect.gen`, never
+over `@effect/sql-pg` (one package per dialect; this project runs on Postgres); a query is `yield*`ed inside `Effect.gen`, never
 awaited. The Promise entries (`drizzle-orm/node-postgres`,
 `drizzle-orm/postgres-js`) and the `pg` driver are not installed:
 `@effect/sql-pg` speaks the wire protocol itself.
