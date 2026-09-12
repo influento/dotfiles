@@ -35,7 +35,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
 | Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
-| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (that stays `drizzle-<dialect>`) |
+| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (the SQL database reached through `drizzle-<dialect>`) |
 
 `effect` and every `@effect/*` share one version; the pins across `effect`,
 the `drizzle-*` packages and `atom-react` move in one commit. `drizzle-orm` is built against

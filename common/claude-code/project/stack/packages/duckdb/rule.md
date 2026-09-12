@@ -5,8 +5,9 @@ paths: ["src/duck/**"]
 # DuckDB: @duckdb/node-api
 
 DuckDB is for analytics over files and local data (Parquet, CSV, JSON,
-`read_parquet(...)`, a `.duckdb` file); the app's database is Drizzle on the
-project's dialect (`drizzle-<dialect>`) and DuckDB never replaces it. The client is `@duckdb/node-api`, not
+`read_parquet(...)`, a `.duckdb` file); the app's database is the SQL
+database reached through `drizzle-<dialect>`, and DuckDB never replaces it.
+The client is `@duckdb/node-api`, not
 the older `duckdb` package: `DuckDBInstance`, `DuckDBConnection`, `run`,
 `runAndReadAll`, `stream`, prepared statements, appenders. Check a name in
 `node_modules/@duckdb/node-api/README.md` before writing it.
