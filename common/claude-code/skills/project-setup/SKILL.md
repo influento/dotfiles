@@ -52,6 +52,8 @@ brownfield procedure.
    Read every line it prints:
    - `eslint config exists, not touched` → merge the printed block into the
      existing config now. Until then knip fails on the unused gate file.
+   - `biome config exists, not touched` → the gate formats with the
+     project's own; check it formats `.ts` and leaves `repos/**` alone.
    - `NOTE: workbench.premerge is '<x>'` → chain, do not replace:
      `git config workbench.premerge "<x> && npm run gate"`.
    - `WARNING` lines about tsconfig or knip entry → fix before going on.
@@ -63,13 +65,13 @@ brownfield procedure.
    commit until `gate:full` exits 0 or every remaining red is a recorded
    warning. Commit: `ts-gate: install`.
 
-3. **stack.** Every TypeScript project starts with one of three entries;
-   ask which, never for a package list: `stack add effect` for a CLI, a
-   library or a worker (owns no database); `service` (effect, drizzle)
-   for a backend; `fullstack` (service + tanstack-start, atom-react,
-   shadcn) for an app with a UI. `stack show <name>` prints what
-   a preset expands to; a single package later (`stack add drizzle` in a CLI
-   that grew a database) is the exception. `stack add <name>...` brings each
+3. **stack.** Two questions, never a package list. The entry: `stack add
+   effect` for a CLI, a library, a worker or a backend service; `stack add
+   fullstack` (effect + tanstack-start, atom-react, shadcn) for an app with
+   a UI. The database: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`,
+   `drizzle-libsql`, or none, added in the same `stack add`. `stack show
+   <name>` prints what a preset expands to; a package later (`stack add
+   drizzle-sqlite` in a CLI that grew a database) is the same command. `stack add <name>...` brings each
    in (a read-only subtree under `repos/`, the pinned dependency, a rule,
    skills, a line in CLAUDE.md), what a package needs first. Needs a clean tree, which step 2's commit gives it. A package not in
    the registry is added to dotfiles first (`common/claude-code/project/stack/CLAUDE.md`,
