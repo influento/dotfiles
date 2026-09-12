@@ -54,6 +54,8 @@ brownfield procedure.
      existing config now. Until then knip fails on the unused gate file.
    - `biome config exists, not touched` → the gate formats with the
      project's own; check it formats `.ts` and leaves `repos/**` alone.
+   - `vitest config exists, not touched` → add the printed `setupFiles`
+     line to it now; without it tests may reach the network.
    - `NOTE: workbench.premerge is '<x>'` → chain, do not replace:
      `git config workbench.premerge "<x> && npm run gate"`.
    - `WARNING` lines about tsconfig or knip entry → fix before going on.

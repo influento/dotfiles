@@ -24,7 +24,8 @@ gets the test step in the gate; jest the plugin only) → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
 is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 `biome.json` if none exists (else left alone, the gate formats with it) →
-`rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
+`vitest.config.mjs` if none exists (vitest only; else prints the `setupFiles`
+line to add) → `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
 `permissions.allow` rules (`npm ci`, `npm run gate:*`, `npm test`, and
 `npx vitest` or `npx jest` by runner) in `.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
 unset (set to something else: printed, chain it by hand) → manifest
@@ -63,7 +64,7 @@ prose stay with the pre-merge grep. Workbench knows nothing of ts-gate.
 ## Project requirements
 
 - `tsconfig.json`: `strict: true`, `noUncheckedIndexedAccess: true` and an `include`. Type-aware rules are the point; install warns when either flag is missing.
-- Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`, `eslint.config.mjs`, `biome.json`. A worktree without them has no gate.
+- Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`, `eslint.config.mjs`, `biome.json`, `vitest.config.mjs`. A worktree without them has no gate.
 - Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
 - Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`. eslint and knip ignores are written by install; the gate's vitest calls exclude it themselves, a project's own `vitest` script should too.
 
@@ -89,6 +90,16 @@ Tests: `--local` runs what the diff reaches (`vitest run --changed
 <merge-base>`, so a fixture-only change reruns nothing until a `.ts` file
 moves too); CI and `gate:full` run the suite. `--passWithNoTests`, and
 `repos/**` and `.worktrees/**` excluded on the command line.
+No test reaches the network: `vitest.config.mjs` loads
+`ts-gate/no-network.mjs`, which patches `net.Socket.prototype.connect` (the
+one door: `net`, `http`, `tls`, undici's `fetch` and `WebSocket`) and
+`fetch` to throw, naming the test and the host, for any host but loopback
+(`localhost`, `127.*`, `::1`; a unix socket path is local). No opt-out inside
+a test: a test that needs a live endpoint is a recording, run once outside
+vitest (a script, the CLI), its response committed as a fixture. Only vitest
+loads the file; scripts and the app keep the network. The three configs
+(eslint, biome, vitest) share one ownership rule: written when absent,
+replaced on re-run unless edited since, a project's own left alone.
 
 ## Brownfield
 

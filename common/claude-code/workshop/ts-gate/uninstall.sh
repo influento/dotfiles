@@ -17,19 +17,14 @@ DEPS=$(node -p 'require("./ts-gate/.install.json").deps.join(" ")')
 # 2. Scripts
 npm pkg delete scripts.gate scripts.gate:local scripts.gate:full scripts.gate:fix scripts.gate:verify
 
-# 3. ESLint config: only if install wrote it and nobody edited it since.
+# 3. eslint, biome and vitest configs: only the ones install wrote and nobody edited since.
 node -e '
-const fs=require("fs"),c=require("crypto"),{config}=require("./ts-gate/.install.json");
-if(!config||!fs.existsSync(config.file)) process.exit();
-if(c.createHash("sha256").update(fs.readFileSync(config.file)).digest("hex")===config.sha256) fs.unlinkSync(config.file);
-else console.log(config.file+" was edited after install, left in place. It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.");'
-
-# 3b. biome.json: only if install wrote it and nobody edited it since.
-node -e '
-const fs=require("fs"),c=require("crypto"),{biome}=require("./ts-gate/.install.json");
-if(!biome||!fs.existsSync(biome.file)) process.exit();
-if(c.createHash("sha256").update(fs.readFileSync(biome.file)).digest("hex")===biome.sha256) fs.unlinkSync(biome.file);
-else console.log(biome.file+" was edited after install, left in place.");'
+const fs=require("fs"),c=require("crypto"),m=require("./ts-gate/.install.json");
+for(const k of ["config","biome","vitest"]){
+  const o=m[k]; if(!o||!fs.existsSync(o.file)) continue;
+  if(c.createHash("sha256").update(fs.readFileSync(o.file)).digest("hex")===o.sha256) fs.unlinkSync(o.file);
+  else console.log(o.file+" was edited after install, left in place."+(k==="config"?" It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.":k==="vitest"?" Its setupFiles names ./ts-gate/no-network.mjs, which is gone: fix by hand.":""));
+}'
 
 # 4. Rules
 for f in ts-gate/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done

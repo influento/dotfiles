@@ -58,6 +58,30 @@ npm pkg set \
   scripts.gate:fix="eslint . --fix && biome format --write ." \
   scripts.gate:verify="bash ts-gate/scripts/verify.sh"
 
+# A config this install wrote (the manifest names it under a key) is replaced
+# on re-run like every other file, unless it was edited since — then it is
+# kept, and not offered for merging again: its gate block is already there.
+# A config the project brought itself is never touched. Sets OWN to the file
+# to write (empty: keep), returns 1 when a foreign config exists.
+owned_target() { # key default-file foreign-file...
+  local key=$1 def=$2 f="" sha="" g; shift 2
+  OWN=""
+  [ -f ts-gate/.install.json ] && read -r f sha < <(node -e '
+const m=require("./ts-gate/.install.json"),k=process.argv[1];console.log(m[k]?m[k].file+" "+m[k].sha256:"")' "$key")
+  if [ -n "$f" ] && [ -f "$f" ]; then
+    if [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sha" ]; then OWN=$f; else echo "$f edited since install, kept"; fi
+    return 0
+  fi
+  for g in "$@"; do [ -e "$g" ] && return 1; done
+  OWN=$def
+}
+record_owned() { # key file — the sha the next run compares against; step 8 writes it on a first install
+  [ -z "$2" ] || [ ! -f ts-gate/.install.json ] || node -e '
+const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8")),[k,f]=process.argv.slice(1);
+m[k]={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")};
+fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$1" "$2"
+}
+
 # 4. ESLint config
 TESTS='"**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"'
 case "$RUNNER" in
@@ -75,50 +99,41 @@ export default [
   ...gate({ tsconfigRootDir: import.meta.dirname }),
   $CFG
 ];"
-# A config this install wrote (the manifest names it) is replaced on re-run
-# like every other file, unless it was edited since — then it is kept, and not
-# offered for merging again: its gate block is already there. Only a config
-# the project brought itself gets the block to merge.
 WROTE=""
-OWNED=""; OWNED_SHA=""
-[ -f ts-gate/.install.json ] && read -r OWNED OWNED_SHA < <(node -e '
-const m=require("./ts-gate/.install.json");console.log(m.config?m.config.file+" "+m.config.sha256:"")')
-if [ -n "$OWNED" ] && [ -f "$OWNED" ]; then
-  if [ "$(sha256sum "$OWNED" | cut -d' ' -f1)" = "$OWNED_SHA" ]; then
-    printf '%s\n' "$CONFIG" > "$OWNED"; WROTE=$OWNED
-    node -e '
-const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8"));
-m.config.sha256=c.createHash("sha256").update(fs.readFileSync(m.config.file)).digest("hex");
-fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");'
-  else
-    echo "$OWNED edited since install, kept"
-  fi
-elif [ -f eslint.config.mjs ] || [ -f eslint.config.js ] || [ -f eslint.config.ts ]; then
-  echo "eslint config exists, not touched. Merge this in:"; echo "$CONFIG"
+if owned_target config eslint.config.mjs eslint.config.mjs eslint.config.js eslint.config.ts; then
+  [ -z "$OWN" ] || { printf '%s\n' "$CONFIG" > "$OWN"; WROTE=$OWN; }
 else
-  printf '%s\n' "$CONFIG" > eslint.config.mjs; WROTE=eslint.config.mjs
+  echo "eslint config exists, not touched. Merge this in:"; echo "$CONFIG"
 fi
+record_owned config "$WROTE"
 
 # 4b. Biome config. At the root, not in ts-gate/: Biome refuses a second
 #     biome.json anywhere in the tree it scans, whatever `includes` says, so
-#     the shipped file has a name it never discovers and is copied out. Same
-#     ownership as the eslint config: replaced on re-run unless edited.
+#     the shipped file has a name it never discovers and is copied out.
 BIOME_WROTE=""
-BOWNED=""; BOWNED_SHA=""
-[ -f ts-gate/.install.json ] && read -r BOWNED BOWNED_SHA < <(node -e '
-const m=require("./ts-gate/.install.json");console.log(m.biome?m.biome.file+" "+m.biome.sha256:"")')
-if [ -n "$BOWNED" ] && [ -f "$BOWNED" ]; then
-  if [ "$(sha256sum "$BOWNED" | cut -d' ' -f1)" = "$BOWNED_SHA" ]; then command cp ts-gate/biome.template.json "$BOWNED"; BIOME_WROTE=$BOWNED
-  else echo "$BOWNED edited since install, kept"; fi
-elif [ -f biome.json ] || [ -f biome.jsonc ]; then
-  echo "biome config exists, not touched; the gate formats with it (ts-gate/biome.template.json is what install writes: formatter only, .ts/.tsx, spaces)"
+if owned_target biome biome.json biome.json biome.jsonc; then
+  [ -z "$OWN" ] || { command cp ts-gate/biome.template.json "$OWN"; BIOME_WROTE=$OWN; }
 else
-  command cp ts-gate/biome.template.json biome.json; BIOME_WROTE=biome.json
+  echo "biome config exists, not touched; the gate formats with it (ts-gate/biome.template.json is what install writes: formatter only, .ts/.tsx, spaces)"
 fi
-[ -z "$BIOME_WROTE" ] || [ ! -f ts-gate/.install.json ] || node -e '
-const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8")),f=process.argv[1];
-m.biome={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")};
-fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$BIOME_WROTE"
+record_owned biome "$BIOME_WROTE"
+
+# 4c. vitest config: loads ts-gate/no-network.mjs, so no test reaches the
+#     network (loopback allowed). Only vitest reads it; scripts and the app
+#     keep the network. A project's own config gets the line to add.
+VITEST_WROTE=""
+if [ "$RUNNER" = vitest ]; then
+  VCONFIG='import { defineConfig } from "vitest/config";
+
+// ts-gate: no test reaches the network; see ts-gate/no-network.mjs.
+export default defineConfig({ test: { setupFiles: ["./ts-gate/no-network.mjs"] } });'
+  if owned_target vitest vitest.config.mjs vitest.config.* vite.config.* vitest.workspace.*; then
+    [ -z "$OWN" ] || { printf '%s\n' "$VCONFIG" > "$OWN"; VITEST_WROTE=$OWN; }
+  else
+    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"] }"
+  fi
+  record_owned vitest "$VITEST_WROTE"
+fi
 
 # 5. Rules
 command mkdir -p .claude/rules
@@ -151,10 +166,10 @@ elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '
 # 8. Manifest: what this install added, so uninstall removes exactly that.
 #    Kept on re-run, when every dep already counts as present.
 [ -f ts-gate/.install.json ] || node -e '
-const fs=require("fs"),c=require("crypto"),[runner,cfg,bio,...specs]=process.argv.slice(1);
+const fs=require("fs"),c=require("crypto"),[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
 const deps=specs.map(d=>d.replace(/(.)@.*/,"$1"));
 const own=f=>f?{file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}:null;
-fs.writeFileSync("ts-gate/.install.json",JSON.stringify({runner,deps,config:own(cfg),biome:own(bio)},null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" $NEW
+fs.writeFileSync("ts-gate/.install.json",JSON.stringify({runner,deps,config:own(cfg),biome:own(bio),vitest:own(vit)},null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" $NEW
 
 echo
 echo "installed. runner: ${RUNNER:-none}"
