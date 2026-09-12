@@ -139,13 +139,13 @@ if [ "$RUNNER" = vitest ]; then
 export default defineConfig({
   test: {
     setupFiles: ["./ts-gate/no-network.mjs"],
-    exclude: [...configDefaults.exclude, "**/*.live.test.{ts,tsx}"],
+    exclude: [...configDefaults.exclude, "**/*.live.test.{ts,tsx}", "repos/**", ".worktrees/**"],
   },
 });'
   if owned_target vitest vitest.config.mjs vitest.config.* vite.config.* vitest.workspace.*; then
     [ -z "$OWN" ] || { printf '%s\n' "$VCONFIG" > "$OWN"; VITEST_WROTE=$OWN; }
   else
-    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\"] }"
+    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\", \"repos/**\", \".worktrees/**\"] }"
   fi
   record_owned vitest "$VITEST_WROTE"
 fi

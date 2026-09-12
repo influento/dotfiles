@@ -97,11 +97,27 @@ Three rules are the gate's own, an inline plugin `gate` in
 (`"gate/<rule>": "off"` after the spread) without losing the rest:
 `effect-tags` above; `no-unknown-signature` (`unknown` on a parameter or a
 return, `Promise<unknown>` included; `cause` and the subject of a type
-predicate excepted) at the gate severity, since it is a type hole like `any`;
-`safety-comment` (every `as` except `as const` carries a `SAFETY:` comment on
-the assertion or the statement holding it) at `warn`, since the fix adds a
-line. Ported from anti-slop 2026-09-13, measured before/after with
-worker/reviewer/fixer sessions: see the ts-gate entry in `../BACKLOG.md`.
+predicate excepted) at the gate severity; `safety-comment` (every `as` except
+`as const` carries a `SAFETY:` comment on the assertion or the statement
+holding it) at `warn`. Ported from anti-slop and measured 2026-09-13, three
+`claude -p --effort low` workers per cell on a task that tempts the pattern,
+rule off in the base branch of the before cell, a reviewer in both cells and
+a fixer in the before cell:
+
+| Rule | Before: leaked / reviewer caught / fixer removed | After: leaked | Turns before → after |
+|---|---|---|---|
+| `effect-tags` ("handle NotFound and Timeout differently") | 3/3 wrote `e._tag === "NotFound" ? … : …` / 0/3 / 0/3 | 0/3, rule fired 1–4 times per session | 46, 32, 28 → 46, 32, 32 |
+| `no-unknown-signature` ("a queue message, shape not guaranteed") | 3/3 wrote `message: unknown` / 0/3 / 0/3 | 0/3: two wrote `message: Schema.Json`, one wrote an inline disable (now impossible, below) | 36, 25, 33 → 33, 52, 44 |
+| `safety-comment` ("brand the id as UserId") | 1/3 cast `id as UserId` without a reason / 1/1 / 1/1 | 0/3 unjustified; the one `as` written carried a real invariant | 53, 52, 34 → 46, 29, 35 |
+
+The first two catch what the review round misses outright, at zero to about
+ten extra worker turns; the third is cheap and the reviewer catches the cast
+anyway, so it stays a warning. A JSON-body task did not tempt `unknown` at
+all (6/6 wrote `body: string` over `Schema.fromJsonString`), so the rule is a
+backstop for the payload whose type nobody named.
+`linterOptions.noInlineConfig` is on: an `eslint-disable` comment has no
+effect and is itself reported. A rule that is wrong for a file changes in
+`eslint.config.mjs`, in its own commit.
 Tests: `--local` runs what the diff reaches (`vitest run --changed
 <merge-base>`, so a fixture-only change reruns nothing until a `.ts` file
 moves too); CI and `gate:full` run the suite. `--passWithNoTests`, and

@@ -76,12 +76,105 @@ function neverWords(file) {
   return [...words];
 }
 
+// The gate's own rules, as an inline plugin so a project can switch one off
+// by name (`"gate/<rule>": "off"`) without losing the rest. Each is an
+// esquery selector or a comment lookup; none needs type information.
+const selectorRule = (description, entries) => ({
+  meta: { type: "problem", docs: { description }, schema: [] },
+  create: (ctx) =>
+    Object.fromEntries(entries.map(([selector, message]) => [selector, (node) => ctx.report({ node, message })])),
+});
+
+// Effect idioms (stack package `effect`): a tagged value is branched on with
+// Match or caught with catchTag, never by reading `_tag` by hand, and it is
+// built by its constructor, never as a literal object. Names checked against
+// repos/effect at 4.0.0-rc.115 (Match.tag/tags/tagsExhaustive/when/not,
+// Effect.catchTag/catchTags, Data.taggedEnum's $match/$is,
+// Predicate.isTagged, Schema.TaggedError/TaggedStruct, Data.TaggedError).
+const TAG_EQ = 'BinaryExpression[operator=/^[!=]==?$/]';
+const effectTags = selectorRule("Effect tagged values go through Match, catchTag and their constructors", [
+  [
+    `:matches(${TAG_EQ}[left.property.name="_tag"][right.type="Literal"], ${TAG_EQ}[right.property.name="_tag"][left.type="Literal"])`,
+    "Effect: no `_tag ===`. In an error channel use Effect.catchTag / catchTags; on a value use Match.value(x).pipe(Match.tag(...), Match.exhaustive), Data.taggedEnum's $is/$match, or Predicate.isTagged for a reusable guard.",
+  ],
+  [
+    'SwitchStatement[discriminant.property.name="_tag"]',
+    "Effect: no `switch (x._tag)`. Use Match.value(x).pipe(Match.tagsExhaustive({...})) or the tagged enum's $match, which fail to compile when a member is missed.",
+  ],
+  [
+    ':not(CallExpression[callee.object.name="Match"][callee.property.name=/^(when|not)$/]) > ObjectExpression > Property[key.name="_tag"][value.type="Literal"]',
+    "Effect: no literal `_tag:` object. Construct it: `new NotFound({...})` for a Schema.TaggedError / Data.TaggedError, `.make` for a Schema.TaggedStruct, the variant constructor for Data.taggedEnum.",
+  ],
+  [
+    'ConditionalExpression[test.type="BinaryExpression"][test.operator=/^[!=]==?$/][test.right.type="Literal"] > ConditionalExpression.alternate[test.type="BinaryExpression"][test.operator=/^[!=]==?$/][test.right.type="Literal"]',
+    "Effect: a chain of literal ternaries is a match. Use Match.value(x).pipe(Match.when(\"a\", ...), Match.when(\"b\", ...), Match.orElse(...)).",
+  ],
+]);
+
+// `unknown` on a signature leaves the input unparsed and the output unnamed:
+// the caller then narrows with typeof and casts. Decode at the boundary
+// (Schema.decodeUnknownSync for a value, Schema.fromJsonString for a body)
+// and take or return the named type. `cause` and the subject of a type
+// predicate are what unknown is for.
+const FN = ":matches(:function, TSDeclareFunction, TSEmptyBodyFunctionExpression, TSFunctionType, TSMethodSignature, TSCallSignatureDeclaration)";
+const PARAM = ':matches(Identifier.params[name!="cause"], ObjectPattern.params, ArrayPattern.params, AssignmentPattern.params, RestElement.params)';
+const noUnknownSignature = selectorRule("unknown stays out of parameters and return types", [
+  [
+    `${FN}:not([returnType.typeAnnotation.type="TSTypePredicate"]) > ${PARAM} TSUnknownKeyword`,
+    "`unknown` parameter: the input is still unparsed here. Decode it where it arrives (Schema.decodeUnknownSync, Schema.fromJsonString for a body) and accept the named type. `cause` and a type predicate's subject are the exceptions.",
+  ],
+  [
+    `:matches(${FN} > TSTypeAnnotation.returnType > TSUnknownKeyword, ${FN} > TSTypeAnnotation.returnType > TSTypeReference[typeName.name=/^(Promise|PromiseLike)$/] > TSTypeParameterInstantiation > TSUnknownKeyword:first-child)`,
+    "`unknown` return: the caller gets a value it must parse again. Decode inside and return the named type.",
+  ],
+]);
+
+// Every `as` that survives no-unnecessary-type-assertion is a claim the
+// compiler could not make. It carries its reason as a `SAFETY:` comment on
+// the assertion or the statement holding it, so a reader (and the reviewer)
+// sees the invariant, or else the cast goes: decode with Schema, narrow
+// with a guard, fix the type. `as const` is not an assertion.
+const SAFETY = /(?:^|[^\w])SAFETY\s*:\s*\S/;
+const STATEMENTS = new Set(["ExpressionStatement", "VariableDeclaration", "ReturnStatement", "ThrowStatement", "PropertyDefinition"]);
+const safetyComment = {
+  meta: { type: "suggestion", docs: { description: "a type assertion states its invariant in a SAFETY: comment" }, schema: [] },
+  create(ctx) {
+    const src = ctx.sourceCode;
+    const justifiedBefore = (owner, node) =>
+      src.getCommentsBefore(owner).some((c) => c.range[1] <= node.range[0] && SAFETY.test(c.value));
+    const justified = (node) => {
+      for (let cur = node; cur && cur.type !== "Program"; cur = cur.parent) {
+        if (justifiedBefore(cur, node)) return true;
+        if (STATEMENTS.has(cur.type)) {
+          const p = cur.parent;
+          return p?.type === "ExportNamedDeclaration" && p.declaration === cur && justifiedBefore(p, node);
+        }
+      }
+      return false;
+    };
+    return {
+      'TSAsExpression:not([typeAnnotation.typeName.name="const"])'(node) {
+        if (!justified(node)) {
+          ctx.report({
+            node,
+            message:
+              "Type assertion without a `SAFETY:` comment. State the invariant TypeScript cannot see, right before the assertion or its statement; or drop the cast: decode with Schema, narrow with a guard, fix the type.",
+          });
+        }
+      },
+    };
+  },
+};
+
+const gatePlugin = { rules: { "effect-tags": effectTags, "no-unknown-signature": noUnknownSignature, "safety-comment": safetyComment } };
+
 /**
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
  * @param {"error"|"warn"} [opts.severity="error"]  use "warn" for the first rollout pass
  * @param {boolean} [opts.correctness=true]  the type-aware correctness block
  * @param {boolean} [opts.money]  the money escape-hatch block; default: on when `.claude/stack.conf` lists `money`
+ * @param {boolean} [opts.effect]  the Effect idiom rule (`gate/effect-tags`); default: on when `.claude/stack.conf` lists `effect`
  * @param {string[]} [opts.files]
  * @param {string}  [opts.glossary="workbench/GLOSSARY.md"]  relative to tsconfigRootDir; its Never column feeds id-match
  */
@@ -90,6 +183,7 @@ export default function gate({
   severity = "error",
   correctness = true,
   money = stackHas(tsconfigRootDir, "money"),
+  effect = stackHas(tsconfigRootDir, "effect"),
   files = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
   glossary = "workbench/GLOSSARY.md",
 }) {
@@ -98,7 +192,12 @@ export default function gate({
   return [
     {
       files,
-      plugins: { "@typescript-eslint": tseslint.plugin, sonarjs },
+      plugins: { "@typescript-eslint": tseslint.plugin, sonarjs, gate: gatePlugin },
+      // No inline escape: a `// eslint-disable` on a gate rule is a hole the
+      // stop hook cannot see (measured 2026-09-13: one worker in three wrote
+      // one on `gate/no-unknown-signature` rather than name the type). A rule
+      // that is wrong for a file changes in eslint.config.mjs, in its own commit.
+      linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "error" },
       languageOptions: {
         parser: tseslint.parser,
         parserOptions: { projectService: true, tsconfigRootDir },
@@ -154,6 +253,12 @@ export default function gate({
         ...(never.length
           ? { "id-match": [E, neverPattern(never), { onlyDeclarations: true, properties: true }] }
           : {}),
+        // The gate's own rules (inline plugin above). `unknown` in a
+        // signature is a type hole like `any`; the SAFETY comment is a fix
+        // that adds a line, so it warns.
+        "gate/no-unknown-signature": E,
+        "gate/safety-comment": "warn",
+        ...(effect ? { "gate/effect-tags": E } : {}),
 
         // --- ceremony with no effect --------------------------------------
         "@typescript-eslint/no-useless-default-assignment": E,
