@@ -32,6 +32,10 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
+| EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
+| Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
+| Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
+| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (that stays `drizzle`) |
 
 `effect` and every `@effect/*` share one version; the pins across `effect`,
 `drizzle` and `atom-react` move in one commit. `drizzle-orm` is built against
@@ -63,6 +67,7 @@ CLI that grew a database) is the exception, not the way in.
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
 | `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
 | `packages/drizzle/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources |
+| `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
 | `packages/service/`, `fullstack/` | presets: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
