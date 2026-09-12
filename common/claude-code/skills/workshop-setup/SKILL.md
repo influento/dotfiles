@@ -1,6 +1,6 @@
 ---
-name: project-setup
-description: Install ts-gate, the stack packages the user names, and workbench into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /project-setup. For a project without TypeScript, skip ts-gate.
+name: workshop-setup
+description: Install ts-gate, the stack packages the user names, and workbench into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup. For a project without TypeScript, skip ts-gate.
 ---
 
 # Project setup
@@ -9,11 +9,11 @@ Three separate tools, one order. None of the installers knows the others; the
 order is what makes them fit. Run each step, show its output, stop where it
 says.
 
-Paths: `workbench` and `stack` are on PATH. ts-gate lives under `project/` beside the skills tree in dotfiles,
+Paths: `workbench` and `stack` are on PATH. ts-gate lives under `workshop/` beside the skills tree in dotfiles,
 reached through the `~/.claude/skills` symlink:
 
 ```
-TS_GATE=$(readlink -f ~/.claude/skills/project-setup/../../project/ts-gate)
+TS_GATE=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop/ts-gate)
 ```
 
 Read `$TS_GATE/CLAUDE.md` first: it is the gate's own contract and its
@@ -74,7 +74,7 @@ brownfield procedure.
    drizzle-sqlite` in a CLI that grew a database) is the same command. `stack add <name>...` brings each
    in (a read-only subtree under `repos/`, the pinned dependency, a rule,
    skills, a line in CLAUDE.md), what a package needs first. Needs a clean tree, which step 2's commit gives it. A package not in
-   the registry is added to dotfiles first (`common/claude-code/project/stack/CLAUDE.md`,
+   the registry is added to dotfiles first (`common/claude-code/workshop/stack/CLAUDE.md`,
    "Adding a package" and "What enters the registry"), not improvised in the
    project. Commit: `stack: add <names>`. `stack add` works at any later time.
 

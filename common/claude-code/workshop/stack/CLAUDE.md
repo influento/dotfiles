@@ -59,7 +59,7 @@ The packages stay separate units under the preset rather than one `effect`
 package holding everything, because a CLI would then carry drizzle-kit and a
 database driver it never imports, and a service that grows a UI later runs
 `stack add tanstack-start atom-react`, not a reinstall. The database is never
-inside a preset: the dialect is the project's, so `project-setup` asks the
+inside a preset: the dialect is the project's, so `workshop-setup` asks the
 entry and then the dialect (or none); a single package later (`stack add
 drizzle-sqlite` in a CLI that grew a database) is the same command.
 
@@ -143,7 +143,7 @@ they are learned.
 
 ## Commands
 
-Run from this directory (`common/claude-code/project/stack/`):
+Run from this directory (`common/claude-code/workshop/stack/`):
 
 - Lint: `shellcheck -x bin/stack tests/stack.sh`
 - Test: `bash tests/stack.sh`

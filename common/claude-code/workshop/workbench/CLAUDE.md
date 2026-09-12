@@ -5,7 +5,7 @@ Only `bin/workbench` is deployed out of this tree (→ `~/.local/bin/workbench`)
 because it is what opts a project in; everything else reaches a project through
 `workbench init`.
 
-`../BACKLOG.md` holds what is still to do on the tools under `project/`; read it
+`../BACKLOG.md` holds what is still to do on the tools under `workshop/`; read it
 before changing anything here.
 
 ## Layout
@@ -106,7 +106,7 @@ belong at the root of this tree instead.
 
 ## Commands
 
-Run from this directory (`common/claude-code/project/workbench/`):
+Run from this directory (`common/claude-code/workshop/workbench/`):
 
 - Lint: `shellcheck -x bin/workbench skills/workbench-review/scripts/*.sh tests/*.sh`
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for

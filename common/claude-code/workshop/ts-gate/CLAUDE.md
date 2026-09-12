@@ -33,7 +33,7 @@ unset (set to something else: printed, chain it by hand) → manifest
 knip's `ignoreDependencies` starts empty; `stack add` appends every
 dependency it installs, because a package lands before the code that imports
 it. Effect itself is a stack package (`stack add effect`, in every TypeScript
-project by `project-setup`); `ts-lean-code.md` names it because every project
+project by `workshop-setup`); `ts-lean-code.md` names it because every project
 has it, and the gate installs nothing of it.
 
 The Stop hook runs `gate:local` and blocks on every stop while red, capped: the

@@ -19,7 +19,7 @@ Check these when upgrading tools or debugging config issues.
 | **zoxide** | Configured in `.zshrc` | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | `eval "$(zoxide init zsh)"` |
 
 The hooks, CLI and tmux facts behind `workbench lead` / `open` / `signal` /
-`gate` are in `common/claude-code/project/workbench/CLAUDE.md`, with the session model
+`gate` are in `common/claude-code/workshop/workbench/CLAUDE.md`, with the session model
 they belong to.
 
 ## Workstation only

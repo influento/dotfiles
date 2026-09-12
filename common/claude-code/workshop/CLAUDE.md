@@ -1,7 +1,7 @@
-# project/ (source tree)
+# workshop/ (source tree)
 
 The tools a project installs, as opposed to the skills it links. Three of them,
-installed in this order by the `project-setup` skill:
+installed in this order by the `workshop-setup` skill:
 
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -35,7 +35,7 @@ Workbench knows nothing of either.
 
 Effect is a stack package, not part of the gate: `stack add effect` (alone,
 or through the `service` and `fullstack` presets) puts the subtree, the pinned
-dependency and the rule in; `project-setup` does that in every TypeScript
+dependency and the rule in; `workshop-setup` does that in every TypeScript
 project, so `ts-lean-code.md` can name Effect without the gate installing it.
 The registry is Effect-first by rule (`stack/CLAUDE.md`, "What enters the
 registry"), which is what keeps a second ORM or a second schema library out.

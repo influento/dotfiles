@@ -20,9 +20,9 @@ Ignore the symlinks themselves in the project's `.gitignore`; `.claude/skills/`
 as a whole only when every skill there is personal rather than team-wide.
 
 A skill that belongs to one library or tool rather than to a language or a
-vault goes under `../project/stack/packages/<name>/skills/` instead, and reaches
+vault goes under `../workshop/stack/packages/<name>/skills/` instead, and reaches
 a project as a committed copy with `stack add <name>` — see
-`../project/stack/CLAUDE.md`. The trees here are the candidates to move there.
+`../workshop/stack/CLAUDE.md`. The trees here are the candidates to move there.
 
 Workbench is the exception to all of this: it is not opted into by symlink at
 all — `workbench init` renders its skills as committed copies so worktrees and

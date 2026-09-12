@@ -1,4 +1,4 @@
-# project/ backlog
+# workshop/ backlog
 
 What is still to do on the tools themselves, one line each. Not project items:
 workbench tracks projects, this tracks workbench and ts-gate.
@@ -30,4 +30,4 @@ workbench tracks projects, this tracks workbench and ts-gate.
 
 ## delivery
 
-- publish and deploy, decided once for every project (2026-09-12, kairos surfaced it): where a repository lives (the forge on the home server — Gitea or Forgejo, the choice itself open; `git private` makes a bare repo, a forge has its own URL, so `setup-github` / `private-remote` learn the forge's remote), what CI runs there (a backstop behind workbench's local premerge: the default branch on push, nightly `gate:full` and the full test run; both forges run GitHub Actions workflow syntax, so a template under `ts-gate/` is not blocked by the choice), and how a project deploys (systemd or compose on the home server, from what CI verified). Then: the workflow template in `ts-gate/`, the remote step in `project-setup`, and the deploy step in the setup checklist
+- publish and deploy, decided once for every project (2026-09-12, kairos surfaced it): where a repository lives (the forge on the home server — Gitea or Forgejo, the choice itself open; `git private` makes a bare repo, a forge has its own URL, so `setup-github` / `private-remote` learn the forge's remote), what CI runs there (a backstop behind workbench's local premerge: the default branch on push, nightly `gate:full` and the full test run; both forges run GitHub Actions workflow syntax, so a template under `ts-gate/` is not blocked by the choice), and how a project deploys (systemd or compose on the home server, from what CI verified). Then: the workflow template in `ts-gate/`, the remote step in `workshop-setup`, and the deploy step in the setup checklist
