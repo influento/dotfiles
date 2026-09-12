@@ -13,6 +13,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$T is not a git r
 grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile everything, the read-only subtrees 'stack add' puts under repos/ included. Add \"include\": [\"src\"]"
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
 grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
+node -e 'process.exit(require("./package.json").engines?.node?0:1)' || echo "WARNING: package.json has no engines.node; a Dockerfile or a CI container has nothing to pin node to"
 
 # 1. Files. Everything but the manifest is replaced, so a re-run carries
 #    changes — except what the project put in: knip.json's ignore lists (the

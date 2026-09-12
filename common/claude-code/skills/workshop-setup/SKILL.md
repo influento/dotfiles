@@ -38,6 +38,7 @@ brownfield procedure.
    git init -b main && npm init -y
    # tsconfig.json: "strict": true, "noUncheckedIndexedAccess": true,
    #   "erasableSyntaxOnly": true (node runs the sources as they are), "include": ["src"]
+   # package.json: "engines": { "node": ">=<major>" }, the node this runs on
    # src/index.ts with one export (knip's entry)
    # .gitignore: node_modules
    git add -A && git commit -m "scaffold"
@@ -68,7 +69,14 @@ brownfield procedure.
    commit until `gate:full` exits 0 or every remaining red is a recorded
    warning. Commit: `ts-gate: install`.
 
-3. **stack.** Two questions, never a package list. The entry: `stack add
+3. **Remote.** Private: `git private` (the `private-remote` skill; needs
+   `private.root`, which `setup-github` sets). Public: `gh repo create`.
+   Push main. That is the whole delivery pipeline: the gate at premerge is
+   the only CI, `npm run test:live` runs from the workstation with a
+   gitignored `.env` and its output is pasted into the item, a release is
+   `npm version <bump>` and `git push --follow-tags` by hand.
+
+4. **stack.** Two questions, never a package list. The entry: `stack add
    effect` for a CLI, a library, a worker or a backend service; `stack add
    fullstack` (effect + tanstack-start, atom-react, shadcn) for an app with
    a UI. The database: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`,
@@ -97,16 +105,21 @@ brownfield procedure.
    there with that tree. The wiring is `.claude/rules/tanstack-start.md` once
    the package is in.
 
-4. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
+5. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
    (refuses a dirty tree, then prints the survey command). Commit:
    `workbench: init` or `workbench: adopt`.
 
-5. **Checklist.** Init printed "setup — decide these with the user". Take
+6. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read `'npm run gate'`.
+   One line init does not print — deploy: none (a CLI, a library), or a
+   project-level `scripts/deploy` that ships a tag over ssh to the server
+   and runs `docker compose up --build` in `~/srv/<name>`, with a
+   `Dockerfile` whose base is `engines.node`. Written in the project, not
+   here: the files become a stack package when a second project needs them.
    Brownfield: run `/workbench-review adopt` and triage its report with the
    user; nothing converts without approval.
 
-6. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
+7. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
    must block a session and the fix must release it). `workbench status`,
    `stack status`.
 
