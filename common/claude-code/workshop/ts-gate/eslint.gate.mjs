@@ -43,6 +43,39 @@ const stackHas = (root, name) => {
   }
 };
 
+// The words a workbench glossary rejects (`| Use | Never | Because |` rows in
+// workbench/GLOSSARY.md), so a rejected word cannot become an identifier. The
+// pre-merge review greps the same column over prose and the diff; this catches
+// the identifier at the stop that writes it. Substring match on what this
+// code declares (`id-match`, a negative lookahead): a rejected `account`
+// catches `accountId`, `getAccount` and `ACCOUNT_ID`, which is what a worker
+// writes when the prompt says "account" — measured 2026-09-13: three of three
+// workers wrote `accountId`, none wrote `account`, so an exact match never
+// fires. A read of a property another module owns (`stripe.account`) is not
+// ours to rename and is not checked. Workbench knows nothing of this file; a
+// project without the glossary gets no rule.
+function neverPattern(words) {
+  const alts = new Set(
+    words.flatMap((w) => [w.toLowerCase(), w[0].toUpperCase() + w.slice(1).toLowerCase(), w.toUpperCase()]),
+  );
+  return `^(?!.*(?:${[...alts].join("|")})).*$`;
+}
+function neverWords(file) {
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  const head = lines.findIndex((l) => /^\|\s*use\s*\|\s*never\s*\|/i.test(l));
+  if (head < 0) return [];
+  const words = new Set();
+  for (const line of lines.slice(head + 2)) {
+    if (!line.startsWith("|")) break;
+    const cell = line.split("|")[2] ?? "";
+    for (const w of cell.replaceAll("`", "").split(/[\s,]+/)) {
+      if (/^[A-Za-z_$][\w$]*$/.test(w)) words.add(w);
+    }
+  }
+  return [...words];
+}
+
 /**
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
@@ -50,6 +83,7 @@ const stackHas = (root, name) => {
  * @param {boolean} [opts.correctness=true]  the type-aware correctness block
  * @param {boolean} [opts.money]  the money escape-hatch block; default: on when `.claude/stack.conf` lists `money`
  * @param {string[]} [opts.files]
+ * @param {string}  [opts.glossary="workbench/GLOSSARY.md"]  relative to tsconfigRootDir; its Never column feeds id-match
  */
 export default function gate({
   tsconfigRootDir,
@@ -57,8 +91,10 @@ export default function gate({
   correctness = true,
   money = stackHas(tsconfigRootDir, "money"),
   files = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+  glossary = "workbench/GLOSSARY.md",
 }) {
   const E = severity;
+  const never = neverWords(join(tsconfigRootDir, glossary));
   return [
     {
       files,
@@ -97,14 +133,27 @@ export default function gate({
           { assertionStyle: "as", objectLiteralTypeAssertions: "never" },
         ],
         // `x as unknown as Y` is a deliberate override — worse than `any`.
+        // `vi.mock` / `jest.mock` replaces a module wholesale: the test then
+        // proves the mock, and the seam the code should have (a Layer, an
+        // injected interface) never gets written. Spies and `vi.fn` stay:
+        // they fake at a boundary the caller chose.
         "no-restricted-syntax": [
           E,
           {
             selector: 'TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]',
             message: "Double assertion through unknown. Fix the type instead.",
           },
+          {
+            selector:
+              'CallExpression[callee.object.name=/^(vi|jest)$/][callee.property.name=/^(mock|doMock|unstable_mockModule)$/]',
+            message:
+              "Module mocking. Reach the dependency through a seam the code has: a Layer, an injected interface, or a fake at a boundary not ours (an external service, time, randomness).",
+          },
           ...(money ? moneyEscapes : []),
         ],
+        ...(never.length
+          ? { "id-match": [E, neverPattern(never), { onlyDeclarations: true, properties: true }] }
+          : {}),
 
         // --- ceremony with no effect --------------------------------------
         "@typescript-eslint/no-useless-default-assignment": E,

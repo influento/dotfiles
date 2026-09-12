@@ -20,7 +20,9 @@ They are separate tools; workbench knows nothing of ts-gate. Every touchpoint
 is on ts-gate's side: it sets `git config workbench.premerge "npm run gate"`
 so `workbench merge` runs the gate in the branch worktree; its two
 `permissions.allow` rules are what an unattended worker is allowed; its eslint
-config ignores `.worktrees/**`; its `ts-lean-code.md` checklist is what
+config ignores `.worktrees/**` and reads the `Never` column of
+`workbench/GLOSSARY.md` into `id-match` when the file exists; its
+`ts-lean-code.md` checklist is what
 `wb-reviewer` applies in fresh context, which is why no hook runs it. Install
 ts-gate first and commit between the two: `workbench init` writes tracked
 files.

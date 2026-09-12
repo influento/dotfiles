@@ -10,7 +10,7 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 |---|---|
 | `bash ts-gate/install.sh <project>` | install; idempotent |
 | `bash ts-gate/uninstall.sh <project>` | remove exactly what install added, per `ts-gate/.install.json` |
-| `npm run gate:verify` | prove the install: seeded violation blocks a session, hook releases after the fix; one model call |
+| `npm run gate:verify` | prove the install: `gate:fix` twice is a no-op, seeded violation blocks a session, hook releases after the fix; one model call |
 | `npm run gate:local` | branch since the default branch plus working tree, and the tests that diff reaches (`vitest --changed`); what the Stop hook runs |
 | `npm run gate` | CI, default branch...HEAD, and the whole test suite |
 | `npm run gate:full` | whole repo, whole suite |
@@ -49,9 +49,16 @@ worker and for wb-reviewer.
 Workbench touchpoints, all on this side: the `premerge` key (its merge runs
 the gate in the branch worktree; per clone, like every workbench key, so a
 fresh clone sets it again or re-runs install), the allow rules (an unattended
-worker is denied anything not listed), and `.worktrees/**` in the eslint
-ignores (`eslint .` in the main checkout would lint every item worktree).
-Workbench knows nothing of ts-gate.
+worker is denied anything not listed), `.worktrees/**` in the eslint
+ignores (`eslint .` in the main checkout would lint every item worktree),
+and the glossary: `eslint.gate.mjs` reads the `Never` column of
+`workbench/GLOSSARY.md` when the file exists and feeds it to `id-match` as a
+negative lookahead over what the code declares, so a rejected word cannot
+become an identifier at the stop that writes it — `accountId`, `getAccount`
+and `ACCOUNT_ID` for a rejected `account` (a worker writes those, never the
+bare word: measured three of three, 2026-09-13). Reads of a property another
+module owns (`stripe.account`) and strings are not checked; test names and
+prose stay with the pre-merge grep. Workbench knows nothing of ts-gate.
 
 ## Project requirements
 
@@ -65,7 +72,11 @@ Workbench knows nothing of ts-gate.
 Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
 1000 lines/file, 100/function, 30 statements, 6 params, depth 4): `warn`.
 `tsc --noEmit`, knip, dependency-cruiser: repo-wide, block. eslint and `biome format`: changed files.
-Biome is the formatter only (`biome.json` at the root, copied from `ts-gate/biome.template.json` because Biome refuses a second `biome.json` anywhere it scans: linter and assist off, `.ts`/`.tsx`, spaces; owned like the eslint config); eslint carries no layout rule, so the two never disagree. A brownfield tree runs `gate:fix` once before the gate can be green.
+Biome is the formatter only (`biome.json` at the root, copied from `ts-gate/biome.template.json` because Biome refuses a second `biome.json` anywhere it scans: linter and assist off, `.ts`/`.tsx`, spaces; owned like the eslint config); eslint carries no layout rule, so the two never disagree — `gate:verify` proves it by running `gate:fix` twice on a clean tree and failing if the second pass changes anything. A brownfield tree runs `gate:fix` once before the gate can be green.
+Two `no-restricted-syntax` selectors are the gate's own rules: the double
+assertion through `unknown`, and `vi.mock` / `jest.mock` / `doMock` /
+`unstable_mockModule` (module mocking; `vi.fn` and `spyOn` pass). The second
+moves ts-lean-code's mocking row from reviewer judgment into the hook.
 The correctness block in `eslint.gate.mjs` (`no-floating-promises`,
 `switch-exhaustiveness-check`, `no-unsafe-*`, `restrict-plus-operands`,
 `no-misused-promises`, `await-thenable`) runs at the gate severity, so a

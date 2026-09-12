@@ -40,7 +40,7 @@ and fix the shared function once, not the one path the ticket names.
 | Flag, option, or config key nothing sets, or that only ever has its default | Delete the branch with it |
 | Test whose expected value is computed the way the code computes it | Assert an independent literal |
 | Test that verifies through a side channel (a database query where the interface has a getter) | Read back through the interface |
-| Test that mocks an internal collaborator or asserts call counts | Mock only at a boundary not ours: an external service, time, randomness |
+| Test that spies on an internal collaborator or asserts call counts (`vi.mock` itself is gated) | Fake only at a boundary not ours: an external service, time, randomness |
 
 ## Keep
 
