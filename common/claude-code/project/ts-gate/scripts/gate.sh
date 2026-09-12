@@ -8,8 +8,8 @@ FAIL=0
 # --local is what the Stop hook and the worker read back into context: one line
 # per problem and no colour, so the same findings cost a fraction of the tokens.
 # CI keeps the readable formats.
-TSC_OPTS=(); ESLINT_OPTS=()
-case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs) ;; esac
+TSC_OPTS=(); ESLINT_OPTS=(); BIOME_OPTS=()
+case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs); BIOME_OPTS=(--reporter=summary) ;; esac
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo, gate skipped"; exit 0; }
 
 default_branch() {
@@ -42,6 +42,11 @@ npx tsc --noEmit "${TSC_OPTS[@]}" || FAIL=1
 # 2. Volume lint, changed files only. Type-aware rules are per-file with full
 #    type info, so scoping to the diff is exact, not an approximation.
 npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
+
+# 2b. Layout, changed files only. Biome as formatter alone (its linter is off:
+#     eslint above is the linter); `--reporter=summary` for the hook, the diff
+#     for CI. `gate:fix` rewrites.
+npx biome format --no-errors-on-unmatched "${BIOME_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 3. Dead code / abandoned attempts. Repo-wide: an export dies when its last
 #    *caller* is deleted, which need not be in the changed set.

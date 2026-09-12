@@ -24,7 +24,7 @@ PM="npm i -D"
 [ -f pnpm-lock.yaml ] && PM="pnpm add -D"
 [ -f yarn.lock ] && PM="yarn add -D"
 { [ -f bun.lockb ] || [ -f bun.lock ]; } && PM="bun add -d"
-DEPS="typescript@5 eslint@10 typescript-eslint@8 eslint-plugin-sonarjs@4 knip@6 dependency-cruiser"
+DEPS="typescript@5 eslint@10 typescript-eslint@8 eslint-plugin-sonarjs@4 knip@6 dependency-cruiser @biomejs/biome@2"
 RUNNER=""
 grep -q '"vitest"' package.json && RUNNER=vitest && DEPS="$DEPS @vitest/eslint-plugin"
 grep -q '"jest"' package.json && [ -z "$RUNNER" ] && RUNNER=jest && DEPS="$DEPS eslint-plugin-jest"
@@ -35,13 +35,13 @@ console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have))
 [ -z "$NEW" ] || $PM $NEW
 
 # 3. Scripts
-FULL="tsc --noEmit && eslint . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
+FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
 [ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**'"
 npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
   scripts.gate:local="bash ts-gate/scripts/gate.sh --local" \
   scripts.gate:full="$FULL" \
-  scripts.gate:fix="eslint . --fix" \
+  scripts.gate:fix="eslint . --fix && biome format --write ." \
   scripts.gate:verify="bash ts-gate/scripts/verify.sh"
 
 # 4. ESLint config
@@ -85,6 +85,27 @@ else
   printf '%s\n' "$CONFIG" > eslint.config.mjs; WROTE=eslint.config.mjs
 fi
 
+# 4b. Biome config. At the root, not in ts-gate/: Biome refuses a second
+#     biome.json anywhere in the tree it scans, whatever `includes` says, so
+#     the shipped file has a name it never discovers and is copied out. Same
+#     ownership as the eslint config: replaced on re-run unless edited.
+BIOME_WROTE=""
+BOWNED=""; BOWNED_SHA=""
+[ -f ts-gate/.install.json ] && read -r BOWNED BOWNED_SHA < <(node -e '
+const m=require("./ts-gate/.install.json");console.log(m.biome?m.biome.file+" "+m.biome.sha256:"")')
+if [ -n "$BOWNED" ] && [ -f "$BOWNED" ]; then
+  if [ "$(sha256sum "$BOWNED" | cut -d' ' -f1)" = "$BOWNED_SHA" ]; then command cp ts-gate/biome.template.json "$BOWNED"; BIOME_WROTE=$BOWNED
+  else echo "$BOWNED edited since install, kept"; fi
+elif [ -f biome.json ] || [ -f biome.jsonc ]; then
+  echo "biome config exists, not touched; the gate formats with it (ts-gate/biome.template.json is what install writes: formatter only, .ts/.tsx, spaces)"
+else
+  command cp ts-gate/biome.template.json biome.json; BIOME_WROTE=biome.json
+fi
+[ -z "$BIOME_WROTE" ] || [ ! -f ts-gate/.install.json ] || node -e '
+const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8")),f=process.argv[1];
+m.biome={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")};
+fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$BIOME_WROTE"
+
 # 5. Rules
 command mkdir -p .claude/rules
 command cp ts-gate/rules/*.md .claude/rules/
@@ -116,10 +137,10 @@ elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '
 # 8. Manifest: what this install added, so uninstall removes exactly that.
 #    Kept on re-run, when every dep already counts as present.
 [ -f ts-gate/.install.json ] || node -e '
-const fs=require("fs"),c=require("crypto"),[runner,cfg,...specs]=process.argv.slice(1);
+const fs=require("fs"),c=require("crypto"),[runner,cfg,bio,...specs]=process.argv.slice(1);
 const deps=specs.map(d=>d.replace(/(.)@.*/,"$1"));
-const config=cfg?{file:cfg,sha256:c.createHash("sha256").update(fs.readFileSync(cfg)).digest("hex")}:null;
-fs.writeFileSync("ts-gate/.install.json",JSON.stringify({runner,deps,config},null,2)+"\n");' "$RUNNER" "$WROTE" $NEW
+const own=f=>f?{file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}:null;
+fs.writeFileSync("ts-gate/.install.json",JSON.stringify({runner,deps,config:own(cfg),biome:own(bio)},null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" $NEW
 
 echo
 echo "installed. runner: ${RUNNER:-none}"
