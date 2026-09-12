@@ -24,6 +24,13 @@ if(!config||!fs.existsSync(config.file)) process.exit();
 if(c.createHash("sha256").update(fs.readFileSync(config.file)).digest("hex")===config.sha256) fs.unlinkSync(config.file);
 else console.log(config.file+" was edited after install, left in place. It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.");'
 
+# 3b. biome.json: only if install wrote it and nobody edited it since.
+node -e '
+const fs=require("fs"),c=require("crypto"),{biome}=require("./ts-gate/.install.json");
+if(!biome||!fs.existsSync(biome.file)) process.exit();
+if(c.createHash("sha256").update(fs.readFileSync(biome.file)).digest("hex")===biome.sha256) fs.unlinkSync(biome.file);
+else console.log(biome.file+" was edited after install, left in place.");'
+
 # 4. Rules
 for f in ts-gate/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done
 rmdir .claude/rules 2>/dev/null || true
