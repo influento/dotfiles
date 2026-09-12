@@ -55,7 +55,8 @@ brownfield procedure.
    - `biome config exists, not touched` → the gate formats with the
      project's own; check it formats `.ts` and leaves `repos/**` alone.
    - `vitest config exists, not touched` → add the printed `setupFiles`
-     line to it now; without it tests may reach the network.
+     and `exclude` lines to it now; without them tests may reach the
+     network and `npm test` runs the live tier.
    - `NOTE: workbench.premerge is '<x>'` → chain, do not replace:
      `git config workbench.premerge "<x> && npm run gate"`.
    - `WARNING` lines about tsconfig or knip entry → fix before going on.
@@ -71,7 +72,9 @@ brownfield procedure.
    effect` for a CLI, a library, a worker or a backend service; `stack add
    fullstack` (effect + tanstack-start, atom-react, shadcn) for an app with
    a UI. The database: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`,
-   `drizzle-libsql`, or none, added in the same `stack add`. `stack show
+   `drizzle-libsql`, or none, added in the same `stack add`. A project that
+   talks to any service or model adds `fixtures` too: the gate refuses the
+   network in tests, and this is how test data gets in. `stack show
    <name>` prints what a preset expands to; a package later (`stack add
    drizzle-sqlite` in a CLI that grew a database) is the same command. `stack add <name>...` brings each
    in (a read-only subtree under `repos/`, the pinned dependency, a rule,

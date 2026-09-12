@@ -33,6 +33,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
 | money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and ts-gate's money lint switched on by the manifest row. decimal.js, big.js, dinero are not added |
+| test data | `fixtures` (no dep: `Schema`, `Effect`, `Stream` in effect, `node:fs`) | recorded responses in place of the network, which ts-gate refuses in tests: `Fixture.load` / `stream` / `record` from `src/core/fixture.ts`, a rule; msw, nock, polly are not added |
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
 | Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
@@ -74,6 +75,7 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
 | `packages/money/`               | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/money.ts`; `ts-gate/eslint.gate.mjs` reads `.claude/stack.conf` and enables its money block when the row is there |
+| `packages/fixtures/`            | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/fixture.ts` (load, stream, record over `fixtures/`); the other half of ts-gate's network guard |
 | `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
 | `packages/shadcn/`              | public library: the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
