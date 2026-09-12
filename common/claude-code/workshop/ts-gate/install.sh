@@ -50,7 +50,10 @@ console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have))
 
 # 3. Scripts
 FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
-[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**'"
+[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*'"
+# test:live: the live tier (*.live.test.ts, real network), a script a person
+# runs; not in the allow rules, so an unattended worker cannot.
+[ "$RUNNER" != vitest ] || npm pkg set scripts.test:live="vitest run --config ts-gate/vitest.live.mjs"
 npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
   scripts.gate:local="bash ts-gate/scripts/gate.sh --local" \
@@ -85,8 +88,12 @@ fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$1" "$2"
 # 4. ESLint config
 TESTS='"**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"'
 case "$RUNNER" in
+  # @effect/vitest's testers (it.effect, it.live, it.scoped, it.scopedLive,
+  # it.prop) are test blocks the plugin does not recognise; without the list
+  # every Effect test is a standalone expect.
   vitest) IMP='import vitest from "@vitest/eslint-plugin";'
-          CFG="{ files: [$TESTS], ...vitest.configs.recommended, rules: { ...vitest.configs.recommended.rules, \"vitest/expect-expect\": \"error\" } }," ;;
+          BLOCKS='["it.effect", "it.live", "it.scoped", "it.scopedLive", "it.prop", "effect", "live", "scoped", "scopedLive"]'
+          CFG="{ files: [$TESTS], ...vitest.configs.recommended, rules: { ...vitest.configs.recommended.rules, \"vitest/expect-expect\": [\"error\", { additionalTestBlockFunctions: $BLOCKS }], \"vitest/no-standalone-expect\": [\"error\", { additionalTestBlockFunctions: $BLOCKS }] } }," ;;
   jest)   IMP='import jest from "eslint-plugin-jest";'
           CFG="{ files: [$TESTS], ...jest.configs[\"flat/recommended\"], rules: { ...jest.configs[\"flat/recommended\"].rules, \"jest/expect-expect\": \"error\" } }," ;;
   *)      IMP=""; CFG="" ;;
@@ -119,18 +126,26 @@ fi
 record_owned biome "$BIOME_WROTE"
 
 # 4c. vitest config: loads ts-gate/no-network.mjs, so no test reaches the
-#     network (loopback allowed). Only vitest reads it; scripts and the app
-#     keep the network. A project's own config gets the line to add.
+#     network (loopback allowed), and leaves the live tier (*.live.test.ts,
+#     ts-gate/vitest.live.mjs, `npm run test:live`) out. Only vitest reads
+#     it; scripts and the app keep the network. A project's own config gets
+#     the two lines to add.
 VITEST_WROTE=""
 if [ "$RUNNER" = vitest ]; then
-  VCONFIG='import { defineConfig } from "vitest/config";
+  VCONFIG='import { configDefaults, defineConfig } from "vitest/config";
 
-// ts-gate: no test reaches the network; see ts-gate/no-network.mjs.
-export default defineConfig({ test: { setupFiles: ["./ts-gate/no-network.mjs"] } });'
+// ts-gate: no test reaches the network (ts-gate/no-network.mjs); *.live.test.ts
+// is the live tier, run by `npm run test:live` (ts-gate/vitest.live.mjs).
+export default defineConfig({
+  test: {
+    setupFiles: ["./ts-gate/no-network.mjs"],
+    exclude: [...configDefaults.exclude, "**/*.live.test.{ts,tsx}"],
+  },
+});'
   if owned_target vitest vitest.config.mjs vitest.config.* vite.config.* vitest.workspace.*; then
     [ -z "$OWN" ] || { printf '%s\n' "$VCONFIG" > "$OWN"; VITEST_WROTE=$OWN; }
   else
-    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"] }"
+    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\"] }"
   fi
   record_owned vitest "$VITEST_WROTE"
 fi

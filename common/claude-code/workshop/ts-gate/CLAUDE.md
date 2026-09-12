@@ -15,6 +15,7 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 | `npm run gate` | CI, default branch...HEAD, and the whole test suite |
 | `npm run gate:full` | whole repo, whole suite |
 | `npm run gate:fix` | eslint autofix, then `biome format --write` |
+| `npm run test:live` | the live tier: `*.live.test.ts`, real network and real models, guard off (`ts-gate/vitest.live.mjs`); a person or a scheduled job runs it, never the gate; not in the allow rules |
 
 ## Install steps
 
@@ -25,7 +26,7 @@ gets the test step in the gate; jest the plugin only) → scripts →
 is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 `biome.json` if none exists (else left alone, the gate formats with it) →
 `vitest.config.mjs` if none exists (vitest only; else prints the `setupFiles`
-line to add) → `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
+and live-tier `exclude` lines to add) → `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
 `permissions.allow` rules (`npm ci`, `npm run gate:*`, `npm test`, and
 `npx vitest` or `npx jest` by runner) in `.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
 unset (set to something else: printed, chain it by hand) → manifest
@@ -85,7 +86,22 @@ brownfield `warn` pass covers it; `gate({ correctness: false })` drops it.
 The money block (`parseFloat`, `parseInt`, `Number()`, `.toNumber()`,
 `.toFixed()` as `no-restricted-syntax`) is on when `.claude/stack.conf` has a
 `money|` row — `stack add money` — and off otherwise; `gate({ money: true })`
-forces it. That read of the manifest is the gate's only knowledge of stack.
+forces it. The Effect idiom rule (`gate/effect-tags`: `_tag ===`, `switch
+(x._tag)`, a literal `_tag:` object outside `Match.when`/`Match.not`, a chain
+of literal ternaries; the messages name `Effect.catchTag`, `Match.tag` /
+`tagsExhaustive`, the tagged constructors) is on when the manifest lists
+`effect`; `gate({ effect: true })` forces it. Those reads of the manifest are
+the gate's only knowledge of stack.
+Three rules are the gate's own, an inline plugin `gate` in
+`eslint.gate.mjs`, so a project switches one off by name
+(`"gate/<rule>": "off"` after the spread) without losing the rest:
+`effect-tags` above; `no-unknown-signature` (`unknown` on a parameter or a
+return, `Promise<unknown>` included; `cause` and the subject of a type
+predicate excepted) at the gate severity, since it is a type hole like `any`;
+`safety-comment` (every `as` except `as const` carries a `SAFETY:` comment on
+the assertion or the statement holding it) at `warn`, since the fix adds a
+line. Ported from anti-slop 2026-09-13, measured before/after with
+worker/reviewer/fixer sessions: see the ts-gate entry in `../BACKLOG.md`.
 Tests: `--local` runs what the diff reaches (`vitest run --changed
 <merge-base>`, so a fixture-only change reruns nothing until a `.ts` file
 moves too); CI and `gate:full` run the suite. `--passWithNoTests`, and
@@ -96,8 +112,16 @@ one door: `net`, `http`, `tls`, undici's `fetch` and `WebSocket`) and
 `fetch` to throw, naming the test and the host, for any host but loopback
 (`localhost`, `127.*`, `::1`; a unix socket path is local). No opt-out inside
 a test: a test that needs a live endpoint is a recording, run once outside
-vitest (a script, the CLI), its response committed as a fixture. Only vitest
-loads the file; scripts and the app keep the network. The three configs
+vitest (a script, the CLI), its response committed as a fixture (the stack's
+`fixtures` package is the loader). Only vitest loads the file; scripts and
+the app keep the network. The exception is a tier, not a flag:
+`*.live.test.ts` is excluded from `npm test`, the gate and the hook, and
+`npm run test:live` (`ts-gate/vitest.live.mjs`: the live pattern, no setup
+file) runs it for real, by a person or a scheduled job with credentials.
+The eslint test block lists `@effect/vitest`'s testers (`it.effect`,
+`it.live`, `it.scoped`, `it.scopedLive`, `it.prop`) as test blocks for
+`expect-expect` and `no-standalone-expect`; the plugin does not recognise
+them, and without the list every Effect test is a standalone expect. The three configs
 (eslint, biome, vitest) share one ownership rule: written when absent,
 replaced on re-run unless edited since, a project's own left alone.
 

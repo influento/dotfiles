@@ -59,8 +59,9 @@ npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 #    (vitest --changed since the merge base, working tree included), so the
 #    Stop hook pays for what the change touched. CI: the whole suite. Only
 #    for a runner the gate knows; jest projects get the eslint plugin alone.
+#    Never the live tier (*.live.test.ts: real network, `npm run test:live`).
 if grep -q '"vitest"' package.json; then
-  VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**')
+  VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*')
   case "${1:-}" in
     --local) npx vitest run --changed "$RANGE" --reporter=dot --no-color "${VITEST[@]}" || FAIL=1 ;;
     *)       npx vitest run "${VITEST[@]}" || FAIL=1 ;;
