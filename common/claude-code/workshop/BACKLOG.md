@@ -7,6 +7,9 @@ workbench tracks projects, this tracks workbench, stack and ts-gate.
 
 - turn caps: set `maxTurns:` on `wb-reviewer` at twice the p95 turn count the first ten transcripts show; the worker already parks a partial return
 - round-two rule yield: at twenty archived items, `grep '^rounds: r1 0/0'` over the archive; if round 2 rarely raises after an empty round 1, drop the second round. So far: 2026-09-13, nine `wb-worker` runs on seeded items, round 2 raised a finding that was fixed in 6/9, once after an empty round 1
+- memory store in the tree (`autoMemoryDirectory`, written `~/<path>` by `init`): keep while its unstaged edits on main stay noise; reconsider when the store first causes a merge refusal or a stray commit
+- parked-call notice, on the dotfiles side, when the first parked call is found late while the user was at the machine: the `claude-tmux` Stop hook counts waiting decisions (`^- ` under `## Decisions` in the items, and in `workbench/DECISIONS.md`) in a repo with a `workbench/` directory, with two greps, never `workbench status`, and flags the pane `needs-you` instead of `done` only when the count rose since the last Stop, kept in the pane's recorded state; a call left parked from yesterday does not re-flag every turn
+- merged branch history: the squash drops the branch's commits, pruned by `gc.pruneExpire` about two weeks after merge; when a squashed item's intermediate commits are first needed (a bisect inside one item), decide how to keep them; a tag per merged item is the rejected shape, one tag per item forever
 - external resources ledger (port, container, temp dir a session starts outside the tree; `status` lists, `archive` reaps): design who writes it, hook or session, when the first leaked port or container is found after an archive
 
 ## stack
