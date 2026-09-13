@@ -997,8 +997,13 @@ run "start refuses an item with no Side effects section" 1 "'Side effects' is em
 new_repo conf
 src_root=$(readlink -f "$(dirname "$WB")/..")
 run "init with no settings file" 0 "workbench ready" "$WB" init
-check "init writes no settings file" [ ! -e .claude/workshop.conf ]
-run "config list shows a workbench key at its default" 0 "^review.round_cap +default +5$" "$WB" config list
+check "init writes every workbench key at its default, premerge and main commented out" bash -c "[ \"\$(grep -Ec '^(# )?[a-z_.]+=' .claude/workshop.conf)\" -eq 12 ] && grep -qx 'review.round_cap=5' .claude/workshop.conf && grep -qx '# premerge=<command>' .claude/workshop.conf && grep -qx '# main=main' .claude/workshop.conf"
+check "and no ts-gate key without ts-gate" bash -c "! grep -qE '^(gate|lint)\.' .claude/workshop.conf"
+run "at the defaults status has nothing to say about the file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
+cp .claude/workshop.conf "$TMP/conf.fresh"
+"$WB" init >/dev/null
+check "a second init leaves the file as it was" cmp -s .claude/workshop.conf "$TMP/conf.fresh"
+run "config list shows a workbench key from the file" 0 "^review.round_cap +file +5$" "$WB" config list
 check "config with no subcommand lists" bash -c "[ \"\$('$WB' config)\" = \"\$('$WB' config list)\" ]"
 check "config list names the twelve workbench keys and no ts-gate key without ts-gate" bash -c "[ \"\$('$WB' config list | wc -l)\" -eq 12 ] && ! '$WB' config list | grep -qE '^(gate|lint)\.'"
 run "config list shows premerge unset" 0 "^premerge +default +\(none\)$" "$WB" config list
@@ -1124,6 +1129,15 @@ mkdir ts-gate
 run "with ts-gate installed config list shows its keys" 0 "^gate.repeat_cap +default +3$" "$WB" config list
 conf lint.max_lines lots
 run "and status checks them" 0 "lint.max_lines='lots' is not a positive integer" "$WB" status
+"$WB" config list | sed -E 's/ +(file|default|invalid) +/ /' > "$TMP/values.before"
+run "init with ts-gate adds its keys" 0 "added: gate.repeat_cap gate.output_lines lint.complexity" "$WB" init
+check "at their defaults" bash -c "grep -qx 'gate.repeat_cap=3' .claude/workshop.conf && grep -qx 'lint.max_depth=4' .claude/workshop.conf"
+check "the values the file had stay, one line per key" bash -c "[ \"\$(grep -c '^lint.max_lines=' .claude/workshop.conf)\" -eq 1 ] && grep -qx 'lint.max_lines=lots' .claude/workshop.conf && grep -qx 'review.exchange_cap=5' .claude/workshop.conf && grep -qx 'worker.model=two words' .claude/workshop.conf"
+check "lines that are not its keys move to the end" bash -c "sed -n '/^# Kept from the file as it was:\$/,\$p' .claude/workshop.conf | grep -qx 'no equals sign here' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx 'foo.bar=1' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx '# worker.model=commented'"
+check "every effective value is unchanged" bash -c "'$WB' config list | sed -E 's/ +(file|default|invalid) +/ /' | cmp -s - '$TMP/values.before'"
+cp .claude/workshop.conf "$TMP/conf.filled"
+"$WB" init >/dev/null
+check "a second init keeps the file, kept lines not repeated" cmp -s .claude/workshop.conf "$TMP/conf.filled"
 rmdir ts-gate
 run "without ts-gate they are neither listed nor warned about" 0 "" bash -c "! '$WB' config list | grep -q '^lint' && ! '$WB' status | grep -qE 'lint.max_lines|unknown key .lint'"
 

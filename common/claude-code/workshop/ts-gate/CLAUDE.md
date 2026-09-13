@@ -141,7 +141,8 @@ property another module owns (`stripe.account`) and strings are not checked;
 test names and prose stay with wb-reviewer's grep. Workbench knows nothing of
 ts-gate.
 
-`premerge` is written only when the file has no such key, and uninstall
+`premerge` is written only when the file has no such key, over the
+commented-out `# premerge=` line `workbench init` writes, and uninstall
 removes it only while it is exactly `npm run gate`. A project that needs more
 at merge (a build, a migration check) points it at its own wrapper —
 `premerge=bash scripts/premerge.sh`, the script running `npm run gate` and

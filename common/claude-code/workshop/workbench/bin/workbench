@@ -303,6 +303,136 @@ conf_append() {
   printf '%s=%s\n' "$2" "$3" >> "$f"
 }
 
+# One key as the layout writes it, from CONF_V: the file's value, else the
+# default. A key with no default (premerge, main) unset is written commented
+# out, showing $2.
+conf_line() {
+  local meta
+  if [ -n "${CONF_V[$1]+set}" ]; then printf '%s=%s\n' "$1" "${CONF_V[$1]}"
+  elif [ -n "${2:-}" ]; then printf '# %s=%s\n' "$1" "$2"
+  else meta=$(conf_meta "$1"); printf '%s=%s\n' "$1" "${meta%%|*}"
+  fi
+}
+
+CONF_KEPT='# Kept from the file as it was:'
+
+# The file as init writes it: every key with a comment saying what it does,
+# ts-gate's where it is installed. $2: the branch main auto-detects to now.
+conf_layout() {
+  local root=$1 main=$2
+  cat <<'EOF'
+# Settings for workbench and ts-gate. key=value, one per line; a line
+# starting with # is a comment. A key left out takes the tool's default.
+# Changes apply from the next Claude Code session.
+
+# --- workbench: agents ---
+# model: inherit (the session's) or a model name or alias: opus, sonnet, haiku
+# effort: inherit (the session's), low, medium, high, xhigh or max
+EOF
+  conf_line worker.model
+  conf_line worker.effort
+  conf_line reviewer.model
+  conf_line reviewer.effort
+  cat <<'EOF'
+
+# --- workbench: review ---
+# Exchanges on one finding before worker and reviewer stop and say so.
+EOF
+  conf_line review.exchange_cap
+  echo "# The round at which 'workbench round' parks the review dialog."
+  conf_line review.round_cap
+  cat <<'EOF'
+
+# --- workbench: line caps 'workbench status' warns over ---
+EOF
+  conf_line cap.claude
+  conf_line cap.glossary
+  conf_line cap.backlog
+  conf_line cap.decisions
+  cat <<'EOF'
+
+# --- workbench: merge ---
+# Runs in the branch's worktree before every squash; non-zero refuses the
+# merge. Commented out: no check.
+EOF
+  conf_line premerge '<command>'
+  echo "# The branch items merge into. Commented out: origin/HEAD, then main, master."
+  conf_line main "$main"
+  [ -d "$root/ts-gate" ] || return 0
+  cat <<'EOF'
+
+# --- ts-gate: Stop hook ---
+# Identical gate failures in a row before the hook lets the session stop.
+EOF
+  conf_line gate.repeat_cap
+  echo "# Failure lines fed back to the session."
+  conf_line gate.output_lines
+  cat <<'EOF'
+
+# --- ts-gate: eslint thresholds ---
+# sonarjs/cognitive-complexity, sonarjs/no-nested-functions, then the
+# warnings max-lines, max-lines-per-function, max-statements, max-params,
+# max-depth.
+EOF
+  conf_line lint.complexity
+  conf_line lint.max_nesting
+  conf_line lint.max_lines
+  conf_line lint.max_lines_per_function
+  conf_line lint.max_statements
+  conf_line lint.max_params
+  conf_line lint.max_depth
+}
+
+# Every key written out, so a setting is changed where it already stands.
+# Rewritten only when a key is missing (a commented-out premerge= or main=
+# counts as there): the layout with the file's values, then every other line
+# of the old file, unknown keys and the project's own comments, at the end.
+conf_fill() {
+  local root=$1 f="$1/$CONF" main k line t missing="" layout existed=0
+  local kept=() known=" "
+  [ ! -f "$f" ] || existed=1
+  main=$(default_branch 2>/dev/null) || main='<branch>'
+  conf_scan "$root"
+  while IFS='|' read -r k _; do
+    known="$known$k "
+    [ -z "${CONF_V[$k]+set}" ] || continue
+    case "$k" in
+      premerge|main) [ "$existed" = 1 ] && grep -Eq "^[[:space:]]*#[[:space:]]*${k}[[:space:]]*=" "$f" && continue ;;
+    esac
+    missing="$missing $k"
+  done < <(conf_tables "$root")
+  [ -n "$missing" ] || return 0
+
+  layout=$(conf_layout "$root" "$main")
+  if [ "$existed" = 1 ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      t="${line#"${line%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"
+      case "$t" in
+        '') continue ;;
+        '#'*)
+          [[ "$t" =~ ^#[[:space:]]*(premerge|main)[[:space:]]*= ]] && continue
+          [ "$t" != "$CONF_KEPT" ] || continue
+          grep -qxF -- "$t" <<< "$layout" && continue ;;
+        *=*)
+          k=${t%%=*}; k="${k%"${k##*[![:space:]]}"}"
+          case "$known" in *" $k "*) continue ;; esac ;;
+      esac
+      kept+=("$line")
+    done < "$f"
+  fi
+  mkdir -p "$root/.claude"
+  {
+    printf '%s\n' "$layout"
+    if [ "${#kept[@]}" -gt 0 ]; then printf '\n%s\n' "$CONF_KEPT"; printf '%s\n' "${kept[@]}"; fi
+  } > "$f.tmp"
+  mv "$f.tmp" "$f"
+  if [ "$existed" = 1 ]; then
+    echo "  wrote every setting into $CONF, the values it had kept; added:$missing"
+  else
+    echo "  wrote $CONF, every setting at its default"
+  fi
+}
+
 # The keys ts-gate reads count only where it is installed.
 conf_tables() {
   printf '%s\n' "$CONF_KEYS"
@@ -875,6 +1005,7 @@ cmd_init() {
   [ -f "$root/$WB/DECISIONS.md" ] || { write_decisions "$root/$WB/DECISIONS.md"; echo "  wrote $WB/DECISIONS.md"; }
 
   migrate_git_config "$root"
+  conf_fill "$root"
   render_skills "$force"
   render_agents
   ensure_gitignore

@@ -282,6 +282,10 @@ check "ts-gate/ is gone" [ ! -d ts-gate ]
 check "uninstall removes premerge when it is the gate's own" bash -c "! grep -q '^premerge=' .claude/workshop.conf"
 check "and keeps the project's other settings" grep -qx 'lint.max_lines=900' .claude/workshop.conf
 check "the Stop hook is gone at a hand-set timeout too" bash -c "! grep -q stop-hook .claude/settings.json 2>/dev/null"
+printf 'cap.claude=150\n# premerge=<command>\nmain=main\n' > .claude/workshop.conf
+git add -A && git commit -qm "uninstalled again" >/dev/null
+run "install over workbench's commented-out premerge" 0 "set premerge=npm run gate" bash "$SRC/install.sh" .
+check "fills that line in place" [ "$(cat .claude/workshop.conf)" = "$(printf 'cap.claude=150\npremerge=npm run gate\nmain=main')" ]
 
 echo "== brownfield: a foreign biome config that formats repos/** (B1)"
 mkproj "$TMP/p2"

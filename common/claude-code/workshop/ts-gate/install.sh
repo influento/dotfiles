@@ -203,8 +203,14 @@ if [ "$HAS_PREMERGE" -eq 0 ]; then
   PREMERGE=$(git config --local --get workbench.premerge 2>/dev/null || true)
   [ -n "$PREMERGE" ] || PREMERGE="npm run gate"
   command mkdir -p .claude
-  [ ! -s "$CONF" ] || [ -z "$(tail -c1 "$CONF")" ] || echo >> "$CONF"
-  printf 'premerge=%s\n' "$PREMERGE" >> "$CONF"
+  # Over the commented-out line workbench init writes, else appended.
+  if [ -f "$CONF" ] && grep -Eq '^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=' "$CONF"; then
+    PREMERGE="$PREMERGE" awk '!done && /^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=/ { print "premerge=" ENVIRON["PREMERGE"]; done = 1; next } { print }' "$CONF" > "$CONF.tmp"
+    command mv "$CONF.tmp" "$CONF"
+  else
+    [ ! -s "$CONF" ] || [ -z "$(tail -c1 "$CONF")" ] || echo >> "$CONF"
+    printf 'premerge=%s\n' "$PREMERGE" >> "$CONF"
+  fi
   git config --local --unset workbench.premerge 2>/dev/null || true
   echo "set premerge=$PREMERGE in $CONF"
 fi

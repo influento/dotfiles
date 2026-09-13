@@ -71,7 +71,8 @@ requests that most need the rule look like small favours.
 in `.claude/workshop.conf`); `references/docs.md`, "Line caps", says what to
 cut. `init` moves `git config workbench.cap.*`, `workbench.main` and
 `workbench.premerge`, which older versions read, into the file and unsets
-them.
+them, then writes every key out (`conf_fill`, `conf_layout`; which lines
+survive a rewrite: `workshop/CLAUDE.md`).
 
 The settings, like the copies, are committed per branch: a worktree started
 before a settings commit keeps its branch's values until it is rebased.

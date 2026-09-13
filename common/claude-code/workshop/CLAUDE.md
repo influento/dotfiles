@@ -35,9 +35,15 @@ package (`stack add effect`, in every TypeScript project through
 
 The settings a project changes now and then, one committed file for both
 tools. Defaults live in the tools: a missing key is its default, and with no
-file everything is. Neither `workbench init` nor ts-gate's install creates
-it, except install writing `premerge` (and init moving an old git config key
-in). This table is the reference; the tools' docs link here.
+file everything is. `workbench init` writes every key out, under a comment
+saying what it does, so a setting is changed where it stands: the file's
+values kept, a missing key at its default, ts-gate's keys where `ts-gate/`
+exists, `premerge` and `main` commented out while unset. It rewrites the file
+only when a key is missing, and moves lines that are none of its keys
+(unknown keys, the project's own comments) to the end. A default a tool
+changes later does not reach a file that already names the key. ts-gate's
+install writes `premerge` when the file has none, over the commented-out
+line. This table is the reference; the tools' docs link here.
 
 - Format: `key=value` lines, the value to the end of the line, no quoting;
   `#` comment lines and blank lines skipped. Keys and values are trimmed,
