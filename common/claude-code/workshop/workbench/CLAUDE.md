@@ -150,10 +150,7 @@ wb-worker` → `merge` by hand, no gate.
 | cost per item, mean | $0.60 | $1.29 (2.1× A; 1.6–2.7× by item) | $2.30 (3.8× A, 1.8× B) |
 | wall, mean | 127 s | 264 s | 428 s (worker session only) |
 | regression the reviewer found by running, absent | 0/6 | 6/6 | 6/6 |
-| round 2 raised a finding that was fixed | – | – | 6/9 (once after an empty round 1) |
 
-What the reviewer earned: a `slow-` batch id turned `NotFound` (never retried)
-and a `Schema.DateFromString` that accepts `"1"` and reads zone-less strings in
-the host's zone; every bare worker shipped both, every reviewer ran the case
-and showed it. B and C found the same things; C added one crash in one round-3
-run, B one whitespace-id case.
+The regressions were a `slow-` batch id turned `NotFound` (never retried) and
+a `Schema.DateFromString` that accepts `"1"`: every bare worker shipped both,
+every reviewer ran the case and showed it.

@@ -6,7 +6,7 @@ workbench tracks projects, this tracks workbench, stack and ts-gate.
 ## workbench
 
 - turn caps: set `maxTurns:` on `wb-reviewer` at twice the p95 turn count the first ten transcripts show; the worker already parks a partial return
-- round-two rule yield: at twenty archived items, `grep '^rounds: r1 0/0'` over the archive; if round 2 rarely raises after an empty round 1, drop the second round
+- round-two rule yield: at twenty archived items, `grep '^rounds: r1 0/0'` over the archive; if round 2 rarely raises after an empty round 1, drop the second round. So far: 2026-09-13, nine `wb-worker` runs on seeded items, round 2 raised a finding that was fixed in 6/9, once after an empty round 1
 - external resources ledger (port, container, temp dir a session starts outside the tree; `status` lists, `archive` reaps): design who writes it, hook or session, when the first leaked port or container is found after an archive
 
 ## stack
