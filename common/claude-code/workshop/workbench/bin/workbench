@@ -2,9 +2,6 @@
 set -euo pipefail
 
 # workbench — item lifecycle for tracked project work.
-#
-# IDs come from a counter in the shared git directory, so every worktree draws
-# from one sequence and numbers can never collide or repeat.
 
 WB=workbench
 # Never pipe into a reader that stops early — 'grep -q', 'grep -m', 'head'.
@@ -14,23 +11,16 @@ WB=workbench
 # of what the data says — intermittently, since it is a race. Capture into a
 # variable and read a herestring, or use a reader that consumes all of its input.
 # The project-scoped commands, one thin skill each under commands/.
-# Rendered as committed copies by init, so the list
-# lives here. No /rename — a rename is a feature item; why the set is small
-# is in the skill's rationale.md, "Why the commands are thin".
 WB_COMMANDS="bug feature idea wb"
-# The agent definitions, one .md each under agents/. Named here rather than
-# globbed for the reason agent_sources() gives.
+# The agent definitions under agents/, listed rather than globbed (agent_sources).
 WB_AGENTS="wb-worker wb-reviewer"
 MARK_START='<!-- workbench:start -->'
 MARK_END='<!-- workbench:end -->'
-# One obvious sentence, one question: the caps that keep BACKLOG.md and
-# DECISIONS.md from becoming the place long prose goes when nobody is reading.
+# One obvious sentence, one question.
 IDEA_MAX=200
 CALL_MAX=300
-# Line caps on the documents every session reads: root CLAUDE.md and the
-# three under workbench/. Over one, 'status' names it and the docs review
-# that cuts it. 'git config workbench.cap.<claude|glossary|backlog|decisions>'
-# overrides, for a project whose document is legitimately larger.
+# Line caps on the documents every session reads; 'git config
+# workbench.cap.<name>' overrides.
 CAP_CLAUDE=150
 CAP_GLOSSARY=300
 CAP_BACKLOG=400
@@ -49,7 +39,6 @@ usage:
   workbench idea "<sentence>"          one backlog line, on the main checkout wherever it runs
   workbench call <id|-> "<question>"   one line under the item's '## Decisions' (DECISIONS.md for -):
                                        a call that is the user's, parked
-                                       items that touched these paths, newest first
   workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
   workbench effects <id>               existing exports and routes the branch changed, against
@@ -72,8 +61,7 @@ die() {
   exit 1
 }
 
-# Memoized, as is main_root: the hooks call both several times per tool
-# call, and a process never changes repository.
+# Memoized: called several times per run.
 GIT_COMMON_DIR=""
 git_common_dir() {
   if [ -z "$GIT_COMMON_DIR" ]; then
@@ -99,9 +87,7 @@ main_root() {
   printf '%s\n' "$MAIN_ROOT"
 }
 
-# Both checkouts that may hold items: the main one, which holds every item
-# from 'new' onward, and the current one, whose branch carries the copy an
-# item is edited in — or an item written by hand and not yet landed.
+# The checkouts that may hold items: the current one and the main one.
 wb_roots() {
   local cur main
   cur=$(repo_root)
@@ -111,11 +97,9 @@ wb_roots() {
   return 0
 }
 
-# $WB/<sub> in each checkout read from stdin, existing ones only. Any lookup
-# over 'git worktree list' meets checkouts without it: a worktree branched
-# before adoption, a detached one, one removed by hand and not yet pruned.
-# find exits non-zero on a missing start path — even when -quit ended it on a
-# hit — and under set -e that kills the caller without a word.
+# $WB/<sub> in each checkout read from stdin, existing ones only — a worktree
+# branched before adoption, a detached one, one removed by hand has none, and
+# find exits non-zero on a missing start path, which under set -e kills the caller.
 wb_dirs() {
   local sub="$1" r
   while IFS= read -r r; do
@@ -124,9 +108,7 @@ wb_dirs() {
   return 0
 }
 
-# find over wb_dirs, in the order the checkouts were given. No checkout has
-# the directory → nothing, rc 0; a bare find would search the working
-# directory instead.
+# find over wb_dirs; no checkout has the directory → nothing, rc 0.
 wb_find() {
   local sub="$1" dirs=()
   shift
@@ -135,10 +117,7 @@ wb_find() {
   find "${dirs[@]}" "$@" 2>/dev/null || true
 }
 
-# Everything the tool renders lives under one root: skills/ holds the two
-# skills, named as they render; agents/ and commands/ are consumed by init,
-# and this script sits in bin/. Nothing reaches outside that tree. Resolving
-# from $0 keeps the path out of the script, so a moved checkout still works.
+# The source tree this script sits in, or WORKBENCH_ROOT.
 wb_root() {
   local self
   # $0 is a bare name when found on PATH, so resolve it before following links
@@ -155,19 +134,14 @@ slugify() {
     | sed -e 's/^-//' -e 's/-$//'
 }
 
-# An id is exactly <letter>-<number>, printed back with the number as the
-# allocator writes it — three digits, more once past 999 — so 'b-1', 'b-01'
-# and 'b-0001' all name b-001. Everything that resolves one globs on "$id-*",
-# so a bare letter would match every item of that class and act on whichever
-# one find happened to return first.
+# <letter>-<number>, printed back three digits wide so 'b-1' names b-001;
+# everything downstream globs on "$id-*".
 require_id() {
   [[ "$1" =~ ^([bf])-([0-9]+)$ ]] || die "'$1' is not an item id; ids look like b-038"
   printf '%s-%03d\n' "${BASH_REMATCH[1]}" "$((10#${BASH_REMATCH[2]}))"
 }
 
-# A worktree branched before adoption has no $WB/ in its own checkout, yet may
-# still create items. Adoption is a property of the repository, so any checkout
-# carrying $WB/ satisfies it.
+# Adoption is a property of the repository: any checkout carrying $WB/ satisfies it.
 require_init() {
   local root
   while IFS= read -r root; do
@@ -176,10 +150,7 @@ require_init() {
   die "no $WB/ in this repository; run 'workbench init' first"
 }
 
-# Highest number already present, so a missing counter can be rebuilt from the
-# repository itself rather than restarting at 1 and colliding with history.
-# Over every checkout: an item that only exists in a sibling worktree has a
-# number too.
+# Highest number in any checkout, to rebuild a missing counter.
 highest_existing() {
   local max=0 n
   while IFS= read -r f; do
@@ -205,9 +176,7 @@ next_id() {
   done
   trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT
 
-  # The counter is a cache; the repository is the source of truth. A counter
-  # left behind on this machine goes stale the moment items allocated on
-  # another one are pulled in, so never allocate below what the tree holds.
+  # The counter is a cache; never allocate below what the tree holds.
   local seen
   seen=$(highest_existing)
   current=0
@@ -271,9 +240,6 @@ ensure_gitignore() {
   local root gi
   root=$(repo_root)
   gi="$root/.gitignore"
-  # Skills are rendered copies, committed so every checkout and clone has
-  # them; nothing here ignores them. settings.local.json is left ignored:
-  # that file is per-user by Claude Code's own definition.
   local entry='.worktrees/'
   grep -qxF "$entry" "$gi" 2>/dev/null && return 0
   # A last line missing its newline would otherwise absorb the entry.
@@ -282,12 +248,8 @@ ensure_gitignore() {
   echo "  .gitignore += $entry"
 }
 
-# The skill sources, in the dotfiles tree beside this script: the workflow
-# itself and one thin user-only skill per command, so '/bug <title>' is a
-# thing to type.
-# The source directories, one per line. Each is named exactly as the skill it
-# renders to — the directory name is the name Claude Code loads — so nothing
-# here maps one to the other, and a renamed directory is a renamed skill.
+# The skill sources: the workflow and one thin skill per command. Each
+# directory is named exactly as the skill it renders to.
 skill_sources() {
   local base name
   base=$(readlink -f "$(wb_root)") || true
@@ -296,14 +258,9 @@ skill_sources() {
   for name in $WB_COMMANDS; do printf '%s\n' "$base/commands/$name"; done
 }
 
-# What a rendered copy records about where it came from: the source hash on
-# line 1, the copy's own hash on line 2. Content-addressed, so no version is
-# bumped by hand; a changed source shows as stale, a changed copy as edited.
-# Each file's relative path goes into the hash ahead of its content, so a
-# rename or a move of text between files changes it too; the order is fixed
-# under LC_ALL=C because the locale's collation would otherwise put the same
-# tree in a different order on another machine. Symlinks are refused rather
-# than hashed: a copy of one is a machine-local path.
+# Stamp: the source hash on line 1, the copy's own on line 2. Paths go into
+# the hash ahead of content, sorted under LC_ALL=C so every machine agrees;
+# symlinks are refused, a copy of one being a machine-local path.
 STAMP=GENERATED
 skill_hash() {
   local f
@@ -316,13 +273,8 @@ skill_hash() {
   } | sha256sum | cut -c1-12
 }
 
-# current | stale | edited | missing — for the copy of <name> under <root>.
-# A copy whose content no longer matches its own stamp was edited by hand,
-# and init refuses to overwrite it without --force. The regex on the copy
-# hash is why a stamp not carrying one reads as stale — re-rendered — rather
-# than as edited, which init would refuse. Not only the older two-line format
-# it was written for: any garbled second line lands there too, and
-# re-rendering beats refusing every init until someone passes --force.
+# current | stale | edited | missing. A stamp without a valid copy hash
+# reads as stale (re-rendered), not edited (refused).
 skill_state() {
   local root="$1" src="$2" dst src_hash copy_hash
   dst="$root/.claude/skills/$(basename "$src")"
@@ -338,10 +290,6 @@ skill_state() {
   fi
 }
 
-# Copies, not links, and committed: a link is one machine's path and lives
-# only in the checkout it was made in, so a worktree session or another
-# clone had none of this. A copy is refreshed by re-running init, and
-# 'status' says when one has fallen behind its source.
 render_skills() {
   local force="${1:-0}" root src srcdir dst name hash state wanted=" "
   root=$(repo_root)
@@ -380,10 +328,8 @@ render_skills() {
     if [ "$state" = edited ]; then echo "  rendered .claude/skills/$name (the hand edit is gone)"; else echo "  rendered .claude/skills/$name"; fi
   done < <(skill_sources)
 
-  # A copy this tool generated for a skill that no longer exists in the
-  # source. Guarded by the stamp's own wording, not the file's presence, so
-  # a foreign skill carrying a GENERATED file is left alone — and an edited
-  # copy is refused the same way as above.
+  # A generated copy for a skill no longer in the source; guarded by the
+  # stamp's own wording, and an edited one is refused as above.
   local copy_hash
   for dst in "$root"/.claude/skills/*/; do
     dst=${dst%/}; name=$(basename "$dst")
@@ -399,11 +345,8 @@ render_skills() {
   done
 }
 
-# The agent sources, named the way the skills are: one line per agent, the
-# basename being the name Claude Code loads. A list rather than a glob over
-# agents/*.md, so a file that is not an agent — notes, a draft — cannot ship
-# as one by sitting in the directory, and a source renamed fails loudly here
-# instead of going silently absent from the project.
+# A list, not a glob: a stray file cannot ship as an agent, and a renamed
+# source fails loudly.
 agent_sources() {
   local base name
   base=$(readlink -f "$(wb_root)") || true
@@ -411,15 +354,8 @@ agent_sources() {
   for name in $WB_AGENTS; do printf '%s\n' "$base/agents/$name.md"; done
 }
 
-# Agent definitions go to .claude/agents/, copied whole: a worker that runs
-# one item in its worktree, for a composing session to spawn. The copy is
-# meant to be read, never edited — but unlike a skill, which is a directory
-# and can hold a GENERATED stamp recording what it came from, an agent is a
-# flat .md with nowhere to put one. So the check here is 'cmp' and the answer
-# is one bit: a copy that differs is overwritten, whether the source moved on
-# or someone edited the copy. A hand edit is lost without a prompt. Making
-# that refusable needs somewhere to record two hashes — a sidecar manifest —
-# and three static files have not earned the second bookkeeping format.
+# An agent is a flat .md with nowhere to hold a stamp, so the check is cmp
+# and a differing copy is overwritten either way.
 render_agents() {
   local root src dst name wanted=" "
   root=$(repo_root)
@@ -434,13 +370,8 @@ render_agents() {
     echo "  rendered .claude/agents/$name"
   done < <(agent_sources)
 
-  # A copy for an agent this tool no longer ships. Reachable only by the
-  # deliberate two-step — dropped from WB_AGENTS and deleted from agents/ —
-  # since agent_sources dies on a name it lists but cannot find. Guarded by
-  # the marker in the copy's own frontmatter, so a project's own agent
-  # sitting in the same directory is never touched: 'x-workbench' is carried
-  # by the sources, which is what makes it true of the copies too, and an
-  # unknown frontmatter key is inert (CLAUDE.md, "Platform facts").
+  # Reap a copy for an agent no longer shipped, guarded by the marker in its
+  # own frontmatter so a project's own agent is never touched.
   for dst in "$root"/.claude/agents/*.md; do
     [ -f "$dst" ] || continue
     name=$(basename "$dst")
@@ -451,8 +382,7 @@ render_agents() {
   done
 }
 
-# The copies that no longer match: "<name>\t<stale|edited|missing>". Over the
-# main checkout only: that is where init runs and what gets committed.
+# The copies that no longer match: "<name>\t<stale|edited|missing>", main checkout only.
 skill_drift() {
   local root src state
   root=$(main_root)
@@ -462,10 +392,7 @@ skill_drift() {
   done < <(skill_sources 2>/dev/null)
 }
 
-# The agent copies that no longer match: "<name>\tdiffers" or "<name>\tmissing".
-# One bit where skill_drift has three, for the reason render_agents gives: with
-# nothing recorded about where a copy came from, "differs" cannot be split into
-# stale and edited, and saying only "differs" beats guessing which.
+# "<name>\tdiffers|missing": with no stamp, stale and edited cannot be told apart.
 agent_drift() {
   local root src dst name
   root=$(main_root)
@@ -529,11 +456,7 @@ ensure_claude_md() {
   fi
 }
 
-# The session wiring, committed with the skills: 'workbench status' into
-# context at every session start, the status line, and the permission the
-# commands need. Merged into .claude/settings.json, never replacing it: a
-# line already there is left alone, a statusLine the user set is never
-# overridden.
+# Merged into .claude/settings.json, never replacing it.
 ensure_settings() {
   local root f
   root=$(repo_root)
@@ -543,9 +466,7 @@ ensure_settings() {
     return 0
   fi
   mkdir -p "$root/.claude"
-  # Memory in the tree: tracked, so every worktree and clone shares one store.
-  # Claude Code wants the path absolute or '~/'-based, and the same '~/' path
-  # holds on every machine laid out alike; a project outside ~ gets a note.
+  # Memory in the tree; Claude Code wants the path absolute or '~/'-based.
   local mem=
   # shellcheck disable=SC2088  # a literal '~/' — Claude Code expands it, on every machine
   case "$root" in "${HOME%/}"/*) mem="~/${root#"${HOME%/}"/}/.claude/memory" ;; esac
@@ -566,12 +487,9 @@ if not isinstance(data, dict):
     print("  .claude/settings.json is not a JSON object; left alone")
     sys.exit(0)
 changed = []
-# The settings are committed, so a clone on a machine without the CLI opens
-# with them too: guarded, the hook stays quiet there instead of failing every
-# session.
+# Guarded so a clone without the CLI stays quiet.
 HOOK = "command -v workbench >/dev/null && workbench status || true"
-# Shapes Claude Code would reject are skipped, not crashed on: a settings
-# file is the user's, and init must still reach the steps after this one.
+# Shapes Claude Code would reject are skipped, not crashed on.
 perms = data.setdefault("permissions", {})
 allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
 if not isinstance(allow, list):
@@ -582,11 +500,9 @@ else:
             allow.append(rule)
             changed.append("permissions.allow += " + rule)
 hooks = data.setdefault("hooks", {})
-# One hook: 'status' into context at session start. Matched by its exact
-# command, so a re-run adds nothing twice. The session layer an older init
-# wired — signal and gate hooks, a status line — is taken out: its commands
-# are gone from the CLI, and a gate hook left behind would refuse every tool
-# call it matched.
+# Matched by exact command, so a re-run adds nothing twice. The signal and
+# gate hooks of an older init are removed: a gate hook left behind would
+# refuse every tool call it matched.
 OLD = re.compile(r"workbench (signal|gate) ")
 if not isinstance(hooks, dict):
     print("  hooks is not an object in .claude/settings.json; left alone")
@@ -640,8 +556,6 @@ if changed:
     for c in changed:
         print("  .claude/settings.json: " + c)
 PY
-  # A local override is how a clone at another path points memory into its
-  # own tree, so only one that repeats the project value is worth a word.
   if [ -f "$root/.claude/settings.local.json" ]; then
     python3 - "$root/.claude" <<'PY'
 import json, os, sys
@@ -665,12 +579,8 @@ cmd_init() {
     esac
   done
   root=$(repo_root)
-  # The skills, the settings and the CLAUDE.md block are tracked files, and
-  # they are committed on the default branch. Run in a linked worktree, init
-  # writes them onto that item's branch, where they ride its squash under its
-  # trailer — the housekeeping-on-a-branch that 'land_item' and 'idea' avoid by
-  # always landing on the main checkout. 'status' prints "run 'workbench
-  # init'" from any checkout, so a worker session reaches this.
+  # Tracked files, committed on the default branch: in a linked worktree they
+  # would ride that item's squash.
   local mainr
   mainr=$(main_root)
   [ "$root" = "$mainr" ] \
@@ -730,11 +640,8 @@ setup_checklist() {
 }
 
 cmd_adopt() {
-  # Work sitting uncommitted at adoption has no item and never will — the
-  # criterion cannot precede code that exists — and the first merge needs a
-  # clean tree anyway. Swept into the first merge it lands under an unrelated
-  # subject and nothing can find it. Commit it first, as the last
-  # pre-adoption commit, so that is at least on record.
+  # Uncommitted work at adoption has no item and never will; committed as the
+  # last pre-adoption commit it is at least on record.
   local dirt
   dirt=$(git -C "$(repo_root)" status --porcelain --untracked-files=no || true)
   [ -z "$dirt" ] || die "the tree has uncommitted changes; commit them as the last pre-adoption commit, then adopt:
@@ -742,10 +649,9 @@ $(printf '%s\n' "$dirt" | sed 's/^/  /')"
   cmd_init "$@"
   cat <<EOF
 
-Now survey, in a Claude Code session here, what work tracking already exists
-— TODO files, issue lists, a roadmap in the docs — and take the list to the
-user: what becomes a backlog line, what becomes an open item, what is left
-alone. Nothing converts without their approval, and shipped work never gets a
+Now survey what work tracking already exists — TODO files, issue lists, a
+roadmap — and take the list to the user: backlog line, open item, or left
+alone. Nothing converts without their approval; shipped work never gets a
 backfilled item.
 EOF
 }
@@ -879,10 +785,8 @@ cmd_new() {
     *) die "class must be 'bug' or 'feature', got '$class'" ;;
   esac
 
-  # The file lands on the default branch, wherever this runs — created in a
-  # worktree it would otherwise ride that item's squash under its trailer —
-  # so the main checkout must hold that branch. Checked before an id is
-  # spent on a refusal.
+  # Lands on the default branch wherever this runs, so the main checkout must
+  # hold that branch; checked before an id is spent.
   root=$(main_root)
   require_main_checked_out "$root"
   slug=$(slugify "$title")
@@ -907,8 +811,7 @@ cmd_new() {
   echo "committed on $(default_branch); fill it, then 'workbench start $id'" >&2
 }
 
-# The main checkout holds the default branch, or a commit meant for it would
-# land elsewhere.
+# The main checkout holds the default branch, or a commit meant for it lands elsewhere.
 require_main_checked_out() {
   local main on
   main=$(default_branch)
@@ -916,13 +819,8 @@ require_main_checked_out() {
   [ "$on" = "$main" ] || die "$1 has '${on:-a detached HEAD}' checked out, not $main; the item commit lands there"
 }
 
-# An item file is on the default branch from the moment it exists: 'new'
-# lands the template, 'start' lands whatever was written since — the
-# criterion — and from then on main's copy stands until the branch's copy
-# overwrites it at merge. Only this path goes into the commit: with a
-# pathspec, commit takes the file as it is in the tree and leaves the rest
-# of the index alone, so a session's other pending edits on main stay where
-# they were. Nothing pending, nothing committed.
+# 'new' lands the template, 'start' the criterion. Only this path goes into
+# the commit, so a session's other pending edits on main stay where they were.
 land_item() {
   local path="$1" msg="$2" root
   root=$(main_root)
@@ -934,13 +832,10 @@ land_item() {
   echo "committed ${path#"$root"/} on $(default_branch)" >&2
 }
 
-# The item file, over every checkout, in the order a copy is authoritative:
-# the item's own worktree first — the copy on its branch, the one edited —
-# then the main checkout, which holds the item as it started and, once
-# merged, as it ended. Every worktree cut after that inherits main's copy, so
-# a sibling's is never the item's home — archive run from one must move
-# main's copy, or main's stays open. Last the current checkout and the rest,
-# for an item written by hand and not yet landed.
+# The item file, in the order a copy is authoritative: the item's own
+# worktree, then the main checkout, then the current checkout and the rest
+# (an item written by hand, not yet landed). A sibling's inherited copy is
+# never the item's home.
 find_item() {
   local id="$1" b
   wb_find items -name "$id-*.md" -print -quit < <(
@@ -954,35 +849,26 @@ find_item() {
   )
 }
 
-# The checkout an item file belongs to. find_item may return a path from the
-# main checkout while the caller stands in a linked worktree, so every path
-# derived from an item must be rooted here and not at repo_root.
+# The checkout an item file belongs to; paths derived from an item are rooted here.
 item_root() {
   printf '%s\n' "${1%/"$WB"/items/*}"
 }
 
-# Local branches for an item id, one per line. refs/heads lives in the common
-# git directory and is shared by every worktree, so the set is the same from
-# any checkout — the root is passed to pin the call, not to change the answer.
+# Local branches for an item id. refs/heads is shared by every worktree; the
+# root only pins the call.
 local_branches() {
   git -C "$1" for-each-ref --format='%(refname:short)' "refs/heads/$2-*"
 }
 
-# One item, one branch. $1 the id, for the message; $2 the branches already
-# read. A checker, not a filter: 'b=$(require_one_branch …)' would run the die
-# in a command substitution, where 'exit 1' leaves only that subshell and the
-# refusal reaches the caller as an exit status for 'set -e' to notice — or,
-# after a 'local', not at all. Called as a statement, the die is the script's.
+# One item, one branch. A checker, not a filter: in a command substitution
+# the die would leave only the subshell, and after a 'local' not even that.
 require_one_branch() {
   case "$2" in
     *$'\n'*) die "several branches match $1-*:"$'\n'"$2" ;;
   esac
 }
 
-# The branch an item is on, if any: a local one, else one only fetched from
-# origin — on another machine that ref may be the only trace that an item
-# was started. The origin lookup stays written out: one site, and a different
-# ref namespace than local_branches covers.
+# A local branch, else one only fetched from origin — another machine's start.
 item_branch() {
   local b
   b=$(local_branches "$(main_root)" "$1")
@@ -991,21 +877,12 @@ item_branch() {
   printf '%s\n' "$b"
 }
 
-# The squash commit carrying an item's trailer, or empty when none does.
-# $1 root, $2 branch, $3 id.
-#
-# Two things this centralises, and both are load-bearing. The '--' terminator:
-# without it a path named for the default branch — a 'main' file or directory —
-# makes the rev ambiguous and git exits 128, and the callers that swallowed
-# stderr read that fatal as "no commit carries the trailer", which is the exact
-# input they treat as benign. And a real git failure now dies rather than
-# returning empty, so "no commit" means no commit.
-#
-# The branch is a parameter because default_branch makes unpinned git calls;
-# resolving it in here would put back the very inconsistency this removes.
-# Callers must declare the variable on a preceding line: 'local sha=$(merged_sha
-# …)' takes local's own exit status and swallows the die below. The file has no
-# 'local x=$(…)' anywhere, and that is what keeps the loud half real.
+# The squash commit carrying an item's trailer, or empty. $1 root, $2 branch, $3 id.
+# The '--' is load-bearing: without it a file named for the default branch
+# makes the rev ambiguous, git exits 128, and callers that swallow stderr read
+# that as "no commit". A real git failure dies, so empty means no commit —
+# which is why no caller writes 'local x=$(merged_sha …)': local's exit
+# status would swallow the die.
 merged_sha() {
   [ -n "$1" ] || die "merged_sha: no root"
   git -C "$1" log "$2" --grep="^Item: $3\$" --format=%h -1 -- \
@@ -1018,11 +895,8 @@ cmd_start() {
   id=$(require_id "$id")
   require_init
 
-  # Closed items first, before any ref is consulted: merge deletes the local
-  # branch but never origin's, so on another machine the ref outlives the
-  # merge and the archive, and resuming from it would cut a worktree on a
-  # stale branch for a finished item. The trailer on the default branch is
-  # the signal merge itself uses.
+  # Closed items first: merge deletes the local branch but never origin's, so
+  # on another machine the ref outlives the merge.
   path=$(find_item "$id")
   case "$path" in
     */items/archive/*) die "$id is already archived" ;;
@@ -1039,10 +913,7 @@ cmd_start() {
     esac
   fi
 
-  # A started item is edited on its branch, so once its worktree is gone —
-  # removed by hand, or never cut here because the branch was fetched from
-  # another machine — the ref is where the work is. Resume from it: a
-  # worktree for the branch, nothing to commit.
+  # Once its worktree is gone the ref is where the work is; resume from it.
   if [ -n "$ref" ]; then
     branch="${ref#origin/}"
     local at
@@ -1058,15 +929,14 @@ cmd_start() {
       *) git worktree add --quiet "$wt" "$branch" ;;
     esac
     echo "resumed $branch in $wt" >&2
-    # The branch exists already, so an empty criterion is a note rather
-    # than a refusal.
+    # The branch exists already, so an empty section is a note.
     local f
     f=$(find "$wt/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null || true)
     if [ -n "$f" ] && ! section_filled "$f" "$(criterion_heading "$id")"; then
       echo "note: $id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code" >&2
     fi
     if [ -n "$f" ] && ! section_filled "$f" "$EFFECTS"; then
-      echo "note: $id's '$EFFECTS' is empty; what works today and changes is named before any code, 'none' included" >&2
+      echo "note: $id's '$EFFECTS' is empty; name what works today and changes, or 'none'" >&2
     fi
   else
     [ -n "$path" ] || die "no item matching '$id'"
@@ -1075,28 +945,19 @@ cmd_start() {
     root=$(item_root "$path")
     local rel="${path#"$root"/}" mainr
     mainr=$(main_root)
-    # Rule 2, held here because this is where code begins: the criterion
-    # is written and agreed before the branch is cut. A template comment alone does not count. Before anything moves.
+    # The criterion is agreed before the branch is cut; a template comment alone does not count.
     require_closed_fences "$id" "$path"
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
-    # A step that passes on the unchanged tree is a guard — it proves the
-    # tools ran, not that the behaviour is there. Refused here, while it is
-    # cheap to change.
+    # A guard step proves the tools ran, not that the behaviour is there.
     local guard
     guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")" "$root")
-    [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— a check that passes on the unchanged tree says the tools ran, not that the behaviour is there; name a command whose result differs when the feature is missing, then start"
-    # The other section agreed before code: what works today and will change.
-    # 'none' is an answer; an empty section is the question never asked, and
-    # merge would then refuse the first export the branch renames with nobody
-    # having decided it. Refused here, while the item is still main's to edit.
+    [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— name a command whose result differs when the feature is missing, then start"
+    # 'none' is an answer; an empty section is the question never asked.
     section_filled "$path" "$EFFECTS" \
-      || die "$id's '$EFFECTS' is empty; name what works today and changes with this — a route, an export, an output — or 'none', then start"
-    # An item is on the default branch from 'new' onward; one written by hand,
-    # or by an older workbench, sits untracked in whatever checkout it was
-    # written in, and is brought to the main checkout to land with the rest.
-    # Committed on another checkout's branch it is refused: it would reach the
-    # default branch twice, now and again under that branch's squash.
+      || die "$id's '$EFFECTS' is empty; name what works today and changes — a route, an export, an output — or 'none', then start"
+    # A hand-written item is brought to the main checkout to land; one committed
+    # on another checkout's branch would reach the default branch twice.
     if [ "$root" != "$mainr" ]; then
       ! git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1 \
         || die "$rel is committed on $(git -C "$root" rev-parse --abbrev-ref HEAD), not on $(default_branch); 'git rm' it there and commit, then start again"
@@ -1110,36 +971,29 @@ cmd_start() {
       path="$mainr/$rel"
       root="$mainr"
     fi
-    # Always under the main checkout and off the default branch. Run from
-    # inside another item's worktree, the new one would otherwise nest under
-    # it — and vanish with it at that item's merge — and start from that
-    # item's commits.
+    # Under the main checkout and off the default branch, never nested in
+    # another item's worktree.
     wt="$mainr/.worktrees/$branch"
 
     [ -e "$wt" ] && die "worktree already exists: $wt"
 
-    # What was written since 'new' — the criterion — is where the branch
-    # starts from, so it lands on the default branch first. From here on
-    # main's copy stands as the item started; the branch's is the one edited.
+    # The criterion lands on the default branch first; main's copy then stands
+    # as the item started.
     land_item "$path" "start $id"
     git worktree add --quiet -b "$branch" "$wt" "$(default_branch)"
     echo "started $branch in $wt" >&2
   fi
-  # The skills are tracked copies, so a committed .claude/ is in the new
-  # checkout already; uncommitted, it is not, and a session opened there
-  # has no commands or hook.
+  # An uncommitted .claude/ is not in the new checkout.
   [ -d "$wt/.claude/skills/workbench" ] \
     || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
 
-  # The dispatch line: stdout stays the path, which the skills read; the line
-  # goes where a person reads.
+  # stdout stays the path, which the skills read.
   echo "dispatch: wb-worker $id in $wt" >&2
   echo "$wt"
 }
 
-# The checkout holding a branch, from git's own list rather than the
-# .worktrees/<branch> convention: 'workbench start' run from a linked worktree
-# nests its .worktrees/ there, and a worktree moved by hand is still a worktree.
+# From git's own list, not the .worktrees/<branch> convention: a worktree
+# moved by hand is still a worktree.
 worktree_of() {
   git worktree list --porcelain \
     | awk -v want="refs/heads/$1" '
@@ -1148,9 +1002,8 @@ worktree_of() {
       '
 }
 
-# worktree_of for a caller about to run git inside it. A worktree removed by
-# hand stays listed until 'git worktree prune', and git's own error for the
-# missing directory — "cannot change to …" — says nothing about that.
+# worktree_of for a caller about to run git inside it: a worktree removed by
+# hand stays listed until 'git worktree prune'.
 live_worktree_of() {
   local wt
   wt=$(worktree_of "$1")
@@ -1159,15 +1012,11 @@ live_worktree_of() {
   printf '%s\n' "$wt"
 }
 
-# Existing declarations the branch changed: an exported symbol whose
-# declaration line the diff removes or rewrites, a route string it removes or
-# rewrites. Removed-side lines only — an added line is new behaviour, not a
-# change to what works today — and a body edited under an unchanged signature
-# is not seen here; that is the reviewer's "every function the diff changes,
-# its callers found by grep". TypeScript and JavaScript exports, Go's
-# capitalised funcs and types, Python's top-level defs, and a path literal
-# in a route registration. Nothing under workbench/ or .claude/. Prints
-# '<name>\t<file>', unique.
+# Existing declarations the branch changed: removed-side diff lines only, so
+# an added line is new behaviour and a body edited under an unchanged
+# signature is not seen (the reviewer's job). TS/JS exports, Go's capitalised
+# funcs and types, Python's top-level defs, route path literals. Nothing under
+# workbench/ or .claude/. Prints '<name>\t<file>', unique.
 changed_declarations() {
   local root=$1 main=$2 branch=$3 T=$'\t' Q="[\"'\`]" NQ="[^\"'\`]"
   git -C "$root" diff "$main...$branch" -- . ":!$WB" ':!.claude' \
@@ -1198,9 +1047,7 @@ side_effects_of() {
   done < <(changed_declarations "$root" "$main" "$branch")
 }
 
-# What merge will hold the branch to, for the worker who cannot run merge:
-# every existing declaration the branch changed and whether the item names
-# it. Exit 1 while one is not — the worker's cue for 'workbench call'.
+# What merge will hold the branch to; exit 1 while one is unnamed.
 cmd_effects() {
   local id="${1:-}" root main branch wt item tmp='' out
   [ $# -eq 1 ] && [ -n "$id" ] || usage
@@ -1211,8 +1058,7 @@ cmd_effects() {
   branch=$(local_branches "$root" "$id")
   [ -n "$branch" ] || die "no branch named $id-*; effects are read from a started item's branch"
   require_one_branch "$id" "$branch"
-  # The worktree's copy when there is one — the worker edits it there and
-  # asks before committing — else the branch's.
+  # The worktree's copy when there is one, else the branch's.
   wt=$(live_worktree_of "$branch")
   [ -z "$wt" ] || item=$(find "$wt/$WB/items" -name "$id-*.md" -not -path '*/archive/*' -print -quit 2>/dev/null || true)
   if [ -z "${item:-}" ]; then
@@ -1239,16 +1085,10 @@ cmd_effects() {
   fi
 }
 
-# The squash commit is the whole point of the merge: the change lands on the
-# default branch as one commit whose only body is the trailer. Everything the
-# command checks exists to keep that commit honest — one branch, one item, one
-# subject, no unrelated changes, nothing lost — and everything it cannot check
-# (whether what could be verified was) is the review dialog's job, and the
-# user's. So no evidence gate here: an item merges open as 'awaiting'.
-#
-# Every git call is pinned to the main checkout. The command may be run from
-# the item's own worktree, which stops existing halfway through, and a bare
-# 'git' there fails on a working directory that has gone.
+# One squash commit whose only body is the trailer; every check keeps that
+# commit honest. No evidence gate beyond the status: an item merges open as
+# 'awaiting'. Every git call is pinned to the main checkout, since the item's
+# worktree stops existing halfway through.
 cmd_merge() {
   local id="${1:-}" subject="${2:-}" branch main root wt
   [ $# -eq 2 ] && [ -n "$id" ] && [ -n "$subject" ] || usage
@@ -1262,19 +1102,13 @@ cmd_merge() {
   root=$(main_root)
   main=$(default_branch)
 
-  # The branch is what merges, and it carries the ID, so resolve it directly.
-  # The archive is still consulted — an archived item's branch is a
-  # leftover, not work to merge.
   case "$(find_item "$id")" in
     */items/archive/*) die "$id is already archived" ;;
   esac
   local prior
   prior=$(merged_sha "$root" "$main" "$id")
   if [ -n "$prior" ]; then
-    # The trailer is on the default branch, so the squash landed. If the branch
-    # or its worktree is still here, the cleanup after that commit did not
-    # finish — and a bare "already carries" leaves the user with a merged item,
-    # two leftovers and nothing to run. Name them and hand over the commands.
+    # The squash landed but the cleanup did not finish: name the leftovers and the commands.
     local left_branch left_wt
     left_branch=$(local_branches "$root" "$id" | head -1)
     left_wt=''
@@ -1292,21 +1126,14 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
   [ -n "$branch" ] || die "no branch named $id-*; nothing to merge"
   require_one_branch "$id" "$branch"
 
-  # The merge gate asks whether everything verifiable was verified, and the
-  # item file on the branch is the only witness — main's copy is the item as
-  # it started. An 'open' item with no evidence block would merge as a claim
-  # nobody made; one that cannot be verified yet says so with 'awaiting —
-  # <trigger>' or 'unverified — <trigger>'. Read from the branch, not the
-  # checkout: the file may sit edited and uncommitted in the worktree, and
-  # that is refused further down.
+  # Read from the branch, not the checkout: the file may sit edited and
+  # uncommitted in the worktree, refused further down.
   local item_on_branch tmp st
   item_on_branch=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
     | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
-  # No copy on the branch is not "nothing to check": it is the witness missing,
-  # and every check below — fences, status, the trigger, evidence — would be
-  # skipped without a word. The item would merge as a claim nobody made.
+  # No copy on the branch is the witness missing, not nothing to check.
   [ -n "$item_on_branch" ] \
-    || die "$id has no item file on $branch; the branch copy is what the merge gate reads — restore it there, then retry"
+    || die "$id has no item file on $branch; merge reads the branch's copy — restore it there, then retry"
   tmp=$(mktemp)
   git -C "$root" show "$branch:$item_on_branch" > "$tmp"
   closed_fences "$tmp" || { rm -f "$tmp"; die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"; }
@@ -1323,11 +1150,8 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
     *)
       has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
   esac
-  # What works today and changes with this was agreed before start, or parked
-  # as a call since. An export or route the branch rewrote that the section
-  # does not name is neither: it lands with nobody having decided it, and the
-  # caller that breaks is found on main. Refused; a name sitting only in an
-  # open call is the user's question, answered by moving it into the section.
+  # An export or route the branch rewrote that the section does not name lands
+  # with nobody having decided it; a name only in an open call is the user's question.
   local effects
   effects=$(side_effects_of "$tmp" "$root" "$main" "$branch" | grep -v '^named' || true)
   rm -f "$tmp"
@@ -1335,8 +1159,7 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
 $(printf '%s\n' "$effects" | awk -F'\t' '{ printf "  %s  (%s)%s\n", $2, $3, ($1 == "called" ? " — parked under Decisions" : "") }')
 name each under '## $EFFECTS' on the branch (delete its Decisions line once answered) and commit, then retry; 'workbench effects $id' lists them"
 
-  # The squash needs the default branch checked out, and that checkout is the
-  # main one: a linked worktree cannot hold a branch another checkout holds.
+  # The squash needs the default branch checked out, in the main checkout.
   local on
   on=$(git -C "$root" symbolic-ref -q --short HEAD || true)
   [ "$on" = "$main" ] || die "$root has '${on:-a detached HEAD}' checked out, not $main; the squash lands there"
@@ -1360,9 +1183,7 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
   if [ -n "$wt" ]; then
     dirt=$(git -C "$wt" status --porcelain --untracked-files=all)
     if [ -n "$dirt" ]; then
-      # The item file is the one edit a worker is likeliest to leave
-      # uncommitted — evidence pasted, not yet committed — so name it rather
-      # than say "changes".
+      # The item file is the likeliest uncommitted edit: name it.
       local only
       only=$(printf '%s\n' "$dirt" | sed 's/^...//')
       if [ "$(printf '%s\n' "$only" | wc -l)" -eq 1 ]; then
@@ -1377,24 +1198,17 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
       fi
       die "$wt has uncommitted changes; commit or discard them first"
     fi
-    # Removability is checked here, before anything lands, because the squash
-    # is not transactional: the commit is written first and the worktree
-    # removed after, so a removal that fails leaves the trailer on the default
-    # branch with the branch and worktree still standing. Dirt is covered
-    # above; a lock is the other refusal 'worktree remove' makes, and it is
-    # cheap to ask about now rather than halfway through.
+    # Checked before anything lands: the squash is not transactional, and a
+    # locked worktree fails 'worktree remove' after the commit.
     if git -C "$root" worktree list --porcelain \
       | awk -v w="$wt" '$1=="worktree" { m = ($2 == w) } m && $1=="locked" { found=1 } END { exit !found }'; then
       die "the worktree $wt is locked, and merge removes it after the squash; 'git worktree unlock $wt' first, then retry"
     fi
   fi
 
-  # Another item's file changed on this branch — written there by hand, or
-  # edited there — would land on the default branch in this squash, under
-  # this item's trailer, and that item's own merge would then collide. Any
-  # class: ids share one sequence. Not the archive, a record move that
-  # carries its own SHA and reaches a branch only by hand. A three-dot diff,
-  # so items landed on the default branch since the cut are not in it.
+  # Another item's file on this branch would land under this trailer and
+  # collide at that item's own merge. Three-dot, so items landed since the cut
+  # are not in it.
   local foreign
   foreign=$(git -C "$root" diff --name-only "$main...$branch" \
     | grep -E "^$WB/items/[^/]+/[bf]-[0-9]+-[^/]*\.md\$" \
@@ -1402,11 +1216,8 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
   [ -z "$foreign" ] || die "$branch carries another item's file; 'git rm' it here — after 'workbench start <id>' for that item if it is not started — then retry:
 $(printf '%s\n' "$foreign" | sed 's/^/  /')"
 
-  # The item is edited on its branch only, and main's copy stands as it
-  # started until the squash overwrites it. The squash is a three-way merge,
-  # so a main-side edit in a hunk the branch never touched would merge in
-  # silently — a criterion changed under evidence recorded against the old
-  # one. Refused outright: three-dot, so the copy is compared with the cut.
+  # Main's copy must stand as it started: the squash is a three-way merge, so a
+  # main-side edit in a hunk the branch never touched would merge in silently.
   if [ -n "$item_on_branch" ] && ! git -C "$root" diff --quiet "$branch...$main" -- "$item_on_branch"; then
     die "$main's copy of $id changed since $branch was cut; the item is edited on its branch only — revert it on $main, then retry"
   fi
@@ -1414,44 +1225,30 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   git -C "$root" merge-base --is-ancestor "$branch" "$main" \
     && die "$branch has nothing $main does not already have"
 
-  # Refuse a conflicting branch before touching anything. A squash that stops
-  # on conflicts leaves the main index half-merged, and the repair is the
-  # user's rebase in the worktree anyway, so ask for it up front.
+  # A squash that stops on conflicts leaves the main index half-merged; ask for
+  # the rebase up front.
   if ! git -C "$root" merge-tree --write-tree "$main" "$branch" >/dev/null 2>&1; then
     die "$branch conflicts with $main; rebase it onto $main in its worktree, then retry"
   fi
 
-  # The premerge command below runs on the branch tip. A branch cut before a
-  # later merge would be tested without what that merge changed — a rename
-  # landed on main, this branch still imports the old name: green in its
-  # worktree, broken on main, and nothing downstream runs the tools on a
-  # clean main. So while a premerge is set, the branch must contain main.
-  # Except what the worker itself lands on main from its worktree — a
-  # parked call, a new item — which touches only workbench/ and changes
-  # nothing the premerge command tests.
+  # premerge runs on the branch tip: a branch behind main would be tested
+  # without what landed since. Except what the worker lands on main from its
+  # worktree — a call, a new item — which touches only workbench/.
   if [ -n "$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)" ] \
      && ! git -C "$root" merge-base --is-ancestor "$main" "$branch" \
      && git -C "$root" diff --name-only "$branch...$main" | grep -qv "^$WB/"; then
     die "$branch is behind $main, and premerge would test it without what landed since; in ${wt:-its worktree} run 'git rebase $main', then retry"
   fi
 
-  # The project's own gate — 'git config workbench.premerge "<command>"' —
-  # run in the branch's worktree, last of the checks because it is the slow
-  # one, and before anything lands. Its exit status is the verdict and its
-  # output the reason, so both go where a person reads. The review dialog
-  # is judgment and the user's to weigh; this is the project's tools, and
-  # only unsetting the config skips it. A branch whose worktree is gone is refused, not passed
-  # unchecked: the tools need the files.
+  # The project's own gate, last because it is slow, before anything lands;
+  # only unsetting the config skips it.
   local premerge
   premerge=$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)
   if [ -n "$premerge" ]; then
     [ -n "$wt" ] || die "workbench.premerge is set ('$premerge') and $branch has no worktree to run it in; 'workbench start $id' recreates one, then retry"
     echo "premerge: $premerge (in $wt)" >&2
     if ! (cd "$wt" && bash -c "$premerge") >&2; then
-      # A worktree holds tracked files only; a check that needs the
-      # project's dependencies has nothing to run until they are installed
-      # there, and which ones is the project's business, not this tool's.
-      die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry. A worktree holds tracked files only: if the command wants the project's dependencies, install them there the way the project's rules say first"
+      die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry. A worktree holds tracked files only: if the command wants the project's dependencies, install them there first"
     fi
   fi
 
@@ -1465,9 +1262,7 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   squash=$(git -C "$root" merge --squash --quiet "$branch" 2>&1) \
     || {
       printf '%s\n' "$squash" >&2; unsquash "$root"
-      # The dirt tolerated above is an unstaged edit on main; when the branch
-      # touches the same file, git stops here to protect it, and the way
-      # forward is to commit or discard that edit, not to rebase.
+      # git stops here to protect the unstaged edit tolerated above.
       if grep -q 'overwritten by merge' <<< "$squash"; then
         die "the squash stopped; $root is restored — an uncommitted edit on $main is in the way of the branch; commit or discard it, then retry"
       fi
@@ -1492,10 +1287,8 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   [ -n "$sha" ] && [ "$sha" = "$(git -C "$root" rev-parse --short HEAD)" ] \
     || die "the squash commit did not land on $main as expected; nothing removed"
 
-  # Past this point the commit exists and cannot be taken back — 'unsquash' is
-  # a reset of the index and working tree, so it has nothing to say about a
-  # commit. A cleanup that fails therefore reports the half-state rather than
-  # dying bare; the guard at the top of this function repeats it on a re-run.
+  # Past this point the commit exists; a failing cleanup reports the half-state,
+  # and the guard at the top repeats it on a re-run.
   if [ -n "$wt" ] && ! git -C "$root" worktree remove "$wt"; then
     die "merged $id as $sha on $main, but removing the worktree failed. $wt and the branch $branch are still here; finish with 'git -C $root worktree remove $wt' and 'git -C $root branch -D $branch'"
   fi
@@ -1503,8 +1296,7 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
     || die "merged $id as $sha on $main, but the branch $branch could not be deleted; finish with 'git -C $root branch -D $branch'"
 
   echo "merged $id as $sha on $main"
-  # The branch's copy of the item file overwrote main's in the squash, so
-  # read its status from the default branch.
+  # The branch's copy overwrote main's in the squash; read the status from there.
   local item
   item=$(wb_find items -name "$id-*.md" -print -quit <<< "$root")
   case "$item" in
@@ -1540,19 +1332,14 @@ item_id() {
   basename "$1" | sed -n 's/^\([bf]-[0-9]\{1,\}\)-.*/\1/p'
 }
 
-# Undo a squash that did not reach its commit. Nothing was staged before the
-# squash began, and --merge keeps what is unstaged — the edits merge
-# tolerates on main — and leaves untracked files, a report or scratch,
-# alone. The message file a stopped squash leaves would otherwise seed the
-# next commit's message.
+# Undo a squash that did not reach its commit; --merge keeps the unstaged
+# edits merge tolerates. The SQUASH_MSG would otherwise seed the next commit.
 unsquash() {
   git -C "$1" reset -q --merge || echo "workbench: reset --merge failed; run it by hand in $1" >&2
   rm -f "$(git -C "$1" rev-parse --absolute-git-dir)/SQUASH_MSG"
 }
 
-# The branch squash commits land on. Repositories here are local-first, so the
-# main/master leg is the common path and origin/HEAD the exception; an explicit
-# 'git config workbench.main' answers an odd layout once.
+# The branch squash commits land on; 'git config workbench.main' answers an odd layout once.
 default_branch() {
   local b
   b=$(git config --get workbench.main 2>/dev/null || true)
@@ -1567,32 +1354,19 @@ default_branch() {
   printf '%s\n' "$b"
 }
 
-# Evidence is present when the Evidence section holds a fenced block. Evidence
-# is defined as actual output, and output is pasted, not typed — a bare "done"
-# or "TBD" under the heading is exactly what this refuses.
-# A fenced block under '## Evidence' itself — up to the next '## ', not to the
-# end of the file. Evidence parked under a sibling heading left this section
-# empty while the gate still passed.
-# An item with its fenced blocks emptied: evidence is pasted output, and
-# pasted output holds '## ' lines — a markdown diff, a script's comments —
-# that would otherwise read as headings, end a section early, or count as a
-# concept. The fence lines themselves stay, so a block is still seen.
+# Fences emptied: pasted output holds '## ' lines that would read as headings.
+# The fence lines stay, so a block is still seen.
 without_fences() {
   awk '/^[[:space:]]*(```|~~~)/ { inside = !inside; print; next } !inside' "$1"
 }
 
-# HTML comments gone, both shapes: one closed on its own line, and one that
-# spans lines. Every scan that asks whether a section holds anything runs
-# through here first — a section holding nothing but the template's own
-# instruction comment is empty, and reads that way only after this. Takes
-# stdin so it composes in a pipeline; a file is '< "$f"'.
+# HTML comments gone, both shapes; a section holding only the template's
+# comment is empty. Takes stdin.
 strip_comments() {
   sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
 }
 
-# An odd number of fence lines: everything after the last one is inside a
-# block to every scan above, so a criterion reads as empty and a section as
-# missing with nothing to say why. Named at the gates, before those scans.
+# Odd fence count: everything after the last fence is inside a block to every scan.
 closed_fences() {
   local n
   n=$(grep -cE '^[[:space:]]*(```|~~~)' "$1" || true)
@@ -1613,10 +1387,7 @@ has_evidence() {
   grep -qE '^[[:space:]]*(```|~~~)' <<<"$body"
 }
 
-# The '## ' headings a class may carry, in the order the template writes them.
-# Anything else is a section the template did not ask for — "For the
-# operator", "Decisions this took", "What this did not prove" — and those
-# were where the archive grew long and the user's calls went to hide.
+# The '## ' headings a class may carry, in template order.
 template_headings() {
   case "$1" in
     b-*) printf '%s\n' 'What was seen' 'How to reproduce' 'Root cause' 'The fix' 'Side effects' 'How to confirm it is fixed' 'Decisions' 'Evidence' ;;
@@ -1630,15 +1401,13 @@ foreign_headings() {
   comm -23 <(without_fences "$path" | sed -n 's/^## //p' | sort -u) <(template_headings "$id" | sort -u)
 }
 
-# A heading the template does have, but twice. foreign_headings compares sets,
-# so a repeat collapses and passes it — and a second '## Evidence' splits the
-# record in two, with the gates reading only as far as the first one.
+# A template heading twice: foreign_headings compares sets, and a second
+# '## Evidence' splits the record with the gates reading only the first.
 repeated_headings() {
   without_fences "$1" | sed -n 's/^## //p' | sort | uniq -d
 }
 
-# The statuses items.md defines, and nothing else: an unknown status in an
-# archive shows in every listing beside 'archived'.
+# The statuses items.md defines, and nothing else.
 known_status() {
   case "$1" in
     open|awaiting*|unverified*|unreproduced*|abandoned*) return 0 ;;
@@ -1646,18 +1415,10 @@ known_status() {
   esac
 }
 
-# An unreproduced bug that was started has a branch holding nothing but its
-# item file — there was nothing to fix — and a worktree the file was edited
-# into. Archiving it means bringing the file back to the main checkout and
-# dropping both. Only when the item is all the branch holds: anything else is
-# work, and work merges or is discarded by hand, never here. The item file is
-# itself always the dirty one — 'start' moved it in uncommitted, untracked
-# to git, and the status edit came after — so it alone is exempt from both
-# checks. Prints the path of the copy now in the main checkout.
-#
-# An abandoned branch is the other one that never merges, and it may carry
-# whatever was built before the user dropped it. That is dropped only when
-# asked (discard=1), and named as it goes.
+# Retire a branch that never merges: an unreproduced bug's holds only its
+# item file, an abandoned item's whatever was built, dropped only with
+# discard=1 and named as it goes. The item file is always the dirty one and
+# alone is exempt. Prints the path of the copy now in the main checkout.
 retire_branch() {
   local id="$1" branch="$2" path="$3" discard="${4:-0}" main root wt other item_re hint dropped=0
   main=$(default_branch)
@@ -1690,11 +1451,8 @@ $hint"
     dropped=1
   fi
 
-  # Main's copy is the item as it started; the branch's is the item as it
-  # ends, and that is the one archived. From the worktree when there is one
-  # — a status set there and not yet committed counts, as above — else from
-  # the branch itself, since the worktree gone by hand leaves find_item on
-  # main's stale copy.
+  # The branch's copy is the one archived: from the worktree when there is one
+  # (an uncommitted status edit counts), else from the branch itself.
   local rel
   if [ -n "$wt" ]; then
     rel="${path#"$(item_root "$path")"/}"
@@ -1713,11 +1471,8 @@ $hint"
   else
     git -C "$root" show "$branch:$rel" > "$root/$rel"
   fi
-  # The branch's commits are the only record of what each round believed —
-  # the item file is rewritten in place, and the archived copy is the last
-  # one. A tag named by the id keeps them reachable once
-  # the branch is gone: 'git log <id> -- <item file>' walks them. Annotated,
-  # so push.followTags carries it with the next ordinary push.
+  # A tag named by the id keeps the branch's commits reachable — what each
+  # round believed. Annotated, so push.followTags carries it.
   git -C "$root" tag -a -m "$id" "$id" "$branch" \
     || die "tag $id already exists; the branch's history would be lost under it — 'git tag -d $id' if it is a leftover, then retry"
   # --force only because of the item file just copied out; everything else
@@ -1732,9 +1487,8 @@ $hint"
   printf '%s\n' "$root/$rel"
 }
 
-# A section holds something beyond its template comment.
-# The first '## ' section of an item, comments stripped: Why for a feature,
-# What was seen for a bug.
+# The first '## ' section, comments stripped: Why for a feature, What was
+# seen for a bug.
 lead_section() {
   without_fences "$1" | awk '/^## / { n++ } n == 1' | tail -n +2 \
     | strip_comments
@@ -1747,11 +1501,8 @@ section_filled() {
   grep -q '[^[:space:]]' <<<"$body"
 }
 
-# Criterion steps that check nothing: "by inspection", "behaviour unchanged".
-# Workbench knows no toolchain, so the
-# steps that only prove a project's own tools ran — its gate, lint, typecheck
-# or build exiting 0 — come from 'git config workbench.guards', an extended
-# regex the tool that installs those commands sets beside workbench.premerge.
+# Criterion steps that check nothing: the built-in pair, plus 'git config
+# workbench.guards', an extended regex the installing tool sets.
 criterion_guard_steps() {
   local file=$1 heading=$2 root=$3 pat='by inspection|behaviou?r (is )?unchanged|still does what it did' extra
   extra=$(git -C "$root" config --get workbench.guards 2>/dev/null || true)
@@ -1761,14 +1512,11 @@ criterion_guard_steps() {
     | head -3 | sed 's/^[[:space:]]*//; s/$/ /' | tr -d '\n' || true
 }
 
-# The section that must be filled before an item starts: the criterion,
-# agreed before any code.
+# The criterion heading's common prefix, both classes.
 criterion_heading() {
   echo "How to confirm"
 }
 
-# The section naming what works today and changes with the item. Filled
-# before start, 'none' included; held against the branch at merge.
 EFFECTS='Side effects'
 
 cmd_archive() {
@@ -1784,8 +1532,6 @@ cmd_archive() {
   id=$(require_id "$id")
   require_init
 
-  # Over every checkout: a started item is edited in its worktree, while
-  # archive is run from the main checkout.
   path=$(find_item "$id")
   case "$path" in
     */items/archive/*) die "$id is already archived" ;;
@@ -1795,10 +1541,7 @@ cmd_archive() {
   main=$(default_branch)
   branch=$(local_branches "$(main_root)" "$id")
   require_one_branch "$id" "$branch"
-  # Started with the worktree gone — removed, or never cut on this machine —
-  # the branch's copy is the item and main's is the item as it started; the
-  # checks below read the branch's. A worktree removed by hand and not yet
-  # pruned reads the same way, and retire_branch says to prune.
+  # Started with the worktree gone: the checks read the branch's copy.
   local tmp='' wt on_branch
   if [ -n "$branch" ]; then
     wt=$(worktree_of "$branch")
@@ -1815,8 +1558,7 @@ cmd_archive() {
       fi
     fi
   fi
-  # After the branch read: an item on its branch alone — started under an
-  # older workbench, worktree gone — has no copy in any checkout.
+  # An item on its branch alone has no copy in any checkout.
   [ -n "$path" ] || die "no item matching '$id'"
 
   require_closed_fences "$id" "$path"
@@ -1824,14 +1566,10 @@ cmd_archive() {
   status=$(item_status "$path")
   known_status "$status" \
     || die "$id has 'status: $status', which is not a status; the archive takes 'open' (with evidence), 'unreproduced', 'unverified — <trigger>' or 'abandoned — <why>'"
-  # A status entered unattended is provisional until the user deletes the
-  # marker; the archive is the locked record and takes no provisional
-  # decision.
+  # The archive is the locked record and takes no provisional decision.
   case "$status" in
     *"(agent)"*) die "$id's 'status: $status' was entered unattended; confirm it by deleting the '(agent)' marker, or change it, then archive" ;;
   esac
-  # --discard drops what a branch carries beyond the item: an abandoned
-  # item's half-built work. Anything else on a branch is work that merges.
   if [ "$discard" -eq 1 ]; then
     case "$status" in
       abandoned*) ;;
@@ -1839,10 +1577,7 @@ cmd_archive() {
     esac
   fi
 
-  # The file is locked once archived, so its shape is checked on the way in:
-  # only the headings the class template wrote. A section the template did
-  # not ask for is a log, a parked call, or a second Evidence — none of which
-  # belongs in the record.
+  # Locked once archived, so its shape is checked on the way in.
   local extra
   extra=$(foreign_headings "$id" "$path")
   [ -z "$extra" ] || die "$id carries sections its template does not have; fold them into the template's sections or delete them:
@@ -1854,39 +1589,30 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   [ -z "$extra" ] || die "$id has a decision waiting under '## Decisions'; answer it in the field it changes and delete the line, then archive:
 $(printf '%s\n' "$extra" | sed 's/^/  /')"
 
-    case "$status" in
-      awaiting*)
-        die "$id is awaiting a trigger and does not archive as-is. When the trigger
-  fires, set 'status: open', record the evidence, then archive; or re-state it as
-  'unverified — <trigger>' if no bound can be named." ;;
-      unverified*)
-        # The trigger is the whole value of an unverified archive: it is what a
-        # later search matches on.
-        case "$status" in
-          *—*|*" - "*) ;;
-          *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
-        esac ;;
-      unreproduced*) ;;
-      abandoned*)
-        # The why is the record, and shipped work is not abandoned: with the trailer on the
-        # default branch the item merged, and it is archived as what it is.
-        case "$status" in
-          *—*|*" - "*) ;;
-          *) die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream" ;;
-        esac
-        local shipped
-        shipped=$(merged_sha "$(main_root)" "$main" "$id")
-        [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
-      *)
-        if ! has_evidence "$path"; then
-          die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger> / abandoned — <why>)"
-        fi ;;
-    esac
+  case "$status" in
+    awaiting*)
+      die "$id is awaiting a trigger and does not archive as-is; when it fires set 'status: open', record the evidence, then archive, or re-state it as 'unverified — <trigger>' if no bound can be named" ;;
+    unverified*)
+      case "$status" in
+        *—*|*" - "*) ;;
+        *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
+      esac ;;
+    unreproduced*) ;;
+    abandoned*)
+      case "$status" in
+        *—*|*" - "*) ;;
+        *) die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream" ;;
+      esac
+      local shipped
+      shipped=$(merged_sha "$(main_root)" "$main" "$id")
+      [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
+    *)
+      has_evidence "$path" \
+        || die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger> / abandoned — <why>)" ;;
+  esac
 
-  # A branch still standing means the item has not merged, and archiving now
-  # would record 'commit: none' for good while the squash commit arrives
-  # later. The branches that legitimately never merge — an unreproduced
-  # bug's, an abandoned item's — are retired here.
+  # A branch still standing means the item has not merged; the branches that
+  # never merge are retired here.
   if [ -n "$branch" ]; then
     case "$id:$status" in
       *:abandoned*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
@@ -1895,35 +1621,25 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
     esac
   fi
 
-  # The commit that carries this item's trailer, searched on the default branch
-  # only. The squash commit is the one that legitimately carries the trailer
-  # and it lives there; HEAD would miss it from a worktree branched before the
-  # merge, and --all (or HEAD from the item's own worktree) could hit a branch
-  # commit that the squash then discards — a dangling SHA in the archive.
+  # On the default branch only: HEAD is whatever the checkout sits on, and
+  # --all could hit a branch commit the squash then discards. Never fall back
+  # to HEAD; an item with no trailer records 'none'.
   sha=$(merged_sha "$(main_root)" "$main" "$id")
-  # Never fall back to HEAD: HEAD is whatever the checkout happens to sit on,
-  # and recording it would write a commit into the archive that did not
-  # implement the item. An item with no trailer — an unreproduced bug — says so.
   if [ -z "$sha" ]; then
     sha=none
     echo "no commit on $main carries 'Item: $id'; recorded as commit: none" >&2
   fi
 
-  # Assigned here and not earlier, deliberately: retire_branch above returns a
-  # new $path — main's copy, after it has removed the worktree — so a root taken
-  # before that call points at a directory that no longer exists. Anything above
-  # this line that needs the main checkout must say '$(main_root)', not '$root';
-  # 'git -C ""' is a silent no-op that resolves against the caller's cwd, so an
-  # empty $root would look like it worked.
+  # Assigned after retire_branch, which returns a new $path once the worktree
+  # is gone; above this line say '$(main_root)', not '$root' — 'git -C ""' is
+  # a silent no-op against the caller's cwd.
   root=$(item_root "$path")
   local dest
   dest="$root/$WB/items/archive/$(basename "$path")"
   mkdir -p "$(dirname "$dest")"
 
-  # An item created but never committed is untracked, so git mv cannot move it.
-  # Every other failure is real and must not be swallowed. The commit line
-  # goes on after the move: a move that fails leaves the file as it was, so a
-  # re-run appends it once.
+  # An untracked item cannot be 'git mv'ed. The commit line goes on after the
+  # move, so a re-run appends it once.
   if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
     git -C "$root" mv "$path" "$dest"
   else
@@ -1935,9 +1651,8 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
-# One line per document over its cap: the file and its length against the cap. Silent when every one is under. Caps are the
-# CAP_* defaults unless 'git config workbench.cap.<name>' says otherwise; a
-# value that is not a number falls back to the default rather than refusing.
+# One line per document over its cap; 'git config workbench.cap.<name>'
+# overrides, a non-number falling back to the default.
 cap_alert() {
   local mainr f name key cap n
   mainr=$(main_root)
@@ -1956,32 +1671,15 @@ cap_alert() {
 
 # --- hook input -------------------------------------------------------------
 
-# The hook input, read once, and every field looked at pulled in one pass —
-# a python3 per field is most of a hook's latency. Without python3, a sed
-# that takes the first string under the key's last segment.
-# Dotted paths out of a JSON object on stdin: one line per path, in argument
-# order, empty for a path that is missing or whose value is not a string.
-#
-# The count is the contract. A missing field still gets its line, because
-# every caller reads the output positionally — 'read_hook_input' binds them
-# by index — and a dropped line would shift every field after it onto
-# the wrong name. Callers still default with '${vals[i]:-}': command
-# substitution eats trailing newlines, so an all-empty result arrives short.
-#
-# One invocation for all of them. A python3 start is ~15ms and this runs on
-# every hook and every status-line repaint, so a call per field was most of
-# what either cost.
-#
-# No jq leg. jq is on none of the machines this runs on, so it would be a
-# third implementation no test could reach, and an unreachable leg is where a
-# bug lives longest. (Elsewhere in this repo the convention is "jq, or fall
-# back"; this is a call about this tool, not about that convention.)
+# Dotted paths out of a JSON object on stdin, one line per path in argument
+# order, empty for a missing or non-string value — the count is the contract,
+# read_hook_input binds positionally. One python3 for all of them: a start is
+# ~15ms and this runs on every hook. Without python3, a text scan.
 json_fields() {
   local input k
   input=$(cat 2>/dev/null || true)
   if command -v python3 >/dev/null 2>&1; then
-    # Never fails: unparseable input yields one empty line per path, which is
-    # what the caller would have got from a refusal anyway.
+    # Never fails: unparseable input yields one empty line per path.
     printf '%s' "$input" | python3 -c '
 import json, re, sys
 try:
@@ -2002,18 +1700,10 @@ for path in sys.argv[1:]:
         print("")' "$@" 2>/dev/null || true
     return 0
   fi
-  # No python3: a text scan, one key at a time, matching the FIRST occurrence
-  # of the path's last segment. A trailing '.*' is greedy, so a plain
-  # 's/.*"key".*/\1/' takes the LAST match on the line — on a compact payload
-  # that is a nested copy under some other object rather than the field asked
-  # for.
-  #
-  # A heuristic, not a parser, and it stays one: it ignores the path's
-  # prefix, and a nested key written *before* the real one still wins. It is
-  # aimed at how these payloads are actually written, with the top-level
-  # fields first. awk rather than 'grep -o | head -1' because 'head' closes
-  # the pipe on its first line and the writer takes SIGPIPE, which under
-  # 'set -o pipefail' is a 141 the caller reads as failure.
+  # The FIRST occurrence of the path's last segment — a greedy sed would take
+  # the last, a nested copy. A heuristic aimed at how these payloads are
+  # written. awk rather than 'grep -o | head -1': head closes the pipe and the
+  # writer takes SIGPIPE.
   for k in "$@"; do
     printf '%s' "$input" | awk -v key="${k##*.}" '
       !done && match($0, "\"" key "\"[[:space:]]*:[[:space:]]*(\"[^\"]*\"|-?[0-9][0-9.eE+-]*|true|false)") {
@@ -2048,13 +1738,11 @@ json_string() {
 
 # --- round: the review dialog's accountant --------------------------------
 
-# workbench round <id> <fixed> <stands>
-# Records one round of the review dialog on the item — 'rounds: r1 5/2 ·
-# r2 2/0 · stop' under its status line — and says what comes next. The rule
-# is numeric so the worker cannot talk itself out of a third round or into
-# a sixth: round 2 always; another while the last round fixed three or
-# more, or as many as the round before it (two at least) — one fix after a
-# clean round is a tail, not a trend; the cap parks it.
+# Records one round of the review dialog on the item — 'rounds: r1 5/2 · r2
+# 2/0 · stop' under its status line — and says what comes next. Numeric so
+# the worker cannot argue: round 2 always; another while the last round fixed
+# three or more, or as many as the round before (two at least); the cap
+# parks it.
 ROUND_CAP=5
 cmd_round() {
   local id="${1:-}" fixed="${2:-}" stands="${3:-}"
@@ -2096,8 +1784,7 @@ cmd_round() {
   else
     awk -v r="rounds: $entries · $decision" '{ print } /^status: / && !done { print r; done = 1 }' "$path" > "$tmp"
   fi
-  # mktemp creates 0600; the replace must not carry that onto the item file,
-  # which is committed and read by everything downstream.
+  # mktemp creates 0600; the replace must not carry that onto the item file.
   chmod --reference="$path" "$tmp"
   mv -f "$tmp" "$path"
   echo "rounds: $entries"
@@ -2110,19 +1797,14 @@ cmd_round() {
 
 # --- ideas ------------------------------------------------------------------
 
-# One line onto the backlog, in the main checkout wherever this runs. The
-# backlog is housekeeping and lands on the default branch; appended in a
-# worktree it would ride that item's squash under its trailer. What it
-# leaves behind is an unstaged edit on main, which merge tolerates.
+# One line onto the main checkout's backlog wherever this runs; an unstaged
+# edit on main, which merge tolerates.
 cmd_idea() {
   local line="${1:-}" f
   [ $# -eq 1 ] && [ -n "$line" ] || usage
   require_init
   case "$line" in *$'\n'*) die "an idea is one line" ;; esac
-  # One obvious sentence. A status report or a parked question at two hundred
-  # words makes the backlog a mailbox; those have a place of their own:
-  # 'workbench call'.
-  [ "${#line}" -le "$IDEA_MAX" ] || die "an idea is one obvious sentence, under $IDEA_MAX characters; a question for the user is 'workbench call', a status is nowhere"
+  [ "${#line}" -le "$IDEA_MAX" ] || die "an idea is one obvious sentence, under $IDEA_MAX characters; a question for the user is 'workbench call'"
   f="$(main_root)/$WB/BACKLOG.md"
   [ -f "$f" ] || die "no $f; run 'workbench init' in the main checkout"
   # A last line missing its newline would otherwise absorb the entry.
@@ -2131,9 +1813,8 @@ cmd_idea() {
   echo "$f"
 }
 
-# A decision that is the user's, parked while they are not there: one line
-# in the main checkout's DECISIONS.md, naming the item it came from. The user
-# answers by editing the item and deleting the line; 'status' counts them.
+# A decision that is the user's, parked: one line under the item's
+# '## Decisions', or in DECISIONS.md for '-'.
 cmd_call() {
   local id="${1:-}" line="${2:-}" f
   [ $# -eq 2 ] && [ -n "$id" ] && [ -n "$line" ] || usage
@@ -2143,7 +1824,7 @@ cmd_call() {
     *) id=$(require_id "$id") ;;
   esac
   case "$line" in *$'\n'*) die "a call is one line" ;; esac
-  [ "${#line}" -le "$CALL_MAX" ] || die "a call is one question under $CALL_MAX characters; the reasoning behind it belongs in the item"
+  [ "${#line}" -le "$CALL_MAX" ] || die "a call is one question under $CALL_MAX characters; the reasoning stays in the item"
   if [ -z "$id" ]; then
     f="$(main_root)/$WB/DECISIONS.md"
     [ -f "$f" ] || write_decisions "$f"
@@ -2155,10 +1836,8 @@ cmd_call() {
     echo "$f"
     return 0
   fi
-  # The question lives with the reasoning: in the item, in the copy that is
-  # the item — its branch's once started, main's before. A started item's
-  # call therefore lands on the branch, never on main, so the worker's own
-  # question does not put its branch behind main at merge.
+  # A started item's call lands on the branch, never on main, so the worker's
+  # own question does not put its branch behind main.
   f=$(find_item "$id")
   [ -n "$f" ] || die "no item matching '$id'"
   case "$f" in */items/archive/*) die "$id is archived; a call on it is a new item" ;; esac
@@ -2170,8 +1849,7 @@ cmd_call() {
     [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
     printf '\n## Decisions\n' >> "$f"
   fi
-  # The line goes at the end of the section: before the next heading, or at
-  # the end of the file when Decisions is last.
+  # At the end of the section.
   local tmp
   tmp=$(mktemp)
   awk -v l="- $line" '
@@ -2206,16 +1884,10 @@ open_calls() {
 
 # --- status -----------------------------------------------------------------
 
-# In-flight work is branches plus items merged as 'awaiting', which have no
-# branch left. Both halves are needed; neither alone is the answer.
-#
-# One line per item: from its own worktree when the branch has one — that is
-# where the item is edited — else from the main checkout. Every worktree
-# inherits main's copies, so a copy in a sibling is not a second item and is
-# not counted, and an item archived on main whose open copy still sits in a
-# worktree cut before the archive is archived, not open. Only an item on no
-# branch and not on main — untracked in a sibling, written by hand or by an
-# older workbench — is shown from where it is, and labelled.
+# One line per item: from its own worktree when the branch has one, else
+# from the main checkout. A sibling's inherited copy is not counted, an item
+# archived on main is archived, and an item on no branch and not on main
+# (untracked in a sibling) is shown from where it is, labelled.
 status_lines() {
   local name="$1" f='' st own started='' where='' mainr d tmp=''
   shift
@@ -2228,11 +1900,8 @@ status_lines() {
   if [ -z "$f" ]; then
     [ -z "$(find "$mainr/$WB/items/archive" -name "$name" -print -quit 2>/dev/null)" ] || return 0
     f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
-    # A branch with no worktree — removed by hand, or only fetched from
-    # another machine — is started too; 'start' resumes it.
-    # Not local_branches: that globs '<id>-*', and this asks whether a branch
-    # of exactly this name exists. The two differ when one slug is a prefix of
-    # another — b-1-foo would answer for b-1-foobar.
+    # A branch with no worktree is started too. Not local_branches: that globs
+    # '<id>-*', and b-1-foo would answer for b-1-foobar.
     [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/${name%.md}")" ] || started='   started'
     if [ -n "$f" ] && ! git -C "$mainr" ls-files --error-unmatch "$f" >/dev/null 2>&1; then
       where="   [not committed — 'workbench start' lands it]"
@@ -2268,12 +1937,9 @@ status_lines() {
 cmd_status() {
   local dirs=()
   require_init
-  # Run by the SessionStart hook, which also fires on compaction — and the
-  # compacted context has lost every invoked skill body and every path rule
-  # it had read; only CLAUDE.md and this output come back (agent-kit's
-  # README; not probed here). Say so first, so the next step is the skill.
-  # Stdin is read only when something is already there: by hand it is a tty,
-  # and a pipe with nothing on it must not block.
+  # The SessionStart hook also fires on compaction, which drops every invoked
+  # skill body and path rule; say so first. Stdin is read only when something
+  # is there: by hand it is a tty.
   if [ ! -t 0 ] && read -t 0 -r _ 2>/dev/null; then
     read_hook_input
     if [ "$h_source" = compact ]; then
@@ -2287,16 +1953,14 @@ cmd_status() {
   local names=() name
   mapfile -t names < <(open_names)
 
-  # Before the items, so a session start reads it first: a file past its
-  # line cap is a docs review to run, and the number says how far past.
+  # Before the items, so a session start reads it first.
   local alert
   alert=$(cap_alert)
   if [ -n "$alert" ]; then
     echo "$alert"
     echo
   fi
-  # Per clone, like every workbench key: a fresh clone has none, and a merge
-  # there runs no project check — said here, where every session start reads.
+  # Per clone: a fresh clone has none.
   if [ -z "$(git config --get workbench.premerge 2>/dev/null || true)" ]; then
     echo "premerge: unset — merges run no project check in this clone; git config workbench.premerge \"<the project's test or gate command>\""
     echo
@@ -2313,10 +1977,8 @@ cmd_status() {
   git branch --format='  %(refname:short)' | grep -E '^  [bf]-[0-9]+-' \
     || echo "  (none)"
 
-  # Merged and open: invisible to 'git branch', so nothing but a grep
-  # surfaces one whose trigger never fired. Merged means on the default
-  # branch, so main's copies are the ones read; a worktree's copy of one is
-  # inherited from there.
+  # Merged and open: invisible to 'git branch'. Merged means on the default
+  # branch, so main's copies are read.
   echo
   echo "merged, still awaiting a trigger"
   local hits=()
@@ -2332,10 +1994,8 @@ cmd_status() {
     done
   fi
 
-  # Merged and still 'open', with no branch: the trailer is on the default
-  # branch and the file is not in the archive. Not a state the tables have —
-  # it is an item that merged with its criterion unrun and never said so, or
-  # one archived nowhere. Either archive it or give it the status it needs.
+  # Merged and still 'open', with no branch: an item that merged with its
+  # criterion unrun and never said so.
   echo
   echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"
   local mainr mainb mid limbo=0
@@ -2351,10 +2011,9 @@ cmd_status() {
       local st sha
       st=$(item_status "$f")
       case "$st" in awaiting*|unverified*) continue ;; esac
-      sha=$(git -C "$mainr" log "$mainb" --grep="^Item: $mid\$" --format=%h -1)
+      sha=$(merged_sha "$mainr" "$mainb" "$mid")
       [ -n "$sha" ] || continue
-      # Shipped work carrying a status that never merges: archive refuses
-      # it, so skipped here it would be the one combination nothing lists.
+      # Shipped work carrying a status that never merges: archive refuses it.
       case "$st" in
         unreproduced*|abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
         *) printf '  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
@@ -2364,9 +2023,7 @@ cmd_status() {
   fi
   [ "$limbo" -eq 1 ] || echo "  (none)"
 
-  # Decisions entered unattended, in the item files themselves — the marker
-  # is what the user greps for, and a DECISIONS.md line can go without it.
-  # From the copy that is the item: its branch's when it has one, else main's.
+  # Provisional decisions, from the copy that is the item.
   local prov=() pf pl
   for name in "${names[@]}"; do
     pf=$(item_copy "$name")
@@ -2407,10 +2064,8 @@ cmd_status() {
     grep '^- ' "$mainr/$WB/DECISIONS.md" | sed 's/^- /  /'
   fi
 
-  # Same ID under two slugs, open items and archive alike — the archive holds
-  # the spent numbers a fresh allocation collides with. Names are deduplicated
-  # first: the same file in two checkouts is one item. Cause and repair:
-  # references/git.md, "Duplicate IDs across machines".
+  # Same ID under two slugs, archive included; names deduplicated first.
+  # Repair: references/git.md.
   local dupes
   dupes=$(wb_find items -name '[bf]-*-*.md' -print < <(all_roots) \
     | sed 's|.*/||' | sort -u \
@@ -2421,9 +2076,7 @@ cmd_status() {
     printf '%s\n' "$dupes" | sed 's/^/  /'
   fi
 
-  # Rendered copies that no longer match. Listed, not fixed: init refreshes
-  # them, and that is a commit the user makes. An edited copy is named apart
-  # from a stale one, since init overwrites the first only when told to.
+  # Listed, not fixed: init refreshes them, and that is the user's commit.
   local drift stale edited
   drift=$(skill_drift)
   stale=$(awk -F '\t' '$2 != "edited" { printf "%s ", $1 }' <<< "$drift")
@@ -2438,9 +2091,7 @@ cmd_status() {
     echo "skills edited by hand under .claude/skills/ — move the edit into the source; 'workbench init --force' overwrites"
     echo "  $edited"
   fi
-  # Agents are listed apart from the skills because the answer is weaker: a
-  # copy that differs may be behind its source or may have been edited, and
-  # nothing recorded here can tell them apart. Either way init overwrites it.
+  # One bit for agents: differs, whether stale or edited.
   local agents
   agents=$(agent_drift | awk -F '\t' '{ printf "%s ", $1 }')
   if [ -n "${agents// /}" ]; then
@@ -2448,8 +2099,8 @@ cmd_status() {
     echo "agents differ from their source — run 'workbench init', then commit .claude/"
     echo "  $agents"
   fi
-  # The memory setting is a path, committed: a clone laid out differently
-  # from the one init ran in points at a store that is not in its tree.
+  # The memory setting is a committed path; a clone laid out differently
+  # points elsewhere.
   local mem
   mem=$(memory_dir_setting)
   case "$mem" in
@@ -2461,13 +2112,8 @@ cmd_status() {
   esac
 }
 
-# Item names in flight, over every checkout, once each — an item is in the
-# main checkout and in every worktree cut since it landed — and without those
-# the main checkout has archived: a worktree cut before an archive keeps the
-# open copy, and that copy is not an item.
-# A branch named like an item whose file is in no checkout — started under
-# an older workbench, worktree gone — is an item too, and is listed from the
-# branch.
+# Item names in flight over every checkout, once each, minus those archived
+# on main; a branch named like an item whose file is in no checkout counts too.
 open_names() {
   local archived
   archived=$(find "$(main_root)/$WB/items/archive" -name '[bf]-*.md' 2>/dev/null | sed 's|.*/||')
@@ -2514,9 +2160,7 @@ all_roots() {
   git worktree list --porcelain | sed -n 's/^worktree //p'
 }
 
-# Where Claude Code keeps this project's memory when a setting says so:
-# 'autoMemoryDirectory', local settings over project over user, absolute or
-# '~/'-based by Claude Code's own rule. Empty when unset.
+# 'autoMemoryDirectory': local settings over project over user; empty when unset.
 memory_dir_setting() {
   local f v
   for f in "$(main_root)/.claude/settings.local.json" "$(main_root)/.claude/settings.json" "${HOME%/}/.claude/settings.json"; do
