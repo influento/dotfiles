@@ -1,122 +1,98 @@
 ---
 name: workshop-setup
-description: Install ts-gate, the stack packages the user names, the wb-reviewer agent with its criterion habit, and workbench when the project wants tracked items, into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup. For a project without TypeScript, skip ts-gate.
+description: Install the gate the project's language has (ts-gate for TypeScript), the stack packages the user names, the wb-reviewer agent with its criterion habit, and workbench when the project wants tracked items, into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup.
 ---
 
 # Project setup
 
 Three separate tools and a review step, one order. None of the installers
-knows the others; the order is what makes them fit. Run each step, show its output, stop where it
-says.
+knows the others; the order is what makes them fit. This skill owns the
+order and the checklist, nothing language-specific: what a scaffold holds,
+what an installer's output means, what a package needs, each tool says in
+its own contract, and this skill points there. Run each step, show its
+output, stop where it says.
 
-Paths: `workbench` and `stack` are on PATH. ts-gate lives under `workshop/` beside the skills tree in dotfiles,
-reached through the `~/.claude/skills` symlink:
+Paths: `workbench` and `stack` are on PATH. The gates live under `workshop/`
+beside the skills tree in dotfiles, reached through the `~/.claude/skills`
+symlink:
 
 ```
-TS_GATE=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop/ts-gate)
+WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
 ```
-
-Read `$TS_GATE/CLAUDE.md` first: it is the gate's own contract and its
-brownfield procedure.
 
 ## Which project is this
 
 | | Greenfield | Brownfield |
 |---|---|---|
 | Tree | empty or scaffold only | history, code, maybe its own tooling |
+| Gate | default install | the gate's own brownfield procedure, in its contract |
 | Review | `wb-reviewer.md` + the CLAUDE.md block (step 5) | the same |
 | Workbench, if wanted | `workbench init` | `workbench adopt`, then the survey it prints |
-| ts-gate severity | default (`error`) | `severity: "warn"` and ratchet, per `$TS_GATE/CLAUDE.md` "Brownfield" |
-| ESLint config | install writes it | install prints a block; you merge it before the gate can be green |
 
 ## Steps
 
 1. **Preconditions.** Inside git, at least one commit, `git status
    --porcelain` empty (commit or stash; `stack add` and `workbench adopt`
-   refuse a dirty tree, ts-gate's installer does not check).
-   Greenfield with nothing yet: scaffold and commit first —
+   refuse a dirty tree; a gate installer may not check).
 
-   ```
-   git init -b main && npm init -y && npm i -D vitest@5
-   # vitest in package.json before ts-gate goes in: the installer detects the
-   #   runner from package.json, and a peer-installed vitest (what @effect/vitest
-   #   pulls in later) never lands there — without it the gate runs no tests
-   # tsconfig.json: "strict": true, "noUncheckedIndexedAccess": true,
-   #   "erasableSyntaxOnly": true, "noEmit": true, "module": "nodenext",
-   #   "allowImportingTsExtensions": true (node runs the sources as they are, so
-   #   relative imports are written with .ts: `from "./health.ts"`; nodenext
-   #   otherwise demands .js, which node cannot resolve to a .ts file),
-   #   "include": ["src"]
-   # package.json: "engines": { "node": ">=<major>" }, the node this runs on;
-   #   "scripts": { "start": "node src/index.ts" } — the run model, decided here
-   # src/index.ts with one export (knip's entry)
-   # .gitignore: node_modules
-   git add -A && git commit -m "scaffold"
-   ```
+   Greenfield with nothing yet: scaffold the least the tools going in need,
+   commit `scaffold`. What that is belongs to the tools, not here: the gate's
+   contract has a "Greenfield" section with the scaffold for its language
+   (`$WORKSHOP/ts-gate/CLAUDE.md` for TypeScript); a stack entry that
+   scaffolds itself says so in `stack show <entry>` (its `next:` line) and
+   runs before the scaffold commit, the tree continuing from what it made.
+   Nothing beyond what those two say: an extra dependency added here can
+   conflict with what an installer pins later.
 
-   Brownfield: `tsconfig.json` needs `strict: true`, `noUncheckedIndexedAccess: true` and an `include`; `tsc
-   --noEmit` must pass before the gate goes in — the gate runs it repo-wide
-   and blocks every stop on a red compile. A project that does not compile
-   gets that as its first item, gate installed after.
+   Brownfield: the gate's "Project requirements" hold before it goes in
+   (for ts-gate: strict compiler flags, an `include`, a green compile). A
+   project that does not meet them gets that as its first item, gate
+   installed after.
 
-2. **ts-gate** (TypeScript projects only). `bash "$TS_GATE/install.sh" .`
-   Act on every line it prints before going on: merge the eslint block into
-   a config the project already had (until then knip fails on the unused
-   gate file); add the printed vitest lines (without them tests may reach the
-   network and `npm test` runs the live tier); a `NOTE` that
-   `workbench.premerge` is set means chain, do not replace:
-   `git config workbench.premerge "<x> && npm run gate"`; a `WARNING`
-   (tsconfig, biome includes, knip entry) is fixed first.
+2. **Gate.** One per language; a language without one skips this step and
+   sets `git config workbench.premerge` to the project's own check by hand,
+   so workbench still merges behind something.
 
-   Then `npm run gate:full`. Greenfield: green. Brownfield: the first run is
-   the baseline — knip's legitimate findings go into `ignore` /
-   `ignoreDependencies` in `ts-gate/knip.json`, cycles are fixed, eslint runs
-   at `warn` with the count recorded, all as `$TS_GATE/CLAUDE.md` says. Do not
-   commit until `gate:full` exits 0 or every remaining red is a recorded
-   warning. Commit: `ts-gate: install`.
+   TypeScript: `TS_GATE=$WORKSHOP/ts-gate`, read `$TS_GATE/CLAUDE.md` (the
+   gate's contract), then `bash "$TS_GATE/install.sh" .`. Act on every line
+   it prints before going on (its "Install output" table says what each
+   means), then run its full check green, or take the brownfield baseline
+   its contract describes. Commit: `ts-gate: install`.
 
 3. **Remote.** Private: `git private` (the `private-remote` skill; needs
    `private.root`, which `setup-github` sets). Public: `gh repo create`.
    Push main. That is the whole delivery pipeline: the gate at premerge is
-   the only CI, `npm run test:live` runs from the workstation with a
-   gitignored `.env` and its output is pasted into the item, a release is
-   `npm version <bump>` and `git push --follow-tags` by hand.
+   the only CI; the live test tier, where the gate has one, runs from the
+   workstation with a gitignored `.env` and its output is pasted into the
+   item; a release is a version bump and its tag, pushed by hand with the
+   package manager's own command.
 
 4. **stack.** Two questions, never a package list. The entry: `stack add
    effect` for a CLI, a library, a worker or a backend service; `stack add
-   fullstack` (effect + tanstack-start, atom-react, shadcn) for an app with
-   a UI. The database: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`,
-   `drizzle-libsql`, or none, added in the same `stack add`. A project that
-   talks to any service or model adds `fixtures` too: the gate refuses the
-   network in tests, and this is how test data gets in. `stack show
-   <name>` prints what a preset expands to; a package later (`stack add
-   drizzle-sqlite` in a CLI that grew a database) is the same command. `stack add <name>...` brings each
-   in (a read-only subtree under `repos/`, the pinned dependency, a rule,
-   skills, a line in CLAUDE.md), what a package needs first. Needs a clean tree, which step 2's commit gives it. A package not in
-   the registry is added to dotfiles first (`common/claude-code/workshop/stack/CLAUDE.md`,
-   "Adding a package" and "What enters the registry"), not improvised in the
-   project. Commit: `stack: add <names>`. `stack add` works at any later time.
+   fullstack` for an app with a UI. The database: `drizzle-postgres`,
+   `drizzle-sqlite`, `drizzle-mysql`, `drizzle-libsql`, or none, added in the
+   same `stack add`. A project that talks to any service or model adds
+   `fixtures` too: the gate refuses the network in tests, and this is how
+   test data gets in. `stack show <name>` prints what a package or preset
+   brings and what to run after it; a package later (`stack add
+   drizzle-sqlite` in a CLI that grew a database) is the same command.
+   `stack add <name>...` brings each in (a read-only subtree under `repos/`,
+   the pinned dependency, a rule, skills, a line in CLAUDE.md), what a
+   package needs first. Needs a clean tree, which step 2's commit gives it.
+   A package not in the registry is added to dotfiles first
+   (`$WORKSHOP/stack/CLAUDE.md`, "Adding a package" and "What enters the
+   registry"), not improvised in the project. Commit: `stack: add <names>`.
+   `stack add` works at any later time.
 
-   `fullstack` on a greenfield project: the TanStack CLI scaffolds into a
-   fresh directory, so before step 1's scaffold commit run
-
-   ```
-   npx @tanstack/cli create <app> --framework React --blank --package-manager npm \
-     --no-toolchain --no-intent --non-interactive
-   ```
-
-   add `src/start.ts` (`export const startInstance = createStart(() => ({}))`
-   from `@tanstack/react-start`; the blank scaffold lacks it and the `server`
-   route option does not typecheck without that import), then continue from
-   there with that tree. The wiring is `.claude/rules/tanstack-start.md` once
-   the package is in.
+   The registry is TypeScript on Effect today. A project in another language
+   has nothing to add until the registry has packages for it; the step is
+   skipped, not improvised.
 
 5. **Review.** The default for every project: the reviewer agent and the
    habit that feeds it, without the item loop.
 
    ```
-   WORKBENCH=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop/workbench)
-   mkdir -p .claude/agents && cp "$WORKBENCH/agents/wb-reviewer.md" .claude/agents/
+   mkdir -p .claude/agents && cp "$WORKSHOP/workbench/agents/wb-reviewer.md" .claude/agents/
    ```
 
    then append to CLAUDE.md, after the stack block:
@@ -145,41 +121,42 @@ brownfield procedure.
    itself, so it earns its cost where someone reads the items.
 
 7. **Checklist.** Init printed "setup — decide these with the user". Take
-   each line to the user. `premerge` should already read `'npm run gate'`.
-   One line init does not print — deploy: none (a CLI, a library), or a
-   project-level `scripts/deploy` that ships a tag over ssh to the server
-   and runs `docker compose up --build` in `~/srv/<name>`, with a
-   `Dockerfile` whose base is `engines.node`. Written in the project, not
-   here: the files become a stack package when a second project needs them.
+   each line to the user. `premerge` should already read the gate's command
+   (`npm run gate` for ts-gate). One line init does not print — deploy: none
+   (a CLI, a library), or a project-level `scripts/deploy` that ships a tag
+   over ssh to the server and runs `docker compose up --build` in
+   `~/srv/<name>`, with a `Dockerfile` whose base image is pinned to the
+   runtime version the project declares. Written in the project, not here:
+   the files become a stack package when a second project needs them.
    Brownfield: do the survey `workbench adopt` printed, with the user;
    nothing converts without approval.
 
 8. **Trust the directory.** Open the project in Claude Code interactively
    once and accept the trust dialog. Until then every `permissions.allow`
-   rule ts-gate and workbench wrote is ignored (hooks still run), and a
+   rule the gate and workbench wrote is ignored (hooks still run), and a
    non-interactive session started with `--permission-mode` is denied every
-   `workbench` and `npm run gate` call. A worktree under a trusted checkout
-   inherits the trust.
+   `workbench` and gate call. A worktree under a trusted checkout inherits
+   the trust.
 
-9. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
-   must block a session and the fix must release it; step 1 fails when
-   `eslint.config.mjs` does not load `gate()`). `workbench status`,
-   `stack status`.
+9. **Prove it.** The gate's own proof (ts-gate: `npm run gate:verify`, one
+   model call; its contract says what the four checks are), `workbench
+   status`, `stack status`.
 
 ## Order, and why
 
-ts-gate first: `stack add` writes its dependencies into the gate's knip
-ignores, which must exist by then, and the review block and `workbench init`
-write tracked files. `stack add` between them: its subtrees need HEAD and a
-clean tree, and its CLAUDE.md block should exist before the review block and
-workbench's own are appended. Commit between each so every tool lands under
-its own subject.
+The gate first: `stack add` writes into the gate's config when one exists
+(ts-gate's knip ignores), which must exist by then, and the review block and
+`workbench init` write tracked files. `stack add` between them: its subtrees
+need HEAD and a clean tree, and its CLAUDE.md block should exist before the
+review block and workbench's own are appended. Commit between each so every
+tool lands under its own subject.
 
 ## Removing
 
-`bash "$TS_GATE/uninstall.sh" .` removes exactly what its manifest lists,
-including the premerge key if it is still `npm run gate`. `stack rm <name>`
-removes one package's subtree, rule and skills and leaves its dependency; it
-refuses while another added package needs it. Workbench has no uninstall; its files are
-the committed `.claude/` copies and `workbench/`. The review step is
+The gate's own uninstaller (`bash "$WORKSHOP/ts-gate/uninstall.sh" .`)
+removes exactly what its manifest lists, including the premerge key if it is
+still the gate's command. `stack rm <name>` removes one package's subtree,
+rule and skills and leaves its dependency; it refuses while another added
+package needs it. Workbench has no uninstall; its files are the committed
+`.claude/` copies and `workbench/`. The review step is
 `.claude/agents/wb-reviewer.md` and the CLAUDE.md block.

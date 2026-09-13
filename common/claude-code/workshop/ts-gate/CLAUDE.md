@@ -141,6 +141,49 @@ names it because every project has it.
 - Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
 - Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`. eslint and knip ignores are written by install; the gate's vitest calls exclude it themselves, a project's own `vitest` script should too.
 
+## Greenfield
+
+A project with nothing yet is scaffolded before install and committed as
+`scaffold`. Install reads `package.json` and `tsconfig.json`, so the least it
+needs is there first:
+
+```
+git init -b main && npm init -y && npm i -D vitest@5
+```
+
+- `vitest` in `package.json` before install: the runner is detected from
+  there, and a peer-installed vitest (what `@effect/vitest` pulls in later)
+  never lands in it — without it the gate runs no tests.
+- No `typescript` in the scaffold: install pins `typescript@5` with the rest
+  of its dependencies. An unpinned `typescript@latest` resolves to 7.x, which
+  `typescript-eslint` refuses as a peer, and the install fails.
+- `tsconfig.json`: `"strict": true`, `"noUncheckedIndexedAccess": true`,
+  `"erasableSyntaxOnly": true`, `"noEmit": true`, `"module": "nodenext"`,
+  `"allowImportingTsExtensions": true`, `"include": ["src"]`. Node runs the
+  sources as they are, so relative imports are written with `.ts`
+  (`from "./health.ts"`); nodenext otherwise demands `.js`, which node cannot
+  resolve to a `.ts` file.
+- `package.json`: `"engines": { "node": ">=<major>" }`, the node this runs
+  on; `"scripts": { "start": "node src/index.ts" }`, the run model, decided
+  here.
+- `src/index.ts` with one export (knip's entry).
+- `.gitignore`: `node_modules`.
+
+## Install output
+
+Every line install prints is acted on before anything else goes in:
+
+| Line | Do |
+|---|---|
+| the eslint block, for a project with its own config | merge it; until then knip flags `ts-gate/eslint.gate.mjs` and two plugins unused |
+| the vitest `setupFiles` and live-tier `exclude` lines, for a project's own vitest config | add them; without them tests may reach the network and `npm test` runs the live tier |
+| `NOTE: workbench.premerge is '<x>'` | chain, never replace: `git config workbench.premerge "<x> && npm run gate"` |
+| `WARNING` (tsconfig flags or `include`, `engines.node`, biome includes, knip entry, no runner) | fix first |
+
+Then `npm run gate:full`. Greenfield: green. Brownfield: the first run is the
+baseline, per the section below. Commit `ts-gate: install` only when
+`gate:full` exits 0 or every remaining red is a recorded warning.
+
 ## Brownfield
 
 1. `gate({ tsconfigRootDir, severity: "warn" })` in `eslint.config.mjs`. Record the count.
