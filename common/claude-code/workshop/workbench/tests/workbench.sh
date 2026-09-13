@@ -1054,6 +1054,22 @@ done
 check "the third hold says to stop and call" grep -q "3 holds: stop, 'workbench call $rid" <<< "$out"
 run "merge is the user's call after holds; the gate no longer blocks it (W3)" 0 "merged $rid" "$WB" merge "$rid" "reviewed"
 
+# --- round: the review dialog's accountant ------------------------------------
+# Round 2 always runs; after that the count decides, and the cap parks it.
+rd=$(newc bug "rounds"); rdf=workbench/items/bugs/$rd-rounds.md
+run "round 1 always asks for round 2" 0 "next: review again" "$WB" round "$rd" 0 0
+check "round writes the rounds line under the status line" bash -c "sed -n '/^status: /{n;p}' $rdf | grep -qx 'rounds: r1 0/0 · again'"
+run "a second round with one fix after a clean one stops" 0 "next: merge" "$WB" round "$rd" 1 0
+check "the line records both rounds and the decision" grep -qx 'rounds: r1 0/0 · r2 1/0 · stop' "$rdf"
+run "round refuses a count that is not a number" 1 "fixed and stands are counts" "$WB" round "$rd" x 0
+rd2=$(newc bug "rounds on"); rdf2=workbench/items/bugs/$rd2-rounds-on.md
+"$WB" round "$rd2" 5 1 >/dev/null
+run "three fixes keep the dialog going" 0 "next: review again" "$WB" round "$rd2" 3 0
+"$WB" round "$rd2" 3 0 >/dev/null; "$WB" round "$rd2" 3 0 >/dev/null
+run "the fifth round parks it" 0 "next: call" "$WB" round "$rd2" 3 0
+check "the cap is recorded on the item" grep -qx 'rounds: r1 5/1 · r2 3/0 · r3 3/0 · r4 3/0 · r5 3/0 · call' "$rdf2"
+git add -A && git commit -qm rounds
+
 # --- abandoned: the one exit for work the user drops --------------------------
 
 new_repo drop

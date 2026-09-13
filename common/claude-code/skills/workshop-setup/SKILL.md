@@ -25,7 +25,7 @@ brownfield procedure.
 |---|---|---|
 | Tree | empty or scaffold only | history, code, maybe its own tooling |
 | Review | `wb-reviewer.md` + the CLAUDE.md block (step 5) | the same |
-| Workbench, if wanted | `workbench init` | `workbench adopt`, then `/workbench-review adopt` |
+| Workbench, if wanted | `workbench init` | `workbench adopt`, then the survey it prints |
 | ts-gate severity | default (`error`) | `severity: "warn"` and ratchet, per `$TS_GATE/CLAUDE.md` "Brownfield" |
 | ESLint config | install writes it | install prints a block; you merge it before the gate can be green |
 
@@ -157,8 +157,8 @@ brownfield procedure.
    and runs `docker compose up --build` in `~/srv/<name>`, with a
    `Dockerfile` whose base is `engines.node`. Written in the project, not
    here: the files become a stack package when a second project needs them.
-   Brownfield: run `/workbench-review adopt` and triage its report with the
-   user; nothing converts without approval.
+   Brownfield: do the survey `workbench adopt` printed, with the user;
+   nothing converts without approval.
 
 8. **Trust the directory.** Open the project in Claude Code interactively
    once and accept the trust dialog. Until then every `permissions.allow`

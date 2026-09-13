@@ -2607,7 +2607,7 @@ cmd_status() {
     while IFS= read -r pl; do
       [ -n "$pl" ] || continue
       prov+=("$(printf '%-34s %s' "${name%.md}" "$pl")")
-    done < <(without_fences "$pf" | grep -E '^(status:|state:).*\(agent\)' | sed 's/[[:space:]]*$//' || true)
+    done < <(without_fences "$pf" | grep -E '^status:.*\(agent\)' | sed 's/[[:space:]]*$//' || true)
   done
   if [ "${#prov[@]}" -gt 0 ]; then
     echo
