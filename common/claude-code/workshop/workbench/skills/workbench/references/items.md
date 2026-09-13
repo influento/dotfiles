@@ -27,8 +27,9 @@ Both are detectors. When a new odd bug appears, or the awaited event
 happens and something breaks, search these archived items first: a match
 against an `unreproduced` item proves the bug is real and recurring —
 reopen it as a normal bug with both sightings as evidence; a match against
-an `unverified` item names the assumption that was wrong. What never recurs
-stays archived.
+an `unverified` item names the assumption that was wrong; a match against a
+Root cause of `none found — mitigation` means the mitigation stopped
+holding — reopen it the same way. What never recurs stays archived.
 
 ## Renames and refactors
 

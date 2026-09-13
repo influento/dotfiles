@@ -49,6 +49,34 @@ tool already covers it; a test harness created to make an item closable is
 not a criterion. Whether a list is one item or several is SKILL.md,
 "Sizing", before the item is written.
 
+## Numbers, flakes, exploits, regressions
+
+One run does not make these RED:
+
+| Shape | RED, measured now | GREEN |
+|---|---|---|
+| a number — latency, memory, build time | the metric over N runs with its spread: `p50 over 10 runs (340ms ±25 today) → under 200ms` | the same command and N, the spread under the target |
+| a flake | `fails k of N`, the rate raised first — loop it, stress it — until k ≥ 5 | `0 of M` with M ≥ 3·N/k: at 5 of 100, 60 runs. Fewer, and an unchanged tree passes by luck |
+| a boundary crossed | a working exploit, in a controlled environment | the exploit and two or more variants of the same input class fail |
+
+A number's Evidence runs base and branch alternately in one session, the
+base from a scratch worktree: workers in other worktrees share the machine,
+so a figure from another session is not a baseline. What the number costs
+elsewhere — memory for time, staleness for latency — is a side effect.
+
+A flake whose root cause names an ordering or a clock gets a test that
+injects it and fails every run without the fix (RED and GREEN as "Tests"
+says); the criterion stays as frozen. A bounded search that names no
+mechanism: Root cause reads `none found — mitigation`, and `workbench call
+<id> "ship as a mitigation, or keep looking?"`. A retry or a longer timeout
+that turns the count green is that mitigation.
+
+A regression with a known-good commit: `git bisect run` the criterion in
+the item's worktree (bisect moves HEAD; `git bisect reset` before the next
+commit), from a script in the scratchpad, since older commits lack what the
+branch added. Root cause names the commit bisect lands on and what in its
+diff does it.
+
 ## Who runs it
 
 The agent runs everything it can. The user gets only what needs eyes —

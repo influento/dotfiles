@@ -31,10 +31,13 @@ The item, when there is one, is reviewed with the code. A finding, each:
 the criterion not settled by pasted output, a block per step — a table
 typed is not evidence; a criterion step that is a guard ("behaviour
 unchanged", a typecheck or build, "by inspection") or uses a flag or file
-the item itself adds; a step reworded after the code (`git log -p` on the
+the item itself adds or changes; a step reworded after the code (`git log -p` on the
 item file along the branch) — a miss recorded as a miss is fine, a step
 amended to the number the code produced is not; a RED value guessed rather
-than measured; a bug with no mechanism under Root cause; a heading outside
+than measured, a timing without its spread, a flake's GREEN over fewer than
+3·N/k runs, an exploit settled without its variants; a bug with no
+mechanism under Root cause, or a symptom fix — a retry, a longer timeout, a
+catch around the failing path — where Root cause names one; a heading outside
 the template (`archive` refuses it); a script written to satisfy a step
 and then deleted; a fact the code depends on written only in prose, or a
 document written that should not have been; a test reaching past what the

@@ -153,6 +153,10 @@ Whatever fits the item row is an item. The idea row is never the agent's
 proposal for something item-shaped — "crash on save" is a bug; it is the
 user's deferral, reached only by `/idea` or "backlog it".
 
+Slow is a bug when it breaks an expectation that exists: slower than a
+known commit, over a stated budget, or failing because of it. Faster than
+today with no such line is a feature, its criterion the number.
+
 **One item or several.** Draft the whole criteria list, then ask of each
 entry: *could this go green and merge while the others are still red?*
 
