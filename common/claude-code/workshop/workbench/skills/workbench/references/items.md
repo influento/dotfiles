@@ -5,14 +5,12 @@
 | State | Where | Notes |
 |---|---|---|
 | idea | one line in `workbench/BACKLOG.md`, `workbench idea "<sentence>"` — written to the main checkout wherever it runs | no ID, no file |
-| open | `workbench/items/bugs/` or `features/`, committed on the default branch by `workbench new` | editable on main until started |
-| started | the same file, on its own branch `<id>-<slug>` in `.worktrees/` — `workbench status` marks it `started` | edited on the branch only; main's copy stands as the item started, until the squash overwrites it |
+| open | `workbench/items/bugs/` or `features/`, committed on main by `workbench new` | editable on main until started |
+| started | the same file, on its own branch `<id>-<slug>` in `.worktrees/` — `workbench status` marks it `started` | edited on the branch only |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
 An open item may already have merged ("Statuses"). Promoting an idea means
 deleting its line from `workbench/BACKLOG.md` and writing the item file.
-IDs are allocated by `workbench new`, never chosen by hand
-([git.md](git.md)).
 
 ## Bug items
 
@@ -33,12 +31,8 @@ holding — reopen it the same way. What never recurs stays archived.
 
 ## Renames and refactors
 
-A rename changes the project's domain vocabulary and nothing else: a
-feature item of its own, whose criterion is the occurrence count over a
-scope and whose one commit moves the glossary entry and the code together.
-Never absorbed into the item that exposed the problem — that widens it past
-its criterion, frozen at `start`. Procedure, homographs and aliases:
-[glossary.md](glossary.md).
+A rename is a feature item of its own: [glossary.md](glossary.md),
+"Renaming a term".
 
 A refactor is not its own item:
 
@@ -51,24 +45,19 @@ A refactor is not its own item:
 The measurement must survive the **Why** field, stated to someone who does
 not read code: p99 latency, build time, dependency count, binary size.
 "LOC −12%" or "complexity down" does not — a number chosen because the
-planned diff moves it is criterion-after-code wearing a number. "The
-behaviour is unchanged" is never the criterion; it is a preservation guard
-and belongs in Evidence.
+planned diff moves it is criterion-after-code wearing a number.
 
 ## Who writes an item
 
 Either side: the user directly, or in a sentence for the agent to draft and
-the user to approve; the agent may propose one. Size decides nothing — a
-one-line fix still has a story worth recording.
+the user to approve; the agent may propose one.
 
 ## Mutability
 
 Until `workbench start`, every field is editable, on main's copy. `start`
 freezes the criterion — the reviewer holds a step reworded after the code —
 and **Side effects** with it, `none` included. What changes on the branch
-after that is root cause, evidence and status; a miss is recorded as a
-miss, and a side effect the work uncovers is a `workbench call`, answered
-by the user editing the section. Archived items are locked.
+after that is root cause, evidence and status. Archived items are locked.
 
 ## Statuses
 
@@ -84,15 +73,14 @@ by the user editing the section. Archived items are locked.
 
 The trigger or the why goes in the status line, not in prose, so grep finds
 it. Those five are the whole set — `archive` refuses any other word, `done`
-included; an archived item keeps `open`, which under `archive/` reads as
+included; an archived item keeps `open`, which under `archive/` means
 verified and shipped. `unreproduced` and `unverified` are the only archive
 bypasses for a claim about code, and each archives a statement of what was
 *not* proved; `abandoned` makes no claim at all.
 
-A status entered with nobody to decide it carries ` (agent)` at the end —
-`awaiting — the next deploy (agent)` — and `workbench status` lists it. The
-user confirms by deleting the marker. `merge` and `archive` read the status
-the same with or without it.
+A provisional status carries ` (agent)` at the end (SKILL.md, "Unattended
+runs"): `merge` reads the status the same with or without it; `archive`
+refuses it.
 
 **Merged and still `open`, with no branch, is not a state.** It is an item
 that merged with its criterion unrun and did not say so. `workbench status`
@@ -104,13 +92,9 @@ status it needed at merge.
 Work the user drops after it was opened is archived as `abandoned — <why>`,
 whether started or not, with `commit: none`; deleting the file is the one
 exit that leaves nothing greppable, and `git log --grep='^Item: ' --
-<path>` is how the next person learns it was tried. A started item's branch
-is retired by `archive`; half-built work on it is dropped only with
-`--discard`, which names each file. Shipped work is not abandoned — with
-its trailer on the default branch the item merged, and `archive` refuses
-the status. Abandoning is the user's decision; unattended, the agent parks
-it with `workbench call`, and `abandoned — … (agent)` is refused at the
-archive like any provisional status.
+<path>` is how the next person learns it was tried. Retiring its branch:
+[git.md](git.md), "Archiving". Shipped work is not abandoned — with its
+trailer on main the item merged, and `archive` refuses the status.
 
 ### What each gate asks
 

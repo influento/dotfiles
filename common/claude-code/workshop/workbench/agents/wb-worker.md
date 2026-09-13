@@ -28,7 +28,7 @@ answering.
    `workbench call <id> "side effect: <what, for whom> — accept?"` — never
    an edit of the item. Before the review dialog, hold every function the
    diff changes against its callers for such a difference.
-3. The review dialog — "The review loop" in the skill. Spawn a
+3. The review dialog — "The review dialog" in the skill. Spawn a
    `wb-reviewer` with the `Agent` tool, never a fork, naming the branch and
    the item file; answer by number through `SendMessage` to the id the
    spawn returned. Six exchanges on one finding without agreement:

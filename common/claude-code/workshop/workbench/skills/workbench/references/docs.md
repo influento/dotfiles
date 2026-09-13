@@ -67,13 +67,6 @@ again:
 Cutting is the way to silence it; the override is the user's, for a
 document that is legitimately larger.
 
-## No findings directory, no baselines file
-
-A measured number goes in the item it was evidence for, with the command
-that produced it. A discovered fact goes into the code that depends on it.
-Neither gets a file of its own: nothing invalidates such a file, so nothing
-ever reviews or deletes it.
-
 ## Repository documents or agent memory
 
 One question: **could this fact become wrong because of a commit?**
@@ -81,7 +74,7 @@ One question: **could this fact become wrong because of a commit?**
 | Answer | Home |
 |---|---|
 | Yes — it is tied to our code | a repository document, or the item itself |
-| Yes — but it describes an external system | the code that depends on it; an item line only where a root cause or criterion needs it |
+| Yes — but it describes an external system | the code that depends on it (step 3) |
 | No — it is about the user, their machine, preferences, or workflow | agent memory |
 | No — it is credentials-adjacent | nowhere in the repository — memory lives in the tree here, so `CLAUDE.local.md` or the user's own `~/.claude/` |
 
@@ -89,30 +82,20 @@ Memory passes through no review and nothing invalidates an entry when a
 commit makes it wrong, so technical facts about the project belong in the
 repository.
 
-Memory lives in the tree: `workbench init` points `autoMemoryDirectory` at
+Memory lives in the tree: in a project under `~`, `workbench init` points `autoMemoryDirectory` at
 `.claude/memory/`, tracked, one store for every worktree — and for every
 clone at the same path under `~`, since the setting is a path; `workbench
 status` warns in a clone laid out differently, where
 `.claude/settings.local.json` overrides it. Every session writes there
-through the main checkout, so its edits show up as unstaged changes on the
-default branch; commit them as housekeeping. `workbench merge` tolerates
+through the main checkout, so its edits show up as unstaged changes on
+main; commit them as housekeeping. `workbench merge` tolerates
 them unstaged and refuses them staged.
 
-Without that setting Claude Code keys the store to the checkout:
-`~/.claude/projects/<slug>/memory/`, `<slug>` being the checkout's absolute
-path with every character outside `[A-Za-z0-9]` replaced by `-`, so a
-worktree gets a store of its own.
+Without the setting, each worktree gets its own store under Claude Code's
+per-checkout directory.
 
 Facts that have drifted, or that should have been repository documents, are
 what to read the store for when a session starts from it.
-
-## Deleting means deleting
-
-SKILL.md's rule of that name: no strikethrough, no "NOTE: removed, see git
-history", no "previously this used", no `DEPRECATED — kept for reference`,
-no changelog section. Git stores every deleted line. The single exception
-is something the reader must act on, such as where a moved file went — a
-pointer, not a record of a deletion.
 
 ## Scope
 
@@ -123,7 +106,4 @@ area, or nothing.
 
 ## Documentation ships with the work
 
-Any document written goes in the same change as the code. The reviewer
-checks the decision in both directions: something written that should not
-have been, and a fact the code depends on written nowhere the code can
-reach.
+Any document written goes in the same change as the code.

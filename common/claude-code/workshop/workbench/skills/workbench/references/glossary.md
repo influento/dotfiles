@@ -2,9 +2,7 @@
 
 `workbench/GLOSSARY.md` holds the project's domain language. The agent
 writes the items, and items are prose: if the vocabulary drifts, the
-archive stops being searchable. It is the standing exception to "write
-nothing by default" ([docs.md](docs.md)) — a term's meaning is the thing no
-single file tells you.
+archive stops being searchable.
 
 ## What goes in
 
@@ -39,7 +37,9 @@ with them.
 A rename is a feature item of its own ([items.md](items.md), "Renames and
 refactors"), and **the glossary entry changes in the same commit as the
 code**, never before: announcing a new word and deferring the code makes
-both words legitimate for as long as the rename sits unstarted. Wanting a
+both words legitimate for as long as the rename sits unstarted. It is
+never absorbed into the item that exposed the problem — that widens it past
+its criterion, frozen at `start`. Wanting a
 rename is a line in `workbench/BACKLOG.md` until someone executes it.
 
 Do it now is the default: a rename is mechanical, and the occurrence count
@@ -81,7 +81,7 @@ occurrence.
 
 The glossary binds prose — items, commit subjects, documents — and code
 identifiers, which is why a rename obliges the symbols to move with it and
-is its own item. Inconsistent vocabulary in an item is a review finding.
+is its own item.
 
 ## Rejected words
 
@@ -99,5 +99,4 @@ rejection has this table as its home:
 
 One row per rejection, in the same commit as the item that first used the
 chosen word. `Because` names what the rejected word already means here, or
-is empty when it was merely the second word for one thing. The reviewer
-greps every `Never` word over the item and the diff.
+is empty when it was merely the second word for one thing.

@@ -8,7 +8,7 @@ nothing else can tell whether the work succeeded.
 Weak: "confirm the positions are correct"
 Strong: "`mobcheck.ts` reports drift under 0.05 tiles for mobs on a boundary row"
 
-The criterion carries the defence, not the test: a test can assert nothing,
+The criterion, not a test, is what proves the work: a test can assert nothing,
 assert a mock, or be written from finished code so that it agrees with the
 bug, and none of that shows in a green result.
 
@@ -95,11 +95,7 @@ record both.
 
 ## Merging and archiving are different questions
 
-Merge asks whether everything that *can* be verified now has been; archive
-asks whether the criterion is satisfied ([items.md](items.md), "What each
-gate asks"). Collapsed into one, a fix that only a real third-party event
-can exercise could neither ship nor be verified. So an item may merge while
-still open, and nothing claims success until the criterion runs.
+What each asks: [items.md](items.md), "What each gate asks".
 
 Split the criterion first — almost everything that feels unverifiable is
 two claims:
@@ -125,12 +121,6 @@ cheap to re-run, record both **RED** (the command, the failing output, why
 that failure was the expected one) and **GREEN** (the command and the
 passing output). A test only ever seen green proves nothing to someone who
 does not read tests.
-
-| Kind | Loop? | Why |
-|---|---|---|
-| unit, fixture replay, integration | yes | milliseconds to seconds |
-| end-to-end against a live system | **no** | minutes, real credentials, mutates real state, not safe in parallel |
-| manual | **no** | needs a person |
 
 End-to-end and manual checks run once and their output is recorded.
 

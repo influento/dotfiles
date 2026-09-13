@@ -9,14 +9,17 @@ Work is tracked as **items**: what will change and how anyone will know it
 worked, written before the code exists. The reader may not read code at all
 — items and command output are their only channel.
 
+**Main** is the default branch: `git config workbench.main`, then
+`origin/HEAD`, then `main` or `master`. The commands resolve the real name.
+
 ## The loop
 
 ```
 idea (workbench/BACKLOG.md line)
   -> item      workbench/items/{bugs,features}/<id>-<slug>.md,
-               committed on the default branch as it is created
+               committed on main as it is created
   -> branch    <id>-<slug>, in its own worktree under .worktrees/; the item
-               is edited there from now on, main's copy stands as agreed
+               is edited there from now on
   -> work      root cause / implementation
   -> evidence  criterion filled in with real output
   -> merge     workbench merge: squash, commit trailer "Item: <id>"
@@ -28,7 +31,7 @@ idea (workbench/BACKLOG.md line)
 1. **Domain work is an item.** Every feature and bug fix, however small,
    once someone opens it; until then `/idea` is the user's deferral
    ("Sizing"). Housekeeping — configs, agent settings, tooling — gets none
-   and may go straight to the main branch.
+   and may go straight to main.
 
 2. **The criterion is written before the code, and it is the contract.**
    Evidence is matched against it, never against a test. A criterion that
@@ -39,8 +42,10 @@ idea (workbench/BACKLOG.md line)
    reworded ([verification.md](references/verification.md)).
    `## Side effects` is agreed with it: every route, export, output or
    stored format that behaves differently once the item lands, and who sees
-   it, or `none`. `start` refuses it empty. One found after `start` is `workbench call <id> "side effect: …"`, never an edit
-   of the section: whether the change is acceptable is the user's.
+   it, or `none`. `start` refuses it empty. One found after `start` is
+   `workbench call <id> "side effect: …"`, never your edit of the
+   section: whether the change is acceptable is the user's, and so is the
+   edit.
 
 3. **Nothing is archived without verified evidence.** Merge asks only
    whether everything verifiable was verified, so an item may ship while
@@ -63,7 +68,8 @@ idea (workbench/BACKLOG.md line)
    every item ([glossary.md](references/glossary.md)).
 
 7. **Deleting means deleting.** No "formerly", no "removed in favour of",
-   no inline changelog.
+   no strikethrough, no inline changelog. The one exception is a pointer the
+   reader must act on, such as where a moved file went.
 
 8. **An item has the template's sections and no others.** `archive`
    refuses any other heading. What was not proved is one line under
@@ -78,8 +84,8 @@ idea (workbench/BACKLOG.md line)
 
 10. **The project has no scratch folder.** A file that exists only for this
     session — a probe, a capture, a rendered page — goes to the scratchpad
-    directory the environment names. A fact worth keeping is a line in the
-    item's Evidence or a backlog entry, never a file of its own.
+    directory the environment names. What it showed is Evidence when it
+    settles a criterion step; any other fact follows rule 6.
 
 ## Setting up
 
@@ -98,13 +104,11 @@ is the user's:
 |---|---|
 | sizing needs confirming | take the item row when it fits; anything else, `workbench call - "<question>"` and move to work that is describable |
 | criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed |
-| a side effect the item does not name | `workbench call <id> "side effect: <what changes, for whom> — accept?"` and go on; never add it to `## Side effects` yourself |
 | merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
 | a parked call would unblock work | it stays parked. Do other work; never resolve it by doing more work under a new item, never reverse it because later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, never delete the item |
 | a question only the user can answer | `workbench call <id> "<the question, with options>"`, then move to work that is describable |
 | a permission not on the allow-list | Claude Code refuses it and the refusal is what you see; park it with `workbench call`, never work around it |
-| review | the dialog, yourself — "The review loop" below |
 
 `(agent)` marks every provisional decision, in the file that holds it, and
 `workbench status` lists each with its open `## Decisions` line. The user
@@ -130,10 +134,8 @@ workbench merge b-038 "<subject>"      # after the review dialog: squash, traile
 ```
 
 IDs come from a counter shared by every worktree; never hand-pick one.
-`new` commits on the default branch, so the main checkout must have it
-checked out; the file lands there wherever `new` runs. Between `new` and
-`start` the item is edited on main; after `start`, only in its worktree —
-`merge` and `archive` refuse if main's copy of a started item moved.
+The file lands in the main checkout wherever `new` runs. Between `new` and
+`start` the item is edited on main; after `start`, only in its worktree.
 
 ## Sizing — the same call every time
 
@@ -179,7 +181,7 @@ still `open` (a fault — "Unattended runs"), decisions waiting in items and
 in `DECISIONS.md`, documents over their line cap, duplicate IDs. `git
 branch` cannot see the merged ones.
 
-## The review loop
+## The review dialog
 
 Every item — the work is done, then:
 
