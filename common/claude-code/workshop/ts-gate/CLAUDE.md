@@ -50,8 +50,7 @@ Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
 `gate({ severity })` sets the first tier; the correctness block
 (`no-floating-promises`, `switch-exhaustiveness-check`, `no-unsafe-*`,
 `restrict-plus-operands`, `no-misused-promises`, `await-thenable`) runs at
-`severity` too, so a brownfield `warn` pass covers it; `gate({ correctness:
-false })` drops it.
+`severity` too, so a brownfield `warn` pass covers it.
 
 Two `no-restricted-syntax` selectors are the gate's own: the double assertion
 through `unknown`, and `vi.mock` / `jest.mock` / `doMock` /

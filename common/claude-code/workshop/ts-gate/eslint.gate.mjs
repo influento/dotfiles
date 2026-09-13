@@ -160,26 +160,20 @@ const gatePlugin = { rules: { "effect-tags": effectTags, "no-unknown-signature":
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
  * @param {"error"|"warn"} [opts.severity="error"]  use "warn" for the first rollout pass
- * @param {boolean} [opts.correctness=true]  the type-aware correctness block
  * @param {boolean} [opts.money]  the money escape-hatch block; default: on when `.claude/stack.conf` lists `money`
  * @param {boolean} [opts.effect]  the Effect idiom rule (`gate/effect-tags`); default: on when `.claude/stack.conf` lists `effect`
- * @param {string[]} [opts.files]
- * @param {string}  [opts.glossary="workbench/GLOSSARY.md"]  relative to tsconfigRootDir; its Never column feeds id-match
  */
 export default function gate({
   tsconfigRootDir,
   severity = "error",
-  correctness = true,
   money = stackHas(tsconfigRootDir, "money"),
   effect = stackHas(tsconfigRootDir, "effect"),
-  files = ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
-  glossary = "workbench/GLOSSARY.md",
 }) {
   const E = severity;
-  const never = neverWords(join(tsconfigRootDir, glossary));
+  const never = neverWords(join(tsconfigRootDir, "workbench/GLOSSARY.md"));
   return [
     {
-      files,
+      files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       plugins: { "@typescript-eslint": tseslint.plugin, sonarjs, gate: gatePlugin },
       // No inline escape: a disable comment is a hole the Stop hook cannot see
       // (measured; CLAUDE.md). A rule wrong for a file changes in
@@ -295,20 +289,16 @@ export default function gate({
         // A promise nobody awaits, a switch a new union member falls out of,
         // `any` flowing through, string + number. Greenfield has no reason
         // to wait for these; brownfield ratchets them with the rest.
-        ...(correctness
-          ? {
-              "@typescript-eslint/no-floating-promises": E,
-              "@typescript-eslint/no-misused-promises": E,
-              "@typescript-eslint/await-thenable": E,
-              "@typescript-eslint/switch-exhaustiveness-check": E,
-              "@typescript-eslint/restrict-plus-operands": E,
-              "@typescript-eslint/no-unsafe-argument": E,
-              "@typescript-eslint/no-unsafe-assignment": E,
-              "@typescript-eslint/no-unsafe-call": E,
-              "@typescript-eslint/no-unsafe-member-access": E,
-              "@typescript-eslint/no-unsafe-return": E,
-            }
-          : {}),
+        "@typescript-eslint/no-floating-promises": E,
+        "@typescript-eslint/no-misused-promises": E,
+        "@typescript-eslint/await-thenable": E,
+        "@typescript-eslint/switch-exhaustiveness-check": E,
+        "@typescript-eslint/restrict-plus-operands": E,
+        "@typescript-eslint/no-unsafe-argument": E,
+        "@typescript-eslint/no-unsafe-assignment": E,
+        "@typescript-eslint/no-unsafe-call": E,
+        "@typescript-eslint/no-unsafe-member-access": E,
+        "@typescript-eslint/no-unsafe-return": E,
 
         // --- the one hard shape rule --------------------------------------
         "sonarjs/cognitive-complexity": [E, 15],
