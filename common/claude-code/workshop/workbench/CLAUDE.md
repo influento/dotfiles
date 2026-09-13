@@ -16,13 +16,22 @@ changing anything here.
 | `commands/` | `/bug /feature /idea /wb` — thin skills too, one per typed command         |
 | `tests/`    | end-to-end loop plus failure paths, in a temp repo                         |
 
+A command holds no rules, only the sizing check, the command and the fields,
+and runs no `!` block (the tests refuse one): a quote or `$` in a title breaks
+a substituted command, and the sizing call belongs before an id exists — an
+agent that has already allocated `f-051` argues for a feature. `/bug` shadows
+the builtin bug-report form, which loses nothing in a project with its own
+tracker.
+
 ## What `init` puts in a project
 
 The `workbench` skill and the `/bug /feature /idea /wb` commands, as
-committed copies under `.claude/skills/` — copies, not links, so worktrees
-and other clones carry them — each stamped with source + copy hashes;
-`status` flags stale and hand-edited ones, `init --force` overwrites the
-latter. The `agents/` definitions go to `.claude/agents/` the same way,
+committed copies under `.claude/skills/`. Copies, not links: a symlink is
+one machine's path and exists only in the checkout it was made in, so a
+worktree or a fresh clone would have no commands and no hook. The price is
+drift, paid visibly through the stamp: each copy carries source + copy
+hashes; `status` flags stale and hand-edited ones, `init --force`
+overwrites the latter. The `agents/` definitions go to `.claude/agents/` the same way,
 with weaker bookkeeping: an agent is a flat `.md` with nowhere to hold a
 stamp, so the check is `cmp`, `status` says only that a copy "differs from
 its source", and `init` overwrites it either way. Which agents exist is
@@ -78,24 +87,6 @@ Run from this directory (`common/claude-code/workshop/workbench/`):
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for
   `workbench`, in a temp repo
 
-## Decided
-
-- The commands are thin and run no shell before the first turn: a title
-  with a quote or a `$` breaks a substituted command, and the sizing call
-  belongs before an id exists — an agent that has allocated `f-051` argues
-  for a feature. `/bug` shadows the builtin bug-report form, which loses
-  nothing in a project with its own tracker.
-- Copies, not symlinks: a symlink is one machine's path and exists only in
-  the checkout it was made in, so a session opened in a worktree or a
-  fresh clone had no commands and no hook. The price is drift, paid
-  visibly through the stamp.
-- No gate: a fresh-context check of the item against its evidence was
-  user-only at first, so a twenty-hour unattended session merged forty-six
-  times and it ran zero times; made a required step of `merge`, it found
-  no code defect the dialog had not, blocked a correct item twice on the
-  wording of its criterion, and came out after three runs. The dialog is
-  the required read, and the item checks it made are the reviewer's.
-
 ## Platform facts the design rests on
 
 Sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
@@ -140,6 +131,13 @@ Sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
   `compact`.
 
 ## Measured
+
+Before the dialog, a gate: a fresh-context check of the item against its
+evidence. User-only at first, it ran zero times while a twenty-hour
+unattended session merged forty-six times; made a required step of `merge`,
+it found no code defect the dialog had not, blocked a correct item twice on
+the wording of its criterion, and came out after three runs. The dialog is
+the required read, and the item checks the gate made are `wb-reviewer`'s.
 
 2026-09-13, `/tmp/wsprobe` (ts-gate, `stack add effect`, seeded routes, lookup
 and recorded deliveries), three items, three runs per cell, `claude -p --effort

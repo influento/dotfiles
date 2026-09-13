@@ -1087,7 +1087,8 @@ cmd_effects() {
 
 # One squash commit whose only body is the trailer; every check keeps that
 # commit honest. No evidence gate beyond the status: an item merges open as
-# 'awaiting'. Every git call is pinned to the main checkout, since the item's
+# 'awaiting'. No fresh-context check of the item either; CLAUDE.md,
+# "Measured", says why it came out. Every git call is pinned to the main checkout, since the item's
 # worktree stops existing halfway through.
 cmd_merge() {
   local id="${1:-}" subject="${2:-}" branch main root wt
