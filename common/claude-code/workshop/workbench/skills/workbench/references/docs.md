@@ -57,12 +57,12 @@ separate sections.
 the file and its length, at every session start until the file is under
 again:
 
-| File | Cap | Override |
+| File | Cap | Override, in `.claude/workshop.conf` |
 |---|---|---|
-| root `CLAUDE.md` | 150 | `git config workbench.cap.claude <n>` |
-| `workbench/GLOSSARY.md` | 300 | `git config workbench.cap.glossary <n>` |
-| `workbench/BACKLOG.md` | 400 | `git config workbench.cap.backlog <n>` |
-| `workbench/DECISIONS.md` | 200 | `git config workbench.cap.decisions <n>` |
+| root `CLAUDE.md` | @@CAP_CLAUDE@@ | `cap.claude=<n>` |
+| `workbench/GLOSSARY.md` | @@CAP_GLOSSARY@@ | `cap.glossary=<n>` |
+| `workbench/BACKLOG.md` | @@CAP_BACKLOG@@ | `cap.backlog=<n>` |
+| `workbench/DECISIONS.md` | @@CAP_DECISIONS@@ | `cap.decisions=<n>` |
 
 Cutting is the way to silence it; the override is the user's, for a
 document that is legitimately larger.

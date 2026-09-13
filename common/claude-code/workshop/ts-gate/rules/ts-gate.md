@@ -1,6 +1,6 @@
 # TS gate
 
-The Stop hook runs `npm run gate:local` (compile, lint, dead code, structure, and the tests the change reaches) and blocks until it passes — the same failure three times over, it tells you to park it instead, and lets the next stop through. It covers the branch since the default branch plus the working tree, so committing does not clear it.
+The Stop hook runs `npm run gate:local` (compile, lint, dead code, structure, and the tests the change reaches) and blocks until it passes — after repeated identical failures it tells you to park it instead, and lets the next stop through. It covers the branch since the default branch plus the working tree, so committing does not clear it.
 Fresh clone or worktree: `npm ci` first, the gate refuses to run without `node_modules`.
 Tests never reach the network: `ts-gate/no-network.mjs` throws on any connect or fetch off loopback, with no opt-out in a test. A real response is recorded once outside vitest (a script, the CLI) and committed as a fixture the test reads; a live service is faked at the seam (a Layer, a stub `fetch`). Code that must be proven against the real endpoint or model gets a `*.live.test.ts` beside its unit test: `npm run test:live` runs it, the gate never does, and it is never the only test of that code.
 `ts-gate/.dependency-cruiser.cjs` is the architecture record. Never edit it in the same change as the code that needed it; propose rule changes separately.

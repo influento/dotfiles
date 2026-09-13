@@ -57,14 +57,13 @@ Item: f-037
 
 The subject describes the change, not the item's title.
 
-When `git config workbench.premerge` is set — a test run, a lint gate —
-the command runs it in the branch's worktree after every other check and
-before the squash, and refuses the merge on a non-zero exit with the
-command's output as the reason. Only unsetting the config skips it. A
-branch whose worktree is gone is refused rather than merged unchecked;
-`workbench start <id>` recreates one. Like every `workbench.*` key it is
-git config, per clone: a fresh clone sets it again or merges unchecked —
-`init`'s checklist shows which.
+When `premerge=` is set in the main checkout's `.claude/workshop.conf` — a
+test run, a lint gate — the command runs it in the branch's worktree after
+every other check and before the squash, and refuses the merge on a
+non-zero exit with the command's output as the reason. Only removing the
+key skips it. A branch whose worktree is gone is refused rather than merged
+unchecked; `workbench start <id>` recreates one. The file is committed, so
+every clone and worktree has the same gate.
 
 The command refuses before touching anything, naming the reason. An
 unstaged edit on main stays out of the squash and is tolerated. It does not

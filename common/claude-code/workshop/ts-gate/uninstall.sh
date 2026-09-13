@@ -57,8 +57,17 @@ Object.keys(s).length?fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n"):fs.unlin
 fi
 rmdir .claude 2>/dev/null || true
 
-# 6. workbench.premerge, only if it is still ours.
-[ "$(git config --get workbench.premerge 2>/dev/null)" = "npm run gate" ] && git config --unset workbench.premerge
+# 6. premerge, only if it is still ours: every premerge line of
+#    .claude/workshop.conf goes when the one in effect (the last) is exactly
+#    'npm run gate'; a file left empty is removed.
+CONF=.claude/workshop.conf
+if [ -f "$CONF" ]; then
+  LAST=$(sed -n 's/^[[:space:]]*premerge[[:space:]]*=[[:space:]]*//p' "$CONF" | sed 's/[[:space:]]*$//' | tail -n 1)
+  if [ "$LAST" = "npm run gate" ]; then
+    sed -i '/^[[:space:]]*premerge[[:space:]]*=/d' "$CONF"
+    grep -q '[^[:space:]]' "$CONF" || command rm -f "$CONF"
+  fi
+fi
 case "$(git config --get workbench.guards 2>/dev/null)" in 'npm run (gate|lint|build|typecheck)|'*) git config --unset workbench.guards ;; esac
 
 # 7. Files. The architecture record is the project's once it differs from the

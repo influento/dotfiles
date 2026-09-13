@@ -13,7 +13,7 @@ if [ "$SRC" -ef "$T/ts-gate" ]; then
   echo "install.sh is the project copy; run the dotfiles source instead: bash \"\$TS_GATE/install.sh\" $T"; exit 1
 fi
 
-# 0. Preconditions. Refused rather than warned: premerge is git config.
+# 0. Preconditions. Refused rather than warned: guards is git config.
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$T is not a git repository"; exit 1; }
 grep -q '"include"\|"exclude"' tsconfig.json || echo "WARNING: tsconfig.json has no include/exclude; tsc will compile everything, the read-only subtrees 'stack add' puts under repos/ included. Add \"include\": [\"src\"]"
 grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"strict\": true; the type-aware rules assume it"
@@ -170,8 +170,10 @@ const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
 s.hooks??={}; s.hooks.Stop??=[];
 const command="bash ts-gate/scripts/stop-hook.sh";
+// A timeout set by hand survives the re-run; 600 only for a fresh entry.
+const timeout=s.hooks.Stop.flatMap(e=>e.hooks??[]).find(h=>h.command===command)?.timeout??600;
 s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==command)})).filter(e=>e.hooks.length);
-s.hooks.Stop.push({hooks:[{type:"command",command,timeout:600}]});
+s.hooks.Stop.push({hooks:[{type:"command",command,timeout}]});
 s.permissions??={}; s.permissions.allow??=[];
 // Not gate:* — that would cover gate:verify, which starts a model session.
 const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
@@ -180,11 +182,33 @@ s.permissions.allow=s.permissions.allow.filter(r=>r!=="Bash(npm run gate:*)");
 for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 
-# 7. workbench keys. Per clone, like every workbench key; inert without
-#    workbench. premerge set to something else: chained by hand.
-PREMERGE=$(git config --get workbench.premerge 2>/dev/null || true)
-if [ -z "$PREMERGE" ]; then git config workbench.premerge "npm run gate" 2>/dev/null && echo "set git config workbench.premerge 'npm run gate'"
-elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '$PREMERGE', left alone; the gate runs at merge only if that command runs 'npm run gate'"; fi
+# 7. workbench keys; inert without workbench. premerge goes in the committed
+#    .claude/workshop.conf, only when the file has no premerge key: a project
+#    points it at its own wrapper, which a re-install must not undo. A value
+#    an older install left in git config is carried over instead. Read with
+#    the same last-occurrence rule as scripts/stop-hook.sh.
+CONF=.claude/workshop.conf
+PREMERGE=""
+HAS_PREMERGE=0
+if [ -f "$CONF" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+    case "$line" in '#'*) continue ;; *=*) ;; *) continue ;; esac
+    k=${line%%=*}; k="${k%"${k##*[![:space:]]}"}"
+    [ "$k" = premerge ] || continue
+    HAS_PREMERGE=1; PREMERGE=${line#*=}; PREMERGE="${PREMERGE#"${PREMERGE%%[![:space:]]*}"}"
+  done < "$CONF"
+fi
+if [ "$HAS_PREMERGE" -eq 0 ]; then
+  PREMERGE=$(git config --local --get workbench.premerge 2>/dev/null || true)
+  [ -n "$PREMERGE" ] || PREMERGE="npm run gate"
+  command mkdir -p .claude
+  [ ! -s "$CONF" ] || [ -z "$(tail -c1 "$CONF")" ] || echo >> "$CONF"
+  printf 'premerge=%s\n' "$PREMERGE" >> "$CONF"
+  git config --local --unset workbench.premerge 2>/dev/null || true
+  echo "set premerge=$PREMERGE in $CONF"
+fi
+[ "$PREMERGE" = "npm run gate" ] || echo "NOTE: premerge is '$PREMERGE' in $CONF, left alone; the gate runs at merge only if that command runs 'npm run gate'"
 #    guards: the words for a criterion step that proves nothing. Workbench
 #    holds the rule; the words are this toolchain's.
 GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum:]]|$)'

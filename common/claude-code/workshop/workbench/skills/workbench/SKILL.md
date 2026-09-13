@@ -9,7 +9,7 @@ Work is tracked as **items**: what will change and how anyone will know it
 worked, written before the code exists. The reader may not read code at all
 — items and command output are their only channel.
 
-**Main** is the default branch: `git config workbench.main`, then
+**Main** is the default branch: `main=` in `.claude/workshop.conf`, then
 `origin/HEAD`, then `main` or `master`. The commands resolve the real name.
 
 ## The loop
@@ -196,7 +196,7 @@ gets one line under Evidence saying why. A finding is shown, not read — the
 reviewer ran something on the branch and the output is wrong — and one the
 worker cannot reproduce from that demonstration is withdrawn, as at archive
 (`unreproduced`). Round two always runs; `round` decides the rest by count,
-records `rounds:` on the item, and at the fifth round parks it: `workbench
+records `rounds:` on the item, and at round @@REVIEW_ROUND_CAP@@ parks it: `workbench
 call <id>` with the standing finding, and the merge is the user's. A
 finding outside the item's criterion and the mechanism it changed is
 `workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix

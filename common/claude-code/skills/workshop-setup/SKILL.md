@@ -50,8 +50,8 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    installed after.
 
 2. **Gate.** One per language; a language without one skips this step and
-   sets `git config workbench.premerge` to the project's own check by hand,
-   so workbench still merges behind something.
+   sets `premerge=<the project's own check>` in `.claude/workshop.conf` by
+   hand, so workbench still merges behind something.
 
    TypeScript: `TS_GATE=$WORKSHOP/ts-gate`, read `$TS_GATE/CLAUDE.md` (the
    gate's contract), then `bash "$TS_GATE/install.sh" .`. Act on every line
@@ -92,8 +92,11 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    habit that feeds it, without the item loop.
 
    ```
-   mkdir -p .claude/agents && cp "$WORKSHOP/workbench/agents/wb-reviewer.md" .claude/agents/
+   mkdir -p .claude/agents && sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' "$WORKSHOP/workbench/agents/wb-reviewer.md" > .claude/agents/wb-reviewer.md
    ```
+
+   The source carries a setting as a token; this fills its default. Once
+   workbench is in, it renders the file from `.claude/workshop.conf`.
 
    then append to CLAUDE.md, after the stack block:
 
@@ -122,7 +125,9 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
 
 7. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read the gate's command
-   (`npm run gate` for ts-gate). One line init does not print — deploy: none
+   (`npm run gate` for ts-gate, in `.claude/workshop.conf`). Settings the
+   project wants off their defaults (models, efforts, caps, lint thresholds)
+   go in that file: `$WORKSHOP/CLAUDE.md`, ".claude/workshop.conf". One line init does not print — deploy: none
    (a CLI, a library), or a project-level `scripts/deploy` that ships a tag
    over ssh to the server and runs `docker compose up --build` in
    `~/srv/<name>`, with a `Dockerfile` whose base image is pinned to the

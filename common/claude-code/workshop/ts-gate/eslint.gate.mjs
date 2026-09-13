@@ -27,6 +27,32 @@ const moneyEscapes = [
   },
 ];
 
+// The project's settings (.claude/workshop.conf, `key=value` lines; the key
+// table: workshop/CLAUDE.md in the dotfiles source), read as workbench and
+// scripts/stop-hook.sh read them: lines trimmed, blank and `#` lines skipped,
+// split at the first `=`, the last occurrence wins, an invalid value is the
+// default.
+const workshopConf = (root) => {
+  const conf = new Map();
+  let text = "";
+  try {
+    text = fs.readFileSync(join(root, ".claude/workshop.conf"), "utf8");
+  } catch {
+    return conf;
+  }
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    const eq = line.indexOf("=");
+    if (line === "" || line.startsWith("#") || eq < 0) continue;
+    conf.set(line.slice(0, eq).trim(), line.slice(eq + 1).trim());
+  }
+  return conf;
+};
+const confCount = (conf, key, fallback) => {
+  const v = conf.get(key);
+  return v !== undefined && /^[1-9][0-9]{0,8}$/.test(v) ? Number(v) : fallback;
+};
+
 // Whether `stack add <name>` is recorded in the project (.claude/stack.conf,
 // one `name|…` row per package).
 const stackHas = (root, name) => {
@@ -171,6 +197,9 @@ export default function gate({
 }) {
   const E = severity;
   const never = neverWords(join(tsconfigRootDir, "workbench/GLOSSARY.md"));
+  // Thresholds only; severities and options stay as written below.
+  const conf = workshopConf(tsconfigRootDir);
+  const limit = (key, fallback) => confCount(conf, key, fallback);
   return [
     {
       files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
@@ -301,15 +330,15 @@ export default function gate({
         "@typescript-eslint/no-unsafe-return": E,
 
         // --- the one hard shape rule --------------------------------------
-        "sonarjs/cognitive-complexity": [E, 15],
-        "sonarjs/no-nested-functions": [E, { threshold: 3 }],
+        "sonarjs/cognitive-complexity": [E, limit("lint.complexity", 15)],
+        "sonarjs/no-nested-functions": [E, { threshold: limit("lint.max_nesting", 3) }],
 
         // --- size signals: warn only, never block ---------------------------
-        "max-lines": ["warn", { max: 1000, skipBlankLines: true, skipComments: true }],
-        "max-lines-per-function": ["warn", { max: 100, skipBlankLines: true, skipComments: true }],
-        "max-statements": ["warn", 30],
-        "max-params": ["warn", 6],
-        "max-depth": ["warn", 4],
+        "max-lines": ["warn", { max: limit("lint.max_lines", 1000), skipBlankLines: true, skipComments: true }],
+        "max-lines-per-function": ["warn", { max: limit("lint.max_lines_per_function", 100), skipBlankLines: true, skipComments: true }],
+        "max-statements": ["warn", limit("lint.max_statements", 30)],
+        "max-params": ["warn", limit("lint.max_params", 6)],
+        "max-depth": ["warn", limit("lint.max_depth", 4)],
       },
     },
     {

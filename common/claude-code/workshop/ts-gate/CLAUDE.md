@@ -29,8 +29,8 @@ Install refuses outside git. Then:
 - The npm scripts above.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone. For a project's own, install prints what to merge: the eslint block (until merged, knip flags `ts-gate/eslint.gate.mjs` and two plugins unused), the `setupFiles` and live-tier `exclude` lines for vitest; a project's own biome config is what the gate formats with.
 - `rules/ts-*.md` → `.claude/rules/`.
-- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` or `npx jest` by runner. A re-run replaces the hook entry.
-- `git config workbench.premerge "npm run gate"` if unset (set to something else: printed, chain it by hand) and `workbench.guards`, the regex naming `npm run gate|lint|build|typecheck` and `tsc`.
+- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` or `npx jest` by runner. A re-run replaces the hook entry and keeps its `timeout` (600 for a new entry; Stop hook, below).
+- `premerge=npm run gate` in `.claude/workshop.conf`, only when the file has no `premerge` key (a value an older install left in `git config workbench.premerge` is carried over instead); `git config workbench.guards`, the regex naming `npm run gate|lint|build|typecheck` and `tsc`.
 - The manifest, `ts-gate/.install.json`: what uninstall reads.
 
 Biome is the formatter only: `biome.json` at the root, copied from
@@ -45,8 +45,11 @@ it.
 
 ## Rules
 
-Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
-1000 lines/file, 100/function, 30 statements, 6 params, depth 4): `warn`.
+Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits,
+by default 1000 lines/file, 100/function, 30 statements, 6 params, depth 4):
+`warn`. Those thresholds, cognitive complexity (15) and nesting (3) are
+`lint.*` keys in `.claude/workshop.conf`, read when eslint loads the config
+(the key table: `../CLAUDE.md`); severities and options are not settable.
 `gate({ severity })` sets the first tier; the correctness block
 (`no-floating-promises`, `switch-exhaustiveness-check`, `no-unsafe-*`,
 `restrict-plus-operands`, `no-misused-promises`, `await-thenable`) runs at
@@ -105,18 +108,26 @@ the app keep the network. The exception is a tier, not a flag:
 ## Stop hook
 
 Runs `gate:local` and blocks on every stop while red, capped: the same output
-three stops running gets one last block that says to park it, and the next
-stop is allowed — a fight the model is not winning costs a full turn per
-round. A failure that changes resets the count. What it feeds back is the
-first 80 lines, `tsc --pretty false` and eslint through
-`ts-gate/eslint-line.mjs` (one line per problem); CI keeps the readable
-formats. It exits in milliseconds when no TypeScript changed.
+`gate.repeat_cap` stops running (default 3) gets one last block that says to
+park it, and the next stop is allowed — a fight the model is not winning
+costs a full turn per round. A failure that changes resets the count. What it
+feeds back is the first `gate.output_lines` lines (default 80), `tsc --pretty
+false` and eslint through `ts-gate/eslint-line.mjs` (one line per problem); CI
+keeps the readable formats. Both keys are read from `.claude/workshop.conf` on
+every run (the key table: `../CLAUDE.md`), and the hook's messages state the
+number in effect. It exits in milliseconds when no TypeScript changed.
+
+The entry's `timeout` is 600 s as install writes it; a slower gate raises it
+by hand in `.claude/settings.json`, and a re-install keeps it. Claude Code
+honours it and kills the hook: probed 2.1.270, `claude -p` (haiku), a Stop
+hook `sleep 20` at `timeout: 5` — the session ended 5.0 s after the hook
+started, and the command after the `sleep` never ran.
 
 ## Touchpoints
 
 Workbench, all on this side: the `premerge` key (its merge runs the gate in
-the branch worktree; per clone, like every workbench key, so a fresh clone
-sets it again or re-runs install), the `guards` key (this toolchain's words
+the branch worktree; committed in `.claude/workshop.conf`, so every clone and
+worktree has it), the `guards` key (this toolchain's words
 for a step that proves nothing; workbench holds only the rule), the allow
 rules (a session run without prompts is denied anything not listed),
 `.worktrees/**` in the eslint ignores (`eslint .` in the main checkout would
@@ -130,6 +141,13 @@ property another module owns (`stripe.account`) and strings are not checked;
 test names and prose stay with wb-reviewer's grep. Workbench knows nothing of
 ts-gate.
 
+`premerge` is written only when the file has no such key, and uninstall
+removes it only while it is exactly `npm run gate`. A project that needs more
+at merge (a build, a migration check) points it at its own wrapper —
+`premerge=bash scripts/premerge.sh`, the script running `npm run gate` and
+its extras — rather than editing files under `ts-gate/`, which the next
+install overwrites.
+
 Stack: the two `.claude/stack.conf` reads above, and `knip.json`'s lists it
 appends to. Effect is a stack package, not the gate's; `ts-lean-code.md`
 names it because every project has it.
@@ -137,8 +155,8 @@ names it because every project has it.
 ## Project requirements
 
 - `tsconfig.json`: `strict: true`, `noUncheckedIndexedAccess: true` and an `include`. Type-aware rules are the point; install warns when either flag is missing.
-- Commit `.claude/settings.json`, `.claude/rules/`, `ts-gate/`, `eslint.config.mjs`, `biome.json`, `vitest.config.mjs`. A worktree without them has no gate.
-- Fresh checkout: `npm ci` before the first stop; `git config workbench.premerge "npm run gate"` if workbench merges from it.
+- Commit `.claude/settings.json`, `.claude/rules/`, `.claude/workshop.conf`, `ts-gate/`, `eslint.config.mjs`, `biome.json`, `vitest.config.mjs`. A worktree without them has no gate.
+- Fresh checkout: `npm ci` before the first stop. `premerge` and the other settings come with the checkout (`.claude/workshop.conf`); commit it.
 - Keep tools out of `repos/` (the stack's read-only subtrees): tsconfig `include`. eslint and knip ignores are written by install; the gate's vitest calls exclude it themselves, a project's own `vitest` script should too.
 
 ## Greenfield
@@ -177,7 +195,7 @@ Every line install prints is acted on before anything else goes in:
 |---|---|
 | the eslint block, for a project with its own config | merge it; until then knip flags `ts-gate/eslint.gate.mjs` and two plugins unused |
 | the vitest `setupFiles` and live-tier `exclude` lines, for a project's own vitest config | add them; without them tests may reach the network and `npm test` runs the live tier |
-| `NOTE: workbench.premerge is '<x>'` | chain, never replace: `git config workbench.premerge "<x> && npm run gate"` |
+| `NOTE: premerge is '<x>' in .claude/workshop.conf` | make sure `<x>` runs `npm run gate` (a wrapper script, Touchpoints); never replace it with the bare gate |
 | `WARNING` (tsconfig flags or `include`, `engines.node`, biome includes, knip entry, no runner) | fix first |
 
 Then `npm run gate:full`. Greenfield: green. Brownfield: the first run is the

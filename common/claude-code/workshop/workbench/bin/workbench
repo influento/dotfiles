@@ -19,12 +19,38 @@ MARK_END='<!-- workbench:end -->'
 # One obvious sentence, one question.
 IDEA_MAX=200
 CALL_MAX=300
-# Line caps on the documents every session reads; 'git config
-# workbench.cap.<name>' overrides.
-CAP_CLAUDE=150
-CAP_GLOSSARY=300
-CAP_BACKLOG=400
-CAP_DECISIONS=200
+
+# The project's settings, committed: 'key=value' lines, the value running to
+# the end of the line, '#' comment lines. A missing key, an unknown one or an
+# invalid value means the default, never an error; status names the last two.
+# What each key changes: the table in workshop/CLAUDE.md, dotfiles source.
+CONF=.claude/workshop.conf
+# key|default|kind. An empty default is no premerge, and the default branch
+# found by default_branch. The count keys also render into the agent and
+# skill copies as @@TOKENS@@ (conf_token).
+CONF_KEYS='worker.model|inherit|model
+worker.effort|inherit|effort
+reviewer.model|inherit|model
+reviewer.effort|inherit|effort
+review.exchange_cap|6|count
+review.round_cap|5|count
+cap.claude|150|count
+cap.glossary|300|count
+cap.backlog|400|count
+cap.decisions|200|count
+premerge||command
+main||branch'
+# ts-gate reads these itself; listed and checked here only where it is
+# installed. Defaults as ts-gate's own files have them.
+CONF_TSGATE_KEYS='gate.repeat_cap|3|count
+gate.output_lines|80|count
+lint.complexity|15|count
+lint.max_nesting|3|count
+lint.max_lines|1000|count
+lint.max_lines_per_function|100|count
+lint.max_statements|30|count
+lint.max_params|6|count
+lint.max_depth|4|count'
 
 usage() {
   # Help asked for goes to stdout; help printed because a call was wrong is
@@ -42,14 +68,18 @@ usage:
   workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch;
-                                       needs evidence or a trigger status; runs 'git config
-                                       workbench.premerge' in the worktree first, refusing on non-zero
-                                       (workbench.guards: regex of steps start refuses as guards)
+                                       needs evidence or a trigger status; runs premerge from
+                                       .claude/workshop.conf in the worktree first, refusing on non-zero
+                                       (git config workbench.guards: regex of steps start refuses as guards)
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what an abandoned branch carries
   workbench status                     in flight, duplicate ids, documents over their line caps
+  workbench config [list]              every key in .claude/workshop.conf: effective value, file or default
+  workbench config get <key>           the effective value of one key
+  workbench config render              re-render the agent and skill copies from source and the file
+  workbench config watch               SessionStart hook: asks Claude Code to watch the file
 
-  state lives under workbench/
+  state lives under workbench/; settings in .claude/workshop.conf
 EOF
   exit "${1:-2}"
 }
@@ -190,7 +220,137 @@ next_id() {
   printf '%03d\n' "$current"
 }
 
-# --- init -------------------------------------------------------------------
+# --- .claude/workshop.conf --------------------------------------------------
+
+# Read the same way as ts-gate's stop-hook.sh and eslint.gate.mjs: each line
+# trimmed, blank and '#' lines skipped, split at the first '=', key and value
+# trimmed, the last occurrence of a key wins. Fills CONF_V (key → value) and
+# CONF_JUNK ("<line number>: <text>" for a line with no '=').
+declare -A CONF_V=()
+CONF_JUNK=()
+conf_scan() {
+  local f="$1/$CONF" line k v n=0
+  CONF_V=(); CONF_JUNK=()
+  [ -f "$f" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+    case "$line" in ''|'#'*) continue ;; *=*) ;; *) CONF_JUNK+=("$n: $line"); continue ;; esac
+    k=${line%%=*}; k="${k%"${k##*[![:space:]]}"}"
+    v=${line#*=}; v="${v#"${v%%[![:space:]]*}"}"
+    CONF_V[$k]=$v
+  done < "$f"
+}
+
+# "<default>|<kind>" for a key either tool reads; exit 1 for any other.
+conf_meta() {
+  local k rest
+  while IFS='|' read -r k rest; do
+    [ "$k" = "$1" ] && { printf '%s\n' "$rest"; return 0; }
+  done <<< "$CONF_KEYS"$'\n'"$CONF_TSGATE_KEYS"
+  return 1
+}
+
+conf_valid() {
+  case "$1" in
+    model) [[ "$2" =~ ^[^[:space:]]+$ ]] ;;
+    effort) case "$2" in inherit|low|medium|high|xhigh|max) ;; *) return 1 ;; esac ;;
+    count) [[ "$2" =~ ^[1-9][0-9]{0,8}$ ]] ;;
+    command) return 0 ;;
+    branch) [ -n "$2" ] && git check-ref-format "refs/heads/$2" ;;
+  esac
+}
+
+conf_expects() {
+  case "$1" in
+    model) echo "inherit or a model name without spaces" ;;
+    effort) echo "inherit, low, medium, high, xhigh or max" ;;
+    count) echo "a positive integer" ;;
+    branch) echo "a branch name" ;;
+  esac
+}
+
+# The value in effect: the file's when valid, else the default. Root: the
+# checkout whose file applies, the current one when omitted.
+conf_get() {
+  local key=$1 root=${2:-} meta
+  [ -n "$root" ] || root=$(repo_root)
+  meta=$(conf_meta "$key") || die "no key '$key' in $CONF"
+  conf_scan "$root"
+  if [ -n "${CONF_V[$key]+set}" ] && conf_valid "${meta#*|}" "${CONF_V[$key]}"; then
+    printf '%s\n' "${CONF_V[$key]}"
+  else
+    printf '%s\n' "${meta%%|*}"
+  fi
+}
+
+# file | default | invalid (the file has it, the default applies).
+conf_source() {
+  local key=$1 meta
+  meta=$(conf_meta "$key")
+  conf_scan "$2"
+  if [ -z "${CONF_V[$key]+set}" ]; then echo default
+  elif conf_valid "${meta#*|}" "${CONF_V[$key]}"; then echo file
+  else echo invalid
+  fi
+}
+
+# Appended; the file is created when missing.
+conf_append() {
+  local f="$1/$CONF"
+  mkdir -p "$(dirname "$f")"
+  [ ! -s "$f" ] || [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+  printf '%s=%s\n' "$2" "$3" >> "$f"
+}
+
+# The keys ts-gate reads count only where it is installed.
+conf_tables() {
+  printf '%s\n' "$CONF_KEYS"
+  [ ! -d "$1/ts-gate" ] || printf '%s\n' "$CONF_TSGATE_KEYS"
+}
+
+# What status warns about, one line each: a line that is not key=value, an
+# unknown key, an invalid value, a main naming no branch.
+conf_problems() {
+  local root=$1 k kind j
+  conf_scan "$root"
+  for j in "${CONF_JUNK[@]}"; do printf '%s line %s is not key=value\n' "$CONF" "$j"; done
+  local known=" "
+  while IFS='|' read -r k _ kind; do
+    known="$known$k "
+    [ -n "${CONF_V[$k]+set}" ] || continue
+    if ! conf_valid "$kind" "${CONF_V[$k]}"; then
+      printf "%s: %s='%s' is not %s; the default applies\n" "$CONF" "$k" "${CONF_V[$k]}" "$(conf_expects "$kind")"
+    elif [ "$kind" = branch ] && ! git -C "$root" rev-parse --verify -q "refs/heads/${CONF_V[$k]}" >/dev/null \
+         && ! git -C "$root" rev-parse --verify -q "refs/remotes/origin/${CONF_V[$k]}" >/dev/null; then
+      printf "%s: main='%s' names no branch in this repository\n" "$CONF" "${CONF_V[$k]}"
+    fi
+  done < <(conf_tables "$root")
+  # Sorted: an associative array has no order.
+  while IFS= read -r k; do
+    [ -n "$k" ] || continue
+    case "$known" in *" $k "*) continue ;; esac
+    # ts-gate's keys where ts-gate is not installed: someone else's, not unknown.
+    conf_meta "$k" >/dev/null && continue
+    printf "%s: unknown key '%s', ignored\n" "$CONF" "$k"
+  done < <(printf '%s\n' "${!CONF_V[@]}" | LC_ALL=C sort)
+}
+
+# review.round_cap → REVIEW_ROUND_CAP, written @@REVIEW_ROUND_CAP@@ in a source.
+conf_token() {
+  local t=${1^^}
+  printf '%s\n' "${t//./_}"
+}
+
+# The sed script that fills a source's @@TOKENS@@ from the root's file.
+render_sed() {
+  local k kind
+  while IFS='|' read -r k _ kind; do
+    [ "$kind" = count ] || continue
+    printf 's/@@%s@@/%s/g;' "$(conf_token "$k")" "$(conf_get "$k" "$1")"
+  done <<< "$CONF_KEYS"
+}
+
 
 write_glossary() {
   cat > "$1" <<'EOF'
@@ -271,8 +431,30 @@ skill_hash() {
   } | sha256sum | cut -c1-12
 }
 
-# current | stale | edited | missing. A stamp without a valid copy hash
-# reads as stale (re-rendered), not edited (refused).
+# A source as its copy should read: cp, then the @@TOKENS@@ filled from the
+# root's .claude/workshop.conf. $3 root.
+render_skill_copy() {
+  local f files=()
+  cp -RL "$1" "$2"
+  find "$2" -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+  mapfile -t files < <(grep -rlE '@@[A-Z_]+@@' "$2" || true)
+  [ "${#files[@]}" -eq 0 ] || sed -i "$(render_sed "$3")" "${files[@]}"
+}
+
+# The hash a copy rendered now would have; without a token it is the source's.
+rendered_skill_hash() {
+  local tmp h
+  grep -rqE '@@[A-Z_]+@@' "$1" || { skill_hash "$1"; return; }
+  tmp=$(mktemp -d)
+  render_skill_copy "$1" "$tmp/copy" "$2"
+  h=$(skill_hash "$tmp/copy")
+  rm -rf "$tmp"
+  printf '%s\n' "$h"
+}
+
+# current | stale | edited | config | missing. A stamp without a valid copy
+# hash reads as stale (re-rendered), not edited (refused). config: source and
+# copy untouched, and the file now renders something else.
 skill_state() {
   local root="$1" src="$2" dst src_hash copy_hash
   dst="$root/.claude/skills/$(basename "$src")"
@@ -283,13 +465,18 @@ skill_state() {
     echo edited
   elif [ "$src_hash" != "$(skill_hash "$src")" ]; then
     echo stale
+  elif [ "$(rendered_skill_hash "$src" "$root")" != "$(skill_hash "$dst")" ]; then
+    echo config
   else
     echo current
   fi
 }
 
+# mode init: an edited copy is refused, a copy of a skill no longer shipped
+# is reaped. mode config ('config render'): an edited copy is skipped with a
+# line, and nothing but the shipped copies is touched.
 render_skills() {
-  local force="${1:-0}" root src srcdir dst name hash state wanted=" "
+  local force="${1:-0}" mode="${2:-init}" root src srcdir dst name hash state wanted=" "
   root=$(repo_root)
   srcdir=$(readlink -f "$(wb_root)")
   mkdir -p "$root/.claude/skills"
@@ -311,6 +498,10 @@ render_skills() {
       fi
       state=$(skill_state "$root" "$src")
       if [ "$state" = edited ] && [ "$force" != 1 ]; then
+        if [ "$mode" = config ]; then
+          echo "  .claude/skills/$name was edited by hand; not rendered — move the edit into the source, then 'workbench init --force'" >&2
+          continue
+        fi
         die "$dst was edited by hand since it was rendered; move the edit into the source, or 'workbench init --force' to overwrite it"
       fi
       [ "$state" != current ] || continue
@@ -319,12 +510,12 @@ render_skills() {
       die "$dst exists and is not a directory"
     fi
 
-    cp -RL "$src" "$dst"
-    find "$dst" -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+    render_skill_copy "$src" "$dst" "$root"
     printf '%s\n%s\n%s\n' "$hash" "$(skill_hash "$dst")" \
-      "generated by 'workbench init' from workbench/${src#"$srcdir"/}; edit the source and re-run, never this copy" > "$dst/$STAMP"
+      "generated by 'workbench init' from workbench/${src#"$srcdir"/} and $CONF; edit the source and re-run, never this copy" > "$dst/$STAMP"
     if [ "$state" = edited ]; then echo "  rendered .claude/skills/$name (the hand edit is gone)"; else echo "  rendered .claude/skills/$name"; fi
   done < <(skill_sources)
+  [ "$mode" = init ] || return 0
 
   # A generated copy for a skill no longer in the source; guarded by the
   # stamp's own wording, and an edited one is refused as above.
@@ -352,10 +543,72 @@ agent_sources() {
   for name in $WB_AGENTS; do printf '%s\n' "$base/agents/$name.md"; done
 }
 
+# An agent as its copy should read, given its model, effort and token sed
+# script: model: and effort: go last in the frontmatter, left out at inherit,
+# and any the source carries are dropped; @@TOKENS@@ filled; every other line
+# as it is.
+render_agent_with() {
+  M=$2 E=$3 awk '
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm && $0 == "---" {
+      if (ENVIRON["M"] != "inherit") print "model: " ENVIRON["M"]
+      if (ENVIRON["E"] != "inherit") print "effort: " ENVIRON["E"]
+      fm = 0; print; next
+    }
+    fm && /^(model|effort):/ { next }
+    { print }' "$1" | sed "$4"
+}
+
+# The same from the root's file: wb-worker reads worker.*, wb-reviewer
+# reviewer.*; an agent with no keys of its own inherits.
+render_agent() {
+  local role model=inherit effort=inherit
+  role=$(basename "$1" .md); role=${role#wb-}
+  if conf_meta "$role.model" >/dev/null; then
+    model=$(conf_get "$role.model" "$2")
+    effort=$(conf_get "$role.effort" "$2")
+  fi
+  render_agent_with "$1" "$model" "$effort" "$(render_sed "$2")"
+}
+
+# What a copy was rendered with, read back against its source: the model,
+# the effort and a sed script of the token values, one line each. Exit 1
+# when the copy is no render of this source — edited, or the source moved on.
+agent_rendered_with() {
+  awk '
+    FNR == 1 { file++; fm = ($0 == "---"); if (file == 1) s[++ns] = $0; else c[++nc] = $0; next }
+    fm && $0 == "---" { fm = 0; if (file == 1) s[++ns] = $0; else c[++nc] = $0; next }
+    fm && /^model: / { if (file == 2) model = substr($0, 8); next }
+    fm && /^effort: / { if (file == 2) effort = substr($0, 9); next }
+    { if (file == 1) s[++ns] = $0; else c[++nc] = $0 }
+    END {
+      if (file != 2 || ns != nc) exit 1
+      for (i = 1; i <= ns; i++) {
+        a = s[i]; b = c[i]
+        if (a == b) continue
+        while (match(a, /@@[A-Z_]+@@/)) {
+          lit = substr(a, 1, RSTART - 1); tok = substr(a, RSTART, RLENGTH); a = substr(a, RSTART + RLENGTH)
+          if (substr(b, 1, length(lit)) != lit) exit 1
+          b = substr(b, length(lit) + 1)
+          if (!match(b, /^[0-9]+/)) exit 1
+          v = substr(b, 1, RLENGTH); b = substr(b, RLENGTH + 1)
+          if ((tok in val) && val[tok] != v) exit 1
+          val[tok] = v
+        }
+        if (a != b) exit 1
+      }
+      print (model == "" ? "inherit" : model)
+      print (effort == "" ? "inherit" : effort)
+      for (t in val) printf "s/%s/%s/g;", t, val[t]
+      print ""
+    }' "$1" "$2"
+}
+
 # An agent is a flat .md with nowhere to hold a stamp, so the check is cmp
-# and a differing copy is overwritten either way.
+# against the render and a differing copy is overwritten either way. mode
+# config renders the shipped agents and reaps nothing.
 render_agents() {
-  local root src dst name wanted=" "
+  local mode="${1:-init}" root src dst name wanted=" "
   root=$(repo_root)
   mkdir -p "$root/.claude/agents"
   while IFS= read -r src; do
@@ -363,10 +616,11 @@ render_agents() {
     name=$(basename "$src")
     wanted="$wanted$name "
     dst="$root/.claude/agents/$name"
-    if [ -f "$dst" ] && cmp -s "$src" "$dst"; then continue; fi
-    cp "$src" "$dst"
+    if [ -f "$dst" ] && cmp -s <(render_agent "$src" "$root") "$dst"; then continue; fi
+    render_agent "$src" "$root" > "$dst"
     echo "  rendered .claude/agents/$name"
   done < <(agent_sources)
+  [ "$mode" = init ] || return 0
 
   # Reap a copy for an agent no longer shipped, guarded by the marker in its
   # own frontmatter so a project's own agent is never touched.
@@ -380,7 +634,7 @@ render_agents() {
   done
 }
 
-# The copies that no longer match: "<name>\t<stale|edited|missing>", main checkout only.
+# The copies that no longer match: "<name>\t<stale|edited|config|missing>", main checkout only.
 skill_drift() {
   local root src state
   root=$(main_root)
@@ -390,17 +644,25 @@ skill_drift() {
   done < <(skill_sources 2>/dev/null)
 }
 
-# "<name>\tdiffers|missing": with no stamp, stale and edited cannot be told apart.
+# "<name>\tdiffers|config|missing": with no stamp, stale and edited cannot be
+# told apart. config: the copy is an untouched render of today's source with
+# other settings, so only the file changed.
 agent_drift() {
-  local root src dst name
+  local root src dst name from m e s
   root=$(main_root)
   while IFS= read -r src; do
     name=$(basename "$src")
     dst="$root/.claude/agents/$name"
     if [ ! -f "$dst" ]; then
       printf '%s\tmissing\n' "$name"
-    elif ! cmp -s "$src" "$dst"; then
-      printf '%s\tdiffers\n' "$name"
+    elif ! cmp -s <(render_agent "$src" "$root") "$dst"; then
+      if from=$(agent_rendered_with "$src" "$dst") \
+         && { read -r m; read -r e; read -r s; } <<< "$from" \
+         && cmp -s <(render_agent_with "$src" "$m" "$e" "$s") "$dst"; then
+        printf '%s\tconfig\n' "$name"
+      else
+        printf '%s\tdiffers\n' "$name"
+      fi
     fi
   done < <(agent_sources 2>/dev/null)
 }
@@ -460,7 +722,7 @@ ensure_settings() {
   root=$(repo_root)
   f="$root/.claude/settings.json"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)' and a SessionStart hook running 'command -v workbench >/dev/null && workbench status || true'"
+    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)'; SessionStart hooks running 'command -v workbench >/dev/null && workbench status || true' and, as its own entry, 'command -v workbench >/dev/null && workbench config watch || true'; a FileChanged hook, matcher 'workshop.conf', running 'command -v workbench >/dev/null && workbench config render || true'"
     return 0
   fi
   mkdir -p "$root/.claude"
@@ -487,6 +749,8 @@ if not isinstance(data, dict):
 changed = []
 # Guarded so a clone without the CLI stays quiet.
 HOOK = "command -v workbench >/dev/null && workbench status || true"
+WATCH = "command -v workbench >/dev/null && workbench config watch || true"
+RENDER = "command -v workbench >/dev/null && workbench config render || true"
 # Shapes Claude Code would reject are skipped, not crashed on.
 perms = data.setdefault("permissions", {})
 allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
@@ -534,6 +798,23 @@ else:
                 groups.append(home)
             home["hooks"].append({"type": "command", "command": HOOK})
             changed.append("hooks.SessionStart += workbench status")
+        # Its own entry: it answers in JSON, and status's stdout is plain text.
+        if not any(h.get("command") == WATCH for h in entries):
+            groups.append({"hooks": [{"type": "command", "command": WATCH}]})
+            changed.append("hooks.SessionStart += workbench config watch")
+    # A FileChanged matcher alone watches only the project root; the path under
+    # .claude/ comes from the watch hook above.
+    groups = hooks.get("FileChanged")
+    if groups is None:
+        groups = hooks["FileChanged"] = []
+    if not isinstance(groups, list):
+        print("  hooks.FileChanged is not a list in .claude/settings.json; left alone")
+    else:
+        entries = [h for grp in groups if isinstance(grp, dict) and isinstance(grp.get("hooks"), list)
+                   for h in grp["hooks"] if isinstance(h, dict)]
+        if not any(h.get("command") == RENDER for h in entries):
+            groups.append({"matcher": "workshop.conf", "hooks": [{"type": "command", "command": RENDER}]})
+            changed.append("hooks.FileChanged += workbench config render")
 line = data.get("statusLine")
 if isinstance(line, dict) and "workbench statusline" in str(line.get("command", "")):
     del data["statusLine"]
@@ -593,6 +874,7 @@ cmd_init() {
   [ -f "$root/$WB/BACKLOG.md" ] || { write_backlog "$root/$WB/BACKLOG.md"; echo "  wrote $WB/BACKLOG.md"; }
   [ -f "$root/$WB/DECISIONS.md" ] || { write_decisions "$root/$WB/DECISIONS.md"; echo "  wrote $WB/DECISIONS.md"; }
 
+  migrate_git_config "$root"
   render_skills "$force"
   render_agents
   ensure_gitignore
@@ -603,6 +885,27 @@ cmd_init() {
   setup_checklist
 }
 
+# The git config keys .claude/workshop.conf replaced, moved once: written to
+# the file when it lacks the key, then unset. One the file already sets is
+# unset when the two agree and named when they do not.
+migrate_git_config() {
+  local root=$1 key val
+  for key in cap.claude cap.glossary cap.backlog cap.decisions main premerge; do
+    val=$(git -C "$root" config --local --get "workbench.$key" 2>/dev/null) || continue
+    conf_scan "$root"
+    if [ -z "${CONF_V[$key]+set}" ]; then
+      conf_append "$root" "$key" "$val"
+      git -C "$root" config --local --unset "workbench.$key"
+      echo "  moved git config workbench.$key to $CONF: $key=$val"
+    elif [ "${CONF_V[$key]}" = "$val" ]; then
+      git -C "$root" config --local --unset "workbench.$key"
+      echo "  unset git config workbench.$key: $CONF already has $key=$val"
+    else
+      echo "  git config workbench.$key is '$val', $CONF has $key=${CONF_V[$key]}; the file applies — 'git config --unset workbench.$key' once settled"
+    fi
+  done
+}
+
 # What has to be decided with the user rather than scaffolded; the skill
 # takes each line to the user.
 setup_checklist() {
@@ -610,18 +913,18 @@ setup_checklist() {
   root=$(repo_root)
   echo
   echo "setup — decide these with the user:"
-  if main=$(git config --get workbench.main 2>/dev/null) && [ -n "$main" ]; then
-    echo "  default branch    $main (git config workbench.main)"
+  if [ "$(conf_source main "$root")" = file ]; then
+    echo "  default branch    $(conf_get main "$root") (main= in $CONF)"
   elif main=$(default_branch 2>/dev/null); then
-    echo "  default branch    $main — squash merges land here; 'git config workbench.main <branch>' if that is wrong"
+    echo "  default branch    $main — squash merges land here; 'main=<branch>' in $CONF if that is wrong"
   else
-    echo "  default branch    UNRESOLVED — set 'git config workbench.main <branch>' before the first merge"
+    echo "  default branch    UNRESOLVED — set 'main=<branch>' in $CONF before the first merge"
   fi
-  premerge=$(git config --get workbench.premerge 2>/dev/null || true)
+  premerge=$(conf_get premerge "$root")
   if [ -n "$premerge" ]; then
     echo "  premerge          '$premerge' runs in the branch's worktree before every squash; non-zero refuses the merge"
   else
-    echo "  premerge          unset — 'git config workbench.premerge \"<command>\"' (tests, a lint gate) runs in the branch's worktree before every squash; non-zero refuses the merge. Per clone"
+    echo "  premerge          unset — 'premerge=<command>' in $CONF (tests, a lint gate) runs in the branch's worktree before every squash; non-zero refuses the merge"
   fi
   guards=$(git config --get workbench.guards 2>/dev/null || true)
   if [ -n "$guards" ]; then
@@ -1152,8 +1455,10 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   # premerge runs on the branch tip: a branch behind main would be tested
   # without what landed since. Except what the worker lands on main from its
   # worktree — a call, a new item — which touches only workbench/.
+  # The main checkout's setting: the branch a merge lands on decides its gate,
+  # not the branch being merged.
   local premerge
-  premerge=$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)
+  premerge=$(conf_get premerge "$root")
   if [ -n "$premerge" ] \
      && ! git -C "$root" merge-base --is-ancestor "$main" "$branch" \
      && git -C "$root" diff --name-only "$branch...$main" | grep -qv "^$WB/"; then
@@ -1161,9 +1466,9 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   fi
 
   # The project's own gate, last because it is slow, before anything lands;
-  # only unsetting the config skips it.
+  # only removing the key skips it.
   if [ -n "$premerge" ]; then
-    [ -n "$wt" ] || die "workbench.premerge is set ('$premerge') and $branch has no worktree to run it in; 'workbench start $id' recreates one, then retry"
+    [ -n "$wt" ] || die "premerge is set ('$premerge') and $branch has no worktree to run it in; 'workbench start $id' recreates one, then retry"
     echo "premerge: $premerge (in $wt)" >&2
     if ! (cd "$wt" && bash -c "$premerge") >&2; then
       die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry. A worktree holds tracked files only: if the command wants the project's dependencies, install them there first"
@@ -1263,10 +1568,10 @@ unsquash() {
   rm -f "$(git -C "$1" rev-parse --absolute-git-dir)/SQUASH_MSG"
 }
 
-# The branch squash commits land on; 'git config workbench.main' answers an odd layout once.
+# The branch squash commits land on; 'main=' in .claude/workshop.conf answers an odd layout once.
 default_branch() {
   local b
-  b=$(git config --get workbench.main 2>/dev/null || true)
+  b=$(conf_get main)
   [ -n "$b" ] || b=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
   if [ -z "$b" ]; then
     for b in main master; do
@@ -1274,7 +1579,7 @@ default_branch() {
       b=
     done
   fi
-  [ -n "$b" ] || die "cannot resolve the default branch; set 'git config workbench.main <branch>'"
+  [ -n "$b" ] || die "cannot resolve the default branch; set 'main=<branch>' in $CONF"
   printf '%s\n' "$b"
 }
 
@@ -1588,19 +1893,15 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   echo "archived $id at $sha"
 }
 
-# One line per document over its cap; 'git config workbench.cap.<name>'
-# overrides, a non-number falling back to the default.
+# One line per document over its cap; 'cap.<name>=' in the main checkout's
+# .claude/workshop.conf overrides.
 cap_alert() {
   local mainr f name key cap n
   mainr=$(main_root)
-  for f in "CLAUDE.md:claude:$CAP_CLAUDE" \
-           "$WB/GLOSSARY.md:glossary:$CAP_GLOSSARY" \
-           "$WB/BACKLOG.md:backlog:$CAP_BACKLOG" \
-           "$WB/DECISIONS.md:decisions:$CAP_DECISIONS"; do
-    name=${f%%:*}; key=${f#*:}; key=${key%%:*}; cap=${f##*:}
+  for f in "CLAUDE.md:claude" "$WB/GLOSSARY.md:glossary" "$WB/BACKLOG.md:backlog" "$WB/DECISIONS.md:decisions"; do
+    name=${f%%:*}; key=${f#*:}
     [ -f "$mainr/$name" ] || continue
-    n=$(git config --get "workbench.cap.$key" 2>/dev/null || true)
-    case "$n" in ''|*[!0-9]*) ;; *) cap=$n ;; esac
+    cap=$(conf_get "cap.$key" "$mainr")
     n=$(wc -l < "$mainr/$name")
     [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — cut it; docs.md, Line caps\n' "$name" "$n" "$cap"
   done
@@ -1674,9 +1975,8 @@ read_hook_input() {
 # Records one round of the review dialog on the item — 'rounds: r1 5/2 · r2
 # 2/0 · stop' under its status line — and says what comes next. Numeric so
 # the worker cannot argue: round 2 always; another while the last round fixed
-# three or more, or as many as the round before (two at least); the cap
-# parks it.
-ROUND_CAP=5
+# three or more, or as many as the round before (two at least); the cap,
+# review.round_cap in the item's checkout, parks it.
 cmd_round() {
   local id="${1:-}" fixed="${2:-}" stands="${3:-}"
   [ -n "$id" ] || usage
@@ -1690,7 +1990,9 @@ cmd_round() {
   path=$(find_item "$id")
   [ -n "$path" ] || die "no item matching '$id'"
   grep -q '^status: ' "$path" || die "$path has no status line"
-  local line prev_fixed=0 k=1 entries decision
+  local line prev_fixed=0 k=1 entries decision cap
+  # The checkout the item is worked in: the number its skill copy states.
+  cap=$(conf_get review.round_cap "$(item_root "$path")")
   line=$(sed -n 's/^rounds: *//p' "$path" | head -1)
   if [ -n "$line" ]; then
     entries=$(printf '%s' "$line" | sed 's/ · \(stop\|call\|again\)$//')
@@ -1705,7 +2007,7 @@ cmd_round() {
     decision=again
   elif [ "$fixed" -lt 3 ] && [ "$fixed" -lt "$(( prev_fixed > 2 ? prev_fixed : 2 ))" ]; then
     decision=stop
-  elif [ "$k" -ge "$ROUND_CAP" ]; then
+  elif [ "$k" -ge "$cap" ]; then
     decision=call
   else
     decision=again
@@ -1724,7 +2026,7 @@ cmd_round() {
   case "$decision" in
     again) echo "next: review again — a new reviewer, round $((k + 1))" ;;
     stop) echo "next: merge — workbench merge $id \"<subject>\"" ;;
-    call) echo "next: call — $ROUND_CAP rounds and still finding; workbench call $id with the standing findings, then report blocked" ;;
+    call) echo "next: call — $cap rounds and still finding; workbench call $id with the standing findings, then report blocked" ;;
   esac
 }
 
@@ -1896,10 +2198,17 @@ cmd_status() {
     sep
     echo "$alert"
   fi
-  # Per clone: a fresh clone has none.
-  if [ -z "$(git config --get workbench.premerge 2>/dev/null || true)" ]; then
+  # Settings the file gets wrong, and copies rendered from settings it no
+  # longer holds; the file is the main checkout's, like the copies checked.
+  local problems
+  problems=$(conf_problems "$(main_root)")
+  if [ -n "$problems" ]; then
     sep
-    echo "premerge: unset — merges run no project check in this clone; git config workbench.premerge \"<the project's test or gate command>\""
+    printf '%s\n' "$problems" | sed 's/^/config: /'
+  fi
+  if [ -z "$(conf_get premerge "$(main_root)")" ]; then
+    sep
+    echo "premerge: unset — merges run no project check; premerge=<the project's test or gate command> in $CONF"
   fi
 
   # The in-flight sections, each printed only with lines under it.
@@ -1922,6 +2231,8 @@ cmd_status() {
   local mainr mainb mid
   mainr=$(main_root)
   mainb=$(default_branch 2>/dev/null) || mainb=""
+  # A main= naming no branch: status warned above, and 'git log' on it would die.
+  git -C "$mainr" rev-parse --verify -q "$mainb^{commit}" >/dev/null 2>&1 || mainb=""
   [ -z "$mainb" ] || limbo_body=$(
     for name in "${names[@]}"; do
       mid=$(item_id "$name")
@@ -2004,10 +2315,18 @@ cmd_status() {
   fi
 
   # Listed, not fixed: init refreshes them, and that is the user's commit.
-  local drift stale edited
+  local drift stale edited agent_drift_out configured
   drift=$(skill_drift)
-  stale=$(awk -F '\t' '$2 != "edited" { printf "%s ", $1 }' <<< "$drift")
+  agent_drift_out=$(agent_drift)
+  stale=$(awk -F '\t' '$2 != "edited" && $2 != "config" { printf "%s ", $1 }' <<< "$drift")
   edited=$(awk -F '\t' '$2 == "edited" { printf "%s ", $1 }' <<< "$drift")
+  # Only the file changed: never reported as stale or as a hand edit.
+  configured=$(printf '%s\n%s\n' "$drift" "$agent_drift_out" | awk -F '\t' '$2 == "config" { printf "%s ", $1 }')
+  if [ -n "${configured// /}" ]; then
+    sep
+    echo "config: copies out of date with $CONF — workbench config render, then restart"
+    echo "  $configured"
+  fi
   if [ -n "${stale// /}" ]; then
     sep
     echo "skills behind their source — run 'workbench init', then commit .claude/"
@@ -2020,7 +2339,7 @@ cmd_status() {
   fi
   # One bit for agents: differs, whether stale or edited.
   local agents
-  agents=$(agent_drift | awk -F '\t' '{ printf "%s ", $1 }')
+  agents=$(awk -F '\t' '$2 != "config" { printf "%s ", $1 }' <<< "$agent_drift_out")
   if [ -n "${agents// /}" ]; then
     sep
     echo "agents differ from their source — run 'workbench init', then commit .claude/"
@@ -2102,8 +2421,71 @@ memory_dir_setting() {
   return 0
 }
 
+# --- config -----------------------------------------------------------------
+
+cmd_config() {
+  local sub="${1:-list}"
+  [ $# -eq 0 ] || shift
+  case "$sub" in
+    list) [ $# -eq 0 ] || usage; config_list ;;
+    get) [ $# -eq 1 ] || usage; config_get "$1" ;;
+    render) [ $# -eq 0 ] || usage; config_render ;;
+    watch) config_watch ;;
+    *) usage ;;
+  esac
+}
+
+# Every key: name, where its value comes from, the value. The ts-gate keys
+# only where ts-gate is installed.
+config_list() {
+  local root k src val
+  root=$(repo_root)
+  while IFS='|' read -r k _ _; do
+    src=$(conf_source "$k" "$root")
+    val=$(conf_get "$k" "$root")
+    case "$k:$val" in
+      premerge:) val="(none)" ;;
+      main:) val="$(default_branch 2>/dev/null || echo unresolved) (auto-detect)" ;;
+    esac
+    printf '%-28s %-8s %s\n' "$k" "$src" "$val"
+  done < <(conf_tables "$root")
+}
+
+config_get() {
+  local root
+  root=$(repo_root)
+  conf_meta "$1" >/dev/null || die "no key '$1'; 'workbench config list' names them"
+  if [ "$1" = main ]; then default_branch; else conf_get "$1" "$root"; fi
+}
+
+# Only the shipped copies, from source and the file; unchanged ones are left
+# alone, so a second run writes nothing. Claude Code reads agents and skills
+# at session start: the change applies from the next session.
+config_render() {
+  local out
+  require_init
+  out=$({ render_agents config; render_skills 0 config; })
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    echo "rendered from $CONF; applies to sessions started from now on"
+  else
+    echo "copies match $CONF"
+  fi
+}
+
+# SessionStart: a FileChanged matcher watches only files in the project root,
+# so the path under .claude/ is handed over here. Quiet outside a repository.
+config_watch() {
+  local root
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  root="$root/$CONF"
+  root=${root//\\/\\\\}; root=${root//\"/\\\"}
+  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","watchPaths":["%s"]}}\n' "$root"
+}
+
 case "${1:-}" in
   init) shift; cmd_init "$@" ;;
+  config) shift; cmd_config "$@" ;;
   adopt) shift; cmd_adopt "$@" ;;
   new) shift; cmd_new "$@" ;;
   start) shift; cmd_start "$@" ;;

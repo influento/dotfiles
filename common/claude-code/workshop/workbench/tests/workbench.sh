@@ -86,6 +86,10 @@ effects() { sed -i '/^## Side effects/,/^## /{ /^## /!d }' "$1"; sed -i "/^## Si
 $2\\
 " "$1"; }
 mainroot() { git worktree list --porcelain | sed -n '1s/^worktree //p'; }
+# conf <key> <value> sets one key in the main checkout's .claude/workshop.conf,
+# uncommitted like a hand edit; unconf <key> removes it.
+unconf() { local f; f="$(mainroot)/.claude/workshop.conf"; [ ! -f "$f" ] || sed -i "/^$1=/d" "$f"; }
+conf() { unconf "$1"; mkdir -p "$(mainroot)/.claude"; printf '%s=%s\n' "$1" "$2" >> "$(mainroot)/.claude/workshop.conf"; }
 # newc <class> <title> [opts] — new, with the criterion filled; prints the id.
 # The file is on the main checkout wherever this runs, so it is found there.
 newc() {
@@ -260,11 +264,12 @@ check "status says nothing about caps while every file is under" bash -c "! '$WB
 pad() { local i n; n=$(wc -l < "$1"); for ((i = n; i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
 pad workbench/BACKLOG.md 401 '- pad'
 run "status names a file over its cap with its length" 0 '^cap: workbench/BACKLOG.md 401/400 — cut it' bash -c "'$WB' status | grep '^cap:'"
-git config workbench.cap.backlog 500
-check "git config workbench.cap.<name> raises the cap" bash -c "! '$WB' status | grep -q '^cap:'"
-git config workbench.cap.backlog many
+conf cap.backlog 500
+check "cap.<name> in .claude/workshop.conf raises the cap" bash -c "! '$WB' status | grep -q '^cap:'"
+conf cap.backlog many
 run "a cap that is not a number falls back to the default" 0 '^cap: workbench/BACKLOG.md 401/400' bash -c "'$WB' status | grep '^cap:'"
-git config --unset workbench.cap.backlog
+run "and status names the invalid value" 0 "^config: .claude/workshop.conf: cap.backlog='many' is not a positive integer; the default applies" "$WB" status
+unconf cap.backlog
 pad CLAUDE.md 151 pad
 check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — cut it; docs.md, Line caps\|cap: workbench/BACKLOG.md 401/400 — cut it; docs.md, Line caps$'"
 check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE '^(cap:|open items)' | grep -q 'cap:'"
@@ -764,7 +769,7 @@ check "and is committed on the branch, not main" bash -c "[ \"\$(git -C $cwt log
 check "status reads the branch's copy" bash -c "'$WB' status | grep -q 'greeting: move or drop?'"
 git rm -q workbench/DECISIONS.md && git commit -qm "answered"
 # the worker's own call and a new item on main do not put the branch behind main
-git config workbench.premerge "true"
+conf premerge true
 newc bug "found meanwhile" >/dev/null
 fill_evidence "$cwt/$citem" "run" "ok"
 ( cd "$cwt" && git commit -qam evidence )
@@ -779,7 +784,7 @@ mkdir -p src && echo code > src/landed.ts && git add -A && git commit -qm "code 
 fill_evidence ".worktrees/$cid2-behind/workbench/items/bugs/$cid2-behind.md" "run" "ok"
 ( cd ".worktrees/$cid2-behind" && git commit -qam evidence )
 run "merge is behind main when code landed since" 1 "is behind main" "$WB" merge "$cid2" "behind"
-git config --unset workbench.premerge
+unconf premerge
 
 uid=$(newc bug "unattended"); "$WB" start "$uid" >/dev/null 2>&1
 wt=.worktrees/$uid-unattended
@@ -903,10 +908,10 @@ pid=$(newc bug "premerge")
 "$WB" start "$pid" >/dev/null 2>&1
 pwt=.worktrees/$pid-premerge
 ready "$pwt"
-git config workbench.premerge "npm run -s gate"
+conf premerge "npm run -s gate"
 run "a premerge that fails names the branch and the worktree's missing dependencies, not a toolchain (C9)" 1 "premerge check failed.*install them there" "$WB" merge "$pid" "gated"
 check "and never tells the user to npm ci" bash -c "! '$WB' merge '$pid' gated 2>&1 | grep -q 'npm ci'"
-git config workbench.premerge "pwd >> '$TMP/premerge.log' && test -e '$TMP/premerge-pass'"
+conf premerge "pwd >> '$TMP/premerge.log' && test -e '$TMP/premerge-pass'"
 run "merge refuses when the premerge command fails" 1 "premerge check failed" "$WB" merge "$pid" "gated"
 check "and the branch is still there" git show-ref -q --verify "refs/heads/$pid-premerge"
 check "and the command ran in the worktree" bash -c "[ \"\$(readlink -f \"\$(tail -1 '$TMP/premerge.log')\")\" = \"\$(readlink -f '$pwt')\" ]"
@@ -917,8 +922,8 @@ pid2=$(newc bug "premerge gone")
 ready ".worktrees/$pid2-premerge-gone"
 git worktree remove ".worktrees/$pid2-premerge-gone"
 run "merge refuses a branch with no worktree to run the command in" 1 "no worktree to run it in" "$WB" merge "$pid2" "gone"
-git config --unset workbench.premerge
-run "and merges once the config is unset" 0 "merged $pid2" "$WB" merge "$pid2" "gone"
+unconf premerge
+run "and merges once the key is gone" 0 "merged $pid2" "$WB" merge "$pid2" "gone"
 
 # --- premerge unset is said at status; a branch behind main is refused (A6, A2)
 new_repo "stale"
@@ -926,7 +931,7 @@ new_repo "stale"
 printf 'export const foo = () => 1;\n' > a.mjs
 git add -A && git commit -qm wb
 run "status says when premerge is unset" 0 "premerge: unset" "$WB" status
-git config workbench.premerge "true"
+conf premerge true
 run "status is quiet about premerge once set" 0 "" bash -c "! '$WB' status | grep -q 'premerge: unset'"
 sa=$(newc feature "use foo")
 "$WB" start "$sa" >/dev/null 2>&1
@@ -940,7 +945,7 @@ ready ".worktrees/$sa-use-foo"
 run "merge refuses a branch cut before that merge while premerge is set" 1 "is behind main" "$WB" merge "$sa" "use"
 ( cd ".worktrees/$sa-use-foo" && git rebase -q main >/dev/null 2>&1 )
 run "and merges once rebased" 0 "merged $sa" "$WB" merge "$sa" "use"
-git config --unset workbench.premerge
+unconf premerge
 
 # --- a criterion step that only says the gate exits 0 is refused at start (C11)
 # Workbench knows no toolchain: the tool's own commands are refused only once
@@ -986,6 +991,164 @@ sed -i '/^## How to confirm/a\
 agreed' "$sof"
 git commit -qam old
 run "start refuses an item with no Side effects section" 1 "'Side effects' is empty" "$WB" start "$so"
+
+# --- .claude/workshop.conf: settings, rendered copies, migration -------------
+
+new_repo conf
+src_root=$(readlink -f "$(dirname "$WB")/..")
+run "init with no settings file" 0 "workbench ready" "$WB" init
+check "init writes no settings file" [ ! -e .claude/workshop.conf ]
+run "config list shows a workbench key at its default" 0 "^review.round_cap +default +5$" "$WB" config list
+check "config with no subcommand lists" bash -c "[ \"\$('$WB' config)\" = \"\$('$WB' config list)\" ]"
+check "config list names the twelve workbench keys and no ts-gate key without ts-gate" bash -c "[ \"\$('$WB' config list | wc -l)\" -eq 12 ] && ! '$WB' config list | grep -qE '^(gate|lint)\.'"
+run "config list shows premerge unset" 0 "^premerge +default +\(none\)$" "$WB" config list
+run "config list shows main auto-detected" 0 "^main +default +main \(auto-detect\)$" "$WB" config list
+run "config get prints the default" 0 "^6$" "$WB" config get review.exchange_cap
+run "config get main resolves the branch" 0 "^main$" "$WB" config get main
+run "config get refuses an unknown key" 1 "no key 'nope'" "$WB" config get nope
+check "no rendered copy carries a token" bash -c "! grep -rqE '@@[A-Z_]+@@' .claude/agents .claude/skills"
+check "at the defaults neither agent carries model: or effort:" bash -c "! grep -qE '^(effort|model):' .claude/agents/wb-reviewer.md .claude/agents/wb-worker.md"
+check "at the defaults an agent copy is its source with the token filled" bash -c "diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-reviewer.md') .claude/agents/wb-reviewer.md && diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-worker.md') .claude/agents/wb-worker.md"
+check "the skill copy states the default caps" bash -c "grep -q 'at round 5 parks it' .claude/skills/workbench/SKILL.md && grep -qF '| root \`CLAUDE.md\` | 150 |' .claude/skills/workbench/references/docs.md"
+run "status says nothing about config with no file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
+
+# The hooks that apply a settings change: watch at session start, render on change.
+WATCH_HOOK='command -v workbench >/dev/null && workbench config watch || true'
+RENDER_HOOK='command -v workbench >/dev/null && workbench config render || true'
+check "init adds the watch hook as its own SessionStart entry" python3 -c "
+import json, sys; g = json.load(open('.claude/settings.json'))['hooks']['SessionStart']
+w = [x for x in g if any(h['command'] == sys.argv[1] for h in x['hooks'])]
+assert len(w) == 1 and len(w[0]['hooks']) == 1" "$WATCH_HOOK"
+check "init adds the FileChanged render hook on workshop.conf" python3 -c "
+import json, sys; g = json.load(open('.claude/settings.json'))['hooks']['FileChanged']
+assert [x.get('matcher') for x in g] == ['workshop.conf'] and [h['command'] for h in g[0]['hooks']] == [sys.argv[1]]" "$RENDER_HOOK"
+"$WB" init >/dev/null 2>&1
+check "a second init duplicates neither hook" bash -c "[ \"\$(grep -c 'workbench config watch' .claude/settings.json)\" -eq 1 ] && [ \"\$(grep -c 'workbench config render' .claude/settings.json)\" -eq 1 ]"
+run "config watch hands Claude Code the file's absolute path" 0 "^\{\"hookSpecificOutput\":\{\"hookEventName\":\"SessionStart\",\"watchPaths\":\[\"$PWD/.claude/workshop.conf\"\]\}\}$" "$WB" config watch
+run "config watch says nothing outside a repository" 0 "" bash -c "cd / && [ -z \"\$('$WB' config watch)\" ]"
+for h in "$WATCH_HOOK" "$RENDER_HOOK"; do
+  run "without workbench on PATH the hook exits 0 and says nothing: ${h#*&& }" 0 "" bash -c "[ -z \"\$(PATH=\"\$NOJSON\" bash -c '$h' 2>&1)\" ]"
+done
+git add -A && git commit -qm 'workbench init'
+
+# Each workbench key reaches its consumer.
+conf worker.model sonnet
+conf worker.effort high
+conf reviewer.model claude-haiku-4-5
+conf reviewer.effort low
+conf review.exchange_cap 4
+conf review.round_cap 3
+conf cap.claude 7
+out=$("$WB" config render 2>&1)
+check "config render re-renders the agents and the workbench skill" bash -c "grep -q 'rendered .claude/agents/wb-worker.md' <<< '$out' && grep -q 'rendered .claude/agents/wb-reviewer.md' <<< '$out' && grep -q 'rendered .claude/skills/workbench$' <<< '$out'"
+check "and not the commands, which carry no setting" bash -c "! grep -qE 'skills/(bug|feature|idea|wb)$' <<< '$out'"
+check "the worker's frontmatter ends model:, effort:" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-worker.md | tail -3 | paste -sd'|' | grep -qx 'model: sonnet|effort: high|---'"
+check "the reviewer's too" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-reviewer.md | tail -3 | paste -sd'|' | grep -qx 'model: claude-haiku-4-5|effort: low|---'"
+check "every other line of an agent passes through" bash -c "diff <(grep -vE '^(model|effort):' .claude/agents/wb-reviewer.md) <(sed 's/@@REVIEW_EXCHANGE_CAP@@/4/g' '$src_root/agents/wb-reviewer.md')"
+check "both bodies state the exchange cap" bash -c "grep -q 'After 4 exchanges' .claude/agents/wb-reviewer.md && grep -q '4 exchanges on one finding' .claude/agents/wb-worker.md"
+check "the skill states the round cap and the line cap" bash -c "grep -q 'at round 3 parks it' .claude/skills/workbench/SKILL.md && grep -qF '| root \`CLAUDE.md\` | 7 |' .claude/skills/workbench/references/docs.md"
+run "the skill stamp is coherent after the render" 0 "" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source|out of date|agents differ'"
+snap() { find .claude -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; }
+before=$(snap)
+run "a second config render changes nothing" 0 "^copies match .claude/workshop.conf$" "$WB" config render
+check "not a byte" [ "$(snap)" = "$before" ]
+conf worker.effort inherit
+"$WB" config render >/dev/null
+check "inherit takes the line out again" bash -c "! grep -q '^effort:' .claude/agents/wb-worker.md && grep -q '^model: sonnet' .claude/agents/wb-worker.md"
+rc3=$(newc bug "round cap")
+"$WB" round "$rc3" 5 1 >/dev/null; "$WB" round "$rc3" 3 0 >/dev/null
+run "round parks at review.round_cap" 0 "next: call — 3 rounds" "$WB" round "$rc3" 3 0
+run "cap.claude is the cap status reports" 0 "^cap: CLAUDE.md [0-9]+/7 — cut it" "$WB" status
+git add -A && git commit -qm settings
+
+# A settings edit with no render: out of date, never stale, never a hand edit.
+conf reviewer.effort max
+run "a settings edit without a render: status says the copies are out of date" 0 "^config: copies out of date with .claude/workshop.conf — workbench config render, then restart$" "$WB" status
+run "and names the agent" 0 "" bash -c "'$WB' status | grep -A1 '^config: copies out of date' | grep -q wb-reviewer"
+check "not as an agent differing from its source" bash -c "! '$WB' status | grep -q 'agents differ'"
+conf review.round_cap 4
+run "a token in the skill is named as well" 0 "" bash -c "'$WB' status | grep -A1 '^config: copies out of date' | grep -q workbench"
+check "never as a hand edit or a stale skill" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source'"
+"$WB" config render >/dev/null
+run "after the render status is clean" 0 "" bash -c "! '$WB' status | grep -qE 'out of date|agents differ|edited by hand|behind their source'"
+echo 'my note' >> .claude/agents/wb-reviewer.md
+run "a hand edit of an agent copy is 'differs', not config" 0 "agents differ from their source" "$WB" status
+check "and not out of date" bash -c "! '$WB' status | grep -q 'out of date'"
+"$WB" config render >/dev/null
+echo tweak >> .claude/skills/workbench/SKILL.md
+conf review.round_cap 2
+run "config render skips a skill copy edited by hand" 0 "edited by hand; not rendered" "$WB" config render
+check "the hand edit survives it" grep -q tweak .claude/skills/workbench/SKILL.md
+run "status still calls it a hand edit" 0 "edited by hand" "$WB" status
+"$WB" init --force >/dev/null 2>&1
+git add -A && git commit -qm resettled
+
+# Nothing but the shipped copies: a project's own skill, a retired agent init would reap.
+mkdir -p .claude/skills/hand && echo mine > .claude/skills/hand/SKILL.md
+printf -- '---\nname: wb-retired\nx-workbench: true\n---\n' > .claude/agents/wb-retired.md
+conf review.exchange_cap 9
+"$WB" config render >/dev/null
+check "config render touches only the shipped copies" bash -c "[ \"\$(git status --porcelain | sed 's/^...//' | LC_ALL=C sort | paste -sd' ')\" = '.claude/agents/wb-retired.md .claude/agents/wb-reviewer.md .claude/agents/wb-worker.md .claude/skills/hand/ .claude/workshop.conf' ]"
+rm -rf .claude/skills/hand .claude/agents/wb-retired.md
+
+# main=
+git branch -q trunk
+conf main trunk
+run "main= is the default branch" 1 "has 'main' checked out, not trunk" "$WB" new bug "on trunk"
+run "config get main prints it" 0 "^trunk$" "$WB" config get main
+conf main nosuch
+run "a main naming no branch is warned about, and status completes" 0 "config: .claude/workshop.conf: main='nosuch' names no branch" "$WB" status
+conf main "bad name"
+run "an invalid branch name is warned about" 0 "main='bad name' is not a branch name" "$WB" status
+run "and the branch is auto-detected" 0 "^main$" "$WB" config get main
+unconf main
+
+# Invalid and unknown: the default, a warning, no crash.
+printf 'no equals sign here\nfoo.bar=1\nworker.effort=huge\n# worker.model=commented\n\n   review.exchange_cap  =  5  \n' >> .claude/workshop.conf
+run "status warns about a line that is not key=value" 0 "^config: .claude/workshop.conf line [0-9]+: no equals sign here is not key=value$" "$WB" status
+run "status warns about an unknown key" 0 "^config: .claude/workshop.conf: unknown key 'foo.bar', ignored$" "$WB" status
+run "status warns about an invalid effort" 0 "worker.effort='huge' is not inherit, low, medium, high, xhigh or max; the default applies" "$WB" status
+run "config get gives the default for it" 0 "^inherit$" "$WB" config get worker.effort
+run "config list marks it invalid" 0 "^worker.effort +invalid +inherit$" "$WB" config list
+run "a comment line is not read" 0 "^sonnet$" "$WB" config get worker.model
+run "spaces around key and value are trimmed, the last occurrence wins" 0 "^5$" "$WB" config get review.exchange_cap
+conf review.round_cap 0
+run "zero is not a count" 0 "^5$" "$WB" config get review.round_cap
+conf worker.model "two words"
+run "a model with a space is the default" 0 "^inherit$" "$WB" config get worker.model
+run "and the render still runs" 0 "" "$WB" config render
+check "rendering no model: line for it" bash -c "! grep -q '^model:' .claude/agents/wb-worker.md"
+
+# ts-gate's keys: listed and checked only where ts-gate is installed.
+mkdir ts-gate
+run "with ts-gate installed config list shows its keys" 0 "^gate.repeat_cap +default +3$" "$WB" config list
+conf lint.max_lines lots
+run "and status checks them" 0 "lint.max_lines='lots' is not a positive integer" "$WB" status
+rmdir ts-gate
+run "without ts-gate they are neither listed nor warned about" 0 "" bash -c "! '$WB' config list | grep -q '^lint' && ! '$WB' status | grep -qE 'lint.max_lines|unknown key .lint'"
+
+# --- git config keys move into the file --------------------------------------
+new_repo migrate
+git config workbench.cap.claude 90
+git config workbench.main main
+git config workbench.premerge "npm run gate"
+git config workbench.guards 'npm run gate'
+run "init moves the git config keys into the file" 0 "moved git config workbench.premerge to .claude/workshop.conf: premerge=npm run gate" "$WB" init
+check "the file holds all three" bash -c "grep -qx 'cap.claude=90' .claude/workshop.conf && grep -qx 'main=main' .claude/workshop.conf && grep -qx 'premerge=npm run gate' .claude/workshop.conf"
+check "git config holds none of them" bash -c "! git config --get-regexp '^workbench\.(cap|main|premerge)'"
+check "guards stay in git config" [ "$(git config workbench.guards)" = 'npm run gate' ]
+# shellcheck disable=SC2016  # the backticks are the markdown being matched
+check "the rendered copy took the moved cap" grep -qF '| root `CLAUDE.md` | 90 |' .claude/skills/workbench/references/docs.md
+cp .claude/workshop.conf "$TMP/conf.before"
+run "a second init moves nothing" 0 "" bash -c "! '$WB' init 2>&1 | grep -q 'git config workbench'"
+check "and leaves the file as it was" cmp -s .claude/workshop.conf "$TMP/conf.before"
+git config workbench.premerge "npm run gate"
+run "a git value the file already holds is unset" 0 "unset git config workbench.premerge" "$WB" init
+check "unset" bash -c "! git config --get workbench.premerge"
+git config workbench.premerge other
+run "a git value the file contradicts is named, the file applies" 0 "git config workbench.premerge is 'other', .claude/workshop.conf has premerge=npm run gate" "$WB" init
+check "and left for the user to settle" [ "$(git config workbench.premerge)" = other ]
+check "bin/workbench reads none of the moved git config keys" bash -c "! grep -nE 'config (--local )?--get \"?workbench\.(cap|main|premerge)' '$WB'"
 
 echo
 echo "$checks checks, $fails failed"

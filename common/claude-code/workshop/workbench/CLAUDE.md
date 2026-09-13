@@ -33,15 +33,33 @@ drift, paid visibly through the stamp: each copy carries source + copy
 hashes; `status` flags stale and hand-edited ones, `init --force`
 overwrites the latter. The `agents/` definitions go to `.claude/agents/` the same way,
 with weaker bookkeeping: an agent is a flat `.md` with nowhere to hold a
-stamp, so the check is `cmp`, `status` says only that a copy "differs from
-its source", and `init` overwrites it either way. Which agents exist is
+stamp, so the check is `cmp` against the render, `status` says only that a
+copy "differs from its source", and `init` overwrites it either way. Which agents exist is
 `WB_AGENTS`, not whatever sits in `agents/`; retiring one — out of the list
 *and* deleted from `agents/` — reaps the copy on the next `init`, guarded
 by `x-workbench: true` in the copy's own frontmatter, so a project's own
 agent in the same directory is never touched.
 
+Copies are renders, not plain copies: sources carry `@@TOKENS@@` for the
+count keys of `.claude/workshop.conf` (`review.exchange_cap` is
+`@@REVIEW_EXCHANGE_CAP@@`), and an agent gets `model:` and `effort:` last in
+its frontmatter from `worker.*` / `reviewer.*`, left out at `inherit`, every
+other line passing through. The keys and what each changes:
+`../CLAUDE.md`, ".claude/workshop.conf". Rendered, not looked up at run
+time: a skill `!` block goes through permission checks and aborts the skill
+when one fails, an untrusted directory drops `permissions.allow`, and
+`disableSkillShellExecution` blanks it. `workbench config render` re-renders
+the shipped copies and nothing else; `init` renders too. `status` tells a
+copy only the settings left behind (`config: copies out of date`) from a
+stale one and a hand edit: a skill by rendering its source again and
+comparing hashes, an agent by reading back the values its copy was rendered
+with (`agent_rendered_with`) and rendering with those.
+
 It also merges into the project's `.claude/settings.json`: the
-`SessionStart` hook that runs `status`, the `Bash(workbench:*)` allow rule,
+`SessionStart` hook that runs `status`, a second `SessionStart` entry
+running `config watch` (JSON naming the file in `watchPaths`, kept apart from
+status's plain text), a `FileChanged` hook on `workshop.conf` running
+`config render`, the `Bash(workbench:*)` allow rule,
 and `autoMemoryDirectory` (memory tracked in the tree). The signal and gate
 hooks and the status line an older init wired are removed on the next
 `init`. And a block in the root `CLAUDE.md` (`claude_md_block`): the rule
@@ -49,9 +67,16 @@ that all domain work gets an item lives there, always in context, because
 a skill description fires only when a request looks like a match and the
 requests that most need the rule look like small favours.
 
-`status` prints a `cap:` line per document over its line cap (`CAP_*`,
-`git config workbench.cap.<name>` overrides); `references/docs.md`, "Line
-caps", says what to cut.
+`status` prints a `cap:` line per document over its line cap (`cap.<name>`
+in `.claude/workshop.conf`); `references/docs.md`, "Line caps", says what to
+cut. `init` moves `git config workbench.cap.*`, `workbench.main` and
+`workbench.premerge`, which older versions read, into the file and unsets
+them.
+
+The settings, like the copies, are committed per branch: a worktree started
+before a settings commit keeps its branch's values until it is rebased.
+`round` reads the item's checkout, `merge`'s `premerge` and `status` the main
+checkout, everything else the checkout it runs in.
 
 ## Extension points
 
@@ -60,9 +85,9 @@ Workbench knows no language or toolchain. What a project's tools plug in:
 | Slot | Set by | What it does |
 | ---- | ------ | ------------ |
 | `WORKBENCH_ROOT` | the environment | where `init` renders from |
-| `git config workbench.premerge "<command>"` | the tool that installs the command (ts-gate: `npm run gate`) | runs in the branch worktree before every squash; non-zero refuses the merge |
+| `premerge=<command>` in `.claude/workshop.conf` | the tool that installs the command (ts-gate: `npm run gate`, when the key is absent) | runs in the branch worktree before every squash; non-zero refuses the merge |
 | `git config workbench.guards "<ERE>"` | the same tool | criterion steps matching it are refused at `start` as guards, beside the built-in "by inspection" / "behaviour unchanged" |
-| `git config workbench.cap.<name>` | the user | line caps `status` reports |
+| the other keys of `.claude/workshop.conf` | the user | models, efforts, review caps, line caps, the default branch: `../CLAUDE.md` |
 
 ## Adding files here
 
@@ -110,10 +135,42 @@ that session; a plain main session for `/bug /feature /idea /wb`.
   why `wb-worker` carries both.
 - `effort:` on an agent is honoured when the agent is spawned by the Agent
   tool and when a `context: fork` skill names it in `agent:` (probed
-  2.1.263), which is why `wb-reviewer` carries one. In 2.1.270 a spawn's
-  effort is observable from nowhere outside — not the subagent transcript,
-  `--debug`, `ANTHROPIC_LOG=debug` nor `stream-json --verbose` — so that
-  probe is the last word.
+  2.1.263). Neither agent carries one in source any more: `reviewer.effort`
+  and `worker.effort` render it, and the default `inherit` leaves it to the
+  session. In 2.1.270 a spawn's effort is not in the subagent transcript,
+  `--debug`, `ANTHROPIC_LOG=debug` or `stream-json --verbose`; the
+  observable is `$CLAUDE_EFFORT` in the spawn's own Bash (below).
+- Claude Code reads agent definitions at session start, before
+  `SessionStart` hooks run: a definition rewritten by a `SessionStart` or
+  `PreToolUse` hook, or by hand mid-session, applies from the next session
+  (probed 2.1.270). Hence render on change, never at session start. The
+  loop end to end, `-p`, sonnet: `reviewer.effort` changed from `high` to
+  `low`, then a new session at `--effort medium` spawned `wb-reviewer` and
+  a `general-purpose` control; `printenv CLAUDE_EFFORT` in each spawn's Bash
+  read `low` and `medium`, both when a session's Bash tool made the edit and
+  when a plain shell `sed` made it while a session was open (probed
+  2.1.270). Asked to run a probe command without reviewing, `wb-reviewer`
+  may refuse; ask again in the next session.
+- A `FileChanged` matcher (`workshop.conf`) alone watches the project root
+  only: an edit of `.claude/workshop.conf` through the Bash tool fired
+  nothing within 60 s. With a `SessionStart` hook printing
+  `hookSpecificOutput.watchPaths` naming the absolute path, the same edit
+  ran `workbench config render` inside the session, and so did an edit from
+  a plain shell while a `-p` session was open. The two `SessionStart`
+  entries together work: `status`'s plain text reached context (the model
+  named an item id only `status` printed) and the watch took (probed
+  2.1.270, `-p`, sonnet and haiku). An edit made with no session open is
+  watched by nothing; `status` names the copies it left out of date.
+- In `-p --permission-mode default`, a Bash `sed -i` on
+  `.claude/workshop.conf` is refused as an edit to a sensitive file
+  (`permission_denied`, `safetyCheck`) even with `--allowedTools
+  "Bash(sed:*)"`; `bypassPermissions` let it through (probed 2.1.270). A
+  session asked to change a setting needs the user's approval for that edit.
+- `model:` on an agent is honoured under `claude --agent wb-worker -p`:
+  `stream-json --verbose` (`init` event and `modelUsage`) showed
+  `claude-haiku-4-5-20251001` with a rendered `model: haiku`, and the
+  session default (`claude-opus-5[1m]` here) with the line left out (probed
+  2.1.270).
 - A `context: fork` skill takes its agent's `tools:` and nothing else;
   `allowed-tools` only pre-approves what is listed and removes nothing
   (probed 2.1.248; workbench uses neither). `background:` on a skill needs

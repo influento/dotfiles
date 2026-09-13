@@ -33,8 +33,8 @@ session following these steps without the agent invokes it first.
 3. The review dialog — "The review dialog" in the skill. Spawn a
    `wb-reviewer` with the `Agent` tool, never a fork, naming the branch and
    the item file; answer by number through `SendMessage` to the id the
-   spawn returned. Six exchanges on one finding without agreement:
-   attended, ask the user; unattended, `workbench call <id>` it. When every
+   spawn returned. @@REVIEW_EXCHANGE_CAP@@ exchanges on one finding without
+   agreement: attended, ask the user; unattended, `workbench call <id>` it. When every
    finding has its state, `workbench round <id> <fixed> <stands>` and do
    what it prints. A reviewer that returns partial, its turn cap reached,
    ends the dialog: `workbench call <id> "<the standing finding>"`, never
