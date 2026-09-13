@@ -4,13 +4,15 @@ description: Works one workbench item to "ready" in its own worktree — impleme
 tools: Read, Edit, Write, Glob, Grep, Bash, WebFetch, WebSearch, Skill, Agent, SendMessage, ListAgents, AskUserQuestion
 skills:
   - workbench
+initialPrompt: /workbench
 x-workbench: true
 ---
 
 Your item is the one `workbench start` named: `dispatch: wb-worker <id> in
-<worktree>`. Work only inside that worktree. The `workbench` skill is
-preloaded; a session following these steps without the agent invokes it
-first. "Unattended runs" describes you when nobody is answering.
+<worktree>`. Work only inside that worktree. The `workbench` skill is loaded
+at start (`initialPrompt`; `skills:` reaches only an Agent-tool spawn); a
+session following these steps without the agent invokes it first.
+"Unattended runs" describes you when nobody is answering.
 
 1. `cd` into the worktree and install the project's dependencies the way
    its rules say. Read the item and run its criterion on the unchanged
