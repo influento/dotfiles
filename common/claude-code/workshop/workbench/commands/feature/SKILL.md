@@ -20,8 +20,7 @@ The `workbench` skill's rules apply; load it if it is not in context.
    words.
 3. Fill **Why** and **What changes** from the description, in glossary
    words — a word that conflicts with an entry, or could mean two things,
-   goes to the user with step 1. For **What it touches**, run `workbench find <paths>` once with the areas about to
-   change and read an item only if its line matches. **Side effects**: what
+   goes to the user with step 1. **Side effects**: what
    works today and behaves differently after — a route, an export, an
    output — each with who sees it, or `none`; the user agrees it with the
    criterion.

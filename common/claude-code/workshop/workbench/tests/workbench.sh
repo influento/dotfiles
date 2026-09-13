@@ -46,18 +46,6 @@ fail() { checks=$((checks + 1)); fails=$((fails + 1)); echo "FAIL $1" >&2; }
 # checks were built that way and asserted half of what they read as. More than
 # one condition goes in a 'bash -c'.
 check() { local label="$1"; shift; if "$@"; then pass "$label"; else fail "$label"; fi; }
-# not_listed <id> <find-args...> — the index must not carry the id.
-# The grep reads a herestring, never a pipe: see the note on 'run' below. Here
-# the pipe was the dangerous direction — grep -q exits early on a match, so a
-# regression that DID list the id could be reported as a SIGPIPE and read as
-# "not listed", passing the check it was supposed to fail.
-not_listed() {
-  local id="$1" out
-  shift
-  out=$("$WB" find "$@" 2>/dev/null) || true
-  ! grep -q -- "$id" <<<"$out"
-}
-
 # run <label> <expected-rc> <pattern> <cmd...> — the pattern is grepped over
 # combined stdout+stderr; an empty pattern skips the grep.
 run() {
@@ -274,36 +262,6 @@ check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE
 cp "$TMP/backlog.orig" workbench/BACKLOG.md; cp "$TMP/claude.orig" CLAUDE.md
 check "status is silent again once the files are back under" bash -c "! '$WB' status | grep -q '^cap:'"
 
-run "find by path" 0 "b-001" "$WB" find src.txt
-run "find is cwd-relative" 0 "b-001" bash -c "cd sub && '$WB' find x.txt"
-run "find unrelated path is empty" 0 "" "$WB" find README
-check "find README does not list b-001" not_listed b-001 README
-
-# Text match: an unproved item names a path in prose; a bare word inside a
-# longer one must not hit.
-id2=$(newc bug "handler lost")
-item2=workbench/items/bugs/$id2-handler-lost.md
-# shellcheck disable=SC2016
-printf '\nthe handler lives in resources/api and is unreproduced; see `lib/util.go`,\nthe loop at lib/loop.go:12, and cfg/main.toml.\n' >> "$item2"
-set_status "$item2" unreproduced
-run "archive unreproduced" 0 "archived $id2" "$WB" archive "$id2"
-git add -A && git commit -qm "archive $id2"
-run "find matches a path named in prose" 0 "$id2" "$WB" find resources
-check "find 'src' skips 'resources'" not_listed "$id2" src
-check "find 'sources' skips 'resources'" not_listed "$id2" sources
-run "find matches a backticked path" 0 "$id2" "$WB" find lib/util.go
-run "find matches a path:line citation" 0 "$id2" "$WB" find lib/loop.go
-run "find matches a path before a sentence period" 0 "$id2" "$WB" find cfg/main.toml
-check "find 'lib/util' skips 'lib/util.go'" not_listed "$id2" lib/util
-check "find 'cfg/main' skips 'cfg/main.toml'" not_listed "$id2" cfg/main
-run "find strips a leading ./" 0 "$id2" "$WB" find ./lib/util.go
-run "find --grep takes one word, a path may follow" 0 "b-001" "$WB" find --grep crash src.txt
-run "find --grep repeats" 0 "b-001" "$WB" find --grep crash --grep save
-check "find --grep with a wrong word narrows to nothing" not_listed b-001 --grep crash --grep nosuchword
-run "find --grep without a word is usage" 2 "usage" "$WB" find --grep
-
-run "status" 0 "" "$WB" status
-
 # The note on 'check' is advisory and this shape has already shipped twice in
 # code neither review wrote, so the suite asserts it about itself: a check whose
 # command is a bare test bracket followed by &&, ||, ; or a pipe ends at the
@@ -312,11 +270,9 @@ run "status" 0 "" "$WB" status
 check "no check call asserts only its first condition" \
   bash -c '! grep -nE "^\s*check \"[^\"]*\" \[[^]]*\] *(&&|\|\||;|\|)" "'"$SELF"'"'
 
-# --- status, find, adopt ------------------------------------------------------
+# --- status, adopt ------------------------------------------------------------
 
 idl=$(newc feature "later")          # unstarted, in main
-printf '\ntouches src.txt when it lands\n' >> "workbench/items/features/$idl-later.md"
-run "find lists an open unstarted item by text, as open" 0 "$idl .*open" "$WB" find src.txt
 "$WB" start "$idl" >/dev/null 2>&1
 set_status ".worktrees/$idl-later/workbench/items/features/$idl-later.md" "awaiting — next deploy"
 run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p' | grep -q '(none)'"
@@ -692,15 +648,10 @@ check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic mer
 fill_evidence workbench/items/bugs/b-001-one.md "run" "ok"
 idy=$(newc bug "sibling"); "$WB" start "$idy" >/dev/null 2>&1
 check "setup: the sibling inherited b-001's merged copy" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
-check "find from a sibling lists a merged item once" [ "$(cd ".worktrees/$idy-sibling" && "$WB" find --grep one 2>/dev/null | grep -c '^b-001 ')" -eq 1 ]
 run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
 check "main's copy is in the archive" [ -f workbench/items/archive/b-001-one.md ]
 check "the sibling's copy is untouched" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
 run "status does not list the sibling's stale copy of an archived item" 0 "" bash -c "! '$WB' status | grep -q b-001-one"
-run "find --grep from a sibling lists an archived item once, as archived" 0 "^b-001 .*archived" \
-  bash -c "cd .worktrees/$idy-sibling && '$WB' find --grep one | grep -c '^b-001 ' | grep -qx 1 && '$WB' find --grep one"
-run "find by path from a sibling picks the archived copy" 0 "^b-001 .*archived" \
-  bash -c "cd .worktrees/$idy-sibling && '$WB' find workbench/items/bugs/b-001-one.md | grep -c '^b-001 ' | grep -qx 1 && '$WB' find workbench/items/bugs/b-001-one.md"
 
 # --- resume: a branch without a worktree ------------------------------------
 # The item is edited on its branch, so once the worktree is gone main's copy
@@ -775,12 +726,6 @@ check "no worktree was cut for it" [ ! -e .worktrees/b-001-gone ]
 fill_evidence workbench/items/bugs/b-001-gone.md "run" "ok"
 "$WB" archive b-001 >/dev/null 2>&1
 run "start refuses an archived item whose ref is left on origin" 1 "already archived" "$WB" start b-001
-
-# --- find with no items (C8) --------------------------------------------------
-new_repo findempty
-"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
-mkdir -p src && echo x > src/a.ts && git add -A && git commit -qm a
-run "find on a project with no items is quiet on stderr" 0 "" bash -c "! '$WB' find src/a.ts 2>&1 | grep -q \"can't read\""
 
 # --- gates: calls, provisional (agent) decisions, rounds ---------------------
 
@@ -895,8 +840,6 @@ check "--discard names the uncommitted scratch" grep -q scratch.txt <<< "$out"
 check "the worktree and branch are gone" bash -c "[ ! -e '$wt' ] && [ -z \"\$(git branch --list '$idh-half-built')\" ]"
 check "the archived copy carries the why" grep -q '^status: abandoned — not worth finishing' "workbench/items/archive/$idh-half-built.md"
 git add -A && git commit -qm "archive $idh"
-run "find lists an abandoned item by the path it named" 0 "^$idh .*abandoned — not worth finishing" "$WB" find src/realm.ts
-check "the unproved item still sorts first, though older" bash -c "'$WB' find src/realm.ts | head -1 | grep -q '^$idu '"
 # --discard stays refused where nothing is ever dropped
 idg=$(newc bug "ghost"); "$WB" start "$idg" >/dev/null 2>&1
 set_status ".worktrees/$idg-ghost/workbench/items/bugs/$idg-ghost.md" unreproduced
@@ -921,22 +864,6 @@ idp=$(newc feature "unattended drop")
 set_status "workbench/items/features/$idp-unattended-drop.md" 'abandoned — looked pointless (agent)'
 run "archive refuses a provisional abandoned" 1 "entered unattended" "$WB" archive "$idp"
 
-# --- find by absolute path ----------------------------------------------------
-
-new_repo sl
-"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
-"$WB" new bug "waits" >/dev/null 2>&1
-set_status workbench/items/bugs/b-001-waits.md 'awaiting — the next release'
-git add -A && git commit -qm 'awaiting on main'
-newc bug "abs" >/dev/null; "$WB" start b-002 >/dev/null 2>&1
-( cd .worktrees/b-002-abs && echo a >> README && git add -A && git commit -qm a )
-ready .worktrees/b-002-abs
-"$WB" merge b-002 "abs" >/dev/null 2>&1
-check "find by a relative path lists the item" bash -c "'$WB' find README | grep -q '^b-002 '"
-check "find by an absolute path lists the item" bash -c "'$WB' find '$PWD/README' | grep -q '^b-002 '"
-check "find by an absolute path outside the repo lists nothing" not_listed b-002 /nonexistent/README
-check "find --grep is a fixed string" not_listed b-002 --grep 'a.s'
-
 # --- ideas land on the main checkout --------------------------------------
 
 new_repo idea
@@ -950,13 +877,6 @@ run "idea from a worktree writes to the main checkout" 0 "^$PWD/workbench/BACKLO
 check "the worktree's backlog is untouched" bash -c "! grep -q 'from the worktree' .worktrees/b-001-host/workbench/BACKLOG.md"
 check "main's backlog has both lines" [ "$(grep -c '^- ' workbench/BACKLOG.md)" -eq 2 ]
 
-# --- find's cap ---------------------------------------------------------------
-
-new_repo cap
-"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
-for i in $(seq 1 11); do "$WB" new bug "cap $i" >/dev/null 2>&1; done
-check "find shows ten lines and counts the rest" bash -c "'$WB' find --grep cap | grep -c '^b-' | grep -qx 10 && '$WB' find --grep cap | grep -q '… 1 more'"
-check "find --all shows every line" bash -c "'$WB' find --grep cap --all | grep -c '^b-' | grep -qx 11 && ! '$WB' find --grep cap --all | grep -q 'more'"
 # --- worktree cut before the init commit ------------------------------------
 
 new_repo early

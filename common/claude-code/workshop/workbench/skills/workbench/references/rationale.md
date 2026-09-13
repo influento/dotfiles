@@ -103,17 +103,6 @@ marked as provisional in the same place, with the open question beside it
 in the item and listed by `workbench status` on return. Confirming is deleting the marker. The backlog goes back to being
 ideas, and nothing that is a question is written as a paragraph.
 
-## Why retrieval is keyed to files and capped
-
-Knowledge that goes into items has to come back out, or the archive is
-write-only and the agent re-derives what a past item settled. Keying retrieval
-to a topic overloads the context with whatever shares a word; keying it to
-the files about to change is exact, because the trailer already indexes them
-through `git log`. The cap and the "read at most two" rule are the other half:
-the feature pays for itself only while it narrows code reading, and the
-moment it adds reading it is worse than nothing. See `find` in
-[items.md](items.md).
-
 ## Why sizing is one question
 
 Whether something is an idea, an item or a spike could be

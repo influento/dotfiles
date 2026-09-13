@@ -1,7 +1,7 @@
 # Statuses
 
 The five statuses an item carries, abandoning, and what each gate asks of
-them. Item classes, fields, IDs and `find`: [items.md](items.md).
+them. Item classes, fields and IDs: [items.md](items.md).
 
 `status:` is the first field of every item.
 
@@ -40,8 +40,8 @@ makes no claim at all: it records a decision.
 
 Work the user drops after it was opened is archived as `abandoned — <why>`,
 whether the item was started or not; deleting the file is the one exit that
-leaves nothing greppable, and `workbench find` on the paths it named is how
-the next person learns it was tried. One path for both cases, `commit: none`.
+leaves nothing greppable, and `git log --grep='^Item: ' -- <path>` is how the
+next person learns it was tried. One path for both cases, `commit: none`.
 A started item's branch is retired by `archive`; half-built work on it is
 dropped only with `--discard`, which names each file. Shipped work is not
 abandoned — with its trailer on the default branch the item merged, and

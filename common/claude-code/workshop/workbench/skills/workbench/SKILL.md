@@ -158,21 +158,6 @@ checkout must have it checked out. Between `new` and `start` the item is
 edited on main; after `start`, only in its worktree — `merge` and `archive`
 refuse if main's copy of a started item moved.
 
-## What came before
-
-```bash
-workbench find src/world/pos.go        # items that touched these files, newest first
-workbench find src/world --grep resize # narrowed by word; --grep alone searches all items
-```
-
-Run it **once**, at the point the item already makes you stop — writing the
-root cause of a bug, or what a feature touches — with the paths about to
-change. It prints an index, one line per item, capped at ten, unproved items
-(`unreproduced`, `unverified`) first. Read an item only when its line matches
-the problem in hand, at most the two most recent that do. Nothing is recorded
-about having looked; a prior item that changes the decision is cited in the
-root cause, where it belongs. Detail in [items.md](references/items.md).
-
 ## Sizing — the same call every time
 
 Which level a piece of work gets is settled by one question: **how well can
@@ -248,7 +233,7 @@ No finding is dropped silently.
 
 | Class | Reference |
 |---|---|
-| feature, bug — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
+| feature, bug — fields, states, IDs, archiving | [items.md](references/items.md) |
 | statuses, abandoning, what merge and archive ask | [statuses.md](references/statuses.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |

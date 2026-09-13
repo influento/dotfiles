@@ -117,6 +117,7 @@ depends on one. The trailer and the recorded commit SHA do the work:
 ```bash
 git log --grep="Item: f-037"    # item -> the commits that implemented it
 git log -p -- path/to/file      # file -> commits -> item IDs -> why it is like this
+git log --grep='^Item: ' -- path/to/file   # what came before on a path, newest first
 ```
 
 The second lookup is the valuable one: it answers "why does this file look like

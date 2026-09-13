@@ -49,7 +49,6 @@ usage:
   workbench idea "<sentence>"          one backlog line, on the main checkout wherever it runs
   workbench call <id|-> "<question>"   one line under the item's '## Decisions' (DECISIONS.md for -):
                                        a call that is the user's, parked
-  workbench find [<path>...] [--grep <word>]... [--all]
                                        items that touched these paths, newest first
   workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
@@ -154,16 +153,6 @@ slugify() {
     | sed -e 's/[^a-z0-9]\+/-/g' \
     | cut -c1-50 \
     | sed -e 's/^-//' -e 's/-$//'
-}
-
-# A path as it appears in prose: bounded on both sides by something that
-# cannot extend a path, a sentence-ending period allowed, so 'src' matches
-# 'src/main.go', '`src`', 'src:12' and 'in src.' but not 'srcset', 'src.go'
-# or 'resources'. Metacharacters in the path are literal.
-path_re() {
-  local p="${1%/}"
-  p=$(printf '%s' "$p" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
-  printf '(^|[^A-Za-z0-9_./-])%s(/|\\.?([^A-Za-z0-9_./-]|$))' "$p"
 }
 
 # An id is exactly <letter>-<number>, printed back with the number as the
@@ -784,9 +773,7 @@ status: open
 
 ## Root cause
 
-<!-- Before writing this, once: 'workbench find <paths>' for the files involved.
-     Read an item from the index only if its line matches this bug.
-     The mechanism, on the side you control. "It behaves like X and that is the
+<!-- The mechanism, on the side you control. "It behaves like X and that is the
      third party's decision" is a complete root cause. A suspected race is a
      mechanism: state it, mark the confidence unproven. A fact discovered here
      about a system you do not control is recorded here, not in a document of
@@ -849,9 +836,7 @@ status: open
 
 ## What it touches
 
-<!-- Areas, not a file list. Before writing this, once: 'workbench find <paths>'
-     for the files involved; read an item from the index only if its line
-     matches. Delete this comment. -->
+<!-- Areas, not a file list. Delete this comment. -->
 
 ## Side effects
 
@@ -1883,8 +1868,7 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
         esac ;;
       unreproduced*) ;;
       abandoned*)
-        # The why is the record — 'find' surfaces it on the paths the item
-        # named — and shipped work is not abandoned: with the trailer on the
+        # The why is the record, and shipped work is not abandoned: with the trailer on the
         # default branch the item merged, and it is archived as what it is.
         case "$status" in
           *—*|*" - "*) ;;
@@ -2218,187 +2202,6 @@ open_calls() {
   f="$(main_root)/$WB/DECISIONS.md"
   [ -f "$f" ] || return 0
   grep -c '^- ' "$f" || true
-}
-
-# --- find -------------------------------------------------------------------
-
-FIND_CAP=10
-
-item_title() {
-  sed -n '1s/^# [bf]-[0-9]* — //p' "$1"
-}
-
-# Every item file, open or archived, over both checkouts. Archived copies
-# first: a worktree cut before an archive still carries the open copy, and a
-# first-hit lookup by id must land on the record, not the leftover.
-all_items() {
-  wb_find items -name '[bf]-*.md' < <(wb_roots) \
-    | awk '/\/archive\// { print; next } { rest = rest $0 "\n" } END { printf "%s", rest }'
-}
-
-# One index line per item: date, status, title. The date is the commit that
-# carries the trailer for an archived item, or the last commit that touched an
-# open one; an item never committed takes the file's own date, so the newest
-# item sorts first rather than last.
-index_line() {
-  local f="$1" id date status
-  id=$(item_id "$f")
-  status=$(shown_status "$f")
-  case "$f" in
-    */archive/*)
-      local sha
-      sha=$(sed -n 's/^commit: *//p' "$f" | tail -1)
-      date=$(git log -1 --format=%cs "$sha" -- 2>/dev/null || true) ;;
-  esac
-  [ -n "${date:-}" ] || date=$(git -C "$(item_root "$f")" log -1 --format=%cs -- "$f" 2>/dev/null || true)
-  [ -n "${date:-}" ] || date=$(date -r "$f" +%F)
-  printf '%s\t%s\t%s\t%s\n' "$date" "$id" "${2:-$status}" "$(item_title "$f")"
-}
-
-# Retrieval keyed to files, not topics: git already indexes which items touched
-# a path, through the trailer, so the answer is exact and costs nothing to
-# maintain. Words are opt-in and narrow that set, or search the items alone
-# when no path is given. The output is an index, never bodies — one line per
-# item, capped, with unreproduced and unverified items first regardless of age
-# because an unproved claim on the file about to change is the hit that bites.
-cmd_find() {
-  local paths=() words=() all=0 arg
-  require_init
-  while [ $# -gt 0 ]; do
-    arg="$1"; shift
-    case "$arg" in
-      --grep) { [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; } || usage; words+=("$1"); shift ;;
-      --all) all=1 ;;
-      --) ;;
-      -*) usage ;;
-      *) paths+=("$arg") ;;
-    esac
-  done
-  [ "${#paths[@]}" -gt 0 ] || [ "${#words[@]}" -gt 0 ] || usage
-
-  # Paths are taken as the shell gives them, relative to the cwd or absolute,
-  # while every git call below is pinned to the root — so make them
-  # root-relative here, which is also how item text names them. An absolute
-  # path outside this checkout stays as it is and matches nothing.
-  local prefix top p i
-  prefix=$(git rev-parse --show-prefix 2>/dev/null || true)
-  top=$(git rev-parse --show-toplevel 2>/dev/null || true)
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    p="${paths[$i]}"
-    case "$p" in
-      "$top"/*) paths[i]="${p#"$top"/}" ;;
-      /*) ;;
-      *) paths[i]="$prefix${p#./}" ;;
-    esac
-  done
-
-  local files=() f ids=() id items
-  declare -A label=()
-  if [ "${#paths[@]}" -gt 0 ]; then
-    local main root
-    main=$(default_branch)
-    root=$(main_root)
-    items=$(all_items)
-    mapfile -t ids < <(git -C "$root" log "$main" --format='%(trailers:key=Item,valueonly)' -- "${paths[@]}" \
-      | grep -E '^[bf]-[0-9]+$' | awk '!seen[$0]++')
-    for id in ${ids+"${ids[@]}"}; do
-      f=$(printf '%s\n' "$items" | grep -m1 "/$id-[^/]*\.md$" || true)
-      [ -n "$f" ] && files+=("$f")
-    done
-    # An unproved item has no commit on the path, so the trailer cannot find
-    # it; it names the path in its own text, and that is the link used here.
-    # An abandoned one is the same detector — "this was tried and dropped,
-    # here is why" — matched the same way, but not flagged first below: it
-    # is a decision, not an unproved claim.
-    # Matched on path boundaries: a scope of 'src' or 'api' as a bare
-    # substring would hit every item using the word in any sense, and those
-    # false hits would then sort to the top as flagged.
-    local res=()
-    for p in "${paths[@]}"; do res+=("$(path_re "$p")"); done
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      case "$(item_status "$f")" in unreproduced*|unverified*|abandoned*) ;; *) continue ;; esac
-      for p in "${res[@]}"; do
-        if grep -qE -- "$p" "$f"; then files+=("$f"); break; fi
-      done
-    done < <(printf '%s\n' "$items" | grep '/archive/')
-    # An open item on a sibling branch has no commit on the default branch
-    # either, and it is the hit that matters most — work about to collide
-    # with this. Matched by text like the unproved ones, and shown as its own
-    # class, since a text match can be wrong where a trailer cannot. Only the
-    # item the sibling's branch is named for: every other file there is
-    # main's copy, inherited.
-    local r here
-    while IFS= read -r r; do
-      here=$(item_id "$(git -C "$r" symbolic-ref -q --short HEAD 2>/dev/null || true)")
-      [ -n "$here" ] || continue
-      while IFS= read -r f; do
-        for p in "${res[@]}"; do
-          if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="on-branch"; break; fi
-        done
-      done < <(find "$r/$WB/items" -path '*/archive/*' -prune -o -name "$here-*.md" -print 2>/dev/null)
-    done < <(all_roots | grep -vxF -f <(wb_roots))
-    # An open item here or in the main checkout has no commit on the path
-    # either — created and not started, or started and not merged — and the
-    # trailer cannot see it. Text-matched like the others, shown as 'open'.
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      [ "$(item_status "$f")" = open ] || continue
-      for p in "${res[@]}"; do
-        if grep -qE -- "$p" "$f"; then files+=("$f"); label[$f]="open"; break; fi
-      done
-    done < <(printf '%s\n' "$items" | grep -v '/archive/')
-  else
-    mapfile -t files < <(all_items)
-  fi
-
-  # One line per id, not per copy: from a sibling worktree cut before an
-  # archive, all_items yields its open copy and main's archived one. The
-  # archive/ path wins — it is the record — else the first hit keeps its label.
-  local w kept=() order=() id
-  declare -A pick=()
-  for f in ${files+"${files[@]}"}; do
-    id=$(item_id "$f")
-    if [ -z "${pick[$id]+x}" ]; then
-      order+=("$id"); pick[$id]=$f
-    else
-      case "$f" in */archive/*) case "${pick[$id]}" in */archive/*) ;; *) pick[$id]=$f ;; esac ;; esac
-    fi
-  done
-  for id in ${order+"${order[@]}"}; do
-    f=${pick[$id]}
-    for w in ${words+"${words[@]}"}; do
-      grep -qiF -- "$w" "$f" || continue 2
-    done
-    kept+=("$f")
-  done
-
-  if [ "${#kept[@]}" -eq 0 ]; then
-    echo "no items"
-    return 0
-  fi
-
-  # Flagged first, then newest. The flag column is stripped before printing.
-  local lines
-  lines=$(for f in "${kept[@]}"; do
-    case "$(item_status "$f")" in
-      unreproduced*|unverified*) printf '0\t' ;;
-      *) printf '1\t' ;;
-    esac
-    printf '%s\t' "$(item_id "$f" | sed 's/^[bf]-//')"
-    index_line "$f" ${label[$f]+"${label[$f]}"}
-  done | sort -s -t "$(printf '\t')" -k1,1 -k3,3r -k2,2nr)
-
-  local total shown
-  total=$(printf '%s\n' "$lines" | wc -l)
-  shown=$total
-  [ "$all" -eq 1 ] || [ "$total" -le "$FIND_CAP" ] || shown=$FIND_CAP
-
-  printf '%s\n' "$lines" \
-    | awk -F '\t' -v n="$shown" 'NR <= n { printf "%-6s  %-10s  %-28s  %s\n", $4, $3, $5, $6 }'
-  if [ "$shown" -lt "$total" ]; then
-    echo "… $((total - shown)) more; narrow with a path or --grep, or pass --all"
-  fi
 }
 
 # --- status -----------------------------------------------------------------
@@ -2736,7 +2539,6 @@ case "${1:-}" in
   merge) shift; cmd_merge "$@" ;;
   idea) shift; cmd_idea "$@" ;;
   call) shift; cmd_call "$@" ;;
-  find) shift; cmd_find "$@" ;;
   archive) shift; cmd_archive "$@" ;;
   status) shift; cmd_status "$@" ;;
   round) shift; cmd_round "$@" ;;

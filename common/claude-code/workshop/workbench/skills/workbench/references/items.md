@@ -117,12 +117,3 @@ is just a test chosen because the code already passes it.
 
 Archived items are locked.
 
-## What came before: `workbench find`
-
-When to run it and how much of the index to read: SKILL.md, "What came
-before". `--grep <word>` is repeatable. Two classes the index shows:
-
-| Class | Means |
-|---|---|
-| `unreproduced`, `unverified`, `abandoned` | no commit on the path — matched by naming it in their text. The first two sort first regardless of age: an unproved claim on the file about to change is the hit that bites. `abandoned` was tried and dropped, and says why; it sorts with the rest |
-| `on-branch` | an open item on a sibling worktree's branch that names the path — work about to collide with this. A text match, not a trailer, so it can be wrong; shown as its own class for that reason |
