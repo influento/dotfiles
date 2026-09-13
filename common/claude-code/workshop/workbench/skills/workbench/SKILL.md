@@ -239,7 +239,10 @@ seen it. A pass proves the contract held, never that the work was done.
 
 **Triage.** With the user when there is one. Without one, each finding gets
 exactly one of: fixed inside the item before merge, when it is within the
-item's criterion; `workbench new bug` when it is outside it; a `BACKLOG.md`
+item's criterion or is the same mechanism the item already changed — the
+function's twin in the same file, the caller the fix broke — which
+ts-lean-code's "fix the shared function once" already covers; `workbench
+new bug` when it is outside both; a `BACKLOG.md`
 line when it is an idea; or a one-line reason in the item's Evidence why it
 stands. No finding is dropped silently, and a finding that says the criterion
 is not met stops the merge. Then `workbench review-drop`.

@@ -122,7 +122,7 @@ wb-worker` → `merge` by hand, no pre-merge fork.
 | wall, mean | 127 s | 264 s | 428 s (worker session only) |
 | seeded defect absent in the result | 9/9 | 9/9 | 6/9 (three parked as the user's call) |
 | regression the reviewer found by running, absent | 0/6 | 6/6 | 6/6 |
-| round 2 found something new | – | – | 1/9 |
+| round 2 raised a finding that was fixed | – | – | 6/9 (once after an empty round 1) |
 | merged unaided | – | – | 3/9 (own `call`/`new` on main → "behind main"; fixed the same day: a call lives in the item's `## Decisions`, and commits touching only `workbench/` do not count as main having moved) |
 
 What the reviewer earned: a `slow-` batch id turned `NotFound` (never retried)
