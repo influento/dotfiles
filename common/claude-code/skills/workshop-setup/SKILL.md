@@ -60,19 +60,13 @@ brownfield procedure.
    gets that as its first item, gate installed after.
 
 2. **ts-gate** (TypeScript projects only). `bash "$TS_GATE/install.sh" .`
-   Read every line it prints:
-   - `eslint config exists, not touched` → merge the printed block into the
-     existing config now. Until then knip fails on the unused gate file.
-   - `biome config exists, not touched` → the gate formats with the
-     project's own; it must leave `repos/**`, `ts-gate/**` and `.worktrees/**`
-     alone (install prints a `WARNING` with the `files.includes` block when it
-     does not; `gate:fix` would otherwise rewrite every file under them).
-   - `vitest config exists, not touched` → add the printed `setupFiles`
-     and `exclude` lines to it now; without them tests may reach the
-     network and `npm test` runs the live tier.
-   - `NOTE: workbench.premerge is '<x>'` → chain, do not replace:
-     `git config workbench.premerge "<x> && npm run gate"`.
-   - `WARNING` lines about tsconfig or knip entry → fix before going on.
+   Act on every line it prints before going on: merge the eslint block into
+   a config the project already had (until then knip fails on the unused
+   gate file); add the printed vitest lines (without them tests may reach the
+   network and `npm test` runs the live tier); a `NOTE` that
+   `workbench.premerge` is set means chain, do not replace:
+   `git config workbench.premerge "<x> && npm run gate"`; a `WARNING`
+   (tsconfig, biome includes, knip entry) is fixed first.
 
    Then `npm run gate:full`. Greenfield: green. Brownfield: the first run is
    the baseline — knip's legitimate findings go into `ignore` /
