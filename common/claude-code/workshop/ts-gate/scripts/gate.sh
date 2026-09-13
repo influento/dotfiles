@@ -7,8 +7,10 @@ set -uo pipefail
 FAIL=0
 # --local and --list: one line per problem, no colour, for the Stop hook and
 # the worker. CI keeps the readable formats.
+MODE="${1:-}"; LOCAL=""
+case "$MODE" in --local|--list) LOCAL=1 ;; esac
 TSC_OPTS=(); ESLINT_OPTS=(); BIOME_OPTS=()
-case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs); BIOME_OPTS=(--reporter=summary) ;; esac
+[ -z "$LOCAL" ] || { TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs); BIOME_OPTS=(--reporter=summary); }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo, gate skipped"; exit 0; }
 
 default_branch() {
@@ -17,25 +19,24 @@ default_branch() {
   echo HEAD
 }
 
-case "${1:-}" in
-  --local|--list)
-    # Merge base, not HEAD: a worker that commits as it goes has a clean tree at stop.
-    RANGE=$(git merge-base HEAD "$(default_branch)" 2>/dev/null || echo HEAD)
-    list_added() { { git diff --name-only --diff-filter=A "$RANGE"; git ls-files --others --exclude-standard; } | sort -u; }
-    mapfile -t CHANGED < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; git ls-files --others --exclude-standard; } | sort -u)
-    mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' || true) ;;
-  *)
-    RANGE="${1:-$(default_branch)}...HEAD"
-    list_added() { git diff --name-only --diff-filter=A "$RANGE"; }
-    mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.ts' '*.tsx' | grep -vE '\.d\.ts$') ;;
-esac
+untracked() { [ -z "$LOCAL" ] || git ls-files --others --exclude-standard; }
+if [ -n "$LOCAL" ]; then
+  # Merge base, not HEAD: a worker that commits as it goes has a clean tree at stop.
+  RANGE=$(git merge-base HEAD "$(default_branch)" 2>/dev/null || echo HEAD)
+  mapfile -t CHANGED < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; untracked; } | sort -u)
+  mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' || true)
+else
+  RANGE="${MODE:-$(default_branch)}...HEAD"
+  mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.ts' '*.tsx' | grep -vE '\.d\.ts$')
+fi
+list_added() { { git diff --name-only --diff-filter=A "$RANGE"; untracked; } | sort -u; }
 
-if [ "${1:-}" = "--list" ]; then [ ${#FILES[@]} -eq 0 ] || printf '%s\n' "${FILES[@]}"; exit 0; fi
+if [ "$MODE" = "--list" ]; then [ ${#FILES[@]} -eq 0 ] || printf '%s\n' "${FILES[@]}"; exit 0; fi
 # CI always runs the repo-wide tools: a branch that only edited tsconfig once
 # merged green and broke tsc on main. --local, at every stop, skips only when
 # nothing but code-irrelevant files changed.
 if [ ${#FILES[@]} -eq 0 ]; then
-  case "${1:-}" in
+  case "$MODE" in
     --local)
       printf '%s\n' "${CHANGED[@]}" \
         | grep -qE '^(package(-lock)?\.json|tsconfig[^/]*\.json|biome\.jsonc?|eslint\.config\.[a-z]+|vitest?\.[a-z.]+|ts-gate/.*|\.dependency-cruiser\.cjs)$' \
@@ -70,7 +71,7 @@ npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 #    jest projects get the eslint plugin alone. Never the live tier.
 if grep -q '"vitest"' package.json; then
   VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*')
-  case "${1:-}" in
+  case "$MODE" in
     --local) npx vitest run --changed "$RANGE" --reporter=dot --no-color "${VITEST[@]}" || FAIL=1 ;;
     *)       npx vitest run "${VITEST[@]}" || FAIL=1 ;;
   esac

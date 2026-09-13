@@ -4,6 +4,7 @@
 # outside the tree, per session.
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
+FINDING='error|TS[0-9]{4}|✖|unused|FAIL'
 IN=$(cat)
 OUT=$(bash ts-gate/scripts/gate.sh --local 2>&1) && exit 0
 
@@ -13,9 +14,8 @@ if [ -n "$SID" ]; then
   MARK="${TMPDIR:-/tmp}/ts-gate-stop-$SID"
   # Hash the findings, not the log: biome and vitest print timings, so the raw
   # output never repeats and the release below never fired while they ran.
-  # The same pattern as the summary line at the end. Output with no finding
-  # line at all (a tool that could not start) is hashed whole.
-  FINDINGS=$(printf '%s\n' "$OUT" | grep -iE 'error|TS[0-9]{4}|✖|unused|FAIL' || true)
+  # Output with no finding line at all (a tool that could not start) is hashed whole.
+  FINDINGS=$(printf '%s\n' "$OUT" | grep -iE "$FINDING" || true)
   HASH=$(printf '%s' "${FINDINGS:-$OUT}" | sha256sum | cut -c1-16)
   read -r LAST N 2>/dev/null < "$MARK" || { LAST=""; N=0; }
   [ "$HASH" = "$LAST" ] && SAME=$((N + 1))
@@ -34,7 +34,7 @@ fi
 if [ "$SAME" -eq 3 ]; then
   # shellcheck disable=SC2016  # the backticks are markdown for the model, not a command
   printf 'Gate failed the same way three times. Stop working around it: park it — under workbench, `workbench call <id> "gate: %s"`, report blocked — and end the turn. The next stop is allowed.\n%s\n' \
-    "$(printf '%s\n' "$OUT" | grep -m1 -E 'error|TS[0-9]{4}|✖|unused|FAIL' | cut -c1-120)" "$OUT" >&2
+    "$(printf '%s\n' "$OUT" | grep -m1 -E "$FINDING" | cut -c1-120)" "$OUT" >&2
 else
   printf 'Gate failed. Fix before finishing:\n%s\n' "$OUT" >&2
 fi

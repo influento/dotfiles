@@ -90,12 +90,6 @@ const m=require("./ts-gate/.install.json"),k=process.argv[1];console.log(m[k]?m[
   for g in "$@"; do [ -e "$g" ] && return 1; done
   OWN=$def
 }
-record_owned() { # key file — the sha the next run compares against; step 8 writes it on a first install
-  [ -z "$2" ] || [ ! -f ts-gate/.install.json ] || node -e '
-const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",m=JSON.parse(fs.readFileSync(p,"utf8")),[k,f]=process.argv.slice(1);
-m[k]={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")};
-fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$1" "$2"
-}
 
 # 4. ESLint config
 TESTS='"**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"'
@@ -124,7 +118,6 @@ if owned_target config eslint.config.mjs eslint.config.mjs eslint.config.js esli
 else
   echo "eslint config exists, not touched. Merge this in:"; echo "$CONFIG"
 fi
-record_owned config "$WROTE"
 
 # 4b. Biome config. At the root, not in ts-gate/: Biome refuses a second
 #     biome.json anywhere in the tree it scans, whatever `includes` says, so
@@ -143,7 +136,6 @@ else
       || echo "WARNING: $g does not leave repos/** and ts-gate/** alone; add to it: \"files\": { \"includes\": [\"**\", \"!repos/**\", \"!ts-gate/**\", \"!.worktrees/**\"] }"
   done
 fi
-record_owned biome "$BIOME_WROTE"
 
 # 4c. vitest config: the no-network setup file and the live-tier exclude. A
 #     project's own config gets the two lines to add.
@@ -164,7 +156,6 @@ export default defineConfig({
   else
     echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\", \"repos/**\", \".worktrees/**\"] }"
   fi
-  record_owned vitest "$VITEST_WROTE"
 fi
 
 # 5. Rule files
@@ -200,15 +191,17 @@ GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum
 [ "$(git config --get workbench.guards 2>/dev/null || true)" = "$GUARDS" ] \
   || { git config workbench.guards "$GUARDS" 2>/dev/null && echo "set git config workbench.guards for npm run gate/lint/build/typecheck and tsc"; }
 
-# 8. Manifest: what this install added, so uninstall removes exactly that. On
-#    a re-run the runner is re-recorded (vitest may have arrived since) and
-#    the deps this run added join the list.
+# 8. Manifest: what this install added, so uninstall removes exactly that. A
+#    config written this run gets its sha (what the next run compares
+#    against); a kept or foreign one keeps its entry. On a re-run the runner
+#    is re-recorded (vitest may have arrived since) and the deps this run
+#    added join the list.
 node -e '
 const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
-const deps=specs.map(d=>d.replace(/(.)@.*/,"$1"));
-const own=f=>f?{file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}:null;
-const m=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{config:own(cfg),biome:own(bio),vitest:own(vit)};
-m.runner=runner; m.deps=[...new Set([...(m.deps||[]),...deps])];
+const m=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
+for(const [k,f] of [["config",cfg],["biome",bio],["vitest",vit]])
+  if(f) m[k]={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}; else m[k]??=null;
+m.runner=runner; m.deps=[...new Set([...(m.deps||[]),...specs.map(d=>d.replace(/(.)@.*/,"$1"))])];
 fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" $NEW
 
 echo
