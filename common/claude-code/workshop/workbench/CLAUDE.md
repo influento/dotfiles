@@ -64,13 +64,6 @@ Workbench knows no language or toolchain. What a project's tools plug in:
 | `git config workbench.guards "<ERE>"` | the same tool | criterion steps matching it are refused at `start` as guards, beside the built-in "by inspection" / "behaviour unchanged" |
 | `git config workbench.cap.<name>` | the user | line caps `status` reports |
 
-`changed_declarations` (what `effects` and `merge` hold against `## Side
-effects`) is the one place the CLI reads source: exported TS/JS symbols,
-Go's capitalised names, Python's top-level defs, route path literals. A
-default across languages with a fixed contract (`name\tfile` from the
-diff's removed lines), not a toolchain dependency; a project that needs
-another language adds a `sed` branch there.
-
 ## Adding files here
 
 `skill_sources` enumerates `skills/workbench/` and each `commands/<name>/`,

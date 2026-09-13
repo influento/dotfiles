@@ -22,8 +22,7 @@ an error path, a test covering a real case, gone and not replaced, is a
 finding; every function the diff changes, its callers found by grep and
 checked against the new precondition, return shape or exception, each held
 against the item's `## Side effects` — a caller-visible difference the
-section does not name is a finding whether or not `workbench effects <id>`
-lists it, since that command sees declarations, not bodies; and the
+section does not name is a finding; and the
 pitfalls of the language at hand — falsy zero, a captured loop variable, a
 mutable default, a nil map, float equality.
 

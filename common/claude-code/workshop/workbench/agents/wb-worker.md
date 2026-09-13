@@ -26,9 +26,8 @@ answering.
    call <id> "<what the criterion should say>"`, and something that works
    today and now behaves differently which the section does not name is
    `workbench call <id> "side effect: <what, for whom> — accept?"` — never
-   an edit of the item. Before the review dialog, `workbench effects <id>`:
-   every line it prints `unnamed` is such a call, and `merge` refuses the
-   branch until the user has answered.
+   an edit of the item. Before the review dialog, hold every function the
+   diff changes against its callers for such a difference.
 3. The review dialog — "The review loop" in the skill. Spawn a
    `wb-reviewer` with the `Agent` tool, never a fork, naming the branch and
    the item file; answer by number through `SendMessage` to the id the

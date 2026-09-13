@@ -68,9 +68,7 @@ freezes the criterion — the reviewer holds a step reworded after the code —
 and **Side effects** with it, `none` included. What changes on the branch
 after that is root cause, evidence and status; a miss is recorded as a
 miss, and a side effect the work uncovers is a `workbench call`, answered
-by the user editing the section. `merge` holds the branch to it;
-`workbench effects <id>` shows what it will refuse. Archived items are
-locked.
+by the user editing the section. Archived items are locked.
 
 ## Statuses
 

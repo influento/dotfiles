@@ -928,8 +928,6 @@ run "status is quiet about premerge once set" 0 "" bash -c "! '$WB' status | gre
 sa=$(newc feature "use foo")
 "$WB" start "$sa" >/dev/null 2>&1
 sb=$(newc feature "rename foo")
-effects "$(find workbench/items -name "$sb-*.md" -print -quit)" "foo is renamed to bar; every importer follows"
-git commit -qam effects
 "$WB" start "$sb" >/dev/null 2>&1
 ( cd ".worktrees/$sb-rename-foo" && sed -i 's/foo/bar/g' a.mjs && git commit -qam rename )
 ready ".worktrees/$sb-rename-foo"
@@ -962,10 +960,9 @@ sed -i '/^3\. behaviour is unchanged/d' "$scf"
 git commit -qam unbuiltin
 run "start accepts a project's tool run as a step while workbench.guards is unset — the toolchain's words are the tool's to set" 0 "" "$WB" start "$sc"
 
-# --- side effects: agreed before start, held against the branch at merge ----
+# --- side effects: agreed before start --------------------------------------
 new_repo "effects"
 "$WB" init >/dev/null
-printf 'export function foo(x) { return x }\nexport const keep = 1\napp.get("/api/users", h)\n' > a.mjs
 git add -A && git commit -qm wb
 se=$("$WB" new feature "rename foo" 2>/dev/null)
 sef=$(find workbench/items -name "$se-*.md" -print -quit)
@@ -977,23 +974,6 @@ run "start refuses an empty Side effects" 1 "'Side effects' is empty" "$WB" star
 effects "$sef" "none"
 git commit -qam none
 run "start accepts 'none'" 0 "" "$WB" start "$se"
-sew=".worktrees/$se-rename-foo"
-run "effects: nothing changed yet" 0 "no existing export or route changed" "$WB" effects "$se"
-( cd "$sew" && sed -i 's/foo(x)/bar(x)/; s#/api/users#/api/people#' a.mjs && printf 'export const added = 2\n' >> a.mjs && git commit -qam rename )
-ready "$sew"
-run "effects lists the renamed export and route as unnamed, not the added one" 1 "unnamed  foo|unnamed  /api/users" "$WB" effects "$se"
-run "effects does not list the unchanged or the added export" 0 "" bash -c "! '$WB' effects $se 2>&1 | grep -qE 'keep|added'"
-run "merge refuses an unnamed side effect, naming both" 1 "does not name it" "$WB" merge "$se" "rename"
-check "the refusal names the export and the route" bash -c "'$WB' merge $se rename 2>&1 | grep -q '  foo  (a.mjs)' && '$WB' merge $se rename 2>&1 | grep -q '  /api/users  (a.mjs)'"
-"$WB" call "$se" "side effect: foo becomes bar and /api/users moves to /api/people — accept?" >/dev/null 2>&1
-run "effects: a parked call is 'called', still non-zero" 1 "called   foo" "$WB" effects "$se"
-run "merge still refuses while the call is open" 1 "parked under Decisions" "$WB" merge "$se" "rename"
-sewf=$(find "$sew/workbench/items" -name "$se-*.md" -print -quit)
-effects "$sewf" "foo is bar now; importers follow. /api/users answers at /api/people"
-sed -i '/^- side effect:/d' "$sewf"
-( cd "$sew" && git commit -qam answered )
-run "effects is quiet once both are named" 0 "named    foo" "$WB" effects "$se"
-run "merge accepts once Side effects names them" 0 "merged $se" "$WB" merge "$se" "rename"
 # an old item without the section: the resume path notes it, the fresh path refuses
 so=$("$WB" new bug "old shape" 2>/dev/null)
 sof=$(find workbench/items -name "$so-*.md" -print -quit)

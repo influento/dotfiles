@@ -41,8 +41,6 @@ usage:
                                        a call that is the user's, parked
   workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
-  workbench effects <id>               existing exports and routes the branch changed, against
-                                       the item's '## Side effects'; non-zero while one is unnamed
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status; runs 'git config
                                        workbench.premerge' in the worktree first, refusing on non-zero
@@ -701,8 +699,7 @@ status: open
      stored format — each with who sees the difference. 'none' when nothing
      that exists changes. Agreed before start, like the criterion; one found
      after start is 'workbench call <id> "side effect: …"', never an edit
-     here. merge refuses an export or route the branch changed that this
-     does not name. Delete this comment. -->
+     here. Delete this comment. -->
 
 ## How to confirm it is fixed
 
@@ -751,8 +748,7 @@ status: open
      stored format — each with who sees the difference. 'none' when nothing
      that exists changes. Agreed before start, like the criterion; one found
      after start is 'workbench call <id> "side effect: …"', never an edit
-     here. merge refuses an export or route the branch changed that this
-     does not name. Delete this comment. -->
+     here. Delete this comment. -->
 
 ## How to confirm it works
 
@@ -1017,74 +1013,6 @@ live_worktree_of() {
 # signature is not seen (the reviewer's job). TS/JS exports, Go's capitalised
 # funcs and types, Python's top-level defs, route path literals. Nothing under
 # workbench/ or .claude/. Prints '<name>\t<file>', unique.
-changed_declarations() {
-  local root=$1 main=$2 branch=$3 T=$'\t' Q="[\"'\`]" NQ="[^\"'\`]"
-  git -C "$root" diff "$main...$branch" -- . ":!$WB" ':!.claude' \
-    | awk '/^\+\+\+ b\// { f = substr($0, 7); next } /^--- / { next } /^-/ { print f "\t" substr($0, 2) }' \
-    | sed -nE \
-        -e "s/^([^${T}]*)${T}[[:space:]]*export[[:space:]]+(default[[:space:]]+)?(async[[:space:]]+)?(abstract[[:space:]]+)?(function\*?|const|let|var|class|interface|type|enum)[[:space:]]+([A-Za-z_\$][A-Za-z0-9_\$]*).*/\6${T}\1/;t p" \
-        -e "s/^([^${T}]*)${T}(func[[:space:]]+(\([^)]*\)[[:space:]]+)?|type[[:space:]]+)([A-Z][A-Za-z0-9_]*).*/\4${T}\1/;t p" \
-        -e "s/^([^${T}]*)${T}(def|class)[[:space:]]+([A-Za-z][A-Za-z0-9_]*).*/\3${T}\1/;t p" \
-        -e "s/^([^${T}]*)${T}.*\.(get|post|put|patch|delete|head|options|all|route|use|Handle|HandleFunc|GET|POST|PUT|PATCH|DELETE)\([[:space:]]*${Q}(\/${NQ}*)${Q}.*/\3${T}\1/;t p" \
-        -e 'd' -e ':p' -e 'p' \
-    | sort -u
-}
-
-# Each changed declaration against the item's '## Side effects': one the
-# section names as a word is 'named', the rest 'unnamed' — 'called' when it
-# sits only in an open line under '## Decisions', a question the user has not
-# answered. Prints '<state>\t<name>\t<file>'.
-side_effects_of() {
-  local item=$1 root=$2 main=$3 branch=$4 body calls name file
-  body=$(without_fences "$item" | sed -n "/^## $EFFECTS/,/^## /p" | tail -n +2 | grep -v '^## ' | strip_comments) || true
-  calls=$(open_decisions_of "$item")
-  while IFS=$'\t' read -r name file; do
-    [ -n "$name" ] || continue
-    if grep -qwF -- "$name" <<<"$body"; then echo "named	$name	$file"
-    elif grep -qwF -- "$name" <<<"$calls"; then echo "called	$name	$file"
-    else echo "unnamed	$name	$file"
-    fi
-  done < <(changed_declarations "$root" "$main" "$branch")
-}
-
-# What merge will hold the branch to; exit 1 while one is unnamed.
-cmd_effects() {
-  local id="${1:-}" root main branch wt item tmp='' out
-  [ $# -eq 1 ] && [ -n "$id" ] || usage
-  id=$(require_id "$id")
-  require_init
-  root=$(main_root)
-  main=$(default_branch)
-  branch=$(local_branches "$root" "$id")
-  [ -n "$branch" ] || die "no branch named $id-*; effects are read from a started item's branch"
-  require_one_branch "$id" "$branch"
-  # The worktree's copy when there is one, else the branch's.
-  wt=$(live_worktree_of "$branch")
-  [ -z "$wt" ] || item=$(find "$wt/$WB/items" -name "$id-*.md" -not -path '*/archive/*' -print -quit 2>/dev/null || true)
-  if [ -z "${item:-}" ]; then
-    item=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
-    [ -n "$item" ] || die "$id has no item file on $branch"
-    tmp=$(mktemp)
-    git -C "$root" show "$branch:$item" > "$tmp"
-    item=$tmp
-  fi
-  out=$(side_effects_of "$item" "$root" "$main" "$branch")
-  [ -z "$tmp" ] || rm -f "$tmp"
-  if [ -z "$out" ]; then
-    echo "$id: no existing export or route changed on $branch"
-    return 0
-  fi
-  printf '%s\n' "$out" | awk -F'\t' '{ printf "%-8s %s  (%s)\n", $1, $2, $3 }'
-  if grep -q '^unnamed' <<<"$out"; then
-    echo "unnamed: an existing declaration the branch changed and '## $EFFECTS' does not name; 'workbench call $id \"side effect: …\"' parks it for the user" >&2
-    return 1
-  fi
-  if grep -q '^called' <<<"$out"; then
-    echo "called: parked under '## Decisions'; the user answers by naming it under '## $EFFECTS' and deleting the line" >&2
-    return 1
-  fi
-}
-
 # One squash commit whose only body is the trailer; every check keeps that
 # commit honest. No evidence gate beyond the status: an item merges open as
 # 'awaiting'. No fresh-context check of the item either; CLAUDE.md,
@@ -1151,14 +1079,7 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
     *)
       has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
   esac
-  # An export or route the branch rewrote that the section does not name lands
-  # with nobody having decided it; a name only in an open call is the user's question.
-  local effects
-  effects=$(side_effects_of "$tmp" "$root" "$main" "$branch" | grep -v '^named' || true)
   rm -f "$tmp"
-  [ -z "$effects" ] || die "$id changes what works today and '## $EFFECTS' does not name it:
-$(printf '%s\n' "$effects" | awk -F'\t' '{ printf "  %s  (%s)%s\n", $2, $3, ($1 == "called" ? " — parked under Decisions" : "") }')
-name each under '## $EFFECTS' on the branch (delete its Decisions line once answered) and commit, then retry; 'workbench effects $id' lists them"
 
   # The squash needs the default branch checked out, in the main checkout.
   local on
@@ -2187,7 +2108,6 @@ case "${1:-}" in
   archive) shift; cmd_archive "$@" ;;
   status) shift; cmd_status "$@" ;;
   round) shift; cmd_round "$@" ;;
-  effects) shift; cmd_effects "$@" ;;
   help|-h|--help) usage 0 ;;
   *) usage ;;
 esac

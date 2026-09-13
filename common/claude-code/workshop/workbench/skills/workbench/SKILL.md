@@ -39,9 +39,7 @@ idea (workbench/BACKLOG.md line)
    reworded ([verification.md](references/verification.md)).
    `## Side effects` is agreed with it: every route, export, output or
    stored format that behaves differently once the item lands, and who sees
-   it, or `none`. `start` refuses it empty; `merge` refuses an existing
-   export or route the branch rewrote that it does not name. One found
-   after `start` is `workbench call <id> "side effect: …"`, never an edit
+   it, or `none`. `start` refuses it empty. One found after `start` is `workbench call <id> "side effect: …"`, never an edit
    of the section: whether the change is acceptable is the user's.
 
 3. **Nothing is archived without verified evidence.** Merge asks only
@@ -100,7 +98,7 @@ is the user's:
 |---|---|
 | sizing needs confirming | take the item row when it fits; anything else, `workbench call - "<question>"` and move to work that is describable |
 | criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed |
-| a side effect the item does not name — `workbench effects <id>` lists one `unnamed`, or the work shows one | `workbench call <id> "side effect: <what changes, for whom> — accept?"` and go on; never add it to `## Side effects` yourself |
+| a side effect the item does not name | `workbench call <id> "side effect: <what changes, for whom> — accept?"` and go on; never add it to `## Side effects` yourself |
 | merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
 | a parked call would unblock work | it stays parked. Do other work; never resolve it by doing more work under a new item, never reverse it because later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, never delete the item |
@@ -128,7 +126,6 @@ the copy.
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
 workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
-workbench effects b-038                # existing exports and routes the branch changed, against '## Side effects'
 workbench merge b-038 "<subject>"      # after the review dialog: squash, trailer, cleanup
 ```
 
