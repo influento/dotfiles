@@ -24,7 +24,7 @@ three things that otherwise look fine:
 | "behaviour is unchanged", "every command still does what it did" | a no-op passes it |
 | "the module is cleaner", "the API is more consistent" | nothing runs, so nothing can fail |
 | a rename count taken over the wrong scope | already 0 before the work |
-| `tsc` is clean, the build passes, the import check passes | wiring; green before the work, and "A test may satisfy only what the criterion describes" (SKILL.md) keeps it out unless a criterion needs it |
+| the typecheck is clean, the build passes, the lint gate passes | wiring; green before the work, and "A test may satisfy only what the criterion describes" (SKILL.md) keeps it out unless a criterion needs it. `workbench start` refuses such a step when `git config workbench.guards` names the command |
 | "verified by reading the function", "by inspection" | nothing ran. Reading is how a root cause is found, not how a claim is proved |
 | a script written for this item, run once and deleted | the same rule — and nobody can run the evidence again |
 | a line-count or grep-count bound chosen after the diff | a number the diff was going to move; it discriminates only when the RED count was measured first and written in |

@@ -110,6 +110,7 @@ check "knip ignores repos/** and .worktrees/** (N3)" bash -c "grep -q 'repos/\*\
 check "allow rules name the gate scripts a worker may run" bash -c "grep -q 'Bash(npm run gate:local)' .claude/settings.json && grep -q 'Bash(npm run gate:fix)' .claude/settings.json"
 check "allow rules do not cover gate:verify, which runs a model (N6)" bash -c "! grep -q 'npm run gate:\*' .claude/settings.json"
 check "premerge is set" [ "$(git config workbench.premerge)" = "npm run gate" ]
+check "guards name the gate and tsc" bash -c "git config workbench.guards | grep -q 'npm run (gate' && git config workbench.guards | grep -q tsc"
 git add -A && git commit -qm "ts-gate: install"
 
 echo "== the installer, the rules and the tests stay in the source (S2); a copy left by an older install refuses to run (A1)"

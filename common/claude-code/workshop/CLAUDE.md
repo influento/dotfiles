@@ -5,7 +5,7 @@ installed in this order by the `workshop-setup` skill:
 
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ts-gate/`   | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` (tests never reach the network; `*.live.test.ts` is the live tier, `npm run test:live`) when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `workbench.premerge` |
+| `ts-gate/`   | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` (tests never reach the network; `*.live.test.ts` is the live tier, `npm run test:live`) when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `workbench.premerge` and `workbench.guards` |
 | `stack/`     | `stack add <name>...` (the CLI is on PATH) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
 | `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies, one `SessionStart` hook, `workbench/` state         |
 
@@ -20,7 +20,9 @@ Separate tools, installed in the order above: ts-gate, commit, then `stack
 add` (its subtrees need a clean tree), then `workbench init` (its CLAUDE.md
 block goes after the stack's). Workbench knows nothing of the other two.
 What ts-gate knows of workbench: `git config workbench.premerge "npm run
-gate"`, so `workbench merge` runs the gate in the branch worktree; the
+gate"`, so `workbench merge` runs the gate in the branch worktree, and
+`workbench.guards`, so `workbench start` refuses a criterion step that only
+says the gate or `tsc` exits 0; the
 `permissions.allow` rules, what a session may run without asking;
 `.worktrees/**` in its ignores; the `Never` column of `workbench/GLOSSARY.md`
 read into `id-match`; `ts-lean-code.md`, the checklist `wb-reviewer` applies.

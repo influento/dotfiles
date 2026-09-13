@@ -35,7 +35,7 @@ is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 and live-tier `exclude` lines to add) → `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
 `permissions.allow` rules (`npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` — not `gate:verify`, which runs a model — `npm test`, and
 `npx vitest` or `npx jest` by runner) in `.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
-unset (set to something else: printed, chain it by hand) → manifest
+unset (set to something else: printed, chain it by hand) and `workbench.guards` (the regex naming `npm run gate|lint|build|typecheck` and `tsc`, so `workbench start` refuses a criterion step that only says one exits 0) → manifest
 `ts-gate/.install.json`.
 
 knip's `ignoreDependencies` starts empty; `stack add` appends every
@@ -56,7 +56,9 @@ worker and for wb-reviewer.
 
 Workbench touchpoints, all on this side: the `premerge` key (its merge runs
 the gate in the branch worktree; per clone, like every workbench key, so a
-fresh clone sets it again or re-runs install), the allow rules (a session run
+fresh clone sets it again or re-runs install), the `guards` key (this
+toolchain's words for a step that proves nothing; workbench holds only the
+rule), the allow rules (a session run
 without prompts is denied anything not listed), `.worktrees/**` in the eslint
 ignores (`eslint .` in the main checkout would lint every item worktree),
 and the glossary: `eslint.gate.mjs` reads the `Never` column of

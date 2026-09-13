@@ -59,6 +59,7 @@ rmdir .claude 2>/dev/null || true
 
 # 6. workbench.premerge, only if it is still ours.
 [ "$(git config --get workbench.premerge 2>/dev/null)" = "npm run gate" ] && git config --unset workbench.premerge
+case "$(git config --get workbench.guards 2>/dev/null)" in 'npm run (gate|lint|build|typecheck)|'*) git config --unset workbench.guards ;; esac
 
 # 7. Files. The architecture record is the project's once it differs from the
 #    shipped default: moved beside the tree, not deleted with it.

@@ -72,7 +72,7 @@ A merge that skipped the review gate carries a second trailer, `Review: skipped`
 and would tempt a reader to use it instead of opening the item, which is the
 contract. The subject describes the change, not the item's title.
 
-When `git config workbench.premerge` is set — `"npm run gate"`, a test run,
+When `git config workbench.premerge` is set — a test run, a lint gate,
 whatever the project's own tools say — the command runs it in the branch's
 worktree after every other check and before the squash, and refuses the merge
 on a non-zero exit with the command's output as the reason. That is the

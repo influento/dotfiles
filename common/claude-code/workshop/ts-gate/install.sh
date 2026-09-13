@@ -203,6 +203,12 @@ fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 PREMERGE=$(git config --get workbench.premerge 2>/dev/null || true)
 if [ -z "$PREMERGE" ]; then git config workbench.premerge "npm run gate" 2>/dev/null && echo "set git config workbench.premerge 'npm run gate'"
 elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '$PREMERGE', left alone; the gate runs at merge only if that command runs 'npm run gate'"; fi
+#    And what a criterion step may not be: the gate, a lint, a typecheck or a
+#    build exiting 0 proves these tools ran, not that the behaviour is there.
+#    Workbench holds the rule; the words are this toolchain's, so they are set here.
+GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum:]]|$)'
+[ "$(git config --get workbench.guards 2>/dev/null || true)" = "$GUARDS" ] \
+  || { git config workbench.guards "$GUARDS" 2>/dev/null && echo "set git config workbench.guards for npm run gate/lint/build/typecheck and tsc"; }
 
 # 8. Manifest: what this install added, so uninstall removes exactly that.
 #    On a re-run the owned-config entries were kept up to date above; the

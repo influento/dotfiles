@@ -60,6 +60,7 @@ usage:
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status; runs 'git config
                                        workbench.premerge' in the worktree first, refusing on non-zero
+                                       (workbench.guards: regex of steps start refuses as guards)
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what an abandoned branch carries
   workbench status                     in flight, duplicate ids, reports, documents over their line caps
@@ -749,6 +750,13 @@ setup_checklist() {
   else
     echo "  premerge          optional — 'git config workbench.premerge \"<command>\"' (tests, a lint gate) runs in the branch's worktree before every squash and refuses the merge on non-zero: the project's own tools, beside the review"
   fi
+  local guards
+  guards=$(git config --get workbench.guards 2>/dev/null || true)
+  if [ -n "$guards" ]; then
+    echo "  guards            '$guards' (git config workbench.guards): criterion steps matching it are refused at start as guards, with the built-in 'by inspection' and 'behaviour unchanged'"
+  else
+    echo "  guards            optional — 'git config workbench.guards \"<regex>\"' names the project's own tool runs (its gate, lint, typecheck, build) so a criterion step that only says one exits 0 is refused at start; the tool that installs those commands sets it"
+  fi
   if [ -n "$(memory_dir_setting)" ]; then
     echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
   else
@@ -1113,13 +1121,13 @@ cmd_start() {
     require_closed_fences "$id" "$path"
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
-    # The other half of rule 2: a step that says the gate, a typecheck or a
-    # build exits 0 is a guard — it proves the tools ran, not that the
-    # behaviour is there — and the pre-merge review rejects it once the code
-    # is written (rules/pre-merge.md). Refused here, while it is cheap to change.
+    # The other half of rule 2: a step that passes on the unchanged tree is
+    # a guard — it proves the tools ran, not that the behaviour is there —
+    # and the pre-merge review rejects it once the code is written
+    # (rules/pre-merge.md). Refused here, while it is cheap to change.
     local guard
-    guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")")
-    [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— a gate, typecheck or build exiting 0 says the tools ran, not that the behaviour is there; name a command whose result differs when the feature is missing, then start"
+    guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")" "$root")
+    [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— a check that passes on the unchanged tree says the tools ran, not that the behaviour is there; name a command whose result differs when the feature is missing, then start"
     # The other section agreed before code: what works today and will change.
     # 'none' is an answer; an empty section is the question never asked, and
     # merge would then refuse the first export the branch renames with nobody
@@ -1409,11 +1417,11 @@ $(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
         case "$only" in
           "$WB/items/"*"/$id-"*.md)
             die "$only is edited and not committed on the branch; commit it, then retry" ;;
-          node_modules)
-            # A symlinked node_modules is not a directory to git, so the
-            # usual 'node_modules/' ignore does not cover it.
-            die "$wt has an untracked node_modules symlink; ignore it with a 'node_modules' line (no slash) in .gitignore, or remove it, then retry" ;;
         esac
+        # A symlink is not a directory to git, so an ignore line with a
+        # trailing slash ('node_modules/', 'target/') does not cover one.
+        [ -L "$wt/$only" ] \
+          && die "$wt has an untracked symlink, $only; ignore it with a '$only' line (no slash) in .gitignore, or remove it, then retry"
       fi
       die "$wt has uncommitted changes; commit or discard them first"
     fi
@@ -1475,7 +1483,7 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
     die "$branch is behind $main, and premerge would test it without what landed since; in ${wt:-its worktree} run 'git rebase $main', then retry"
   fi
 
-  # The project's own gate — 'git config workbench.premerge "npm run gate"' —
+  # The project's own gate — 'git config workbench.premerge "<command>"' —
   # run in the branch's worktree, last of the checks because it is the slow
   # one, and before anything lands. Its exit status is the verdict and its
   # output the reason, so both go where a person reads. The review dialog
@@ -1489,10 +1497,9 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
     echo "premerge: $premerge (in $wt)" >&2
     if ! (cd "$wt" && bash -c "$premerge") >&2; then
       # A worktree holds tracked files only; a check that needs the
-      # project's tools has nothing to run until they are installed there.
-      [ -f "$wt/package.json" ] && [ ! -e "$wt/node_modules" ] \
-        && die "$id: premerge check failed — '$premerge' exited non-zero in $wt, which has no node_modules (a worktree holds tracked files only): cd $wt && npm ci, then retry"
-      die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry"
+      # project's dependencies has nothing to run until they are installed
+      # there, and which ones is the project's business, not this tool's.
+      die "$id: premerge check failed — '$premerge' exited non-zero in $wt; fix it on the branch, then retry. A worktree holds tracked files only: if the command wants the project's dependencies, install them there the way the project's rules say first"
     fi
   fi
 
@@ -1789,13 +1796,18 @@ section_filled() {
   grep -q '[^[:space:]]' <<<"$body"
 }
 
-# Criterion steps that check nothing but the tools: the gate or a lint, a
-# typecheck or a build exiting 0, "by inspection", "behaviour unchanged". The
-# same list rules/pre-merge.md holds against the finished item; here it stops
-# the item before a branch is cut.
+# Criterion steps that check nothing: "by inspection", "behaviour unchanged".
+# The same list rules/pre-merge.md holds against the finished item; here it
+# stops the item before a branch is cut. Workbench knows no toolchain, so the
+# steps that only prove a project's own tools ran — its gate, lint, typecheck
+# or build exiting 0 — come from 'git config workbench.guards', an extended
+# regex the tool that installs those commands sets beside workbench.premerge.
 criterion_guard_steps() {
-  without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' | strip_comments \
-    | grep -iE 'npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum:]]|$)|by inspection|behaviou?r (is )?unchanged|still does what it did' \
+  local file=$1 heading=$2 root=$3 pat='by inspection|behaviou?r (is )?unchanged|still does what it did' extra
+  extra=$(git -C "$root" config --get workbench.guards 2>/dev/null || true)
+  [ -z "$extra" ] || pat="$pat|$extra"
+  without_fences "$file" | sed -n "/^## $heading/,/^## /p" | tail -n +2 | grep -v '^## ' | strip_comments \
+    | grep -iE -- "$pat" \
     | head -3 | sed 's/^[[:space:]]*//; s/$/ /' | tr -d '\n' || true
 }
 
@@ -2519,7 +2531,7 @@ cmd_status() {
   # Per clone, like every workbench key: a fresh clone has none, and a merge
   # there runs no project check — said here, where every session start reads.
   if [ -z "$(git config --get workbench.premerge 2>/dev/null || true)" ]; then
-    echo "premerge: unset — merges run no project check in this clone; git config workbench.premerge \"npm run gate\""
+    echo "premerge: unset — merges run no project check in this clone; git config workbench.premerge \"<the project's test or gate command>\""
     echo
   fi
   echo "open items"

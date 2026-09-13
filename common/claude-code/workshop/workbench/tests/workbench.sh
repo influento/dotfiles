@@ -1188,7 +1188,8 @@ pid=$(newc bug "premerge")
 pwt=.worktrees/$pid-premerge
 ready "$pwt"
 git config workbench.premerge "npm run -s gate"
-run "a premerge that fails for want of node_modules says npm ci, not fix the branch (C9)" 1 "has no node_modules.*cd .*npm ci" "$WB" merge "$pid" "gated"
+run "a premerge that fails names the branch and the worktree's missing dependencies, not a toolchain (C9)" 1 "premerge check failed.*install them there" "$WB" merge "$pid" "gated"
+check "and never tells the user to npm ci" bash -c "! '$WB' merge '$pid' gated 2>&1 | grep -q 'npm ci'"
 git config workbench.premerge "pwd >> '$TMP/premerge.log' && test -e '$TMP/premerge-pass'"
 run "merge refuses when the premerge command fails" 1 "premerge check failed" "$WB" merge "$pid" "gated"
 check "and the branch is still there" git show-ref -q --verify "refs/heads/$pid-premerge"
@@ -1228,6 +1229,8 @@ run "and merges once rebased" 0 "merged $sa" "$WB" merge "$sa" "use"
 git config --unset workbench.premerge
 
 # --- a criterion step that only says the gate exits 0 is refused at start (C11)
+# Workbench knows no toolchain: the tool's own commands are refused only once
+# 'git config workbench.guards' names them; "behaviour unchanged" always is.
 sc=$(newc feature "guarded")
 scf=$(find workbench/items -name "$sc-*.md" -print -quit)
 # shellcheck disable=SC2016  # literal backticks for the item file
@@ -1235,11 +1238,16 @@ sed -i '/^## How to confirm/a\
 \
 2. `npm run gate` exits 0 on the branch' "$scf"
 git commit -qam guard
-run "start refuses a gate-only criterion step" 1 "guard, not a check" "$WB" start "$sc"
-# shellcheck disable=SC2016
-sed -i 's/^2\. .*gate.*/2. `node c.mjs` prints ok/' "$scf"
-git commit -qam behaviour
-run "start accepts once the step names a behaviour" 0 "" "$WB" start "$sc"
+git config workbench.guards 'npm run (gate|lint|build|typecheck)'
+run "start refuses a gate-only criterion step once workbench.guards names it (C11)" 1 "guard, not a check" "$WB" start "$sc"
+git config --unset workbench.guards
+sed -i '/^2\. .*gate.*/a\
+3. behaviour is unchanged' "$scf"
+git commit -qam builtin
+run "start refuses a built-in guard with workbench.guards unset" 1 "guard, not a check: 3. behaviour is unchanged" "$WB" start "$sc"
+sed -i '/^3\. behaviour is unchanged/d' "$scf"
+git commit -qam unbuiltin
+run "start accepts a project's tool run as a step while workbench.guards is unset — the toolchain's words are the tool's to set" 0 "" "$WB" start "$sc"
 
 # --- side effects: agreed before start, held against the branch at merge ----
 new_repo "effects"
