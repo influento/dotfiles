@@ -1,6 +1,6 @@
 ---
 name: bugfix
-description: Fix a reported defect by reproducing it first, then proving the fix against the same reproduction. TRIGGER when the user reports something broken, failing, wrong, slow, leaking, flaky, or exploitable, or asks to fix, debug, optimize, or speed up. SKIP for new features and refactors with no defect to reproduce.
+description: Fix a reported defect by reproducing it first, then proving the fix against the same reproduction. TRIGGER when the user reports something broken, failing, wrong, slow, leaking, flaky, or exploitable, or asks to fix, debug, optimize, or speed up. SKIP for new features and refactors with no defect to reproduce, and where the project tracks work with workbench (`/bug`, a workbench block in CLAUDE.md).
 ---
 
 # Bugfix
