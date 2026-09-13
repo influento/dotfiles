@@ -7,7 +7,7 @@ Four things live here, deployed four different ways:
 | `settings.json`    | deep-merged into `~/.claude/settings.json`, never symlinked  |
 | `skills/`          | symlinked to `~/.claude/skills/` (global)                    |
 | `skills-optional/` | never deployed — opted into per project                      |
-| `workshop/`        | only `workbench/bin/workbench` → `~/.local/bin/`             |
+| `workshop/`        | only `workbench/bin/workbench` and `stack/bin/stack` → `~/.local/bin/` |
 
 Why the trees are split, and which tree a new skill belongs in: the root
 CLAUDE.md, "Claude Code Skills".
@@ -36,7 +36,7 @@ Two consequences of merging rather than replacing:
 The tools a project installs, as opposed to skills it links: `workbench`, the
 item-tracking workflow CLI; `ts-gate`, the TypeScript Stop-hook gate; and
 `stack`, the Effect-first registry of the libraries a project chooses
-(`stack add effect`, or the `service` and `fullstack` presets). All are copied
+(`stack add effect`, or the `fullstack` preset). All are copied
 into a project and committed there, never symlinked. How they fit together,
 their shared backlog, and the pointers into each: `workshop/CLAUDE.md`.
 
