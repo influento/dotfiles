@@ -5,7 +5,7 @@
 | State | Where | Notes |
 |---|---|---|
 | idea | one line in `workbench/BACKLOG.md`, `workbench idea "<sentence>"` — written to the main checkout wherever it runs | no ID, no file |
-| open | `workbench/items/bugs/`, `features/`, `renames/` or `research/`, committed on the default branch by `workbench new` | freely editable on main until started |
+| open | `workbench/items/bugs/` or `features/`, committed on the default branch by `workbench new` | freely editable on main until started |
 | started | the same file, on its own branch `<id>-<slug>` in `.worktrees/` — `workbench status` marks it `started` | edited on the branch only; main's copy stands as the item started, until the squash overwrites it |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
@@ -59,82 +59,14 @@ item names the exact assumption that was wrong and hands you the reasoning that
 produced it. Something that never recurs stays archived, which is the correct
 outcome for a phantom.
 
-## Research items
+## Renames and refactors
 
-A research item is a **scope**: an area of mechanics or theory not yet
-understood well enough to write an item for, or not yet clear how to fit into
-this project, or both. It is not a large idea — an idea is one sentence whose
-meaning is obvious — and not a milestone, whose done-criterion can already be
-stated. Which of the four a piece of work is: SKILL.md, "Sizing".
-
-`workbench new research` writes the fields; `start` gives it a branch and
-worktree like any item, and everything tried — prototypes, benchmarks, pasted
-sources — lives there, throwaway by definition.
-
-| Field | Holds |
-|---|---|
-| Scope | the area, what is in and out, the project need behind it — agreed with the user before any reading |
-| Concepts | one `### ` heading per mechanic or theory piece, in the project's own words: what it is, how it would fit here, what it would touch; each ending in one `state:` line |
-| Next | where to pick up — the resume point, replaced each iteration |
-| Outcome | written last: what the scope became, and anything learned that no single concept holds |
-
-### Iterations
-
-Research takes several sessions. Each one rewrites Concepts and Next to the
-current understanding; nothing is appended as a log, and git holds what the
-earlier understanding was (SKILL.md, "Deleting means deleting"): the branch's
-commits while it is open, and after archive the tag `archive` leaves in the
-branch's place, named by the id — `git log x-041 -- <the item file>` walks
-every rewrite. A discovered fact about a system
-we do not control is stated in the concept only where its state depends on
-it, as it would appear in a bug's root cause; it becomes code in the item
-the concept spawns.
-
-### Concept states
-
-Every concept ends in exactly one line, and archive reads them:
-
-| State | Means |
-|---|---|
-| `state: open` | still being understood |
-| `state: -> f-050` | became that item — its first section (a feature's **Why**) cites this research id, and archive checks that it does; `-> x-052` is allowed, an area that turned out to be two |
-| `state: -> milestone <slug>` | became that milestone; its items follow, each citing this id |
-| `state: -> backlog` | became one obvious sentence in `BACKLOG.md` |
-| `state: dropped — <why>` | will not be pursued; the reason is the record |
-
-Which terminal state, and whether one item or several, is the "Sizing" rule.
-The agent proposes; **the user confirms every terminal state**, as with
-`awaiting` — unattended, the state is written with ` (agent)` appended and
-a `DECISIONS.md` line, and `archive` waits for the marker to go. `dropped`
-means will not be pursued; a concept that was answered ends `-> <id>`,
-`-> backlog`, or is folded into the concept its answer serves — never
-`dropped`. An item or milestone is spawned the moment its concept is
-describable, while the research stays open — the spawned item runs the normal
-loop on its own branch. A prototype worth keeping is copied into that item's
-worktree by hand; the research branch is never a base for anything.
-
-### Closing
-
-`workbench archive x-041` refuses while any concept is `open` or lacks a
-state line, while a state names an item or milestone that does not exist,
-while a named item's first section does not cite `x-041`, while the Outcome
-is empty, or — since research never merges — while the
-branch carries anything beyond the item file. `--discard` drops the
-prototypes, naming each as it goes. The item lands in the archive with
-`commit: none`.
-
-A revisit is a new research item citing the old one; nothing reopens.
-`workbench find --grep x-041` lists what it spawned, since every spawned
-item's first section names it — archive refused otherwise.
-
-## Rename items
-
-A rename changes the project's domain vocabulary and nothing else. It exists as
-its own class because the alternative — absorbing it into whichever feature or
-bug exposed the problem — widens that item past its criterion, frozen at
-`start` ("Mutability" below).
-
-### Refactors
+A rename changes the project's domain vocabulary and nothing else: a feature
+item of its own, whose criterion is the occurrence count over a scope and
+whose one commit moves the glossary entry and the code together. Never
+absorbed into whichever feature or bug exposed the problem — that widens the
+item past its criterion, frozen at `start` ("Mutability" below). Procedure,
+homographs and aliases: [glossary.md](glossary.md).
 
 A refactor is not its own item.
 
@@ -152,12 +84,9 @@ move it is criterion-after-code wearing a number.
 "The behaviour is unchanged" is never the criterion. It is a preservation guard
 and belongs in Evidence ([verification.md](verification.md)) — a no-op passes it.
 
-This does not contradict the reason `rename` is its own class. A rename changes
-vocabulary across a whole area, outside the host item's scope, so absorbing it
-widens that item. A refactor the item needed is inside its scope by
+A rename is different: it changes vocabulary across a whole area, outside the
+host item's scope. A refactor the item needed is inside its scope by
 construction.
-
-Full procedure, including homographs and aliases, in [glossary.md](glossary.md).
 
 ## Who writes an item
 
@@ -174,7 +103,7 @@ the shape; size decides nothing.
 Until `workbench start`, every field is editable, on main's copy: a bug that
 turns out to be deeper than first written has its item updated to match.
 `start` freezes the criterion — it is the contract the evidence is matched
-against, and the pre-merge review holds a step reworded after the code
+against, and the reviewer and the gate hold a step reworded after the code
 ([verification.md](verification.md)). What changes on the branch after that
 is root cause, evidence and status; a miss is recorded as a miss.
 

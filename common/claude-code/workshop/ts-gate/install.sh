@@ -7,6 +7,11 @@ T="$(cd "${1:?usage: install.sh <target-dir>}" && pwd)"
 [ -f "$T/package.json" ] || { echo "no package.json in $T"; exit 1; }
 [ -f "$T/tsconfig.json" ] || { echo "no tsconfig.json in $T"; exit 1; }
 cd "$T"
+# The project copy of this script sits at $T/ts-gate: run from there, step 1
+# would empty ts-gate/ and then copy it onto itself. Refused before anything moves.
+if [ "$SRC" -ef "$T/ts-gate" ]; then
+  echo "install.sh is the project copy; run the dotfiles source instead: bash \"\$TS_GATE/install.sh\" $T"; exit 1
+fi
 
 # 0. Preconditions. Refused rather than warned: premerge is git config.
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$T is not a git repository"; exit 1; }
@@ -15,22 +20,26 @@ grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING:
 grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
 node -e 'process.exit(require("./package.json").engines?.node?0:1)' || echo "WARNING: package.json has no engines.node; a Dockerfile or a CI container has nothing to pin node to"
 
-# 1. Files. Everything but the manifest is replaced, so a re-run carries
-#    changes — except what the project put in: knip.json's ignore lists (the
-#    brownfield baseline, every dependency and file stack added) are merged
-#    back, and .dependency-cruiser.cjs, the architecture record, is kept
-#    once it exists (diff it against this source by hand when the gate's
-#    default rules move).
+# 1. Files: what the gate runs at the project, not the installer, its tests
+#    or the rules (those land in .claude/rules/). Everything but the manifest
+#    is replaced, so a re-run carries changes — except what the project put
+#    in: knip.json's ignore lists (the brownfield baseline, every dependency
+#    and file stack added) and its entry (set by hand when the WARNING at the
+#    end says so) are merged back, and .dependency-cruiser.cjs, the
+#    architecture record, is kept once it exists (diff it against this
+#    source by hand when the gate's default rules move).
+SHIP="CLAUDE.md .dependency-cruiser.cjs eslint.gate.mjs eslint-line.mjs knip.json no-network.mjs vitest.live.mjs scripts"
 KNIP_KEEP=""
-[ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[]})')
+[ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[],entry:j.entry})')
 DC_KEEP=""
 [ -f ts-gate/.dependency-cruiser.cjs ] && DC_KEEP=$(mktemp) && command cp ts-gate/.dependency-cruiser.cjs "$DC_KEEP"
 [ -d ts-gate ] && find ts-gate -mindepth 1 ! -name .install.json -delete
 command mkdir -p ts-gate
-command cp -r "$SRC"/. ts-gate/
+for f in $SHIP; do command cp -r "$SRC/$f" ts-gate/; done
 [ -z "$KNIP_KEEP" ] || node -e '
 const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8")),k=JSON.parse(process.argv[1]);
 for(const key of ["ignore","ignoreDependencies"]) j[key]=[...new Set([...(j[key]||[]),...k[key]])];
+if(k.entry) j.entry=k.entry;
 fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$KNIP_KEEP"
 [ -z "$DC_KEEP" ] || { command mv "$DC_KEEP" ts-gate/.dependency-cruiser.cjs; echo "ts-gate/.dependency-cruiser.cjs kept (the architecture record); the shipped default is in $SRC"; }
 
@@ -43,6 +52,9 @@ DEPS="typescript@5 eslint@10 typescript-eslint@8 eslint-plugin-sonarjs@4 knip@6 
 RUNNER=""
 grep -q '"vitest"' package.json && RUNNER=vitest && DEPS="$DEPS @vitest/eslint-plugin"
 grep -q '"jest"' package.json && [ -z "$RUNNER" ] && RUNNER=jest && DEPS="$DEPS eslint-plugin-jest"
+# A peer-installed vitest (@effect/vitest pulls one in) is in node_modules but
+# not in package.json, so it does not count: the gate would run no tests.
+[ -n "$RUNNER" ] || echo "WARNING: no test runner in package.json (\"vitest\" or \"jest\" as a devDependency) — the gate will run no tests and write no vitest config; npm i -D vitest@5, then re-run install"
 # Only what the project lacks: a re-run must not move pins the project owns.
 NEW=$(node -e '
 const p=require("./package.json"),have={...p.dependencies,...p.devDependencies};
@@ -51,7 +63,10 @@ console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have))
 
 # 3. Scripts
 FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
-[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*'"
+# repos/** and .worktrees/** are excluded by vitest.config.mjs (or the lines
+# install prints for a foreign one); the live tier's exclude stays here because
+# a foreign config that lacks it would run real network from gate:full.
+[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude '**/*.live.test.*'"
 # test:live: the live tier (*.live.test.ts, real network), a script a person
 # runs; not in the allow rules, so an unattended worker cannot.
 [ "$RUNNER" != vitest ] || npm pkg set scripts.test:live="vitest run --config ts-gate/vitest.live.mjs"
@@ -59,7 +74,7 @@ npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
   scripts.gate:local="bash ts-gate/scripts/gate.sh --local" \
   scripts.gate:full="$FULL" \
-  scripts.gate:fix="eslint . --fix && biome format --write ." \
+  scripts.gate:fix='eslint . --fix; e=$?; biome format --write .; b=$?; exit $((e > b ? e : b))' \
   scripts.gate:verify="bash ts-gate/scripts/verify.sh"
 
 # A config this install wrote (the manifest names it under a key) is replaced
@@ -120,9 +135,17 @@ record_owned config "$WROTE"
 #     the shipped file has a name it never discovers and is copied out.
 BIOME_WROTE=""
 if owned_target biome biome.json biome.json biome.jsonc; then
-  [ -z "$OWN" ] || { command cp ts-gate/biome.template.json "$OWN"; BIOME_WROTE=$OWN; }
+  [ -z "$OWN" ] || { command cp "$SRC/biome.template.json" "$OWN"; BIOME_WROTE=$OWN; }
 else
-  echo "biome config exists, not touched; the gate formats with it (ts-gate/biome.template.json is what install writes: formatter only, .ts/.tsx, spaces)"
+  echo "biome config exists, not touched; the gate formats with it (biome.template.json in the ts-gate source is what install writes: formatter only, .ts/.tsx, spaces)"
+  # gate:full and gate:fix format the whole tree: a config that does not leave
+  # out the read-only subtrees and the gate's own files rewrites thousands of
+  # files at the first run, and the next install puts ts-gate/ back.
+  for g in biome.json biome.jsonc; do
+    [ -f "$g" ] || continue
+    grep -q 'repos/' "$g" && grep -q 'ts-gate/' "$g" \
+      || echo "WARNING: $g does not leave repos/** and ts-gate/** alone; add to it: \"files\": { \"includes\": [\"**\", \"!repos/**\", \"!ts-gate/**\", \"!.worktrees/**\"] }"
+  done
 fi
 record_owned biome "$BIOME_WROTE"
 
@@ -153,7 +176,7 @@ fi
 
 # 5. Rules
 command mkdir -p .claude/rules
-command cp ts-gate/rules/*.md .claude/rules/
+command cp "$SRC"/rules/*.md .claude/rules/
 
 # 6. Stop hook: the deterministic gate. Our entry is replaced, foreign entries
 #    are untouched. Judgment review is wb-reviewer's job under workbench.
@@ -168,8 +191,10 @@ const command="bash ts-gate/scripts/stop-hook.sh";
 s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==command)})).filter(e=>e.hooks.length);
 s.hooks.Stop.push({hooks:[{type:"command",command,timeout:600}]});
 s.permissions??={}; s.permissions.allow??=[];
-const rules=["Bash(npm ci)","Bash(npm run gate:*)","Bash(npm test:*)"];
+// Not gate:* — that would cover gate:verify, which starts a model session.
+const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
 if(process.argv[1]) rules.push("Bash(npx "+process.argv[1]+":*)");
+s.permissions.allow=s.permissions.allow.filter(r=>r!=="Bash(npm run gate:*)");
 for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 
@@ -180,12 +205,16 @@ if [ -z "$PREMERGE" ]; then git config workbench.premerge "npm run gate" 2>/dev/
 elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '$PREMERGE', left alone; the gate runs at merge only if that command runs 'npm run gate'"; fi
 
 # 8. Manifest: what this install added, so uninstall removes exactly that.
-#    Kept on re-run, when every dep already counts as present.
-[ -f ts-gate/.install.json ] || node -e '
-const fs=require("fs"),c=require("crypto"),[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
+#    On a re-run the owned-config entries were kept up to date above; the
+#    runner is re-recorded (vitest may have arrived since) and the deps this
+#    run added join the list, so uninstall removes them too.
+node -e '
+const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
 const deps=specs.map(d=>d.replace(/(.)@.*/,"$1"));
 const own=f=>f?{file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}:null;
-fs.writeFileSync("ts-gate/.install.json",JSON.stringify({runner,deps,config:own(cfg),biome:own(bio),vitest:own(vit)},null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" $NEW
+const m=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{config:own(cfg),biome:own(bio),vitest:own(vit)};
+m.runner=runner; m.deps=[...new Set([...(m.deps||[]),...deps])];
+fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" $NEW
 
 echo
 echo "installed. runner: ${RUNNER:-none}"

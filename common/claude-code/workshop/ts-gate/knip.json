@@ -3,6 +3,7 @@
   "ignoreExportsUsedInFile": true,
   "ignore": [
     "repos/**",
+    ".worktrees/**",
     "ts-gate/eslint-line.mjs"
   ],
   "ignoreDependencies": [],

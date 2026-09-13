@@ -50,27 +50,6 @@ store in the tree; [docs.md](docs.md), "Repository documents or agent
 memory", says how. What that buys is sync and a diff. What it does not buy
 is review, which is why the `memory` sweep reason exists.
 
-## Why `rename` is a class and `refactor` is not
-
-`rename` looks like a special case carved out of a homeless general one, since
-a rename is a refactor. It is not. The classes are shapes of criterion, not
-kinds of edit, and there are only two shapes:
-
-- **fixed** — the class supplies the criterion, and the author has no choice in
-  it. `rename` is one: an occurrence count over a scope. `research` is the
-  other: every concept terminal and pointing at something real, and an outcome
-  written.
-- **free** — the author supplies the criterion per item. `bug` and `feature`
-  are this, and every refactor that is not a rename is too.
-
-So a standalone refactor is not homeless; a free-shape class already exists and
-it is `feature`. Adding `refactor` would add no shape, and would create the one
-place where work could go without an observable claim attached to it.
-
-The deeper reason a general refactor cannot be its own class: its natural
-criterion is "behaviour is unchanged", which is green before the work starts.
-See the unchanged-tree rule in verification.md.
-
 ## Why the commands are thin, and the copies committed
 
 `/bug` and the others hold no rules: a rule in two places drifts, and the
@@ -83,27 +62,24 @@ The skills under `.claude/skills/` are rendered copies of the dotfiles
 sources, and they are committed. A symlink would keep every project on the
 latest source for free, but it is one machine's path and it exists only in
 the checkout it was made in — a session opened inside a worktree, or a
-fresh clone, had no commands, no hook and no status line. A committed copy
+fresh clone, had no commands and no hook. A committed copy
 is in every checkout git makes. The price is drift, and it is paid
 visibly: each copy carries a hash of its source, `status` lists the ones
 that have fallen behind, `init` re-renders them, and the copy is never
-edited by hand. Files ending in `.tpl` are rendered on the way, which is
-where per-project content goes if a project ever needs any.
+edited by hand.
 
 A copy the user edits by hand is the other half of drift: the stamp holds
 the copy's own hash beside the source's, `status` names an edited copy
 apart from a stale one, and `init` overwrites it only with `--force`. The
 edit belongs in the source.
 
-The session hook, status line and allow rules go in the tracked
+The session hook and allow rules go in the tracked
 `.claude/settings.json` for the same reason; the setup checklist names them
 so the user can strike any.
 
 A project skill wins over a Claude Code builtin of the same name, so the
 names were chosen against that list. `/bug` shadows the builtin bug-report
-form, which loses nothing in a project with its own tracker. `/rename`
-would have shadowed renaming the conversation in every adopted project, for
-the rarest item class, so a rename is `/wb rename <old> to <new>` instead.
+form, which loses nothing in a project with its own tracker.
 
 ## Why the obligation lives in the project's `CLAUDE.md`
 
@@ -113,47 +89,43 @@ gets an item, since the requests that most need the rule are the ones that look
 like small favours. So the obligation sits in `CLAUDE.md`, which is always in
 context, and the detail stays here, loaded only once the rule has fired.
 
-## Why the agent invokes the pre-merge review itself
+## Why the pre-merge review is the user's to ask for
 
 The sweep was user-only at first, so that a review meant a person had asked
 for one. That held until a session ran twenty hours with nobody there: it
 merged forty-six times, and the gate that reads the item against its
 evidence fired zero times, because the one thing the agent could not do was
-start it. Every defect that gate exists to catch — a guard in the criterion
-field, a criterion reworded to the number the code produced, a vocabulary
-drift — was in the archive by morning.
+start it. So the gate became a required step of `merge`, invocable by the
+agent, with `review-check` recording the branch commit it read.
+
+Three measured runs later it came out of the required path again: the fork
+found no code defect the review dialog had not, blocked a correct item twice
+on the wording of its criterion, and cost a rerun each time. What it catches
+that the dialog does not — a criterion reworded after the code, a RED
+asserted rather than measured — is what a person reads for when they open
+an item, so the fork stays as the sweep to ask for, not the toll every merge
+pays. The dialog is the required read: a reviewer that runs the code and
+argues, then `round`, which records the exchange on the item.
 
 The fork is a fresh context by construction — `context: fork` starts the
-subagent with the skill's text and none of the conversation — so the
-reviewer has never seen the reasoning behind the code it reads, whoever
-started it. The baseline is taken by the skill's preprocessed block before
-the fork's first turn, and that block runs on a model invocation as on a
-slash command. So the proof that the sweep changed nothing holds either
-way; what the user-only rule bought was timing, and timing is now the
-gates in SKILL.md "Review sweeps". A clean pre-merge records the branch
-commit it read, and `merge` asks for that record: the review cannot be
-skipped, and cannot be stale.
-
-What stays the user's is every other reason. A sweep the agent starts
-because the code "looks like it needs one" is a cost nobody chose, and the
-findings would wait for triage anyway.
+subagent with the skill's text and none of the conversation — and the
+baseline is taken by the skill's preprocessed block before the fork's first
+turn, so the proof that the sweep changed nothing holds whoever started it.
 
 ## Why an absent user's decisions are marked rather than made
 
-The statuses `awaiting` and `unverified`, a research concept's terminal
-state, a parked call — each is the user's because it is a claim about what
+The statuses `awaiting` and `unverified`, a parked call — each is the user's because it is a claim about what
 the project accepts as done, and the agent's incentive at that moment runs
 the other way. Unattended, with only two choices — stop, or decide and say
 so in prose — the agent chooses prose: "what this did not prove" as a
 section, "the operator call lapsed" as a heading, a two-hundred-word line in
 the backlog. Decisions made in fact and recorded nowhere a grep could find.
 
-The ` (agent)` marker and `DECISIONS.md` are the third choice: the decision
-is made in the one form the tools read — the status line, the state line —
-and marked as provisional in the same place, with a one-line index the user
-reads first on return. Confirming is deleting the marker. The backlog goes
-back to being ideas, milestones go back to being goals, and nothing that is
-a question is written as a paragraph.
+The ` (agent)` marker and the item's `## Decisions` are the third choice:
+the decision is made in the one form the tools read — the status line — and
+marked as provisional in the same place, with the open question beside it
+in the item and listed by `workbench status` on return. Confirming is deleting the marker. The backlog goes back to being
+ideas, and nothing that is a question is written as a paragraph.
 
 ## Why the sweep's contract is not enforced by a hook
 
@@ -178,7 +150,7 @@ the permission mode of the session that opened it, and under `dontAsk` a
 redirect, two turns later, and the tool set has bounded nothing. An allow
 rule is honoured there, and it is the `Edit(...)` form that governs `Write`:
 a `Write(...)` rule is accepted and ignored (both probed 2.1.263). So the
-gate's `Write` lands whatever mode the lead runs in. `workbench review-check` is the only thing
+gate's `Write` lands whatever mode the session runs in. `workbench review-check` is the only thing
 that actually proves the contract held, which is why it is run on every
 returned report rather than only on a suspicious one.
 
@@ -210,7 +182,7 @@ tree file carries reads as a host rather than a fabrication. Both rules are
 decided from the tree — `git ls-files` — never from anything the report says
 about itself.
 Exempting a region of the report, a fenced block say, looks like the obvious
-relief the first time a watch report fails on a stack trace; it is not, because
+relief the first time a report fails on a stack trace; it is not, because
 the sweep writes every byte of the report, so any region it can mark exempt is
 a region it can hide a bogus citation in. Provenance would be the real
 distinction, and the check has no access to it. When a new legitimate shape
@@ -227,37 +199,9 @@ the feature pays for itself only while it narrows code reading, and the
 moment it adds reading it is worse than nothing. See `find` in
 [items.md](items.md).
 
-## Why milestones are optional and there is nothing above them
-
-A hierarchy that every item must slot into turns starting work into deciding
-where it goes, and for one person that decision is where a day disappears. So
-a milestone is a big-picture goal only, an item may name one or not, and the
-level above — designs, epics, brainstorm records — does not exist. What a
-conversation decides lands in a milestone or an item; the conversation itself
-is not an artifact.
-
-Research is not that level. It sits *before* an item or milestone can be
-written, not above them, and it holds no work — only a scope that ends by
-decomposing into the levels that do.
-
-## Why `research` is a class and a brainstorm record is not
-
-A brainstorm record is the findings directory argued against above with a
-different name: no end, nothing that invalidates it, and it can only grow.
-Research has an end, the end is checked, and what survives it is a set of
-decisions each pointing at an item, a milestone, a backlog line, or a stated
-reason for dropping — every one reachable from the thing it spawned. The
-prose that produced those decisions is rewritten each iteration rather than
-kept, which is what keeps the file from becoming the record it replaces.
-
-It never merges for the same reason a refactor is not a class: a prototype
-that should ship is, by then, describable — so it is an item, with a
-criterion, under its own trailer. Letting research merge would be the one
-path by which code lands with no observable claim attached.
-
 ## Why sizing is one question
 
-Whether something is an idea, an item, a milestone or research could be
+Whether something is an idea, an item or a spike could be
 argued fresh each time, and then no two calls would match, and the archive
 would stop being something a later reader can rely on. So it is one question
 — how well can it be described right now — with a row per answer, and the
@@ -273,32 +217,6 @@ proposes the backlog for something item-shaped, and the user reaches it by
 saying so: `/idea` is that signal, and it takes the sentence in the user's
 words without argument. Deferral is an act of the user, not a level the
 agent assigns.
-
-## Why a watch may investigate freely but never fix
-
-Unattended, the worst a watcher that only observes and restarts can do is
-restart something three times and wake someone up. A watcher that fixes can
-do anything, and does it at the hour nobody is reading. So the line is not
-drawn at what the fork may *do* — it may poke the running app, write helper
-scripts, send it whatever it likes — but at what it may *change*: the
-running system only as the contract lists, the repository never. The
-morning's item carries the fix, through the same gates as by day, and the
-shift's whole value is that the evidence for it was captured before the
-restart destroyed it.
-
-## Why workers are sessions, not subagents
-
-A subagent worker dies with the session that spawned it and with its
-`/clear`; its questions come back through the lead, in the lead's words, and
-the user answers there — every decision on five items funnelled through one
-window, relayed twice. A worker that is a session of its own in a tmux window
-outlives the lead, is resumed by id when its window is gone, and takes the
-user's answer where the question arose. The lead keeps the workbench
-commands, the merges, one message per worker event; `workbench lead` plus the
-hooks do the rest: the window title is the only signal a person needs, and
-the mode switch reaches a running session through the hooks rather than a
-restart. Only windows workbench opened are
-in its registry, so a window the user made is never renamed or killed.
 
 ## Why the review dialog is a subagent and the gate a fork
 
@@ -325,27 +243,3 @@ opens on the whole sweep skill and its rules and reads everything again.
 Dropping it would save cents and remove the only independent second read
 before the gate.
 
-
-## Why usage is recorded on the item, and the agent raises it
-
-The figures a session can see about itself — cost at list price, cache hit
-ratio, tool calls — vanish with the session. Written to a log they would be
-read by nobody: the log grows, the numbers are never beside the work that
-produced them, and the one person who could act on them is the one least
-likely to remember to look. So `archive` writes them onto the item, after
-`commit:`, where a review already reads `rounds:` and Evidence. The record
-is per merged item, in git, and a `grep usage:` over the archive is the whole
-dataset.
-
-The reading is the agent's to start, not the user's. `status` runs at every
-session start and prints a `usage:` line on a cadence and on thresholds —
-silent otherwise, so the line carries information when it appears. The
-review it names computes nothing itself: `workbench usage` does the
-arithmetic once, deterministically, and the fork judges what the numbers
-mean and ends with suggestions. Each suggestion is a setting, because the
-settings are what the figures measure — worker effort, the reviewer's,
-cache lifetime, caps — and a setting is the user's to change, at triage,
-with the item range it applies from visible in the next window's `effort=`
-column. A loop that measured, judged and changed its own settings would tune
-itself to the metric; one that measures, judges and asks keeps the user as
-the part that knows what the work was worth.

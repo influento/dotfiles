@@ -9,8 +9,8 @@ disable-model-invocation: true
 
 The `workbench` skill's rules apply; load it if it is not in context.
 
-1. **Sizing first.** If this is not a bug — a feature, several items, a
-   milestone, or research — say which "Sizing" row it is and why, and stop
+1. **Sizing first.** If this is not a bug — a feature, several items, or a
+   spike — say which "Sizing" row it is and why, and stop
    for the user's answer. A bug is something that behaves wrongly today.
 2. `workbench new bug "<title>"` — the description condensed to a few words.
 3. Fill **What was seen** from the description and **How to reproduce** as

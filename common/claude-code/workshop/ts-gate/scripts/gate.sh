@@ -23,8 +23,8 @@ case "${1:-}" in
     # Merge base, not HEAD: a worker that commits as it goes has a clean tree at stop.
     RANGE=$(git merge-base HEAD "$(default_branch)" 2>/dev/null || echo HEAD)
     list_added() { { git diff --name-only --diff-filter=A "$RANGE"; git ls-files --others --exclude-standard; } | sort -u; }
-    mapfile -t FILES < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; git ls-files --others --exclude-standard; } \
-      | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' | sort -u) ;;
+    mapfile -t CHANGED < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; git ls-files --others --exclude-standard; } | sort -u)
+    mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' || true) ;;
   *)
     RANGE="${1:-$(default_branch)}...HEAD"
     list_added() { git diff --name-only --diff-filter=A "$RANGE"; }
@@ -32,21 +32,34 @@ case "${1:-}" in
 esac
 
 if [ "${1:-}" = "--list" ]; then [ ${#FILES[@]} -eq 0 ] || printf '%s\n' "${FILES[@]}"; exit 0; fi
-if [ ${#FILES[@]} -eq 0 ]; then echo "no TS changes"; exit 0; fi
+# No changed .ts file does not mean nothing to check: tsconfig, package.json,
+# the tool configs and the gate's own files change what the repo-wide tools
+# say without touching a .ts. CI always runs them (a branch that only edits
+# tsconfig merged green once, and broke tsc on main). --local, which runs at
+# every stop, skips only when nothing but code-irrelevant files changed.
+if [ ${#FILES[@]} -eq 0 ]; then
+  case "${1:-}" in
+    --local)
+      printf '%s\n' "${CHANGED[@]}" \
+        | grep -qE '^(package(-lock)?\.json|tsconfig[^/]*\.json|biome\.jsonc?|eslint\.config\.[a-z]+|vitest?\.[a-z.]+|ts-gate/.*|\.dependency-cruiser\.cjs)$' \
+        || { echo "no TS or config changes"; exit 0; } ;;
+  esac
+  echo "== no changed TS files; repo-wide checks only =="
+fi
 [ -d node_modules ] || { echo "node_modules missing (fresh checkout or worktree): run npm ci, then retry"; exit 1; }
-echo "== ${#FILES[@]} changed TS files =="
+[ ${#FILES[@]} -eq 0 ] || echo "== ${#FILES[@]} changed TS files =="
 
 # 1. Compile. Repo-wide: a wrong API name in a changed file fails here, not at build.
 npx tsc --noEmit "${TSC_OPTS[@]}" || FAIL=1
 
 # 2. Volume lint, changed files only. Type-aware rules are per-file with full
 #    type info, so scoping to the diff is exact, not an approximation.
-npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
+[ ${#FILES[@]} -eq 0 ] || npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 2b. Layout, changed files only. Biome as formatter alone (its linter is off:
 #     eslint above is the linter); `--reporter=summary` for the hook, the diff
 #     for CI. `gate:fix` rewrites.
-npx biome format --no-errors-on-unmatched "${BIOME_OPTS[@]}" "${FILES[@]}" || FAIL=1
+[ ${#FILES[@]} -eq 0 ] || npx biome format --no-errors-on-unmatched "${BIOME_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 3. Dead code / abandoned attempts. Repo-wide: an export dies when its last
 #    *caller* is deleted, which need not be in the changed set.

@@ -155,7 +155,7 @@ export NPM_LOG="$TMP/npm.log"; PATH="$TMP/bin:$PATH"
 "$STACK" add plain lib >/dev/null
 check test -f .claude/skills/plain-skill/SKILL.md
 check grep -q '^plain|||plain-skill$' .claude/stack.conf
-check grep -q '^npm i left-pad@1.3.0$' "$NPM_LOG"
+check grep -q '^npm i -E left-pad@1.3.0$' "$NPM_LOG"
 check test -f .claude/rules/lib.md
 check grep -q 'one = 1' src/core/lib.ts
 check test "$(grep -c '^- \*\*' CLAUDE.md)" = 3
@@ -219,8 +219,8 @@ out=$("$STACK" add child)
 check grep -q '^base: needed, added first$' <<< "$out"
 check test -f .claude/rules/base.md
 check test -f .claude/rules/child.md
-check grep -q '^npm i base-pkg@1.0.0$' "$NPM_LOG"
-check grep -q '^npm i -D base-dev@2.0.0 base-dev2@2.0.0$' "$NPM_LOG"
+check grep -q '^npm i -E base-pkg@1.0.0$' "$NPM_LOG"
+check grep -q '^npm i -D -E base-dev@2.0.0 base-dev2@2.0.0$' "$NPM_LOG"
 check grep -q '"base-pkg"' ts-gate/knip.json
 check grep -q '"base-dev2"' ts-gate/knip.json
 check grep -q "Commit: 'stack: add base child'" <<< "$out"
@@ -238,7 +238,7 @@ check grep -q '^base|' .claude/stack.conf
 check not grep -q '^bundle' .claude/stack.conf
 check not grep -q '\*\*bundle\*\*' CLAUDE.md
 check test "$(grep -c '^plain|' .claude/stack.conf)" = 1
-check grep -q "Commit: 'stack: add base child plain'" <<< "$out"
+check grep -q "Commit: 'stack: add base child'" <<< "$out"
 check not "$STACK" add empty
 "$STACK" rm child >/dev/null && "$STACK" rm base >/dev/null
 check test -z "$(git status --porcelain)"   # add then rm of both leaves the tree as committed
@@ -287,5 +287,64 @@ mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md && git add -A && git commit 
 "$STACK" add thing >/dev/null
 check test -L CLAUDE.md
 check grep -q '\*\*thing\*\*' AGENTS.md
+
+echo "== pins are exact and 'update' re-applies a bumped DEP (A7)"
+sed -i 's/^DEP=left-pad@1.3.0/DEP=left-pad@1.3.1/' "$STACK_ROOT/packages/lib/package.conf"
+: > "$NPM_LOG"
+"$STACK" update lib >/dev/null
+check grep -q '^npm i -E left-pad@1.3.1$' "$NPM_LOG"
+
+echo "== a failed dependency install is named, visible in status, and the rerun completes (B3)"
+git add -A && git commit -qm "stack: add thing"
+mkdir -p "$STACK_ROOT/packages/half"
+cat > "$STACK_ROOT/packages/half/package.conf" <<'C'
+KIND=lib
+REFERENCE=private:thing
+REF=main
+DEP=nope@1.0.0
+NOTE="Half."
+C
+echo "# half rule" > "$STACK_ROOT/packages/half/rule.md"
+cat > "$TMP/bin/npm" <<'N'
+#!/usr/bin/env bash
+echo "npm $*" >> "${NPM_LOG:?}"
+[ -z "${NPM_FAIL:-}" ] || { echo "npm ERR! ERESOLVE" >&2; exit 1; }
+N
+: > "$NPM_LOG"
+NPM_FAIL=1 "$STACK" add half > "$TMP/half.out" 2>&1 && echo "add returned 0" >> "$TMP/half.out"
+check grep -q 'half-added' "$TMP/half.out"
+check grep -q "rerun 'stack add half'" "$TMP/half.out"
+check test -d repos/half
+check not grep -q '^half|' .claude/stack.conf
+"$STACK" status > "$TMP/status.out" 2>&1 || true
+check grep -q 'repos/half has no manifest row' "$TMP/status.out"
+"$STACK" add half thing > "$TMP/half2.out" 2>&1 || true
+check grep -q '^half|repos/half|' .claude/stack.conf
+check grep -q '^npm i -E nope@1.0.0$' "$NPM_LOG"
+check grep -q "Commit: 'stack: add half'$" "$TMP/half2.out"
+git add -A && git commit -qm "stack: add half"
+
+echo "== add refuses a dirty tracked tree before it commits anything (B3)"
+echo dirty >> AGENTS.md
+check bash -c "'$STACK' add plain 2>&1 | grep -q 'uncommitted changes'"
+check test -z "$(git log --oneline -1 | grep -v 'stack: add half')"
+git checkout -q -- AGENTS.md
+
+echo "== the shipped registry"
+REG=$(readlink -f "$(dirname "$STACK")/../packages")   # $STACK is absolute; the suite has cd-ed away from $0
+check not grep -rq 'ServiceMap' "$REG"
+check grep -q 'vitest@5' "$REG/effect/package.conf"
+
+echo "== rm drops the knip names it added and the block when nothing is left; modes survive (C6, C7)"
+mkdir -p "$TMP/p3/src" && cd "$TMP/p3" && git init -q && echo '{"name":"p3"}' > package.json && mkdir -p ts-gate && echo '{"ignore":[],"ignoreDependencies":[]}' > ts-gate/knip.json && printf '# p3\n\nhand-written\n' > CLAUDE.md && git add -A && git commit -qm scaffold
+"$STACK" add lib >/dev/null
+check test "$(stat -c %a CLAUDE.md)" = 644
+check test "$(stat -c %a .claude/stack.conf)" = 644
+check grep -q '"left-pad"' ts-gate/knip.json
+git add -A && git commit -qm "stack: add lib"
+"$STACK" rm lib >/dev/null
+check not grep -q '"left-pad"' ts-gate/knip.json
+check not grep -q '## Stack' CLAUDE.md
+check grep -q 'hand-written' CLAUDE.md
 
 if [ "$fail" -eq 0 ]; then echo "all passed"; else echo "FAILURES"; exit 1; fi

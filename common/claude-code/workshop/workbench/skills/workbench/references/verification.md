@@ -45,9 +45,9 @@ was never run RED is the same thing a step earlier.
 ## Form
 
 A criterion is a **description** of how to verify. Use a command when a real
-tool already covers it. It may be a list; whether a list is one item or a
-milestone with an item per slice is decided by SKILL.md, "Sizing", before the
-item is written.
+tool already covers it. It may be a list; whether a list is one item or
+several, one per slice, is decided by SKILL.md, "Sizing", before the item is
+written.
 
 The field holds the steps and their expected results, with the RED value
 measured now written beside each — `grep -c … (31 today) → 0`. Nothing

@@ -42,11 +42,11 @@ A fresh project starts with an empty glossary and fills it as the domain becomes
 clear — often over weeks, and often revising earlier decisions. That is normal
 and is not a sign the file is being neglected.
 
-An existing project fills it during adoption ([adopt.md](adopt.md)).
+An existing project fills it when adopted: the user's words, read out of the code and the docs, confirmed with them.
 
 ## Renaming a term
 
-A rename is a `rename` item ([items.md](items.md)), and **the glossary entry
+A rename is a feature item of its own ([items.md](items.md), "Renames and refactors"), and **the glossary entry
 changes in the same commit as the code**. Never before.
 
 This is the whole protection against a mixed vocabulary. Announcing a new word

@@ -76,8 +76,8 @@ When `git config workbench.premerge` is set — `"npm run gate"`, a test run,
 whatever the project's own tools say — the command runs it in the branch's
 worktree after every other check and before the squash, and refuses the merge
 on a non-zero exit with the command's output as the reason. That is the
-project's deterministic gate, beside the review; `--no-review` is the user's
-override of the review and does not skip it. A branch whose worktree is gone is
+project's deterministic gate, beside the review dialog; only unsetting the
+config skips it. A branch whose worktree is gone is
 refused rather than merged unchecked: `workbench start <id>` recreates one.
 Like every `workbench.*` key it is git config, per clone: a tool whose
 installer sets it does so in the clone it ran in, and a fresh clone sets it
@@ -151,19 +151,18 @@ later. Two branches never merge, and `archive` retires those itself: the branch'
 copy of the item replaces main's, the worktree and branch go, and a tag named
 by the id is left at the branch's tip so its commits stay reachable. An `unreproduced`
 bug's holds nothing but the item file — nothing to fix — and anything else on
-it is work, which merges or is discarded by hand. A research item's may hold
-prototypes, throwaway by definition, and an `abandoned` item's whatever was
-built before the user dropped it; `archive --discard` drops those, naming
-each, and without the flag the command refuses and says so.
+it is work, which merges or is discarded by hand. An `abandoned` item's holds
+whatever was built before the user dropped it; `archive --discard` drops
+that, naming each file, and without the flag the command refuses and says so.
 
 The move is left uncommitted; the command prints the commit to make.
 
 ## IDs
 
 Format `<letter>-<number>-<slug>`, e.g. `f-037-mob-positions`,
-`b-038-frozen-coords`. The letter is `f` for feature, `b` for bug, `r` for
-rename, `x` for research, and is kept even though the folder already says the
-class, because `workbench/items/archive/` is flat.
+`b-038-frozen-coords`. The letter is `f` for feature, `b` for bug, and is kept
+even though the folder already says the class, because
+`workbench/items/archive/` is flat.
 
 The ID seeds everything downstream:
 

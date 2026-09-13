@@ -115,8 +115,8 @@ absolute path with every character outside `[A-Za-z0-9]` replaced by `-`. A
 worktree has a different path and so a store of its own, so anything reading
 memory there has to read the main checkout's as well as its own.
 
-Auditing memory for facts that have drifted, or that should have been repository
-documents, is a review reason — see [reviews.md](reviews.md).
+Facts that have drifted, or that should have been repository documents, are
+what to read the store for when a session starts from it.
 
 ## Deleting means deleting
 

@@ -15,7 +15,12 @@ SID=$(printf '%s' "$IN" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^
 SAME=1
 if [ -n "$SID" ]; then
   MARK="${TMPDIR:-/tmp}/ts-gate-stop-$SID"
-  HASH=$(printf '%s' "$OUT" | sha256sum | cut -c1-16)
+  # Hash the findings, not the log: biome and vitest print timings, so the raw
+  # output never repeats and the release below never fired while they ran.
+  # The same pattern as the summary line at the end. Output with no finding
+  # line at all (a tool that could not start) is hashed whole.
+  FINDINGS=$(printf '%s\n' "$OUT" | grep -iE 'error|TS[0-9]{4}|✖|unused|FAIL' || true)
+  HASH=$(printf '%s' "${FINDINGS:-$OUT}" | sha256sum | cut -c1-16)
   read -r LAST N 2>/dev/null < "$MARK" || { LAST=""; N=0; }
   [ "$HASH" = "$LAST" ] && SAME=$((N + 1))
   printf '%s %s\n' "$HASH" "$SAME" > "$MARK"

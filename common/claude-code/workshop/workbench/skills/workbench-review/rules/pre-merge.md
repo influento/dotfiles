@@ -45,8 +45,8 @@ missing. Read it and name it; the checks below are made against it. Check:
 - the item is one item: a rule applied to N files is not N items, and a
   bug found and fixed inside a feature branch is a bug item
 - the review dialog ran before you: `rounds:` under the status line holds
-  two rounds or more and ends `stop` (`call` only with a call parked for the
-  item in `DECISIONS.md`), and every finding that stands has its one-line
+  two rounds or more and ends `stop` (`call` only with a call parked under
+  the item's `## Decisions`), and every finding that stands has its one-line
   reason under Evidence. A branch that came to the gate straight from the
   code is a finding that stops the merge
 

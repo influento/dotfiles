@@ -180,6 +180,13 @@ manifest_rows() { [ -f "$MANIFEST" ] && grep -v '^#' "$MANIFEST" || true; }
 manifest_row() { manifest_rows | awk -F'|' -v n="$1" '$1 == n'; }
 manifest_names() { manifest_rows | cut -d'|' -f1; }
 
+# mktemp makes a 600 file; mv would hand that mode to a tracked file. Keep the
+# target's mode, or the usual one for a new file.
+put() {
+  if [ -f "$2" ]; then chmod --reference="$2" "$1"; else chmod 644 "$1"; fi
+  mv "$1" "$2"
+}
+
 manifest_write() {
   local name=$1 subtree=$2 rule=$3 skills=$4 tmp
   tmp=$(mktemp)
@@ -189,7 +196,7 @@ manifest_write() {
     printf '%s|%s|%s|%s\n' "$name" "$subtree" "$rule" "$skills"
   } | { read -r h; echo "$h"; sort -t'|' -k1,1; } > "$tmp"
   command mkdir -p .claude
-  mv "$tmp" "$MANIFEST"
+  put "$tmp" "$MANIFEST"
 }
 
 manifest_drop() {
@@ -197,7 +204,7 @@ manifest_drop() {
   tmp=$(mktemp)
   { echo "# packages added with 'stack add'; one per line: name, subtree, rule, skills"
     manifest_rows | awk -F'|' -v n="$1" '$1 != n'; } > "$tmp"
-  mv "$tmp" "$MANIFEST"
+  put "$tmp" "$MANIFEST"
 }
 
 # ---- CLAUDE.md block --------------------------------------------------------
@@ -230,12 +237,27 @@ claude_md_block() {
 }
 
 # Through readlink -f so a CLAUDE.md that is a symlink to AGENTS.md is edited
-# in place. Regenerated from the manifest on every add, update and rm.
+# in place. Regenerated from the manifest on every add, update and rm; with
+# nothing left in the manifest the block goes, and a CLAUDE.md that held
+# nothing else goes with it.
 ensure_claude_md() {
   local root target tmp
   root=$(repo_root)
   target=$(readlink -f "$root/CLAUDE.md" 2>/dev/null || printf '%s' "$root/CLAUDE.md")
   tmp=$(mktemp)
+  if [ -z "$(manifest_names)" ]; then
+    local rest
+    if [ -f "$target" ] && grep -qF "$MARK_START" "$target"; then
+      rest=$(awk -v start="$MARK_START" -v end="$MARK_END" '
+        $0 == start { skip = 1; next }
+        $0 == end { skip = 0; next }
+        !skip { print }' "$target")
+      if [ "$rest" = "# $(basename "$root")" ]; then rm -f "$target"
+      else printf '%s\n' "$rest" > "$tmp"; put "$tmp" "$target"; fi
+    fi
+    rm -f "$tmp"
+    return 0
+  fi
   claude_md_block > "$tmp.block"
   if [ ! -f "$target" ]; then
     { echo "# $(basename "$root")"; echo; cat "$tmp.block"; } > "$target"
@@ -244,10 +266,10 @@ ensure_claude_md() {
       $0 == start { while ((getline line < blockfile) > 0) print line; skip = 1; next }
       $0 == end { skip = 0; next }
       !skip { print }' "$target" > "$tmp"
-    mv "$tmp" "$target"
+    put "$tmp" "$target"
   else
     { cat "$target"; echo; cat "$tmp.block"; } > "$tmp"
-    mv "$tmp" "$target"
+    put "$tmp" "$target"
   fi
   rm -f "$tmp" "$tmp.block"
 }
@@ -330,16 +352,18 @@ place() {
 }
 
 # pm_add dep|dev <spec>...: the runner the lockfile says; dev is its -D.
+# Exact: the registry pins a version, and a caret in package.json would let a
+# later 'npm i' move it past what repos/<name> and the rule describe.
 pm_add() {
-  local mode=$1 pm="npm i" flag=-D
+  local mode=$1 pm="npm i" flag=-D exact=-E
   shift
   [ -f pnpm-lock.yaml ] && pm="pnpm add"
   [ -f yarn.lock ] && pm="yarn add"
-  { [ -f bun.lockb ] || [ -f bun.lock ]; } && { pm="bun add"; flag=-d; }
+  { [ -f bun.lockb ] || [ -f bun.lock ]; } && { pm="bun add"; flag=-d; exact=--exact; }
   [ "$mode" = dev ] && pm="$pm $flag"
-  echo "  dep     $* ($pm)"
+  echo "  dep     $* ($pm $exact)"
   # shellcheck disable=SC2086
-  $pm "$@"
+  $pm $exact "$@"
 }
 
 # The dependency and its knip ignore, for DEP and DEV_DEP alike.
@@ -347,14 +371,22 @@ add_deps() {
   local mode=$1 specs=$2
   [ -n "$specs" ] || return 0
   # shellcheck disable=SC2086
-  pm_add "$mode" $specs
+  pm_add "$mode" $specs || return 1
   # shellcheck disable=SC2086,SC2046
   knip_ignore $(printf '%s\n' $specs | sed -E 's/^(@?[^@]+)@.*/\1/')
 }
 
+# The bare names of a package's DEP and DEV_DEP, the way knip lists them.
+pkg_dep_names() {
+  local dir="$PACKAGES/$1"
+  [ -f "$dir/package.conf" ] || return 0
+  # shellcheck disable=SC2046
+  printf '%s\n' $(conf "$dir" DEP) $(conf "$dir" DEV_DEP) | sed -E '/^$/d; s/^(@?[^@]+)@.*/\1/' | tr '\n' ' '
+}
+
 # ts-gate runs knip repo-wide and flags a dependency nothing imports yet; the
 # package is added before the code that uses it, so it goes in the ignore
-# list the way install.sh puts effect there.
+# list the way a brownfield baseline goes there.
 # The same for a file nothing imports yet: knip's `ignore`, the way a
 # dependency goes into ignoreDependencies. Lifted by hand once the file has
 # an importer, or never; either is green.
@@ -365,6 +397,17 @@ const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf
 j.ignore=[...new Set([...(j.ignore||[]),...process.argv.slice(1)])];
 fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$@"
   echo "  knip    ignore += $*"
+}
+
+# rm's mirror: names dropped from both lists, unless a package still added
+# put the same one there.
+knip_forget() {
+  [ -f ts-gate/knip.json ] || return 0
+  node -e '
+const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8")),drop=new Set(process.argv.slice(1));
+for(const key of ["ignore","ignoreDependencies"]) if(j[key]) j[key]=j[key].filter(x=>!drop.has(x));
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$@"
+  echo "  knip    ignore -= $*"
 }
 
 knip_ignore() {
@@ -433,6 +476,11 @@ cmd_add() {
   # shellcheck disable=SC2086
   set -- ${names# }
   [ $# -gt 0 ] || die "nothing to add: a preset with no NEEDS"
+  # Before anything is committed or installed: a dirty tracked tree would be
+  # swept into the subtree commit, or left half-way when a later step fails.
+  require_clean
+  local before
+  before=" $(manifest_names | tr '\n' ' ')"
   for name in "$@"; do
     dir=$(package_dir "$name")
     source=$(conf "$dir" REFERENCE); ref=$(conf "$dir" REF)
@@ -455,12 +503,18 @@ cmd_add() {
     echo "$name"
     subtree=""
     [ -z "$source" ] || subtree="$REPOS/$name"
-    add_deps dep "$(conf "$dir" DEP)"
-    add_deps dev "$(conf "$dir" DEV_DEP)"
+    # The subtree above is committed already; a dependency npm cannot resolve
+    # would otherwise leave repos/<name> with no manifest row and no rule, and
+    # 'status' would say nothing added. Named here; 'status' lists the orphan.
+    { add_deps dep "$(conf "$dir" DEP)" && add_deps dev "$(conf "$dir" DEV_DEP)"; } \
+      || die "$name half-added: its subtree is committed, the dependency did not install, no manifest row was written; fix the error above and rerun 'stack add $name' (the subtree is kept)"
     place "$name" "$dir" "$subtree" add
   done
   ensure_claude_md
-  echo "recorded in $MANIFEST; CLAUDE.md block updated. Commit: 'stack: add $*'"
+  local added="" n
+  for n in "$@"; do case "$before" in *" $n "*) ;; *) added="$added $n" ;; esac; done
+  if [ -n "$added" ]; then echo "recorded in $MANIFEST; CLAUDE.md block updated. Commit: 'stack: add${added}'"
+  else echo "recorded in $MANIFEST; CLAUDE.md block updated. Nothing new: every package was already added"; fi
 }
 
 cmd_update() {
@@ -483,6 +537,9 @@ cmd_update() {
       echo "  subtree pull $subtree from $url ($ref)"
       git subtree pull --prefix="$subtree" "$url" "$ref" --squash -m "stack: update $name" >/dev/null
     fi
+    # The pins move with the registry: a DEP bumped there reaches package.json here.
+    add_deps dep "$(conf "$dir" DEP)"
+    add_deps dev "$(conf "$dir" DEV_DEP)"
     place "$name" "$dir" "$subtree" update
   done
   ensure_claude_md
@@ -514,14 +571,31 @@ cmd_rm() {
   fi
   manifest_drop "$name"
   ensure_claude_md
+  # The knip names this package put in, minus what another added package
+  # shares. Its files/ copies are the project's (copy_files) and stay, so
+  # their ignore rows stay too.
+  if [ -f "$PACKAGES/$name/package.conf" ]; then
+    local mine theirs=" "
+    mine=$(pkg_dep_names "$name")
+    for s in $(manifest_names); do theirs="$theirs$(pkg_dep_names "$s") "; done
+    local keep=() d
+    for d in $mine; do case "$theirs" in *" $d "*) ;; *) keep+=("$d") ;; esac; done
+    [ "${#keep[@]}" -eq 0 ] || knip_forget "${keep[@]}"
+  fi
   echo "removed $name; a dependency it installed stays in package.json"
 }
 
 # Differs is one bit, as for workbench's agents: a copy is compared with
 # what add would write now, without saying which side moved.
 cmd_status() {
-  local name subtree rule skills s dir from src pkg
+  local name subtree rule skills s dir from src pkg d
   cd "$(repo_root)"
+  # A subtree with no manifest row is an 'add' that stopped after its commit.
+  for d in "$REPOS"/*/; do
+    [ -d "$d" ] || continue
+    d=${d%/}; name=${d##*/}
+    [ -n "$(manifest_row "$name")" ] || echo "$name: $d has no manifest row — 'stack add $name' was interrupted; rerun it, or 'git rm -r $d'"
+  done
   [ -n "$(manifest_names)" ] || { echo "nothing added (stack add <name>)"; return 0; }
   while IFS='|' read -r name subtree rule skills; do
     [ -n "$name" ] || continue

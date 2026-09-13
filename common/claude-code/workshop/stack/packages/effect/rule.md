@@ -40,7 +40,7 @@ Read-only. Never edit `repos/effect`, never import from it — the dependency is
 | HTTP client, server, typed API | `effect/unstable/http`, `effect/unstable/httpapi` | axios, node-fetch, ky, express, hono, fastify |
 | RPC | `effect/unstable/rpc` | trpc, orpc |
 | CLI | `effect/unstable/cli` | commander, yargs, oclif |
-| DI, config, resources | `ServiceMap`, `Layer`, `Config`, `Scope` | inversify, tsyringe, dotenv |
+| DI, config, resources | `Context.Service`, `Layer`, `Config`, `Scope` | inversify, tsyringe, dotenv |
 | concurrency, queues, streams | `Fiber`, `Queue`, `Stream` | p-limit, p-queue, rxjs |
 | cache, duration, logs, metrics | `Cache`, `Duration`, `Logger`, `Metric` | lru-cache, ms, pino, winston |
 | tracing, log and metric export | `effect/unstable/observability` (`Otlp`) | @effect/opentelemetry, @opentelemetry/*, Sentry SDK |

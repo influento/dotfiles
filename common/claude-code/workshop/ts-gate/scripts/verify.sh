@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Confirms the install works here: gate passes clean, gate:fix is stable (a
+# Confirms the install works here: the gate rules are loaded, gate:fix is stable (a
 # second pass changes nothing, so eslint --fix and biome format do not fight),
 # blocks on a seeded violation (type error, unused local, unused export: one
 # finding per tool), the Stop hook blocks a session on it and releases once it
 # removes the file, and the tree is clean again after.
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-.}"
+cd "${CLAUDE_PROJECT_DIR:-.}" || exit 1
 F=src/__gate_verify__.ts
 fail() { echo "VERIFY FAILED: $1"; command rm -f "$F"; exit 1; }
 [ -d src ] || fail "no src/"
 [ -e "$F" ] && fail "$F already exists"
 
-npm run -s gate:local >/dev/null 2>&1 || fail "gate does not pass on the clean tree. Fix that first: npm run gate:local"
-echo "1/4 gate passes on clean tree"
+# On the default branch with a clean tree the gate has nothing to check and
+# exits 0 whatever the config, so "gate passes" proved nothing. This does: the
+# resolved eslint config for a source file must carry the gate's own rules,
+# which it does only when eslint.config.mjs spreads gate().
+npx eslint --print-config "$F" 2>/dev/null | grep -q '"gate/no-unknown-signature"' \
+  || fail "eslint.config.mjs does not load ts-gate's gate(): merge the block install printed (bash \"\$TS_GATE/install.sh\" . prints it again), then retry"
+echo "1/4 eslint.config.mjs loads the gate rules"
 
 # Two fix passes must agree: the second one changing what the first wrote is
 # the formatter and the linter each undoing the other, which would block every

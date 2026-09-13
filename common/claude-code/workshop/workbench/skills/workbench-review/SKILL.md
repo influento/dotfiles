@@ -1,13 +1,13 @@
 ---
 name: workbench-review
-description: Run a workbench review sweep in a fresh forked context and return the report path. Invoke at the gates the workbench skill names — pre-merge before every 'workbench merge', sweep when a milestone's items are all archived, memory when .claude/memory changed — and otherwise only when the user asks.
-argument-hint: "<sweep|pre-merge|docs|memory|adopt|watch|usage|security> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
+description: Run a workbench review sweep in a fresh forked context and return the report path. Invoke when the user asks for the pre-merge gate on an item, or for a docs sweep — 'workbench status' names the file with a cap: line — and otherwise never.
+argument-hint: "<pre-merge|docs> [\"scope: paths or words; no quotes, backticks, $ or backslash\"]"
 arguments: reason scope
-# Model-invocable on purpose: 'workbench merge' refuses without a passed
-# pre-merge, and an unattended session has to be able to reach it. The fork
-# is a fresh context either way, and the baseline below is taken before its
-# first turn whoever started it: references/rationale.md, "Why the agent
-# invokes the pre-merge review itself".
+# Model-invocable on purpose: the user asks for the gate, and the session
+# working the item has to be able to run it. The fork is a fresh context
+# either way, and the baseline below is taken before its first turn whoever
+# started it: references/rationale.md, "Why the pre-merge review is the
+# user's to ask for".
 context: fork
 # The agent is what bounds the sweep's tools: a fork takes its agent's
 # 'tools:' and nothing else (probed on 2.1.248), and 'allowed-tools' below
@@ -57,8 +57,7 @@ ${CLAUDE_SKILL_DIR}/scripts/rules.sh "$reason"
 
 The report already exists at the path below. It was created — and the tree's
 state recorded — before your first turn, so nothing you do can hide from
-`review-check`. For `watch`, the path is the shift's report, shared by every
-tick: read it before writing, and append.
+`review-check`.
 
 ```!
 ${CLAUDE_SKILL_DIR}/scripts/open.sh "$reason" "$scope"

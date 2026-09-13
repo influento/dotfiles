@@ -200,7 +200,10 @@ export default function gate({
       linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "error" },
       languageOptions: {
         parser: tseslint.parser,
-        parserOptions: { projectService: true, tsconfigRootDir },
+        // Root config files (vitest.config.ts, vite.config.ts) sit outside
+        // tsconfig's include, so the project service has no program for them
+        // and eslint . fails to parse them; the default project covers them.
+        parserOptions: { projectService: { allowDefaultProject: ["*.config.ts", "*.config.mts"] }, tsconfigRootDir },
       },
       rules: {
         // --- defensive padding (type-aware) -------------------------------

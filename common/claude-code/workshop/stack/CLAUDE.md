@@ -89,7 +89,7 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 
 | Key                     | Meaning                                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `KIND`                  | `toolkit` (run as scripts), `lib` (imported), `cli`, `service`, `preset` (NEEDS only, expanded, not recorded); shown in `list` and the CLAUDE.md line |
+| `KIND`                  | `toolkit` (run as scripts), `lib` (imported), `cli`, `preset` (NEEDS only, expanded, not recorded); shown in `list` and the CLAUDE.md line |
 | `NEEDS`                 | package names, space separated, added first (transitively; a cycle is refused). `rm` refuses a package another added one needs |
 | `REFERENCE`             | a repository worth reading, as a `--squash` subtree at `repos/<name>`: `private:<repo>` → `<git config private.root>/<repo>.git`, or `git:<url>`. Only when the agent should read the source or its docs; most public libraries have none |
 | `REF`                   | branch or tag for the subtree; default `main`. A pinned dependency pins its tag too (`effect@4.0.0-rc.115`) |

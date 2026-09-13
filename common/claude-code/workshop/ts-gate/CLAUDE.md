@@ -8,18 +8,24 @@ in fresh context. Workbench is a separate tool; the touchpoints are below.
 
 | Command | Does |
 |---|---|
-| `bash ts-gate/install.sh <project>` | install; idempotent |
-| `bash ts-gate/uninstall.sh <project>` | remove exactly what install added, per `ts-gate/.install.json` |
+| `bash "$TS_GATE/install.sh" <project>` | install; idempotent. From the dotfiles source only (`workshop-setup` sets `$TS_GATE`); the installer is not copied into a project, and a copy an older install left refuses to run |
+| `bash "$TS_GATE/uninstall.sh" <project>` | remove exactly what install added, per `ts-gate/.install.json` |
 | `npm run gate:verify` | prove the install: `gate:fix` twice is a no-op, seeded violation blocks a session, hook releases after the fix; one model call |
 | `npm run gate:local` | branch since the default branch plus working tree, and the tests that diff reaches (`vitest --changed`); what the Stop hook runs |
 | `npm run gate` | CI, default branch...HEAD, and the whole test suite |
 | `npm run gate:full` | whole repo, whole suite |
-| `npm run gate:fix` | eslint autofix, then `biome format --write` |
+| `npm run gate:fix` | eslint autofix and `biome format --write`, both run even when the first leaves an error; exits with the worse status |
 | `npm run test:live` | the live tier: `*.live.test.ts`, real network and real models, guard off (`ts-gate/vitest.live.mjs`); a person or a scheduled job runs it, never the gate; not in the allow rules |
+
+Tests: `bash tests/ts-gate.sh` — a scratch project with npm, npx and every
+tool shimmed and logged; covers install, re-install, the project-copy
+refusal, which tools the gate runs for a config-only change, the Stop hook's
+release, verify's gate-rules check, uninstall, what is and is not copied. Real-tool checks are by hand
+(see `workshop/CLAUDE.md`, ts-gate).
 
 ## Install steps
 
-Refuses outside git. Then: copy this dir (knip.json's `ignore` and `ignoreDependencies` merged back, `.dependency-cruiser.cjs` kept once it exists) → deps
+Refuses outside git. Then: copy what the gate runs — this file, the eslint, knip and depcruise configs, the vitest helpers, `scripts/`; not the installers, `rules/`, `biome.template.json` or `tests/` (knip.json's `ignore`, `ignoreDependencies` and `entry` merged back, `.dependency-cruiser.cjs` kept once it exists) → deps
 by lockfile (`typescript` included), test plugin by runner (vitest also
 gets the test step in the gate; jest the plugin only) → scripts →
 `eslint.config.mjs` if none exists (else prints the block to merge; until it
@@ -27,7 +33,7 @@ is merged knip flags `ts-gate/eslint.gate.mjs` and two plugins unused) →
 `biome.json` if none exists (else left alone, the gate formats with it) →
 `vitest.config.mjs` if none exists (vitest only; else prints the `setupFiles`
 and live-tier `exclude` lines to add) → `rules/ts-*.md` to `.claude/rules/` → one `Stop` hook and the
-`permissions.allow` rules (`npm ci`, `npm run gate:*`, `npm test`, and
+`permissions.allow` rules (`npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` — not `gate:verify`, which runs a model — `npm test`, and
 `npx vitest` or `npx jest` by runner) in `.claude/settings.json` → `git config workbench.premerge "npm run gate"` if
 unset (set to something else: printed, chain it by hand) → manifest
 `ts-gate/.install.json`.
@@ -50,8 +56,8 @@ worker and for wb-reviewer.
 
 Workbench touchpoints, all on this side: the `premerge` key (its merge runs
 the gate in the branch worktree; per clone, like every workbench key, so a
-fresh clone sets it again or re-runs install), the allow rules (an unattended
-worker is denied anything not listed), `.worktrees/**` in the eslint
+fresh clone sets it again or re-runs install), the allow rules (a session run
+without prompts is denied anything not listed), `.worktrees/**` in the eslint
 ignores (`eslint .` in the main checkout would lint every item worktree),
 and the glossary: `eslint.gate.mjs` reads the `Never` column of
 `workbench/GLOSSARY.md` when the file exists and feeds it to `id-match` as a
@@ -74,7 +80,7 @@ prose stay with the pre-merge grep. Workbench knows nothing of ts-gate.
 Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits:
 1000 lines/file, 100/function, 30 statements, 6 params, depth 4): `warn`.
 `tsc --noEmit`, knip, dependency-cruiser: repo-wide, block. eslint and `biome format`: changed files.
-Biome is the formatter only (`biome.json` at the root, copied from `ts-gate/biome.template.json` because Biome refuses a second `biome.json` anywhere it scans: linter and assist off, `.ts`/`.tsx`, spaces; owned like the eslint config); eslint carries no layout rule, so the two never disagree — `gate:verify` proves it by running `gate:fix` twice on a clean tree and failing if the second pass changes anything. A brownfield tree runs `gate:fix` once before the gate can be green.
+Biome is the formatter only (`biome.json` at the root, copied from the source's `biome.template.json` because Biome refuses a second `biome.json` anywhere it scans: linter and assist off, `.ts`/`.tsx`, spaces; owned like the eslint config); eslint carries no layout rule, so the two never disagree — `gate:verify` proves it by running `gate:fix` twice on a clean tree and failing if the second pass changes anything. A brownfield tree runs `gate:fix` once before the gate can be green.
 Two `no-restricted-syntax` selectors are the gate's own rules: the double
 assertion through `unknown`, and `vi.mock` / `jest.mock` / `doMock` /
 `unstable_mockModule` (module mocking; `vi.fn` and `spyOn` pass). The second

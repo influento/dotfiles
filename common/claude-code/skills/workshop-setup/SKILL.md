@@ -1,12 +1,12 @@
 ---
 name: workshop-setup
-description: Install ts-gate, the stack packages the user names, and workbench into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup. For a project without TypeScript, skip ts-gate.
+description: Install ts-gate, the stack packages the user names, the wb-reviewer agent with its criterion habit, and workbench when the project wants tracked items, into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup. For a project without TypeScript, skip ts-gate.
 ---
 
 # Project setup
 
-Three separate tools, one order. None of the installers knows the others; the
-order is what makes them fit. Run each step, show its output, stop where it
+Three separate tools and a review step, one order. None of the installers
+knows the others; the order is what makes them fit. Run each step, show its output, stop where it
 says.
 
 Paths: `workbench` and `stack` are on PATH. ts-gate lives under `workshop/` beside the skills tree in dotfiles,
@@ -24,21 +24,31 @@ brownfield procedure.
 | | Greenfield | Brownfield |
 |---|---|---|
 | Tree | empty or scaffold only | history, code, maybe its own tooling |
-| Workbench | `workbench init` | `workbench adopt`, then `/workbench-review adopt` |
+| Review | `wb-reviewer.md` + the CLAUDE.md block (step 5) | the same |
+| Workbench, if wanted | `workbench init` | `workbench adopt`, then `/workbench-review adopt` |
 | ts-gate severity | default (`error`) | `severity: "warn"` and ratchet, per `$TS_GATE/CLAUDE.md` "Brownfield" |
 | ESLint config | install writes it | install prints a block; you merge it before the gate can be green |
 
 ## Steps
 
 1. **Preconditions.** Inside git, at least one commit, `git status
-   --porcelain` empty (commit or stash; the installer refuses otherwise).
+   --porcelain` empty (commit or stash; `stack add` and `workbench adopt`
+   refuse a dirty tree, ts-gate's installer does not check).
    Greenfield with nothing yet: scaffold and commit first —
 
    ```
-   git init -b main && npm init -y
+   git init -b main && npm init -y && npm i -D vitest@5
+   # vitest in package.json before ts-gate goes in: the installer detects the
+   #   runner from package.json, and a peer-installed vitest (what @effect/vitest
+   #   pulls in later) never lands there — without it the gate runs no tests
    # tsconfig.json: "strict": true, "noUncheckedIndexedAccess": true,
-   #   "erasableSyntaxOnly": true (node runs the sources as they are), "include": ["src"]
-   # package.json: "engines": { "node": ">=<major>" }, the node this runs on
+   #   "erasableSyntaxOnly": true, "noEmit": true, "module": "nodenext",
+   #   "allowImportingTsExtensions": true (node runs the sources as they are, so
+   #   relative imports are written with .ts: `from "./health.ts"`; nodenext
+   #   otherwise demands .js, which node cannot resolve to a .ts file),
+   #   "include": ["src"]
+   # package.json: "engines": { "node": ">=<major>" }, the node this runs on;
+   #   "scripts": { "start": "node src/index.ts" } — the run model, decided here
    # src/index.ts with one export (knip's entry)
    # .gitignore: node_modules
    git add -A && git commit -m "scaffold"
@@ -54,7 +64,9 @@ brownfield procedure.
    - `eslint config exists, not touched` → merge the printed block into the
      existing config now. Until then knip fails on the unused gate file.
    - `biome config exists, not touched` → the gate formats with the
-     project's own; check it formats `.ts` and leaves `repos/**` alone.
+     project's own; it must leave `repos/**`, `ts-gate/**` and `.worktrees/**`
+     alone (install prints a `WARNING` with the `files.includes` block when it
+     does not; `gate:fix` would otherwise rewrite every file under them).
    - `vitest config exists, not touched` → add the printed `setupFiles`
      and `exclude` lines to it now; without them tests may reach the
      network and `npm test` runs the live tier.
@@ -105,11 +117,40 @@ brownfield procedure.
    there with that tree. The wiring is `.claude/rules/tanstack-start.md` once
    the package is in.
 
-5. **workbench.** Greenfield `workbench init`; brownfield `workbench adopt`
-   (refuses a dirty tree, then prints the survey command). Commit:
-   `workbench: init` or `workbench: adopt`.
+5. **Review.** The default for every project: the reviewer agent and the
+   habit that feeds it, without the item loop.
 
-6. **Checklist.** Init printed "setup — decide these with the user". Take
+   ```
+   WORKBENCH=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop/workbench)
+   mkdir -p .claude/agents && cp "$WORKBENCH/agents/wb-reviewer.md" .claude/agents/
+   ```
+
+   then append to CLAUDE.md, after the stack block:
+
+   ```
+   ## Review
+
+   Before code for a feature or a bug fix, write how anyone will know it
+   worked: a command and its expected output. Run it and see it fail. After
+   the code: commit, then spawn the `wb-reviewer` agent (Agent tool) with
+   that criterion and the diff range; answer its findings by number over
+   SendMessage until each is fixed or stands, a fix being a new commit; stop
+   at `open: none`.
+   ```
+
+   Commit: `review: wb-reviewer`. Measured 2026-09-13 on three seeded items,
+   three runs each (`workshop/workbench/CLAUDE.md`, "Measured"): this finds
+   what the full loop finds at 2.1× a bare session against the loop's 3.8×.
+
+6. **workbench, when the user wants it.** Tracked items, a criterion frozen
+   at `start`, parked calls for an absent user, an archive: `workbench init`
+   (greenfield) or `workbench adopt` (brownfield; refuses a dirty tree, then
+   prints the survey command). It renders the same `wb-reviewer.md` over the
+   copy from step 5. Commit: `workbench: init` or `workbench: adopt`. Ask;
+   never assume. Unattended, the loop parks what a bare session decides
+   itself, so it earns its cost where someone reads the items.
+
+7. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read `'npm run gate'`.
    One line init does not print — deploy: none (a CLI, a library), or a
    project-level `scripts/deploy` that ships a tag over ssh to the server
@@ -119,17 +160,26 @@ brownfield procedure.
    Brownfield: run `/workbench-review adopt` and triage its report with the
    user; nothing converts without approval.
 
-7. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
-   must block a session and the fix must release it). `workbench status`,
+8. **Trust the directory.** Open the project in Claude Code interactively
+   once and accept the trust dialog. Until then every `permissions.allow`
+   rule ts-gate and workbench wrote is ignored (hooks still run), and a
+   non-interactive session started with `--permission-mode` is denied every
+   `workbench` and `npm run gate` call. A worktree under a trusted checkout
+   inherits the trust.
+
+9. **Prove it.** `npm run gate:verify` (one model call: the seeded violation
+   must block a session and the fix must release it; step 1 fails when
+   `eslint.config.mjs` does not load `gate()`). `workbench status`,
    `stack status`.
 
 ## Order, and why
 
 ts-gate first: `stack add` writes its dependencies into the gate's knip
-ignores, which must exist by then, and `workbench init` writes tracked files.
-`stack add` between them: its subtrees need HEAD and a clean tree, and its
-CLAUDE.md block should exist before workbench appends its own. Commit between
-each so every tool lands under its own subject.
+ignores, which must exist by then, and the review block and `workbench init`
+write tracked files. `stack add` between them: its subtrees need HEAD and a
+clean tree, and its CLAUDE.md block should exist before the review block and
+workbench's own are appended. Commit between each so every tool lands under
+its own subject.
 
 ## Removing
 
@@ -137,4 +187,5 @@ each so every tool lands under its own subject.
 including the premerge key if it is still `npm run gate`. `stack rm <name>`
 removes one package's subtree, rule and skills and leaves its dependency; it
 refuses while another added package needs it. Workbench has no uninstall; its files are
-the committed `.claude/` copies and `workbench/`.
+the committed `.claude/` copies and `workbench/`. The review step is
+`.claude/agents/wb-reviewer.md` and the CLAUDE.md block.

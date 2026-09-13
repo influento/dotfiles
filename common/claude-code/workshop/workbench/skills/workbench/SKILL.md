@@ -1,6 +1,6 @@
 ---
 name: workbench
-description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, researching an area or concept before it can be an item, deciding whether work is one item, several, or a milestone, running a code review sweep, deciding whether something needs documentation, or preparing work for merge.
+description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, deciding whether work is one item or several, running the review dialog or a docs sweep, deciding whether something needs documentation, or preparing work for merge.
 ---
 
 # Workbench
@@ -12,10 +12,8 @@ read code at all — items and command output are the only channel they have.
 ## The loop
 
 ```
-research     workbench/items/research/<id>-<slug>.md, on its own branch —
-             a scope not yet understood; ends by spawning the rows below
 idea (workbench/BACKLOG.md line)
-  -> item      workbench/items/{bugs,features,renames}/<id>-<slug>.md,
+  -> item      workbench/items/{bugs,features}/<id>-<slug>.md,
                committed on the default branch as it is created
   -> branch    <id>-<slug>, in its own worktree under .worktrees/; the item
                is edited there from now on, main's copy stands as agreed
@@ -74,11 +72,13 @@ idea (workbench/BACKLOG.md line)
 8. **An item has the template's sections and no others.** No "For the
    operator", no "Decisions this took", no "What this did not prove", no
    dated appendix; `archive` refuses them. What did not get proved is one
-   line under Evidence. A question that is the user's goes to
-   `workbench/DECISIONS.md` through `workbench call`, one line, and the
-   reasoning stays in the item. The fields hold what the reader needs to
-   judge the claim — a root cause, a criterion, its output — and not the
-   reasoning that produced the code; that is in the code, or in the commit.
+   line under Evidence. A question that is the user's goes under the item's
+   own `## Decisions` through `workbench call`, one line, and the reasoning
+   stays in the item; the answer goes into the field it changes and the line
+   is deleted, so the section holds open questions only. The fields hold
+   what the reader needs to judge the claim — a root cause, a criterion, its
+   output — and not the reasoning that produced the code; that is in the
+   code, or in the commit.
 
 9. **Some decisions are the user's, and an absent user does not transfer
    them.** "Unattended runs" below says what to do at each instead of
@@ -89,23 +89,18 @@ idea (workbench/BACKLOG.md line)
     goes to the scratchpad directory the environment names, outside the tree.
     A review sweep's probes go under `workbench/scratch/<report>/` and leave
     with the report. Nothing else is scratch: a fact worth keeping is a line
-    in the item's Evidence, a research concept, or a backlog entry, never a
-    file of its own.
+    in the item's Evidence or a backlog entry, never a file of its own.
 
 ## Setting up
 
 `workbench init` and `workbench adopt` end with a checklist headed
 `setup — decide these with the user`. That output is the list; take each line
 to the user, in conversation, before any item is created — none is yours to
-settle alone. Three rules the list does not carry:
+settle alone. Two rules the list does not carry:
 
-- permissions: propose the allow-list entries — for a watch, derived from the
-  contract's own commands — and write them only with the user's OK
+- permissions: propose the allow-list entries and write them only with the
+  user's OK
 - glossary: seed it with the user's words, never yours
-- milestones and watch: ask, create only what the user names, and "not yet"
-  is a complete answer
-
-`workbench watch` prints its own next steps for the same reason.
 
 ## Unattended runs
 
@@ -115,24 +110,25 @@ what changes is what happens at a gate that is the user's:
 | Gate | Unattended, do this |
 |---|---|
 | sizing needs confirming | take the item row when it fits; for anything else, `workbench call - "<question>"` and move to work that is describable |
-| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the pre-merge review reads it again |
+| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the reviewer reads it again |
 | merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` yourself, and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
 | a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
-| research concept reached a terminal state | write the state with `(agent)` appended and `workbench call <x-id>` it; spawn only what the state names |
-| a question only the user can answer | `AskUserQuestion` is refused by the hook: `workbench call <id> "<the question, with options>"`, then `blocked — <the question>` to the lead and stop when there is one, or move to work that is describable when there is not |
-| a permission not on the allow-list | refused by the hook the same way — the refusal is what Claude Code sees, so the tool call never runs; park it, never work around it |
-| review | the dialog, then the gate, yourself — "The review loop" below — then triage as "Review sweeps" says |
+| a question only the user can answer | `workbench call <id> "<the question, with options>"`, then move to work that is describable |
+| a permission not on the allow-list | a non-interactive session is refused it by Claude Code, and the refusal is what you see; park it with `workbench call`, never work around it |
+| review | the dialog, yourself — "The review loop" below — then triage as "Review sweeps" says; the gate only when the user asked for one |
 
 `(agent)` is what the user greps for when they return: every provisional
-decision, in the file that holds it, plus the one-line index in
-`DECISIONS.md`. The user confirms by deleting the marker, or overrules by
-editing the item. Nothing else records that a decision was provisional —
-not the backlog, not a milestone, not a memory entry.
+decision, in the file that holds it, and `workbench status` lists every
+open `## Decisions` line beside it. The user confirms by deleting the
+marker, or overrules by editing the item. A question tied to no item
+(`workbench call -`) is the one thing `workbench/DECISIONS.md` still holds.
+Nothing else records that a decision was provisional — not the backlog,
+not a memory entry.
 
 ## Commands
 
-`/bug`, `/feature`, `/research`, `/idea` and `/wb` are thin instructions —
+`/bug`, `/feature`, `/idea` and `/wb` are thin instructions —
 the sizing check, the command to run, the fields to draft — so the rules
 stay here. Skills, agents and settings are copies, committed with the
 project, so every worktree and clone has them. `workbench status` says when
@@ -143,9 +139,8 @@ the copy itself.
 
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
-workbench new rename "shard to region" # same, for a vocabulary change
 workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion is empty
-workbench merge b-038 "<subject>"      # after the pre-merge review: squash, trailer, cleanup
+workbench merge b-038 "<subject>"      # after the review dialog: squash, trailer, cleanup
 ```
 
 IDs are allocated from a counter shared by every worktree, so any worktree may
@@ -179,9 +174,8 @@ decisions are relied on.
 
 | It can be described as | It is | Lives as |
 |---|---|---|
-| what changes and how to confirm it | an item | `workbench new bug\|feature\|rename` |
-| the done-criterion, but not yet the items that reach it | a milestone | `workbench milestone`; items attach as they become describable |
-| an area — cannot yet say what will be true when it is done, or how it fits, or both | research | `workbench new research` |
+| what changes and how to confirm it | an item | `workbench new bug\|feature` |
+| an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | a feature item whose criterion is the question it answers and whose evidence is the answer; what it decides becomes items or `BACKLOG.md` lines, and the spike's branch merges only what is describable by then |
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 Read the rows from the item down: whatever fits the item row is an item
@@ -189,80 +183,48 @@ Read the rows from the item down: whatever fits the item row is an item
 something item-shaped — "crash on save" is a bug; it is the user's deferral,
 reached only by the user saying so: `/idea`, or "backlog it".
 
-Research is a scope, not a large idea: many concepts, each ending at a row
-above, as another research item when an area turns out to be two, or dropped. A milestone is not a large feature: its done-criterion is at the
-level of the project.
-
 **One item or several.** Draft the whole criteria list first, then ask of
 each entry: *could this go green and merge while the others are still red?*
 
 | Answer | Shape |
 |---|---|
 | no entry could | one item, however long the list — one behaviour checked from several angles |
-| one or more could | a milestone, one item per slice, each with its own short list |
+| one or more could | several items, one per slice, each with its own short list |
 
 An item that could ship in halves costs a long-lived branch, one giant squash
-and a pre-merge review that must hold everything at once; two items that only
+and a review that must hold everything at once; two items that only
 make sense together cannot each satisfy a criterion. One rule applied to N
 files — every driver reports itself, every table moves under `src/` — is one
 item with one criterion over the set, not N items proving one sentence each,
 and not one item now and its twin twenty minutes later. The exception is a
-mechanical change whose blast radius cannot land green on one branch: a
-milestone with an expand item (the new form beside the old), one migrate item
-per batch the radius allows, and a contract item that deletes the old form —
-except a vocabulary rename, which stays one commit
+mechanical change whose blast radius cannot land green on one branch: an
+expand item (the new form beside the old), one migrate item per batch the
+radius allows, and a contract item that deletes the old form — except a
+vocabulary rename, which stays one commit
 ([glossary.md](references/glossary.md)). Backlog lines are raw
 material: any number may fold into one item and one may split, and nothing
 records which lines fed which.
 
-## Milestones
+## What is in flight
 
-A milestone is a big-picture goal — `workbench milestone "<title>"` — with a
-done-criterion at the level of the project. An item may name one with a
-`milestone:` line (`workbench new … --milestone <slug>`); most will not, and
-no item owes one. Suggest one when the fit is obvious; never ask for one.
-[milestones.md](references/milestones.md).
-
-`workbench status` answers what is in flight: open items, items merged and still
+`workbench status` answers it: open items, items merged and still
 `awaiting` a trigger, items merged and still `open` — a fault, see
-"Unattended runs" — calls waiting in `DECISIONS.md`, and any duplicate IDs.
-Run it rather than reconstructing the answer from `git branch`, which cannot
-see the merged ones.
-
-## Research
-
-```bash
-workbench new research "rollback netcode"   # x-041
-workbench start x-041                        # branch + worktree; prototypes live there
-workbench archive x-041 [--discard]          # once every concept is terminal
-```
-
-Agree **Scope** with the user before reading anything. Each session rewrites
-**Concepts** and **Next** to the current understanding — there is no log, git
-holds the history. A concept ends when the user confirms its state:
-`-> <id>`, `-> milestone <slug>`, `-> backlog`, or `dropped — <why>`; the
-"Sizing" rows decide which, and a spawned item's **Why** cites the research
-id. Research never merges. `archive` retires the branch, and refuses while a
-concept is open, the Outcome is empty, a state names something that does not
-exist, or the branch carries prototypes not yet dropped with `--discard`.
-[items.md](references/items.md), "Research items".
+"Unattended runs" — decisions waiting in items and in `DECISIONS.md`,
+documents over their line cap, and any duplicate IDs. Run it rather than reconstructing the answer
+from `git branch`, which cannot see the merged ones.
 
 ## Review sweeps
 
-`/workbench-review <reason> ["scope"]` runs the sweep in a forked context —
+`/workbench-review <reason> ["scope"]` runs a sweep in a forked context —
 a fresh one, with none of this conversation in it — and returns the report
-path. Three gates invoke it, whoever is driving:
+path. Two reasons:
 
-| Gate | Invoke |
+| Reason | When |
 |---|---|
-| an item is about to merge | `/workbench-review pre-merge <id>` — `workbench merge` refuses without a passed one on the branch's last commit |
-| a milestone's items are all archived | `/workbench-review sweep "<the paths it moved>"` before `milestone archive` |
-| `.claude/memory/` changed this session | `/workbench-review memory` before the session ends |
-| `workbench status` printed a `usage:` line | `/workbench-review usage`, before dispatching work; its suggestions go to the user at triage — see "Usage" below |
-| `workbench status` printed a `cap:` line | `/workbench-review docs`, scoped to the file named; a document is past its line cap and the review says what to cut — [docs.md](references/docs.md), "Line caps" |
+| `pre-merge <id>` | the gate: the item against its evidence and template, read in fresh context. The user asks for it; `workbench merge` does not require it. `review-check` counts its holds, and at three the merge is the user's call |
+| `docs` | `workbench status` printed a `cap:` line — scoped to the file named; a document is past its line cap and the review says what to cut ([docs.md](references/docs.md), "Line caps") — or the user asks for an audit |
 
-Any other sweep is the user's to ask for — `sweep`, `docs`, `adopt`,
-`watch`, `security` — never started because the code looks like it needs one.
+Never started because the code looks like it needs one.
 
 The fork writes the report, and scratch under `workbench/scratch/` that git
 never sees — nothing tracked. When it returns with the path, prove that before
@@ -282,82 +244,16 @@ line when it is an idea; or a one-line reason in the item's Evidence why it
 stands. No finding is dropped silently, and a finding that says the criterion
 is not met stops the merge. Then `workbench review-drop`.
 
-**Usage.** What each item cost is on its archived file, one `usage:` line,
-recorded by the worker's session and folded in at archive. When `status`
-prints a `usage:` line, run the review, `review-check` it, and bring its
-`suggestions:` block to the user. Every suggestion is a setting the user
-changes — never you, never code — from the list in
-[usage.md](references/usage.md). Unattended: run it, leave the report,
-`workbench call - "usage review: <report path>"`.
+## The review loop
 
-## Lead and workers — one session dispatches, sessions work
-
-`workbench lead` opens tmux session `wb-<repo>` with the **lead** in window
-0: a session in the main checkout, named `wb-<repo>-lead`, that never edits
-code. It runs `status`, sizes with the user, `new`, agrees the criterion,
-`start` — and under a lead, `start` opens the item's **worker**: a Claude
-session of its own in its own window, named by the item id, running the
-`wb-worker` agent from `.claude/agents/` with the dispatch line as its first
-prompt — `start <id> --resources "account, client"` names what the worker
-may hold; without it, none, and a resource it turns out to need is a
-`needs:` line to the lead; items that need the same resource run one at a
-time. Up to `workbench.maxWorkers` (5) items may be started at once,
-sessions alive or not; `start` refuses past that. A worker runs at `--effort`
-`workbench.workerEffort` (low) and the lead at the user's global setting: the
-lead plans and sizes, the workers execute; the reviewer and the gate run at
-medium, whatever the worker's level. An
-item that has held at the gate reopens its worker one level up
-(`workbench.workerEffortOnHold`, medium) — a running session keeps its level,
-so the step applies at the next `open`, which is how a worker blocked after
-three holds runs the item again. Without a lead, `start` is
-the git-only command it always was and the session that ran it works the
-item itself.
-
-The user talks to any session in its window; `workbench open <id|lead>` goes
-there, and reopens a closed one resumed where it stopped. The window title
-says what the session needs, set by the hooks `init` merged: `b-038` working
-· `? b-038` needs a person · `↑ b-038` reported to the lead · `⟳ b-038` a
-reviewer is running · `✓ b-038` ready · `! b-038` parked a call · `· b-038`
-stopped on nothing · `✗ b-038` its claude died, `open` resumes it · `b-038 82%`
-its context is filling, compaction and an uncached re-read are near. `status`
-shows the same beside each started item, `statusline` the flags. Only windows workbench opened are ever renamed or
-closed.
-
-**Mode.** `workbench mode` is `attended` or `unattended`, per project and
-live: the hooks read it on every call, so a switch reaches running sessions.
-Attended, a worker asks the user in its own window, and the lead never hears
-of decisions that are the user's. Unattended, the hooks refuse what
-"Unattended runs" lists — for a session working an item alone as much as
-for a worker, since the mode is the project's. After
-`workbench mode unattended` the lead sends each live worker the line the
-command prints.
-
-**What reaches the lead.** Self-contained messages, one `SendMessage` each,
-after which the worker stops — the reply wakes it: `ready` (gate passed,
-report dropped); `blocked — <one question, with options>` (a parked call,
-three gate holds, a dialog nobody yields on); `needs: <resource>`; and
-`overlap: <path> with <id>` when `find` says another started item touches a
-path — the lead reads that branch itself and sequences the two or orders a
-rebase. Workers never message each other. At `start` the lead subscribes to
-the worker's idle notice (`SendMessage` with `notify_when_idle`), so one that
-stops without reporting surfaces too. On any message the lead runs `status`
-and reads the item — not the transcript, not the diff — decides
-`awaiting`/`unverified` if the item needs one, and runs `merge` and
-`archive`; `merge` closes the worker's window. One merge at a time: two
-squashes into one index collide. Messages from several workers interleave in
-the lead's context, so each carries its item id and all it needs; the item
-file is the memory.
-
-**The review loop.** Every item, lead or no lead — the work is done, then:
+Every item — the work is done, then:
 
 ```
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
   findings → answered by number → each ends fixed / stands / withdrawn
-  workbench round <id> <fixed> <stands>   again → a new reviewer · gate → below · call → park it
-/workbench-review pre-merge <id>      the gate: a fresh wb-gate fork, every time
-workbench review-check <report>       merge → recorded; hold → counted
-  hold:  fix on the branch, review-drop, review again
-  merge: review-drop, report ready
+  workbench round <id> <fixed> <stands>   again → a new reviewer · merge → workbench merge · call → park it
+/workbench-review pre-merge <id>      only when the user asks for the gate: a fresh wb-gate fork
+workbench review-check <report>       merge → review-drop, then merge; hold → fix on the branch, review-drop, review again
 ```
 
 The dialog is where judgement is argued: the reviewer keeps its context
@@ -365,44 +261,24 @@ across the exchange, and a finding that stands gets one line under Evidence
 saying why. A finding is shown, not read — the reviewer ran something on the
 branch and the output is wrong — and one the worker cannot reproduce from
 that demonstration is withdrawn; a bug nobody can show is nothing to fix,
-here as at archive (`unreproduced`). Round two always runs; `round` decides the rest by count and
-records `rounds:` on the item, which the gate reads. The gate is not argued
-with: it checks the item against its evidence and the template
-(`rules/pre-merge.md`), reads the code only for vocabulary, tests and
-documentation, never sees the worker's context or the last report, and holds
-only on what must change. Three holds and the worker
+here as at archive (`unreproduced`). Round two always runs; `round` decides
+the rest by count and records `rounds:` on the item, which the gate reads
+when it runs. The gate is not argued with: it checks the item against its
+evidence and the template (`rules/pre-merge.md`), reads the code only for
+vocabulary, tests and documentation, never sees the worker's context or the
+last report, and holds only on what must change. Three holds and the work
 stops: `workbench call <id>` with the standing finding, and the merge is the
-user's — `merge --no-review` is their override, and unattended the command
-refuses it: the mode says nobody is here to take it.
-
-## Watching a running app
-
-A watch is a sweep with a clock. `workbench watch "<title>"` writes the
-contract — what healthy is, the only recovery actions allowed, when to
-escalate — and the shift runs as
-
-```
-/loop 15m /workbench-review watch <slug>
-```
-
-Each tick is a fresh fork that appends to one report; the shift ends when
-you `review-check` and `review-drop` it, and the timeline's captures become
-the bug items' evidence at triage. The watcher observes freely and recovers
-only as the contract says. It never fixes. [reviews.md](references/reviews.md).
+user's.
 
 ## By class
 
 | Class | Reference |
 |---|---|
-| feature, bug, rename — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
+| feature, bug — fields, states, IDs, archiving, `find` | [items.md](references/items.md) |
 | statuses, abandoning, what merge and archive ask | [statuses.md](references/statuses.md) |
-| research — scope, concepts and their states, iterations, closing | [items.md](references/items.md), "Research items" |
-| milestones — big-picture goals, optional attachment | [milestones.md](references/milestones.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
-| review sweeps, reports, triage, watch shifts | [reviews.md](references/reviews.md) |
-| what an item cost, the `usage:` line, the levers a usage review may name | [usage.md](references/usage.md) |
+| review sweeps, reports, triage | [reviews.md](references/reviews.md) |
 | what to document and where | [docs.md](references/docs.md) |
 | branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |
-| bringing an existing project in | [adopt.md](references/adopt.md) |
 | why the workflow is shaped this way, when a rule looks arbitrary | [rationale.md](references/rationale.md) |
