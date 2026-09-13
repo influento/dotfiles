@@ -1278,15 +1278,24 @@ default_branch() {
   printf '%s\n' "$b"
 }
 
-# The one reading of fences, for a file or '-' (stdin). A line starting with
-# ``` or ~~~, indented or not, opens or closes a block. Modes:
+# The one reading of fences, for a file or '-' (stdin). A run of three or
+# more ``` or ~~~, indented or not, opens a block; only a run of the same
+# character at least as long, with nothing after it, closes it (CommonMark),
+# so pasted markdown holding the other kind stays inside. Modes:
 #   strip   fenced content emptied, fence lines kept: pasted output holds
 #           '## ' lines that would read as headings, and a block is still seen
 #   closed  exits 1 when a block is left open
 #   any     exits 0 when a fence line is present
 fences() {
   awk -v mode="$1" '
-    /^[[:space:]]*(```|~~~)/ { inside = !inside; seen = 1; if (mode == "strip") print; next }
+    function fence(   line, run) {
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      if (!match(line, /^(```+|~~~+)/)) return 0
+      run = substr(line, 1, RLENGTH)
+      if (!inside) { ch = substr(run, 1, 1); len = RLENGTH; return 1 }
+      return substr(run, 1, 1) == ch && RLENGTH >= len && substr(line, RLENGTH + 1) ~ /^[[:space:]]*$/
+    }
+    fence() { inside = !inside; seen = 1; if (mode == "strip") print; next }
     mode == "strip" && !inside
     END { if (mode == "closed") exit inside; if (mode == "any") exit !seen }' "$2"
 }

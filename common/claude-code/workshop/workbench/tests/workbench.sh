@@ -206,6 +206,14 @@ printf '\n~~~\n$ make test\nok\n~~~\n' >> "workbench/items/bugs/$idt-tilde-fence
 run "archive takes evidence fenced with ~~~" 0 "archived $idt" "$WB" archive "$idt"
 check "archive commits the move" [ -z "$(git status --porcelain workbench/items)" ]
 check "as 'archive <id>'" [ "$(git log -1 --format=%s)" = "archive $idt" ]
+# A fence closes only on its own character, in a run at least as long:
+# pasted markdown holds the other kind, and its lines are output, not headings.
+idm=$(newc bug "mixed-fence")
+printf '\n~~~\n$ cat README.md\n```\n## Usage\n~~~\n' >> "workbench/items/bugs/$idm-mixed-fence.md"
+run "archive takes a ~~~ block holding a \`\`\` line" 0 "archived $idm" "$WB" archive "$idm"
+idq=$(newc bug "long-fence")
+printf '\n````\n$ cat notes.md\n```\n## Not a heading\n```\n````\n' >> "workbench/items/bugs/$idq-long-fence.md"
+run "archive takes a \`\`\`\` block holding a '## ' line between \`\`\` lines" 0 "archived $idq" "$WB" archive "$idq"
 
 run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
 check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
