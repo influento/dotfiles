@@ -1411,13 +1411,6 @@ $hint"
   printf '%s\n' "$root/$rel"
 }
 
-# The first '## ' section, comments stripped: Why for a feature, What was
-# seen for a bug.
-lead_section() {
-  without_fences "$1" | awk '/^## / { n++ } n == 1' | tail -n +2 \
-    | strip_comments
-}
-
 section_filled() {
   local body
   body=$(without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
@@ -1658,10 +1651,6 @@ read_hook_input() {
   for k in $HOOK_FIELDS; do
     printf -v "h_${k//./_}" '%s' "${vals[$i]:-}"; i=$((i + 1))
   done
-}
-
-json_string() {
-  printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 }
 
 # --- round: the review dialog's accountant --------------------------------
