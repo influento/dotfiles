@@ -1301,14 +1301,16 @@ require_closed_fences() {
   closed_fences "$2" || die "$1 has an unclosed \`\`\` fence; close it, then retry"
 }
 
+# The body of the first '## <heading>' section: fenced content emptied with
+# the fence lines kept, comments stripped. 'grep -v' exits 1 when it filters
+# everything out, which is an empty section, not an error.
+section_body() {
+  without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
+    | strip_comments || true
+}
+
 has_evidence() {
-  local body
-  # 'grep -v' exits 1 when it filters everything out, which is an empty section,
-  # not an error — the herestring grep below settles it either way.
-  body=$(without_fences "$1" | sed -n '/^## Evidence/,/^## /p' \
-    | tail -n +2 | grep -v '^## ' \
-    | strip_comments) || true
-  grep -qE '^[[:space:]]*(```|~~~)' <<<"$body"
+  grep -qE '^[[:space:]]*(```|~~~)' <<<"$(section_body "$1" Evidence)"
 }
 
 # The '## ' headings a class may carry, in template order.
@@ -1412,10 +1414,7 @@ $hint"
 }
 
 section_filled() {
-  local body
-  body=$(without_fences "$1" | sed -n "/^## $2/,/^## /p" | tail -n +2 | grep -v '^## ' \
-    | strip_comments) || true
-  grep -q '[^[:space:]]' <<<"$body"
+  grep -q '[^[:space:]]' <<<"$(section_body "$1" "$2")"
 }
 
 # Criterion steps that check nothing: the built-in pair, plus 'git config
@@ -1424,8 +1423,7 @@ criterion_guard_steps() {
   local file=$1 heading=$2 root=$3 pat='by inspection|behaviou?r (is )?unchanged|still does what it did' extra
   extra=$(git -C "$root" config --get workbench.guards 2>/dev/null || true)
   [ -z "$extra" ] || pat="$pat|$extra"
-  without_fences "$file" | sed -n "/^## $heading/,/^## /p" | tail -n +2 | grep -v '^## ' | strip_comments \
-    | grep -iE -- "$pat" \
+  section_body "$file" "$heading" | grep -iE -- "$pat" \
     | head -3 | sed 's/^[[:space:]]*//; s/$/ /' | tr -d '\n' || true
 }
 
@@ -1788,8 +1786,7 @@ cmd_call() {
 
 # Open decision lines of one item file: the bullets under '## Decisions'.
 open_decisions_of() {
-  without_fences "$1" | sed -n '/^## Decisions/,/^## /p' | tail -n +2 | grep -v '^## ' \
-    | strip_comments | grep '^- ' || true
+  section_body "$1" Decisions | grep '^- ' || true
 }
 
 open_calls() {
