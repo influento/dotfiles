@@ -1,8 +1,8 @@
 # Cheatsheets
 
-Single multi-scope HTML cheatsheet covering nvim, ideavim, and tmux. Opened via chromium app mode (no browser chrome) and pinned on a sway workspace.
+Single multi-scope HTML cheatsheet covering nvim, ideavim, and tmux. Opened via Chrome/Chromium app mode (no browser chrome) and pinned on a sway workspace.
 
-Lives at `~/dev/infra/dotfiles/workstation/cheatsheets/`. The `cheat` zsh alias (defined in `workstation/zsh/.zshrc-workstation`) opens chromium with `file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/tools/index.html` directly — no deploy step, no symlink.
+Lives at `~/dev/infra/dotfiles/workstation/cheatsheets/`. The `cheat` zsh alias (defined in `workstation/zsh/.zshrc-workstation`) opens Chrome (Chromium as fallback, via `_chrome_bin`) with `file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/tools/index.html` directly — no deploy step, no symlink.
 
 ## Layout
 
@@ -55,9 +55,9 @@ Each group carries a `g-*` class (see Design conventions) for color cueing.
 
 `cheat` zsh alias in `workstation/zsh/.zshrc-workstation`:
 
-- First call launches chromium in `--app=` mode, detached (no browser chrome, just title bar + page)
+- First call launches Chrome (or Chromium) in `--app=` mode, detached (no browser chrome, just title bar + page)
 - Subsequent calls focus the existing window via `swaymsg [title="Tools cheatsheet"] focus`
-- Isolated `--user-data-dir` (`$XDG_RUNTIME_DIR/chromium-cheat-tools`)
+- Isolated `--user-data-dir` (`$XDG_RUNTIME_DIR/chrome-cheat-tools`)
 
 ## Source of truth
 
