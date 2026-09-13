@@ -24,9 +24,14 @@ apply in full, and "Unattended runs" describes you when nobody is answering.
    the archive is the user's — and stop.
 2. Do the work. Record evidence as pasted output under `## Evidence`, one
    block per criterion step. Commit on the branch as you go; the item file
-   commits with the code. The criterion is frozen from `start`: a finding
-   that argues with it is `workbench call <id> "<what the criterion should
-   say>"`, never an edit of the item.
+   commits with the code. The criterion is frozen from `start`, and so is
+   `## Side effects`: a finding that argues with the criterion is `workbench
+   call <id> "<what the criterion should say>"`, and something that works
+   today and now behaves differently which the section does not name is
+   `workbench call <id> "side effect: <what, for whom> — accept?"` — never
+   an edit of the item. Before the review dialog, `workbench effects <id>`:
+   every line it prints `unnamed` is such a call, and `merge` refuses the
+   branch until the user has answered.
 3. The review dialog — "The review loop" in the skill. Spawn a `wb-reviewer`
    with the `Agent` tool, never a fork, naming the branch and the item file;
    answer by number through `SendMessage` to the id the spawn returned. Six

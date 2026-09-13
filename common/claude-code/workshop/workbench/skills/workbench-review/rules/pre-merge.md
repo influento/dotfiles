@@ -23,6 +23,11 @@ missing. Read it and name it; the checks below are made against it. Check:
 - the RED value for each step was measured and written in, not guessed and
   "corrected before the evidence was run"
 - the root cause is stated, for a bug, and is a mechanism
+- `## Side effects` names what works today and changes: `workbench effects
+  <id>` for the declarations the branch rewrote, and the diff's changed
+  function bodies for what it cannot see; a caller-visible change the section
+  does not name is a finding, and one the section names as `none` stops the
+  merge
 - only the template's headings are present; `archive` refuses any other.
   The set is per class and lives in one place, `template_headings()` in the
   CLI: read it rather than recall it —

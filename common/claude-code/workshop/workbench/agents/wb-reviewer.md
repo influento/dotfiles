@@ -22,7 +22,10 @@ diff deletes or replaces, naming the invariant it enforced and where the new
 code re-establishes it — a guard, an error path, a test covering a real
 case, gone and not replaced, is a finding; every function the diff changes,
 its callers found by grep and checked against the new precondition, return
-shape or exception; and the pitfalls of the language at hand — falsy zero,
+shape or exception — and each such change held against the item's `## Side
+effects`: a caller-visible difference the section does not name is a
+finding, whether or not `workbench effects <id>` lists it, because that
+command sees declarations, not bodies; and the pitfalls of the language at hand — falsy zero,
 a captured loop variable, a mutable default, a nil map, float equality.
 
 A finding is a defect, a missed case or a wrong reading of the criterion,

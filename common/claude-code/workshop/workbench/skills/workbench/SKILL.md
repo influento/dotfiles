@@ -40,6 +40,13 @@ idea (workbench/BACKLOG.md line)
    unchanged"), no typecheck or build step, no "by inspection". A criterion
    the evidence cannot meet is recorded as **missed**, never reworded to fit.
    Detail on [verification.md](references/verification.md).
+   **So is what works today and changes with it:** `## Side effects` names
+   every route, export, output or stored format that behaves differently
+   once the item lands, and who sees it — `none` when nothing that exists
+   changes. `start` refuses it empty; `merge` refuses an existing export or
+   route the branch rewrote that the section does not name. One found after
+   `start` is `workbench call <id> "side effect: …"`, never an edit of the
+   section: whether the change is acceptable is the user's.
 
 3. **Nothing is archived without verified evidence.** Merging is a separate
    gate and asks only whether everything verifiable was verified, so an item may
@@ -111,6 +118,7 @@ what changes is what happens at a gate that is the user's:
 |---|---|
 | sizing needs confirming | take the item row when it fits; for anything else, `workbench call - "<question>"` and move to work that is describable |
 | criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the reviewer reads it again |
+| a side effect the item does not name — `workbench effects <id>` lists one `unnamed`, or the work shows one | `workbench call <id> "side effect: <what changes, for whom> — accept?"` and go on; never add it to `## Side effects` yourself |
 | merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` yourself, and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
 | a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
@@ -139,7 +147,8 @@ the copy itself.
 
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
-workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion is empty
+workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
+workbench effects b-038                # existing exports and routes the branch changed, against '## Side effects'
 workbench merge b-038 "<subject>"      # after the review dialog: squash, trailer, cleanup
 ```
 

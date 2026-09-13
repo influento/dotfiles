@@ -16,7 +16,10 @@ The `workbench` skill's rules apply; load it if it is not in context.
 3. Fill **What was seen** from the description and **How to reproduce** as
    far as it is known, in glossary words — a word that conflicts with an
    entry, or could mean two things, goes to the user with step 1. Leave
-   **Root cause** for the investigation.
+   **Root cause** for the investigation. **Side effects**: what works today
+   and behaves differently once fixed, beyond the wrong behaviour itself —
+   a caller that relied on it, an output that changes — or `none`; the user
+   agrees it with the criterion.
 4. Draft **How to confirm it is fixed**, run it on the unchanged tree so it
    is seen failing, and bring it to the user. Nothing else happens until the
    criterion is agreed — unattended, as "Unattended runs" says.

@@ -55,6 +55,8 @@ usage:
                                        items that touched these paths, newest first
   workbench start <id>                 commit the item as it stands, create its branch and worktree
   workbench round <id> <fixed> <stands>  record a review-dialog round; says whether another follows
+  workbench effects <id>               existing exports and routes the branch changed, against
+                                       the item's '## Side effects'; non-zero while one is unnamed
   workbench merge <id> "<subject>"     squash onto the default branch, drop the worktree and branch;
                                        needs evidence or a trigger status; runs 'git config
                                        workbench.premerge' in the worktree first, refusing on non-zero
@@ -817,6 +819,16 @@ status: open
 
 <!-- What changed. Delete this comment. -->
 
+## Side effects
+
+<!-- What works today and behaves differently once this lands: a route, an
+     exported function's name, signature or result, a command's output, a
+     stored format — each with who sees the difference. 'none' when nothing
+     that exists changes. Agreed before start, like the criterion; one found
+     after start is 'workbench call <id> "side effect: …"', never an edit
+     here. merge refuses an export or route the branch changed that this
+     does not name. Delete this comment. -->
+
 ## How to confirm it is fixed
 
 <!-- REQUIRED, never omitted. Written before the code and specific enough to
@@ -858,6 +870,16 @@ status: open
 <!-- Areas, not a file list. Before writing this, once: 'workbench find <paths>'
      for the files involved; read an item from the index only if its line
      matches. Delete this comment. -->
+
+## Side effects
+
+<!-- What works today and behaves differently once this lands: a route, an
+     exported function's name, signature or result, a command's output, a
+     stored format — each with who sees the difference. 'none' when nothing
+     that exists changes. Agreed before start, like the criterion; one found
+     after start is 'workbench call <id> "side effect: …"', never an edit
+     here. merge refuses an export or route the branch changed that this
+     does not name. Delete this comment. -->
 
 ## How to confirm it works
 
@@ -1076,6 +1098,9 @@ cmd_start() {
     if [ -n "$f" ] && ! section_filled "$f" "$(criterion_heading "$id")"; then
       echo "note: $id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code" >&2
     fi
+    if [ -n "$f" ] && ! section_filled "$f" "$EFFECTS"; then
+      echo "note: $id's '$EFFECTS' is empty; what works today and changes is named before any code, 'none' included" >&2
+    fi
   else
     [ -n "$path" ] || die "no item matching '$id'"
 
@@ -1095,6 +1120,12 @@ cmd_start() {
     local guard
     guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")")
     [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— a gate, typecheck or build exiting 0 says the tools ran, not that the behaviour is there; name a command whose result differs when the feature is missing, then start"
+    # The other section agreed before code: what works today and will change.
+    # 'none' is an answer; an empty section is the question never asked, and
+    # merge would then refuse the first export the branch renames with nobody
+    # having decided it. Refused here, while the item is still main's to edit.
+    section_filled "$path" "$EFFECTS" \
+      || die "$id's '$EFFECTS' is empty; name what works today and changes with this — a route, an export, an output — or 'none', then start"
     # An item is on the default branch from 'new' onward; one written by hand,
     # or by an older workbench, sits untracked in whatever checkout it was
     # written in, and is brought to the main checkout to land with the rest.
@@ -1160,6 +1191,86 @@ live_worktree_of() {
   [ -z "$wt" ] || [ -d "$wt" ] \
     || die "the worktree for $1 is gone but still listed: $wt; run 'git worktree prune', then retry"
   printf '%s\n' "$wt"
+}
+
+# Existing declarations the branch changed: an exported symbol whose
+# declaration line the diff removes or rewrites, a route string it removes or
+# rewrites. Removed-side lines only — an added line is new behaviour, not a
+# change to what works today — and a body edited under an unchanged signature
+# is not seen here; that is the reviewer's "every function the diff changes,
+# its callers found by grep". TypeScript and JavaScript exports, Go's
+# capitalised funcs and types, Python's top-level defs, and a path literal
+# in a route registration. Nothing under workbench/ or .claude/. Prints
+# '<name>\t<file>', unique.
+changed_declarations() {
+  local root=$1 main=$2 branch=$3 T=$'\t' Q="[\"'\`]" NQ="[^\"'\`]"
+  git -C "$root" diff "$main...$branch" -- . ":!$WB" ':!.claude' \
+    | awk '/^\+\+\+ b\// { f = substr($0, 7); next } /^--- / { next } /^-/ { print f "\t" substr($0, 2) }' \
+    | sed -nE \
+        -e "s/^([^${T}]*)${T}[[:space:]]*export[[:space:]]+(default[[:space:]]+)?(async[[:space:]]+)?(abstract[[:space:]]+)?(function\*?|const|let|var|class|interface|type|enum)[[:space:]]+([A-Za-z_\$][A-Za-z0-9_\$]*).*/\6${T}\1/;t p" \
+        -e "s/^([^${T}]*)${T}(func[[:space:]]+(\([^)]*\)[[:space:]]+)?|type[[:space:]]+)([A-Z][A-Za-z0-9_]*).*/\4${T}\1/;t p" \
+        -e "s/^([^${T}]*)${T}(def|class)[[:space:]]+([A-Za-z][A-Za-z0-9_]*).*/\3${T}\1/;t p" \
+        -e "s/^([^${T}]*)${T}.*\.(get|post|put|patch|delete|head|options|all|route|use|Handle|HandleFunc|GET|POST|PUT|PATCH|DELETE)\([[:space:]]*${Q}(\/${NQ}*)${Q}.*/\3${T}\1/;t p" \
+        -e 'd' -e ':p' -e 'p' \
+    | sort -u
+}
+
+# Each changed declaration against the item's '## Side effects': one the
+# section names as a word is 'named', the rest 'unnamed' — 'called' when it
+# sits only in an open line under '## Decisions', a question the user has not
+# answered. Prints '<state>\t<name>\t<file>'.
+side_effects_of() {
+  local item=$1 root=$2 main=$3 branch=$4 body calls name file
+  body=$(without_fences "$item" | sed -n "/^## $EFFECTS/,/^## /p" | tail -n +2 | grep -v '^## ' | strip_comments) || true
+  calls=$(open_decisions_of "$item")
+  while IFS=$'\t' read -r name file; do
+    [ -n "$name" ] || continue
+    if grep -qwF -- "$name" <<<"$body"; then echo "named	$name	$file"
+    elif grep -qwF -- "$name" <<<"$calls"; then echo "called	$name	$file"
+    else echo "unnamed	$name	$file"
+    fi
+  done < <(changed_declarations "$root" "$main" "$branch")
+}
+
+# What merge will hold the branch to, for the worker who cannot run merge:
+# every existing declaration the branch changed and whether the item names
+# it. Exit 1 while one is not — the worker's cue for 'workbench call'.
+cmd_effects() {
+  local id="${1:-}" root main branch wt item tmp='' out
+  [ $# -eq 1 ] && [ -n "$id" ] || usage
+  id=$(require_id "$id")
+  require_init
+  root=$(main_root)
+  main=$(default_branch)
+  branch=$(local_branches "$root" "$id")
+  [ -n "$branch" ] || die "no branch named $id-*; effects are read from a started item's branch"
+  require_one_branch "$id" "$branch"
+  # The worktree's copy when there is one — the worker edits it there and
+  # asks before committing — else the branch's.
+  wt=$(live_worktree_of "$branch")
+  [ -z "$wt" ] || item=$(find "$wt/$WB/items" -name "$id-*.md" -not -path '*/archive/*' -print -quit 2>/dev/null || true)
+  if [ -z "${item:-}" ]; then
+    item=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+    [ -n "$item" ] || die "$id has no item file on $branch"
+    tmp=$(mktemp)
+    git -C "$root" show "$branch:$item" > "$tmp"
+    item=$tmp
+  fi
+  out=$(side_effects_of "$item" "$root" "$main" "$branch")
+  [ -z "$tmp" ] || rm -f "$tmp"
+  if [ -z "$out" ]; then
+    echo "$id: no existing export or route changed on $branch"
+    return 0
+  fi
+  printf '%s\n' "$out" | awk -F'\t' '{ printf "%-8s %s  (%s)\n", $1, $2, $3 }'
+  if grep -q '^unnamed' <<<"$out"; then
+    echo "unnamed: an existing declaration the branch changed and '## $EFFECTS' does not name; 'workbench call $id \"side effect: …\"' parks it for the user" >&2
+    return 1
+  fi
+  if grep -q '^called' <<<"$out"; then
+    echo "called: parked under '## Decisions'; the user answers by naming it under '## $EFFECTS' and deleting the line" >&2
+    return 1
+  fi
 }
 
 # The squash commit is the whole point of the merge: the change lands on the
@@ -1246,7 +1357,17 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
     *)
       has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
   esac
+  # What works today and changes with this was agreed before start, or parked
+  # as a call since. An export or route the branch rewrote that the section
+  # does not name is neither: it lands with nobody having decided it, and the
+  # caller that breaks is found on main. Refused; a name sitting only in an
+  # open call is the user's question, answered by moving it into the section.
+  local effects
+  effects=$(side_effects_of "$tmp" "$root" "$main" "$branch" | grep -v '^named' || true)
   rm -f "$tmp"
+  [ -z "$effects" ] || die "$id changes what works today and '## $EFFECTS' does not name it:
+$(printf '%s\n' "$effects" | awk -F'\t' '{ printf "  %s  (%s)%s\n", $2, $3, ($1 == "called" ? " — parked under Decisions" : "") }')
+name each under '## $EFFECTS' on the branch (delete its Decisions line once answered) and commit, then retry; 'workbench effects $id' lists them"
 
   # The squash needs the default branch checked out, and that checkout is the
   # main one: a linked worktree cannot hold a branch another checkout holds.
@@ -1540,8 +1661,8 @@ has_evidence() {
 # were where the archive grew long and the user's calls went to hide.
 template_headings() {
   case "$1" in
-    b-*) printf '%s\n' 'What was seen' 'How to reproduce' 'Root cause' 'The fix' 'How to confirm it is fixed' 'Decisions' 'Evidence' ;;
-    f-*) printf '%s\n' 'Why' 'What changes' 'What it touches' 'How to confirm it works' 'Decisions' 'Evidence' ;;
+    b-*) printf '%s\n' 'What was seen' 'How to reproduce' 'Root cause' 'The fix' 'Side effects' 'How to confirm it is fixed' 'Decisions' 'Evidence' ;;
+    f-*) printf '%s\n' 'Why' 'What changes' 'What it touches' 'Side effects' 'How to confirm it works' 'Decisions' 'Evidence' ;;
   esac
 }
 
@@ -1683,6 +1804,10 @@ criterion_guard_steps() {
 criterion_heading() {
   echo "How to confirm"
 }
+
+# The section naming what works today and changes with the item. Filled
+# before start, 'none' included; held against the branch at merge.
+EFFECTS='Side effects'
 
 cmd_archive() {
   local id="${1:-}" path root sha discard=0
@@ -3314,6 +3439,7 @@ case "${1:-}" in
   review-check) shift; cmd_review_check "$@" ;;
   review-drop) shift; cmd_review_drop "$@" ;;
   round) shift; cmd_round "$@" ;;
+  effects) shift; cmd_effects "$@" ;;
   help|-h|--help) usage 0 ;;
   *) usage ;;
 esac
