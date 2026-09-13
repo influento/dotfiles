@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# Claude Code Stop hook: the model cannot declare "done" while the local gate fails.
-# The gate is deterministic, so blocking again while it is red is correct — up
-# to a point. The same failure three stops running is a fight the model is not
-# winning, and every further block re-runs a full turn over the whole context
-# to lose it again. So: identical output three times → one last block that says
-# to park it and stop → the next stop is allowed. A failure that changes resets
-# the count: that is progress. The count lives outside the tree, per session.
+# Claude Code Stop hook: blocks while gate:local is red, capped at three
+# identical failures (policy: ts-gate/CLAUDE.md, Stop hook). The count lives
+# outside the tree, per session.
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 IN=$(cat)

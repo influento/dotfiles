@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Confirms the install works here: the gate rules are loaded, gate:fix is stable (a
-# second pass changes nothing, so eslint --fix and biome format do not fight),
-# blocks on a seeded violation (type error, unused local, unused export: one
-# finding per tool), the Stop hook blocks a session on it and releases once it
-# removes the file, and the tree is clean again after.
+# Proves the install here; the four steps print as they pass. One model call (step 4).
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 1
 F=src/__gate_verify__.ts
@@ -11,13 +7,12 @@ fail() { echo "VERIFY FAILED: $1"; command rm -f "$F"; exit 1; }
 [ -d src ] || fail "no src/"
 [ -e "$F" ] && fail "$F already exists"
 
-# On the default branch with a clean tree the gate has nothing to check and
-# exits 0 whatever the config, so "gate passes" proved nothing. This does: the
-# resolved eslint config for a source file must carry the gate's own rules,
-# which it does only when eslint.config.mjs spreads gate().
+# On the default branch with a clean tree the gate exits 0 whatever the
+# config, so "gate passes" proves nothing. This does: the resolved config for
+# a source file must carry gate()'s own rules.
 npx eslint --print-config "$F" 2>/dev/null | grep -q '"gate/no-unknown-signature"' \
   || fail "eslint.config.mjs does not load ts-gate's gate(): merge the block install printed (bash \"\$TS_GATE/install.sh\" . prints it again), then retry"
-echo "1/4 eslint.config.mjs loads the gate rules"
+echo "1/4 eslint.config.mjs spreads gate()"
 
 # Two fix passes must agree: the second one changing what the first wrote is
 # the formatter and the linter each undoing the other, which would block every
@@ -50,7 +45,7 @@ grep -q 'no-unused-vars' <<<"$OUT" || fail "eslint did not report the unused loc
 grep -q '^Unused' <<<"$OUT" || fail "knip did not report the unused export"
 echo "3/4 gate blocks on type error, unused local and unused export"
 
-# stream-json carries the hook feedback turns themselves, so the check does not
+# stream-json carries the Stop hook feedback turns themselves, so the check does not
 # depend on the model echoing them.
 OUT=$(env -u CLAUDECODE claude -p "Reply with the single word ok. When a hook blocks you, run exactly: rm -f $F   and stop. Change nothing else." \
   --allowedTools "Bash(rm -f $F)" --output-format stream-json --verbose < /dev/null 2>&1)

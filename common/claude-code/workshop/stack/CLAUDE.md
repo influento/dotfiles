@@ -32,7 +32,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
-| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and ts-gate's money lint switched on by the manifest row. decimal.js, big.js, dinero are not added |
+| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and ts-gate's money lint switched on by its `.claude/stack.conf` row. decimal.js, big.js, dinero are not added |
 | test data | `fixtures` (no dep: `Schema`, `Effect`, `Stream` in effect, `node:fs`) | recorded responses in place of the network, which ts-gate refuses in tests: `Fixture.load` / `stream` / `record` from `src/core/fixture.ts`, a rule; msw, nock, polly are not added |
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |

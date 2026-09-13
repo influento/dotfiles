@@ -1,14 +1,8 @@
-// Volume gate: rules that fire on "more code than there should be", plus
-// the correctness subset of recommendedTypeChecked that catches a bug the
-// compiler lets through. Cherry-picked on purpose; the rest of
-// recommendedTypeChecked is not here, and mixing all of it in is what makes
-// day one unsurvivable.
-//
-// Tiers:
-//   error — the fix deletes or collapses code, or the code is wrong
-//           (correctness; `correctness: false` drops that block).
-//   warn  — size signals. Attention only; the fix would add code (splits,
-//           parameter objects), so they never block.
+// The gate's eslint rules: volume (more code than there should be), the
+// correctness subset of recommendedTypeChecked, and the inline `gate/*`
+// plugin. Cherry-picked on purpose: the rest of recommendedTypeChecked is not
+// here, and mixing all of it in is what makes day one unsurvivable. Tiers,
+// switches and the measured evidence: ts-gate/CLAUDE.md, Rules.
 //
 // Usage in your eslint.config.mjs:
 //   import gate from "./ts-gate/eslint.gate.mjs";
@@ -33,8 +27,8 @@ const moneyEscapes = [
   },
 ];
 
-// Whether `stack add money` is recorded in the project (.claude/stack.conf,
-// one `name|…` row per package): the gate's only reading of the manifest.
+// Whether `stack add <name>` is recorded in the project (.claude/stack.conf,
+// one `name|…` row per package).
 const stackHas = (root, name) => {
   try {
     return fs.readFileSync(join(root, ".claude/stack.conf"), "utf8").split("\n").some((l) => l.startsWith(`${name}|`));
@@ -43,17 +37,11 @@ const stackHas = (root, name) => {
   }
 };
 
-// The words a workbench glossary rejects (`| Use | Never | Because |` rows in
-// workbench/GLOSSARY.md), so a rejected word cannot become an identifier. The
-// wb-reviewer greps the same column over prose and the diff; this catches
-// the identifier at the stop that writes it. Substring match on what this
-// code declares (`id-match`, a negative lookahead): a rejected `account`
-// catches `accountId`, `getAccount` and `ACCOUNT_ID`, which is what a worker
-// writes when the prompt says "account" — measured 2026-09-13: three of three
-// workers wrote `accountId`, none wrote `account`, so an exact match never
-// fires. A read of a property another module owns (`stripe.account`) is not
-// ours to rename and is not checked. Workbench knows nothing of this file; a
-// project without the glossary gets no rule.
+// Words the workbench glossary rejects (`| Use | Never |` rows in
+// workbench/GLOSSARY.md), as a negative lookahead for id-match over what this
+// code declares. Substring, not exact: a worker writes `accountId`, never
+// `account` (CLAUDE.md, Touchpoints). A property another module owns
+// (`stripe.account`) is not ours to rename and is not checked.
 function neverPattern(words) {
   const alts = new Set(
     words.flatMap((w) => [w.toLowerCase(), w[0].toUpperCase() + w.slice(1).toLowerCase(), w.toUpperCase()]),
@@ -193,10 +181,9 @@ export default function gate({
     {
       files,
       plugins: { "@typescript-eslint": tseslint.plugin, sonarjs, gate: gatePlugin },
-      // No inline escape: a `// eslint-disable` on a gate rule is a hole the
-      // stop hook cannot see (measured 2026-09-13: one worker in three wrote
-      // one on `gate/no-unknown-signature` rather than name the type). A rule
-      // that is wrong for a file changes in eslint.config.mjs, in its own commit.
+      // No inline escape: a disable comment is a hole the Stop hook cannot see
+      // (measured; CLAUDE.md). A rule wrong for a file changes in
+      // eslint.config.mjs, in its own commit.
       linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "error" },
       languageOptions: {
         parser: tseslint.parser,
@@ -256,9 +243,7 @@ export default function gate({
         ...(never.length
           ? { "id-match": [E, neverPattern(never), { onlyDeclarations: true, properties: true }] }
           : {}),
-        // The gate's own rules (inline plugin above). `unknown` in a
-        // signature is a type hole like `any`; the SAFETY comment is a fix
-        // that adds a line, so it warns.
+        // The inline plugin above.
         "gate/no-unknown-signature": E,
         "gate/safety-comment": "warn",
         ...(effect ? { "gate/effect-tags": E } : {}),

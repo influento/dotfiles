@@ -1,11 +1,5 @@
-// vitest setup file (installed as `test.setupFiles` in the project's vitest
-// config): a test never reaches the network. Every outbound TCP connect and
-// every fetch to a host other than loopback throws, naming the test and the
-// host. Loopback stays open, so a test may listen on 127.0.0.1 and talk to
-// itself; a unix socket path is local too. No opt-out inside a test: a test
-// that needs a live endpoint is a recording, run once outside vitest, its
-// response committed as a fixture. Only vitest loads this file; scripts, the
-// CLI and the app keep the network.
+// vitest setup file (test.setupFiles, written by install): no test reaches
+// the network. Contract and the live tier: ts-gate/CLAUDE.md, Rules.
 import net from "node:net";
 import { expect } from "vitest";
 

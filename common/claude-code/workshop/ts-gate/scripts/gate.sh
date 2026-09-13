@@ -5,9 +5,8 @@
 #   gate.sh --list       the files --local would check, one per line, nothing else
 set -uo pipefail
 FAIL=0
-# --local is what the Stop hook and the worker read back into context: one line
-# per problem and no colour, so the same findings cost a fraction of the tokens.
-# CI keeps the readable formats.
+# --local and --list: one line per problem, no colour, for the Stop hook and
+# the worker. CI keeps the readable formats.
 TSC_OPTS=(); ESLINT_OPTS=(); BIOME_OPTS=()
 case "${1:-}" in --local|--list) TSC_OPTS=(--pretty false); ESLINT_OPTS=(--format ./ts-gate/eslint-line.mjs); BIOME_OPTS=(--reporter=summary) ;; esac
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo, gate skipped"; exit 0; }
@@ -32,11 +31,9 @@ case "${1:-}" in
 esac
 
 if [ "${1:-}" = "--list" ]; then [ ${#FILES[@]} -eq 0 ] || printf '%s\n' "${FILES[@]}"; exit 0; fi
-# No changed .ts file does not mean nothing to check: tsconfig, package.json,
-# the tool configs and the gate's own files change what the repo-wide tools
-# say without touching a .ts. CI always runs them (a branch that only edits
-# tsconfig merged green once, and broke tsc on main). --local, which runs at
-# every stop, skips only when nothing but code-irrelevant files changed.
+# CI always runs the repo-wide tools: a branch that only edited tsconfig once
+# merged green and broke tsc on main. --local, at every stop, skips only when
+# nothing but code-irrelevant files changed.
 if [ ${#FILES[@]} -eq 0 ]; then
   case "${1:-}" in
     --local)
@@ -57,7 +54,7 @@ npx tsc --noEmit "${TSC_OPTS[@]}" || FAIL=1
 [ ${#FILES[@]} -eq 0 ] || npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 2b. Layout, changed files only. Biome as formatter alone (its linter is off:
-#     eslint above is the linter); `--reporter=summary` for the hook, the diff
+#     eslint above is the linter); `--reporter=summary` for the Stop hook, the diff
 #     for CI. `gate:fix` rewrites.
 [ ${#FILES[@]} -eq 0 ] || npx biome format --no-errors-on-unmatched "${BIOME_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
@@ -68,11 +65,9 @@ npx knip --config ts-gate/knip.json || FAIL=1
 # 4. Structure: cycles, barrel chains, layers. Repo-wide, zero tolerance.
 npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 
-# 5. Tests. Local: only the tests the diff reaches, by import graph
-#    (vitest --changed since the merge base, working tree included), so the
-#    Stop hook pays for what the change touched. CI: the whole suite. Only
-#    for a runner the gate knows; jest projects get the eslint plugin alone.
-#    Never the live tier (*.live.test.ts: real network, `npm run test:live`).
+# 5. Tests. Local: the tests the diff reaches (vitest --changed since the
+#    merge base, working tree included). CI: the whole suite. Only vitest;
+#    jest projects get the eslint plugin alone. Never the live tier.
 if grep -q '"vitest"' package.json; then
   VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*')
   case "${1:-}" in

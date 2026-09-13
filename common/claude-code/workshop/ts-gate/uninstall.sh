@@ -33,7 +33,7 @@ for(const k of ["config","biome","vitest"]){
   else console.log(o.file+" was edited after install, left in place."+(k==="config"?" It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.":k==="vitest"?" Its setupFiles names ./ts-gate/no-network.mjs, which is gone: fix by hand.":""));
 }'
 
-# 4. Rules
+# 4. Rule files
 for f in "$SRC"/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done
 rmdir .claude/rules 2>/dev/null || true
 

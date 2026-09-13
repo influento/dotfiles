@@ -20,14 +20,10 @@ grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING:
 grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
 node -e 'process.exit(require("./package.json").engines?.node?0:1)' || echo "WARNING: package.json has no engines.node; a Dockerfile or a CI container has nothing to pin node to"
 
-# 1. Files: what the gate runs at the project, not the installer, its tests
-#    or the rules (those land in .claude/rules/). Everything but the manifest
-#    is replaced, so a re-run carries changes — except what the project put
-#    in: knip.json's ignore lists (the brownfield baseline, every dependency
-#    and file stack added) and its entry (set by hand when the WARNING at the
-#    end says so) are merged back, and .dependency-cruiser.cjs, the
-#    architecture record, is kept once it exists (diff it against this
-#    source by hand when the gate's default rules move).
+# 1. Files: what the gate runs at the project. Everything but the manifest is
+#    replaced on a re-run, except what the project put in: knip.json's ignore
+#    lists and entry are merged back, and .dependency-cruiser.cjs (the
+#    architecture record) is kept once it exists.
 SHIP="CLAUDE.md .dependency-cruiser.cjs eslint.gate.mjs eslint-line.mjs knip.json no-network.mjs vitest.live.mjs scripts"
 KNIP_KEEP=""
 [ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[],entry:j.entry})')
@@ -137,7 +133,7 @@ BIOME_WROTE=""
 if owned_target biome biome.json biome.json biome.jsonc; then
   [ -z "$OWN" ] || { command cp "$SRC/biome.template.json" "$OWN"; BIOME_WROTE=$OWN; }
 else
-  echo "biome config exists, not touched; the gate formats with it (biome.template.json in the ts-gate source is what install writes: formatter only, .ts/.tsx, spaces)"
+  echo "biome config exists, not touched; the gate formats with it"
   # gate:full and gate:fix format the whole tree: a config that does not leave
   # out the read-only subtrees and the gate's own files rewrites thousands of
   # files at the first run, and the next install puts ts-gate/ back.
@@ -149,11 +145,8 @@ else
 fi
 record_owned biome "$BIOME_WROTE"
 
-# 4c. vitest config: loads ts-gate/no-network.mjs, so no test reaches the
-#     network (loopback allowed), and leaves the live tier (*.live.test.ts,
-#     ts-gate/vitest.live.mjs, `npm run test:live`) out. Only vitest reads
-#     it; scripts and the app keep the network. A project's own config gets
-#     the two lines to add.
+# 4c. vitest config: the no-network setup file and the live-tier exclude. A
+#     project's own config gets the two lines to add.
 VITEST_WROTE=""
 if [ "$RUNNER" = vitest ]; then
   VCONFIG='import { configDefaults, defineConfig } from "vitest/config";
@@ -174,15 +167,13 @@ export default defineConfig({
   record_owned vitest "$VITEST_WROTE"
 fi
 
-# 5. Rules
+# 5. Rule files
 command mkdir -p .claude/rules
 command cp "$SRC"/rules/*.md .claude/rules/
 
-# 6. Stop hook: the deterministic gate. Our entry is replaced, foreign entries
-#    are untouched. Judgment review is wb-reviewer's job under workbench.
-#    The allow rules cover the commands the rules tell the agent to run by hand
-#    and the test runner a criterion names; an unattended workbench worker is
-#    denied anything not listed.
+# 6. Stop hook: our entry is replaced, foreign entries are untouched. The
+#    allow rules: what the rule files tell the agent to run by hand and the
+#    test runner a criterion names; an unattended worker is denied the rest.
 node -e '
 const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
@@ -198,22 +189,20 @@ s.permissions.allow=s.permissions.allow.filter(r=>r!=="Bash(npm run gate:*)");
 for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 
-# 7. workbench: its merge runs this command in the branch worktree and refuses on
-#    non-zero. Per clone, like every workbench key; inert without workbench.
+# 7. workbench keys. Per clone, like every workbench key; inert without
+#    workbench. premerge set to something else: chained by hand.
 PREMERGE=$(git config --get workbench.premerge 2>/dev/null || true)
 if [ -z "$PREMERGE" ]; then git config workbench.premerge "npm run gate" 2>/dev/null && echo "set git config workbench.premerge 'npm run gate'"
 elif [ "$PREMERGE" != "npm run gate" ]; then echo "NOTE: workbench.premerge is '$PREMERGE', left alone; the gate runs at merge only if that command runs 'npm run gate'"; fi
-#    And what a criterion step may not be: the gate, a lint, a typecheck or a
-#    build exiting 0 proves these tools ran, not that the behaviour is there.
-#    Workbench holds the rule; the words are this toolchain's, so they are set here.
+#    guards: the words for a criterion step that proves nothing. Workbench
+#    holds the rule; the words are this toolchain's.
 GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum:]]|$)'
 [ "$(git config --get workbench.guards 2>/dev/null || true)" = "$GUARDS" ] \
   || { git config workbench.guards "$GUARDS" 2>/dev/null && echo "set git config workbench.guards for npm run gate/lint/build/typecheck and tsc"; }
 
-# 8. Manifest: what this install added, so uninstall removes exactly that.
-#    On a re-run the owned-config entries were kept up to date above; the
-#    runner is re-recorded (vitest may have arrived since) and the deps this
-#    run added join the list, so uninstall removes them too.
+# 8. Manifest: what this install added, so uninstall removes exactly that. On
+#    a re-run the runner is re-recorded (vitest may have arrived since) and
+#    the deps this run added join the list.
 node -e '
 const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
 const deps=specs.map(d=>d.replace(/(.)@.*/,"$1"));

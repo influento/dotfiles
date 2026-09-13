@@ -1,6 +1,4 @@
-// Structure gate. Cycles and barrel chains from day one; layers once decided.
-// This file IS the architecture record. Change it in its own commit, never
-// alongside the code change that needed it.
+// Structure gate and the architecture record: change it in its own commit (rules/ts-gate.md).
 module.exports = {
   forbidden: [
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
