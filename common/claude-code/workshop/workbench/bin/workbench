@@ -1872,14 +1872,15 @@ cmd_status() {
   # the output as it comes.
   sep() { [ "$said" -eq 0 ] || echo; said=1; }
   require_init
-  # The SessionStart hook also fires on compaction, which drops every invoked
-  # skill body and path rule; say so first. Stdin is read only when something
-  # is there: by hand it is a tty.
+  # The SessionStart hook also fires on compaction. Claude Code 2.1.270
+  # re-attaches invoked skills after the boundary; whether path rules return
+  # is unsettled, so the line asks rather than asserts. Stdin is read only
+  # when something is there: by hand it is a tty.
   if [ ! -t 0 ] && read -t 0 -r _ 2>/dev/null; then
     read_hook_input
     if [ "$h_source" = compact ]; then
       sep
-      echo "compaction dropped the workbench skill body and every .claude/rules file from this context; invoke the workbench skill before the next step"
+      echo "context was compacted; if the workbench skill body or a .claude/rules file you had read is no longer in context, invoke the workbench skill before the next step"
     fi
   fi
   # Every checkout: an item on a sibling worktree's branch is in flight too.
