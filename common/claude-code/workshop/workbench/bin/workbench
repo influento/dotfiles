@@ -812,7 +812,7 @@ require_main_checked_out() {
   local main on
   main=$(default_branch)
   on=$(git -C "$1" symbolic-ref -q --short HEAD || true)
-  [ "$on" = "$main" ] || die "$1 has '${on:-a detached HEAD}' checked out, not $main; the item commit lands there"
+  [ "$on" = "$main" ] || die "$1 has '${on:-a detached HEAD}' checked out, not $main; commits land there"
 }
 
 # 'new' lands the template, 'start' the criterion. Only this path goes into
@@ -1064,27 +1064,23 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
   [ -n "$item_on_branch" ] \
     || die "$id has no item file on $branch; merge reads the branch's copy — restore it there, then retry"
   tmp=$(mktemp)
+  # Every refusal below would otherwise leave it behind.
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp'" EXIT
   git -C "$root" show "$branch:$item_on_branch" > "$tmp"
-  closed_fences "$tmp" || { rm -f "$tmp"; die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"; }
+  closed_fences "$tmp" || die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"
   st=$(item_status "$tmp")
-  known_status "$st" || { rm -f "$tmp"; die "$id has 'status: $st' on $branch, which is not a status"; }
+  known_status "$st" || die "$id has 'status: $st' on $branch, which is not a status"
   case "$st" in
     awaiting*|unverified*)
-      case "$st" in
-        *—*|*" - "*) ;;
-        *) rm -f "$tmp"; die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
-      esac ;;
-    unreproduced*) rm -f "$tmp"; die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
-    abandoned*) rm -f "$tmp"; die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
+      names_trigger "$st" || die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
+    unreproduced*) die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
+    abandoned*) die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
     *)
-      has_evidence "$tmp" || { rm -f "$tmp"; die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet"; } ;;
+      has_evidence "$tmp" || die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet" ;;
   esac
-  rm -f "$tmp"
 
-  # The squash needs the default branch checked out, in the main checkout.
-  local on
-  on=$(git -C "$root" symbolic-ref -q --short HEAD || true)
-  [ "$on" = "$main" ] || die "$root has '${on:-a detached HEAD}' checked out, not $main; the squash lands there"
+  require_main_checked_out "$root"
 
   # Anything staged on main would go into the squash commit, so it is
   # refused. An unstaged edit would not: the commit takes the index, the
@@ -1156,7 +1152,9 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   # premerge runs on the branch tip: a branch behind main would be tested
   # without what landed since. Except what the worker lands on main from its
   # worktree — a call, a new item — which touches only workbench/.
-  if [ -n "$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)" ] \
+  local premerge
+  premerge=$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)
+  if [ -n "$premerge" ] \
      && ! git -C "$root" merge-base --is-ancestor "$main" "$branch" \
      && git -C "$root" diff --name-only "$branch...$main" | grep -qv "^$WB/"; then
     die "$branch is behind $main, and premerge would test it without what landed since; in ${wt:-its worktree} run 'git rebase $main', then retry"
@@ -1164,8 +1162,6 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
 
   # The project's own gate, last because it is slow, before anything lands;
   # only unsetting the config skips it.
-  local premerge
-  premerge=$(git -C "$root" config --get workbench.premerge 2>/dev/null || true)
   if [ -n "$premerge" ]; then
     [ -n "$wt" ] || die "workbench.premerge is set ('$premerge') and $branch has no worktree to run it in; 'workbench start $id' recreates one, then retry"
     echo "premerge: $premerge (in $wt)" >&2
@@ -1238,6 +1234,12 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
 
 item_status() {
   sed -n 's/^status: *//p' "$1" | head -1
+}
+
+# The trigger or the why follows a dash: 'awaiting — the next deploy'.
+names_trigger() {
+  case "$1" in *—*|*" - "*) return 0 ;; esac
+  return 1
 }
 
 # The status a listing shows. Archiving leaves the status line alone, so a
@@ -1518,16 +1520,12 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
     awaiting*)
       die "$id is awaiting a trigger and does not archive as-is; when it fires set 'status: open', record the evidence, then archive, or re-state it as 'unverified — <trigger>' if no bound can be named" ;;
     unverified*)
-      case "$status" in
-        *—*|*" - "*) ;;
-        *) die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
-      esac ;;
+      names_trigger "$status" \
+        || die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
     unreproduced*) ;;
     abandoned*)
-      case "$status" in
-        *—*|*" - "*) ;;
-        *) die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream" ;;
-      esac
+      names_trigger "$status" \
+        || die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream"
       local shipped
       shipped=$(merged_sha "$(main_root)" "$main" "$id")
       [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
