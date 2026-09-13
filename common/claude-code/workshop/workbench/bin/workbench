@@ -1453,6 +1453,9 @@ cmd_archive() {
   done
   id=$(require_id "$id")
   require_init
+  # The move is committed on the default branch, like new and start; checked
+  # first, since retiring a branch below cannot be undone.
+  require_main_checked_out "$(main_root)"
 
   path=$(find_item "$id")
   case "$path" in
@@ -1561,16 +1564,21 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   mkdir -p "$(dirname "$dest")"
 
   # An untracked item cannot be 'git mv'ed. The commit line goes on after the
-  # move, so a re-run appends it once.
+  # move, so a re-run appends it once. Only these paths are committed: anything
+  # else staged on main stays staged.
+  local moved=("$dest")
   if git -C "$root" ls-files --error-unmatch "$path" >/dev/null 2>&1; then
     git -C "$root" mv "$path" "$dest"
+    moved+=("$path")
   else
     mv "$path" "$dest"
   fi
   printf '\ncommit: %s\n' "$sha" >> "$dest"
+  git -C "$root" add -- "$dest"
+  git -C "$root" commit --quiet -m "archive $id" -- "${moved[@]}" \
+    || die "archived $id at $sha, but the commit was refused — a hook, or a merge in progress; the move is staged in $root"
 
   echo "archived $id at $sha"
-  echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
 # One line per document over its cap; 'git config workbench.cap.<name>'

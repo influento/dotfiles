@@ -131,7 +131,7 @@ discarded by hand. An `abandoned` item's branch holds whatever was built;
 `archive --discard` drops that, naming each file, and without the flag the
 command refuses.
 
-The move is left uncommitted; the command prints the commit to make.
+The move is committed on the default branch as `archive <id>`.
 
 ## IDs
 

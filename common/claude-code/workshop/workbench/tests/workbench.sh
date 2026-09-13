@@ -204,7 +204,8 @@ git checkout -q "$item"
 idt=$(newc bug "tilde-fence")
 printf '\n~~~\n$ make test\nok\n~~~\n' >> "workbench/items/bugs/$idt-tilde-fence.md"
 run "archive takes evidence fenced with ~~~" 0 "archived $idt" "$WB" archive "$idt"
-git add -A && git commit -qm "archive $idt"
+check "archive commits the move" [ -z "$(git status --porcelain workbench/items)" ]
+check "as 'archive <id>'" [ "$(git log -1 --format=%s)" = "archive $idt" ]
 
 run "start refuses an empty criterion" 1 "b-001's 'How to confirm' is empty" "$WB" start b-001
 check "the refusal cut no branch" [ -z "$(git branch --list 'b-001-*')" ]
@@ -242,7 +243,6 @@ run "status no longer marks it started" 0 "b-001-crash-on-save +open$" "$WB" sta
 run "status lists a merged item still open as a fault" 0 "b-001-crash-on-save +merged as [0-9a-f]+" bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
 
 run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "archived b-001" "$WB" archive b-01
-git add -A && git commit -qm 'archive b-001'
 
 # Line caps on the four documents: a 'cap:' line per file over, none under.
 # Padding is appended to copies of the real files and undone after.
@@ -526,7 +526,6 @@ newc bug "notghost" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-notghost && echo w > work.txt && git add -A && git commit -qm w )
 set_status .worktrees/b-003-notghost/workbench/items/bugs/b-003-notghost.md unreproduced
 run "archive refuses to retire a branch with work" 1 "carries work beyond the item file" "$WB" archive b-003
-git add -A && git commit -qm "settle the archive above"
 
 # retire overwrites main's copy, so a main-side edit since the cut is refused
 # rather than lost
@@ -537,7 +536,6 @@ run "archive refuses to retire over a main copy that moved" 1 "main's copy of $i
 check "main's copy still holds its edit" grep -qx kept "workbench/items/bugs/$idr-retire-guard.md"
 git checkout -q HEAD~1 -- "workbench/items/bugs/$idr-retire-guard.md" && git commit -qm 'main back' -- "workbench/items/bugs/$idr-retire-guard.md"
 run "archive retires once main's copy is back" 0 "retired $idr-retire-guard" "$WB" archive "$idr"
-git add -A && git commit -qm "archive $idr"
 
 # The squash is not transactional: cleanup after the commit can fail, and the
 # commit is already on main when it does. Refused before the commit where the
@@ -582,7 +580,6 @@ git branch -qD "$idb-bogus-status"
 run "archive reads a branch-only item when the worktree is gone" 0 "retired $ido-old-model" "$WB" archive "$ido"
 check "the archived copy is the branch's" grep -q '^status: unreproduced' "workbench/items/archive/$ido-old-model.md"
 check "the archive left no temp file behind" [ "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)" -eq "$before" ]
-git add -A && git commit -qm "archive $ido"
 
 # duplicate ids
 cp workbench/items/archive/b-002-ghost.md workbench/items/bugs/b-002-again.md
@@ -651,7 +648,7 @@ check "merge prints nothing of git's own on success" [ "$(grep -c 'Automatic mer
 fill_evidence workbench/items/bugs/b-001-one.md "run" "ok"
 idy=$(newc bug "sibling"); "$WB" start "$idy" >/dev/null 2>&1
 check "setup: the sibling inherited b-001's merged copy" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
-run "archive from a sibling worktree archives main's copy" 0 "git -C $PWD add" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
+run "archive from a sibling worktree archives main's copy" 0 "archived b-001" bash -c "cd .worktrees/$idy-sibling && '$WB' archive b-001"
 check "main's copy is in the archive" [ -f workbench/items/archive/b-001-one.md ]
 check "the sibling's copy is untouched" [ -f ".worktrees/$idy-sibling/workbench/items/bugs/b-001-one.md" ]
 run "status does not list the sibling's stale copy of an archived item" 0 "" bash -c "! '$WB' status | grep -q b-001-one"
@@ -789,7 +786,6 @@ set_status "workbench/items/bugs/$uid-unattended.md" 'unverified — the next de
 run "archive refuses a provisional status" 1 "was entered unattended; confirm it by deleting the '\(agent\)' marker" "$WB" archive "$uid"
 set_status "workbench/items/bugs/$uid-unattended.md" 'unverified — the next deploy'
 run "archive takes it once confirmed" 0 "archived $uid" "$WB" archive "$uid"
-git add -A && git commit -qm "archive $uid"
 
 # --- round: the review dialog's accountant ------------------------------------
 # Round 2 always runs; after that the count decides, and the cap parks it.
@@ -814,7 +810,7 @@ new_repo drop
 # an unproved item naming the path, older than the abandoned one below
 idu=$(newc bug "unproved"); printf '\nsee src/realm.ts\n' >> "workbench/items/bugs/$idu-unproved.md"
 set_status "workbench/items/bugs/$idu-unproved.md" 'unverified — a third party'
-"$WB" archive "$idu" >/dev/null 2>&1; git add -A && git commit -qm "archive $idu"
+"$WB" archive "$idu" >/dev/null 2>&1
 # never started: on main only
 idn=$(newc feature "never started"); fn=workbench/items/features/$idn-never-started.md
 set_status "$fn" abandoned
@@ -822,7 +818,6 @@ run "archive refuses abandoned without a why" 1 "'abandoned' must say why" "$WB"
 set_status "$fn" 'abandoned — superseded by the realm rewrite'
 run "archive takes an abandoned item never started" 0 "archived $idn at none" "$WB" archive "$idn"
 check "it records no commit" grep -qx 'commit: none' "workbench/items/archive/$idn-never-started.md"
-git add -A && git commit -qm "archive $idn"
 # started, with half-built work on the branch
 idh=$(newc feature "half built"); "$WB" start "$idh" >/dev/null 2>&1
 wt=.worktrees/$idh-half-built; fh=$wt/workbench/items/features/$idh-half-built.md
@@ -842,12 +837,11 @@ check "--discard names the committed work" grep -q half.txt <<< "$out"
 check "--discard names the uncommitted scratch" grep -q scratch.txt <<< "$out"
 check "the worktree and branch are gone" bash -c "[ ! -e '$wt' ] && [ -z \"\$(git branch --list '$idh-half-built')\" ]"
 check "the archived copy carries the why" grep -q '^status: abandoned — not worth finishing' "workbench/items/archive/$idh-half-built.md"
-git add -A && git commit -qm "archive $idh"
 # --discard stays refused where nothing is ever dropped
 idg=$(newc bug "ghost"); "$WB" start "$idg" >/dev/null 2>&1
 set_status ".worktrees/$idg-ghost/workbench/items/bugs/$idg-ghost.md" unreproduced
 run "--discard is refused for an unreproduced bug" 1 "for abandoned items" "$WB" archive "$idg" --discard
-"$WB" archive "$idg" >/dev/null 2>&1; git add -A && git commit -qm "archive $idg"
+"$WB" archive "$idg" >/dev/null 2>&1
 # shipped work is not abandoned
 ids=$(newc bug "shipped"); "$WB" start "$ids" >/dev/null 2>&1
 ( cd ".worktrees/$ids-shipped" && echo s > s.txt && git add -A && git commit -qm s ); ready ".worktrees/$ids-shipped"
