@@ -15,7 +15,7 @@ y() {
   rm -f -- "$tmp"
 }
 
-# --- Cheatsheets — focus existing window or launch in chromium app mode ---
+# --- Cheatsheets — focus existing window or launch in browser app mode ---
 _cheat() {
   local name="$1" title="$2"
   # Repo root via the ~/.zshrc-workstation symlink (→ <dotfiles>/workstation/zsh/…)
@@ -26,12 +26,17 @@ _cheat() {
       | grep -q "\"name\": \"$title\""; then
     swaymsg "[title=\"$title\"] focus" >/dev/null
   else
-    nohup chromium \
+    local browser
+    browser="$(_chrome_bin)" || {
+      echo "cheat: no chrome/chromium browser found" >&2
+      return 1
+    }
+    # &! backgrounds and disowns in one step, so no "[1] <pid>" job line
+    nohup "$browser" \
       --app="file://${dotfiles_dir}/workstation/cheatsheets/$name/index.html" \
-      --user-data-dir="${XDG_RUNTIME_DIR:-/tmp}/chromium-cheat-$name" \
+      --user-data-dir="${XDG_RUNTIME_DIR:-/tmp}/chrome-cheat-$name" \
       --no-first-run --no-default-browser-check \
-      >/dev/null 2>&1 &
-    disown
+      >/dev/null 2>&1 &!
   fi
 }
 alias cheat='_cheat tools "Tools cheatsheet"'
