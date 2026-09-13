@@ -129,7 +129,7 @@ new_repo trunk
 git checkout -q -b trunk && git branch -q -D main
 run "init on a trunk repo completes" 0 "workbench ready" "$WB" init
 run "init on a trunk repo reports the branch unresolved" 0 "default branch    UNRESOLVED" "$WB" init
-run "status on a trunk repo completes" 0 "merged, still open" "$WB" status
+run "status on a trunk repo completes" 0 "nothing in flight" "$WB" status
 rm -rf "$TMP/nocommit"; mkdir -p "$TMP/nocommit"; cd "$TMP/nocommit"; git init -q -b main
 run "init on a repo with no commit completes" 0 "UNRESOLVED" "$WB" init
 
@@ -283,7 +283,7 @@ check "no check call asserts only its first condition" \
 idl=$(newc feature "later")          # unstarted, in main
 "$WB" start "$idl" >/dev/null 2>&1
 set_status ".worktrees/$idl-later/workbench/items/features/$idl-later.md" "awaiting — next deploy"
-run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p' | grep -q '(none)'"
+run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "! '$WB' status | grep -q 'merged, still awaiting a trigger'"
 ( cd ".worktrees/$idl-later" && git add -A && git commit -qm later )
 "$WB" merge "$idl" "later" >/dev/null 2>&1
 run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"

@@ -1867,7 +1867,10 @@ status_lines() {
 }
 
 cmd_status() {
-  local dirs=()
+  local dirs=() said=0
+  # A blank line between blocks, none before the first: a session start reads
+  # the output as it comes.
+  sep() { [ "$said" -eq 0 ] || echo; said=1; }
   require_init
   # The SessionStart hook also fires on compaction, which drops every invoked
   # skill body and path rule; say so first. Stdin is read only when something
@@ -1875,8 +1878,8 @@ cmd_status() {
   if [ ! -t 0 ] && read -t 0 -r _ 2>/dev/null; then
     read_hook_input
     if [ "$h_source" = compact ]; then
+      sep
       echo "compaction dropped the workbench skill body and every .claude/rules file from this context; invoke the workbench skill before the next step"
-      echo
     fi
   fi
   # Every checkout: an item on a sibling worktree's branch is in flight too.
@@ -1889,51 +1892,36 @@ cmd_status() {
   local alert
   alert=$(cap_alert)
   if [ -n "$alert" ]; then
+    sep
     echo "$alert"
-    echo
   fi
   # Per clone: a fresh clone has none.
   if [ -z "$(git config --get workbench.premerge 2>/dev/null || true)" ]; then
+    sep
     echo "premerge: unset — merges run no project check in this clone; git config workbench.premerge \"<the project's test or gate command>\""
-    echo
-  fi
-  echo "open items"
-  if [ "${#names[@]}" -eq 0 ]; then
-    echo "  (none)"
-  else
-    for name in "${names[@]}"; do status_lines "$name" "${dirs[@]}"; done
   fi
 
-  echo
-  echo "branches"
-  git branch --format='  %(refname:short)' | grep -E '^  [bf]-[0-9]+-' \
-    || echo "  (none)"
+  # The in-flight sections, each printed only with lines under it.
+  local open_body='' branch_body='' await_body='' limbo_body='' f
+  open_body=$(for name in "${names[@]}"; do status_lines "$name" "${dirs[@]}"; done)
+  branch_body=$(git branch --format='  %(refname:short)' | grep -E '^  [bf]-[0-9]+-' || true)
 
   # Merged and open: invisible to 'git branch'. Merged means on the default
-  # branch, so main's copies are read.
-  echo
-  echo "merged, still awaiting a trigger"
+  # branch, so main's copies are read. 'awaiting' is chosen before merge, so
+  # an item still on its branch carries it too; that one is in flight and
+  # listed above, not merged.
   local hits=()
-  # 'awaiting' is chosen before merge, so an item still on its branch carries
-  # it too; that one is in flight and listed above, not merged.
   mapfile -t hits < <(awaiting_on_main)
-  if [ "${#hits[@]}" -eq 0 ]; then
-    echo "  (none)"
-  else
-    local f
-    for f in "${hits[@]}"; do
-      printf '  %-34s %s\n' "$(basename "$f" .md)" "$(item_status "$f")"
-    done
-  fi
+  await_body=$(for f in "${hits[@]}"; do
+    printf '  %-34s %s\n' "$(basename "$f" .md)" "$(item_status "$f")"
+  done)
 
   # Merged and still 'open', with no branch: an item that merged with its
   # criterion unrun and never said so.
-  echo
-  echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"
-  local mainr mainb mid limbo=0
+  local mainr mainb mid
   mainr=$(main_root)
   mainb=$(default_branch 2>/dev/null) || mainb=""
-  if [ -n "$mainb" ]; then
+  [ -z "$mainb" ] || limbo_body=$(
     for name in "${names[@]}"; do
       mid=$(item_id "$name")
       [ -n "$mid" ] || continue
@@ -1950,10 +1938,16 @@ cmd_status() {
         unreproduced*|abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
         *) printf '  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
       esac
-      limbo=1
     done
+  )
+
+  if [ -z "$open_body$branch_body$await_body$limbo_body" ]; then
+    sep; echo "nothing in flight"
   fi
-  [ "$limbo" -eq 1 ] || echo "  (none)"
+  [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body"; }
+  [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body"; }
+  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger"; printf '%s\n' "$await_body"; }
+  [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body"; }
 
   # Provisional decisions, from the copy that is the item.
   local prov=() pf pl
@@ -1966,7 +1960,7 @@ cmd_status() {
     done < <(without_fences "$pf" | grep -E '^status:.*\(agent\)' | sed 's/[[:space:]]*$//' || true)
   done
   if [ "${#prov[@]}" -gt 0 ]; then
-    echo
+    sep
     echo "provisional decisions (agent) — confirm by deleting the marker, or overrule in the item"
     printf '  %s\n' "${prov[@]}"
   fi
@@ -1982,7 +1976,7 @@ cmd_status() {
     done < <(open_decisions_of "$pf")
   done
   if [ "${#dec[@]}" -gt 0 ]; then
-    echo
+    sep
     echo "decisions waiting on the user — answer in the item, then delete the line"
     printf '  %s\n' "${dec[@]}"
   fi
@@ -1991,7 +1985,7 @@ cmd_status() {
   local calls
   calls=$(open_calls)
   if [ -n "$calls" ] && [ "$calls" -gt 0 ]; then
-    echo
+    sep
     echo "calls waiting on the user — $WB/DECISIONS.md"
     grep '^- ' "$mainr/$WB/DECISIONS.md" | sed 's/^- /  /'
   fi
@@ -2003,7 +1997,7 @@ cmd_status() {
     | sed 's|.*/||' | sort -u \
     | sed -n 's|^\([bf]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
   if [ -n "$dupes" ]; then
-    echo
+    sep
     echo "DUPLICATE IDS — see references/git.md for repair"
     printf '%s\n' "$dupes" | sed 's/^/  /'
   fi
@@ -2014,12 +2008,12 @@ cmd_status() {
   stale=$(awk -F '\t' '$2 != "edited" { printf "%s ", $1 }' <<< "$drift")
   edited=$(awk -F '\t' '$2 == "edited" { printf "%s ", $1 }' <<< "$drift")
   if [ -n "${stale// /}" ]; then
-    echo
+    sep
     echo "skills behind their source — run 'workbench init', then commit .claude/"
     echo "  $stale"
   fi
   if [ -n "${edited// /}" ]; then
-    echo
+    sep
     echo "skills edited by hand under .claude/skills/ — move the edit into the source; 'workbench init --force' overwrites"
     echo "  $edited"
   fi
@@ -2027,7 +2021,7 @@ cmd_status() {
   local agents
   agents=$(agent_drift | awk -F '\t' '{ printf "%s ", $1 }')
   if [ -n "${agents// /}" ]; then
-    echo
+    sep
     echo "agents differ from their source — run 'workbench init', then commit .claude/"
     echo "  $agents"
   fi
@@ -2038,7 +2032,7 @@ cmd_status() {
   case "$mem" in
     "$(main_root)/.claude/memory" | "") ;;
     */.claude/memory)
-      echo
+      sep
       echo "memory: autoMemoryDirectory points at $mem, not this checkout's .claude/memory — the setting was written for a clone at another path; override it here in .claude/settings.local.json"
       ;;
   esac
