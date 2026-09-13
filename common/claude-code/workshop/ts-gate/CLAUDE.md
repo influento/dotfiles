@@ -24,7 +24,7 @@ and for wb-reviewer.
 
 Install refuses outside git. Then:
 
-- `ts-gate/`: this file, `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not the installers, `rules/`, `biome.template.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry`, and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
+- `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry`, and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
 - Dependencies by lockfile (`typescript` included); the test plugin by runner (vitest also gets the test step in the gate; jest the plugin only).
 - The npm scripts above.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone. For a project's own, install prints what to merge: the eslint block (until merged, knip flags `ts-gate/eslint.gate.mjs` and two plugins unused), the `setupFiles` and live-tier `exclude` lines for vitest; a project's own biome config is what the gate formats with.

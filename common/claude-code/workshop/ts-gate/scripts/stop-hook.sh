@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code Stop hook: blocks while gate:local is red, capped at three
-# identical failures (policy: ts-gate/CLAUDE.md, Stop hook). The count lives
+# identical failures (policy: CLAUDE.md in the ts-gate source, Stop hook). The count lives
 # outside the tree, per session.
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0

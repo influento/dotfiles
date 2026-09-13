@@ -2,7 +2,7 @@
 // correctness subset of recommendedTypeChecked, and the inline `gate/*`
 // plugin. Cherry-picked on purpose: the rest of recommendedTypeChecked is not
 // here, and mixing all of it in is what makes day one unsurvivable. Tiers,
-// switches and the measured evidence: ts-gate/CLAUDE.md, Rules.
+// switches and the measured evidence: CLAUDE.md in the ts-gate source, Rules.
 //
 // Usage in your eslint.config.mjs:
 //   import gate from "./ts-gate/eslint.gate.mjs";

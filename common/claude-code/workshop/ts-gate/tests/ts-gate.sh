@@ -114,7 +114,7 @@ check "guards name the gate and tsc" bash -c "git config workbench.guards | grep
 git add -A && git commit -qm "ts-gate: install"
 
 echo "== the installer, the rules and the tests stay in the source (S2); a copy left by an older install refuses to run (A1)"
-for f in install.sh uninstall.sh biome.template.json rules tests; do check "ts-gate/$f is not copied into the project" test ! -e "ts-gate/$f"; done
+for f in install.sh uninstall.sh biome.template.json rules tests CLAUDE.md; do check "ts-gate/$f is not copied into the project" test ! -e "ts-gate/$f"; done
 check "the rules landed in .claude/rules" test -f .claude/rules/ts-lean-code.md
 cp "$SRC/install.sh" ts-gate/install.sh
 run "the project copy refuses to run" 1 "dotfiles source" bash ts-gate/install.sh .

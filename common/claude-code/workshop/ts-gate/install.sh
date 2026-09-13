@@ -24,7 +24,7 @@ node -e 'process.exit(require("./package.json").engines?.node?0:1)' || echo "WAR
 #    replaced on a re-run, except what the project put in: knip.json's ignore
 #    lists and entry are merged back, and .dependency-cruiser.cjs (the
 #    architecture record) is kept once it exists.
-SHIP="CLAUDE.md .dependency-cruiser.cjs eslint.gate.mjs eslint-line.mjs knip.json no-network.mjs vitest.live.mjs scripts"
+SHIP=".dependency-cruiser.cjs eslint.gate.mjs eslint-line.mjs knip.json no-network.mjs vitest.live.mjs scripts"
 KNIP_KEEP=""
 [ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[],entry:j.entry})')
 DC_KEEP=""
