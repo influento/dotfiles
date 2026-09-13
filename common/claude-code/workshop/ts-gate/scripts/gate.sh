@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # TS gate.
-#   gate.sh [base-ref]   CI: files changed vs base-ref (default: the default branch)
+#   gate.sh              CI: files changed since the default branch
 #   gate.sh --local      branch work since the default branch plus the working tree, untracked included
 #   gate.sh --list       the files --local would check, one per line, nothing else
 set -uo pipefail
@@ -26,7 +26,7 @@ if [ -n "$LOCAL" ]; then
   mapfile -t CHANGED < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; untracked; } | sort -u)
   mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' || true)
 else
-  RANGE="${MODE:-$(default_branch)}...HEAD"
+  RANGE="$(default_branch)...HEAD"
   mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.ts' '*.tsx' | grep -vE '\.d\.ts$')
 fi
 list_added() { { git diff --name-only --diff-filter=A "$RANGE"; untracked; } | sort -u; }

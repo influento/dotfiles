@@ -127,7 +127,7 @@ echo "== gate in CI mode on a branch that changes no .ts file (A3)"
 git checkout -qb cfg
 sed -i 's/"es2024"/"ES9999"/' tsconfig.json && git commit -qam "break tsconfig"
 : > "$LOG"
-run "gate main...HEAD still runs" 0 "" bash ts-gate/scripts/gate.sh main
+run "gate in CI mode still runs" 0 "" bash ts-gate/scripts/gate.sh
 check "tsc ran repo-wide" called tsc
 check "knip ran" called knip
 check "depcruise ran" called depcruise
@@ -145,7 +145,7 @@ git checkout -qb docs && echo x > README.md && git add README.md && git commit -
 run "gate --local on a docs-only branch exits fast" 0 "no TS" bash ts-gate/scripts/gate.sh --local
 check "nothing ran for docs" [ ! -s "$LOG" ]
 : > "$LOG"
-run "gate in CI mode on a docs-only branch runs the repo-wide tools" 0 "" bash ts-gate/scripts/gate.sh main
+run "gate in CI mode on a docs-only branch runs the repo-wide tools" 0 "" bash ts-gate/scripts/gate.sh
 check "tsc ran for CI on docs" called tsc
 git checkout -q main
 
