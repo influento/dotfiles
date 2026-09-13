@@ -1278,10 +1278,21 @@ default_branch() {
   printf '%s\n' "$b"
 }
 
-# Fences emptied: pasted output holds '## ' lines that would read as headings.
-# The fence lines stay, so a block is still seen.
+# The one reading of fences, for a file or '-' (stdin). A line starting with
+# ``` or ~~~, indented or not, opens or closes a block. Modes:
+#   strip   fenced content emptied, fence lines kept: pasted output holds
+#           '## ' lines that would read as headings, and a block is still seen
+#   closed  exits 1 when a block is left open
+#   any     exits 0 when a fence line is present
+fences() {
+  awk -v mode="$1" '
+    /^[[:space:]]*(```|~~~)/ { inside = !inside; seen = 1; if (mode == "strip") print; next }
+    mode == "strip" && !inside
+    END { if (mode == "closed") exit inside; if (mode == "any") exit !seen }' "$2"
+}
+
 without_fences() {
-  awk '/^[[:space:]]*(```|~~~)/ { inside = !inside; print; next } !inside' "$1"
+  fences strip "$1"
 }
 
 # HTML comments gone, both shapes; a section holding only the template's
@@ -1290,11 +1301,9 @@ strip_comments() {
   sed -e 's/<!--.*-->//' -e '/<!--/,/-->/d'
 }
 
-# Odd fence count: everything after the last fence is inside a block to every scan.
+# An open block: everything after its fence is inside it to every scan.
 closed_fences() {
-  local n
-  n=$(grep -cE '^[[:space:]]*(```|~~~)' "$1" || true)
-  [ $((n % 2)) -eq 0 ]
+  fences closed "$1"
 }
 
 require_closed_fences() {
@@ -1310,7 +1319,7 @@ section_body() {
 }
 
 has_evidence() {
-  grep -qE '^[[:space:]]*(```|~~~)' <<<"$(section_body "$1" Evidence)"
+  section_body "$1" Evidence | fences any -
 }
 
 # The '## ' headings a class may carry, in template order.
