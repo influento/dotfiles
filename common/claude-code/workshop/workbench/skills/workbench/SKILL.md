@@ -5,9 +5,9 @@ description: Run project work as tracked items — every feature and bug fix get
 
 # Workbench
 
-Work is tracked as **items**. An item states what will change and how anyone
-will know it worked, before the code exists. The reader of these items may not
-read code at all — items and command output are the only channel they have.
+Work is tracked as **items**: what will change and how anyone will know it
+worked, written before the code exists. The reader may not read code at all
+— items and command output are their only channel.
 
 ## The loop
 
@@ -25,122 +25,103 @@ idea (workbench/BACKLOG.md line)
 
 ## Hard rules
 
-1. **Domain work is an item.** Features and bug fixes always get one, however
-   small, once someone opens them; until then `/idea` is the user's deferral
-   ("Sizing"). Housekeeping that is not domain work — configs, agent
-   settings, tooling — gets none and may go straight to the main branch.
-   Which level a piece of work gets is "Sizing" below, the same way every
-   time.
+1. **Domain work is an item.** Every feature and bug fix, however small,
+   once someone opens it; until then `/idea` is the user's deferral
+   ("Sizing"). Housekeeping — configs, agent settings, tooling — gets none
+   and may go straight to the main branch.
 
 2. **The criterion is written before the code, and it is the contract.**
-   Evidence is matched against the criterion, never against a test. Run it
-   before writing anything: **a criterion that passes on the unchanged tree is
-   not a criterion.** The field holds commands and expected results and
-   nothing else: no rationale, no guard ("still does what it did", "behaviour
-   unchanged"), no typecheck or build step, no "by inspection". A criterion
-   the evidence cannot meet is recorded as **missed**, never reworded to fit.
-   Detail on [verification.md](references/verification.md).
-   **So is what works today and changes with it:** `## Side effects` names
-   every route, export, output or stored format that behaves differently
-   once the item lands, and who sees it — `none` when nothing that exists
-   changes. `start` refuses it empty; `merge` refuses an existing export or
-   route the branch rewrote that the section does not name. One found after
-   `start` is `workbench call <id> "side effect: …"`, never an edit of the
-   section: whether the change is acceptable is the user's.
+   Evidence is matched against it, never against a test. A criterion that
+   passes on the unchanged tree is not a criterion: run it first. The field
+   holds commands and expected results only — no rationale, no guard
+   ("still does what it did"), no typecheck or build, no "by inspection". A
+   criterion the evidence cannot meet is recorded as **missed**, never
+   reworded ([verification.md](references/verification.md)).
+   `## Side effects` is agreed with it: every route, export, output or
+   stored format that behaves differently once the item lands, and who sees
+   it, or `none`. `start` refuses it empty; `merge` refuses an existing
+   export or route the branch rewrote that it does not name. One found
+   after `start` is `workbench call <id> "side effect: …"`, never an edit
+   of the section: whether the change is acceptable is the user's.
 
-3. **Nothing is archived without verified evidence.** Merging is a separate
-   gate and asks only whether everything verifiable was verified, so an item may
-   ship while still open. Two statuses archive a statement of what was *not*
-   proved instead of pretending: `unreproduced`, and `unverified` for a criterion
-   only a third party can settle. A third, `abandoned — <why>`, archives a
-   decision: work the user dropped, never deleted. See
-   [statuses.md](references/statuses.md).
+3. **Nothing is archived without verified evidence.** Merge asks only
+   whether everything verifiable was verified, so an item may ship while
+   still open. `unreproduced` and `unverified — <trigger>` archive a
+   statement of what was not proved; `abandoned — <why>` archives a
+   decision: work the user dropped, never deleted
+   ([items.md](references/items.md)).
 
-4. **State the root cause before writing a fix.** The requirement exists to
-   force the investigation, not to produce a sentence.
+4. **State the root cause before writing a fix.**
 
-5. **A test may satisfy only what the criterion describes.** Never write a
-   script whose only purpose is to satisfy a criterion, and never test config,
-   wiring, or glue unless a criterion demanded it.
+5. **A test may satisfy only what the criterion describes.** No script
+   whose only purpose is to satisfy a criterion; no test of config, wiring
+   or glue unless a criterion demanded it.
 
-6. **Do not write documentation by default.** Code is the truth. Write only
-   what cannot be derived by reading the code. A discovered fact becomes code
-   or a comment at its call site, never a document and never an item line of
-   its own. See
-   [docs.md](references/docs.md). The standing
-   exception is `workbench/GLOSSARY.md`, which holds the project's domain
-   language and binds every item written — see
-   [glossary.md](references/glossary.md).
+6. **Do not write documentation by default.** Write only what cannot be
+   read from the code. A discovered fact becomes code or a comment at its
+   call site, never a document and never an item line of its own
+   ([docs.md](references/docs.md)). The standing exception is
+   `workbench/GLOSSARY.md`, the project's domain language, which binds
+   every item ([glossary.md](references/glossary.md)).
 
-7. **Deleting means deleting.** When removing content, leave no trace it
-   existed — no "formerly", no "removed in favour of", no inline changelog.
-   Git already stores it.
+7. **Deleting means deleting.** No "formerly", no "removed in favour of",
+   no inline changelog.
 
-8. **An item has the template's sections and no others.** No "For the
-   operator", no "Decisions this took", no "What this did not prove", no
-   dated appendix; `archive` refuses them. What did not get proved is one
-   line under Evidence. A question that is the user's goes under the item's
-   own `## Decisions` through `workbench call`, one line, and the reasoning
-   stays in the item; the answer goes into the field it changes and the line
-   is deleted, so the section holds open questions only. The fields hold
-   what the reader needs to judge the claim — a root cause, a criterion, its
-   output — and not the reasoning that produced the code; that is in the
-   code, or in the commit.
+8. **An item has the template's sections and no others.** `archive`
+   refuses any other heading. What was not proved is one line under
+   Evidence. A question that is the user's is one line under the item's
+   `## Decisions`, written by `workbench call`; the answer goes into the
+   field it changes and the line is deleted. The fields hold what the
+   reader needs to judge the claim — root cause, criterion, output — not
+   the reasoning behind the code; that is in the code or the commit.
 
 9. **Some decisions are the user's, and an absent user does not transfer
-   them.** "Unattended runs" below says what to do at each instead of
-   deciding.
+   them.** "Unattended runs" says what to do at each.
 
 10. **The project has no scratch folder.** A file that exists only for this
-    session — a probe, a capture, a diagram, a rendered page, a call stack —
-    goes to the scratchpad directory the environment names, outside the tree.
-    Nothing else is scratch: a fact worth keeping is a line
-    in the item's Evidence or a backlog entry, never a file of its own.
+    session — a probe, a capture, a rendered page — goes to the scratchpad
+    directory the environment names. A fact worth keeping is a line in the
+    item's Evidence or a backlog entry, never a file of its own.
 
 ## Setting up
 
 `workbench init` and `workbench adopt` end with a checklist headed
-`setup — decide these with the user`. That output is the list; take each line
-to the user, in conversation, before any item is created — none is yours to
-settle alone. Two rules the list does not carry:
-
-- permissions: propose the allow-list entries and write them only with the
-  user's OK
-- glossary: seed it with the user's words, never yours
+`setup — decide these with the user`. Take each line to the user before any
+item is created; none is yours to settle. Two more: allow-list entries are
+written only with the user's OK, and the glossary is seeded with the user's
+words, never yours.
 
 ## Unattended runs
 
-A session may run for hours with nobody answering. The loop does not change;
-what changes is what happens at a gate that is the user's:
+The loop does not change; what changes is what happens at a decision that
+is the user's:
 
-| Gate | Unattended, do this |
+| Decision | Unattended, do this |
 |---|---|
-| sizing needs confirming | take the item row when it fits; for anything else, `workbench call - "<question>"` and move to work that is describable |
-| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed — the reviewer reads it again |
+| sizing needs confirming | take the item row when it fits; anything else, `workbench call - "<question>"` and move to work that is describable |
+| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed |
 | a side effect the item does not name — `workbench effects <id>` lists one `unnamed`, or the work shows one | `workbench call <id> "side effect: <what changes, for whom> — accept?"` and go on; never add it to `## Side effects` yourself |
-| merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` yourself, and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
-| a parked call would unblock work | it stays parked. Do other work; do not "resolve" it by doing more work under a new item, and do not reverse it because two later items made it look moot |
-| the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
+| merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
+| a parked call would unblock work | it stays parked. Do other work; never resolve it by doing more work under a new item, never reverse it because later items made it look moot |
+| the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, never delete the item |
 | a question only the user can answer | `workbench call <id> "<the question, with options>"`, then move to work that is describable |
-| a permission not on the allow-list | a non-interactive session is refused it by Claude Code, and the refusal is what you see; park it with `workbench call`, never work around it |
+| a permission not on the allow-list | Claude Code refuses it and the refusal is what you see; park it with `workbench call`, never work around it |
 | review | the dialog, yourself — "The review loop" below |
 
-`(agent)` is what the user greps for when they return: every provisional
-decision, in the file that holds it, and `workbench status` lists every
-open `## Decisions` line beside it. The user confirms by deleting the
-marker, or overrules by editing the item. A question tied to no item
-(`workbench call -`) is the one thing `workbench/DECISIONS.md` still holds.
-Nothing else records that a decision was provisional — not the backlog,
-not a memory entry.
+`(agent)` marks every provisional decision, in the file that holds it, and
+`workbench status` lists each with its open `## Decisions` line. The user
+confirms by deleting the marker, or overrules by editing the item. A
+question tied to no item (`workbench call -`) goes to
+`workbench/DECISIONS.md`. Nothing else records that a decision was
+provisional — not the backlog, not memory.
 
 ## Commands
 
-`/bug`, `/feature`, `/idea` and `/wb` are thin instructions —
-the sizing check, the command to run, the fields to draft — so the rules
-stay here. Skills, agents and settings are copies, committed with the
-project, so every worktree and clone has them. `workbench status` says when
-a copy is behind its source; `workbench init` refreshes it, and never edit
-the copy itself.
+`/bug`, `/feature`, `/idea` and `/wb` are thin — the sizing check, the
+command, the fields — so the rules stay here. Skills, agents and settings
+are committed copies, in every worktree and clone. `workbench status` says
+when a copy is behind its source; `workbench init` refreshes it; never edit
+the copy.
 
 ## Starting work
 
@@ -151,19 +132,16 @@ workbench effects b-038                # existing exports and routes the branch 
 workbench merge b-038 "<subject>"      # after the review dialog: squash, trailer, cleanup
 ```
 
-IDs are allocated from a counter shared by every worktree, so any worktree may
-create an item; the file lands in the main checkout wherever `new` runs.
-Never hand-pick an ID. `new` commits on the default branch, so the main
-checkout must have it checked out. Between `new` and `start` the item is
-edited on main; after `start`, only in its worktree — `merge` and `archive`
-refuse if main's copy of a started item moved.
+IDs come from a counter shared by every worktree; never hand-pick one.
+`new` commits on the default branch, so the main checkout must have it
+checked out; the file lands there wherever `new` runs. Between `new` and
+`start` the item is edited on main; after `start`, only in its worktree —
+`merge` and `archive` refuse if main's copy of a started item moved.
 
 ## Sizing — the same call every time
 
-Which level a piece of work gets is settled by one question: **how well can
-it be described right now?** Name the row and let the user confirm. The row
-decides — not the size of the work, and not tidiness — because past
-decisions are relied on.
+One question: **how well can it be described right now?** Name the row; the
+user confirms. Not the size of the work, not tidiness.
 
 | It can be described as | It is | Lives as |
 |---|---|---|
@@ -171,40 +149,34 @@ decisions are relied on.
 | an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | a feature item whose criterion is the question it answers and whose evidence is the answer; what it decides becomes items or `BACKLOG.md` lines, and the spike's branch merges only what is describable by then |
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
-Read the rows from the item down: whatever fits the item row is an item
-("Domain work is an item"). The idea row is never the agent's proposal for
-something item-shaped — "crash on save" is a bug; it is the user's deferral,
-reached only by the user saying so: `/idea`, or "backlog it".
+Whatever fits the item row is an item. The idea row is never the agent's
+proposal for something item-shaped — "crash on save" is a bug; it is the
+user's deferral, reached only by `/idea` or "backlog it".
 
-**One item or several.** Draft the whole criteria list first, then ask of
-each entry: *could this go green and merge while the others are still red?*
+**One item or several.** Draft the whole criteria list, then ask of each
+entry: *could this go green and merge while the others are still red?*
 
 | Answer | Shape |
 |---|---|
 | no entry could | one item, however long the list — one behaviour checked from several angles |
 | one or more could | several items, one per slice, each with its own short list |
 
-An item that could ship in halves costs a long-lived branch, one giant squash
-and a review that must hold everything at once; two items that only
-make sense together cannot each satisfy a criterion. One rule applied to N
-files — every driver reports itself, every table moves under `src/` — is one
-item with one criterion over the set, not N items proving one sentence each,
-and not one item now and its twin twenty minutes later. The exception is a
-mechanical change whose blast radius cannot land green on one branch: an
-expand item (the new form beside the old), one migrate item per batch the
-radius allows, and a contract item that deletes the old form — except a
+One rule applied to N files — every driver reports itself — is one item
+with one criterion over the set, not N items and not one item now and its
+twin later. The exception is a mechanical change that cannot land green on
+one branch: an expand item (the new form beside the old), one migrate item
+per batch, and a contract item that deletes the old form — except a
 vocabulary rename, which stays one commit
-([glossary.md](references/glossary.md)). Backlog lines are raw
-material: any number may fold into one item and one may split, and nothing
-records which lines fed which.
+([glossary.md](references/glossary.md)). Backlog lines are raw material:
+any number may fold into one item, one may split, and nothing records
+which fed which.
 
 ## What is in flight
 
-`workbench status` answers it: open items, items merged and still
-`awaiting` a trigger, items merged and still `open` — a fault, see
-"Unattended runs" — decisions waiting in items and in `DECISIONS.md`,
-documents over their line cap, and any duplicate IDs. Run it rather than reconstructing the answer
-from `git branch`, which cannot see the merged ones.
+`workbench status`: open items, merged and still `awaiting`, merged and
+still `open` (a fault — "Unattended runs"), decisions waiting in items and
+in `DECISIONS.md`, documents over their line cap, duplicate IDs. `git
+branch` cannot see the merged ones.
 
 ## The review loop
 
@@ -216,27 +188,24 @@ review dialog                         a wb-reviewer spawned with the Agent tool,
   workbench round <id> <fixed> <stands>   again → a new reviewer · merge → workbench merge · call → park it
 ```
 
-The dialog is where judgement is argued: the reviewer keeps its context
-across the exchange, and a finding that stands gets one line under Evidence
-saying why. A finding is shown, not read — the reviewer ran something on the
-branch and the output is wrong — and one the worker cannot reproduce from
-that demonstration is withdrawn; a bug nobody can show is nothing to fix,
-here as at archive (`unreproduced`). Round two always runs; `round` decides
-the rest by count and records `rounds:` on the item, and at the fifth round
-parks it: `workbench call <id>` with the standing finding, and the merge is
-the user's. A finding outside the item's criterion and the mechanism it
-changed is `workbench new bug`, or a `BACKLOG.md` line when it is an idea,
-never a fix on this branch; a shared function is fixed once, not per caller.
-No finding is dropped silently.
+The reviewer keeps its context across the exchange; a finding that stands
+gets one line under Evidence saying why. A finding is shown, not read — the
+reviewer ran something on the branch and the output is wrong — and one the
+worker cannot reproduce from that demonstration is withdrawn, as at archive
+(`unreproduced`). Round two always runs; `round` decides the rest by count,
+records `rounds:` on the item, and at the fifth round parks it: `workbench
+call <id>` with the standing finding, and the merge is the user's. A
+finding outside the item's criterion and the mechanism it changed is
+`workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix
+on this branch; a shared function is fixed once, not per caller. No finding
+is dropped silently.
 
 ## By class
 
 | Class | Reference |
 |---|---|
-| feature, bug — fields, states, IDs, archiving | [items.md](references/items.md) |
-| statuses, abandoning, what merge and archive ask | [statuses.md](references/statuses.md) |
+| feature, bug — fields, states, statuses, archiving, what merge and archive ask | [items.md](references/items.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
 | what to document and where | [docs.md](references/docs.md) |
 | branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |
-| why the workflow is shaped this way, when a rule looks arbitrary | [rationale.md](references/rationale.md) |
