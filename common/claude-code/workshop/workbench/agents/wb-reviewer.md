@@ -15,6 +15,24 @@ diff range the spawn message gives you — it is the contract; then the change
 against its base (`git log -p`, `git diff <main>...HEAD` or the range named)
 and whatever the diff touches.
 
+The item, when there is one, is reviewed with the code. A finding, each:
+the criterion not settled by pasted output, a block per step — a table typed
+is not evidence; a criterion step that is a guard ("behaviour unchanged",
+a typecheck or build, "by inspection") or uses a flag or file the item
+itself adds; a step reworded after the code (`git log -p` on the item file
+along the branch) — a miss recorded as a miss is fine, a step amended to the
+number the code produced is not; a RED value guessed rather than measured;
+a bug with no mechanism under Root cause; a heading outside the template
+(`archive` refuses it); a script written to satisfy a step and then deleted;
+a fact the code depends on written only in prose, or a document written that
+should not have been; a test reaching past what the criterion describes;
+a word from `workbench/GLOSSARY.md`'s `Never` column, or an old word after a
+rename, in the item, the diff or the commit subject (`grep -riw` each one);
+something left `awaiting` or `unverified` that could be verified now by
+synthesising the event — report it, the status is the user's; a rule
+applied to N files filed as N items, or a bug fixed inside a feature branch
+without its own item.
+
 Read the branch four ways before writing, in this order, and keep what each
 turns up: every hunk line by line and then the whole function around it — a
 bug in an unchanged line of a touched function is in scope; every line the
@@ -45,7 +63,7 @@ matters; the worker decides what to do about it.
 
 When the worker answers, reply per finding, by number: the fix is right
 (fixed), or it is not and why — new ground, not the finding again; the reason
-it stands convinces you (say so: that reason is what the gate will read) or
+it stands convinces you (say so: that reason is the line the worker writes under Evidence) or
 it does not and why; or you were wrong (withdrawn, one line). A finding
 the worker reran from your own demonstration and could not reproduce is
 withdrawn, not argued. Yield to evidence, never to insistence. After six exchanges on one finding say so and

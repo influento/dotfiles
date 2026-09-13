@@ -45,7 +45,7 @@ const stackHas = (root, name) => {
 
 // The words a workbench glossary rejects (`| Use | Never | Because |` rows in
 // workbench/GLOSSARY.md), so a rejected word cannot become an identifier. The
-// pre-merge review greps the same column over prose and the diff; this catches
+// wb-reviewer greps the same column over prose and the diff; this catches
 // the identifier at the stop that writes it. Substring match on what this
 // code declares (`id-match`, a negative lookahead): a rejected `account`
 // catches `accountId`, `getAccount` and `ACCOUNT_ID`, which is what a worker

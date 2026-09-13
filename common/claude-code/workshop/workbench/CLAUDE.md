@@ -13,15 +13,14 @@ before changing anything here.
 | Path        | What it is                                                                               |
 | ----------- | ---------------------------------------------------------------------------------------- |
 | `bin/`      | the CLI                                                                                  |
-| `skills/`   | `workbench` and `workbench-review` — each dir is named exactly as the skill it renders to |
-| `agents/`   | `wb-worker`, `wb-reviewer`, `wb-gate` — listed in `WB_AGENTS`, not globbed                |
+| `skills/`   | `workbench` — the dir is named exactly as the skill it renders to                         |
+| `agents/`   | `wb-worker`, `wb-reviewer` — listed in `WB_AGENTS`, not globbed                           |
 | `commands/` | `/bug /feature /idea /wb` — thin skills too, one per typed command                        |
 | `tests/`    | end-to-end loop plus failure paths, in a temp repo                                       |
 
 ## What `init` puts in a project
 
-The `workbench` / `workbench-review` skills and the `/bug /feature /idea /wb`
-commands, as committed copies under `.claude/skills/` — copies, not links, so
+The `workbench` skill and the `/bug /feature /idea /wb` commands, as committed copies under `.claude/skills/` — copies, not links, so
 worktrees and other clones carry them — each stamped with source + copy
 hashes; `status` flags stale and hand-edited ones, `init --force` overwrites
 the latter. The `agents/` definitions go to `.claude/agents/` the same way,
@@ -34,12 +33,13 @@ its source", and `init` overwrites it either way. Which agents exist is
 in the same directory is never touched.
 
 It also merges into the project's `.claude/settings.json`: the `SessionStart`
-hook that runs `status`, the allow rules, and `autoMemoryDirectory` (memory
+hook that runs `status`, the `Bash(workbench:*)` allow rule, and `autoMemoryDirectory` (memory
 tracked in the tree). The signal and gate hooks and the status line an older
 init wired are removed on the next `init`.
 
 `status` prints a `cap:` line per document over its line cap (`CAP_*`,
-`git config workbench.cap.<name>` overrides) naming the `docs` review.
+`git config workbench.cap.<name>` overrides); `references/docs.md`, "Line
+caps", says what to cut.
 
 ## Extension points
 
@@ -61,8 +61,7 @@ adds a `sed` branch there.
 
 ## Adding files here
 
-`skill_sources` enumerates `skills/workbench/`, `skills/workbench-review/` and
-each `commands/<name>/`, and `skill_hash` covers everything under them. A file added
+`skill_sources` enumerates `skills/workbench/` and each `commands/<name>/`, and `skill_hash` covers everything under them. A file added
 inside one of those dirs ships into every project that runs `init` and marks
 every already-rendered copy stale. Maintainer-facing files (this one included)
 belong at the root of this tree instead.
@@ -71,7 +70,7 @@ belong at the root of this tree instead.
 
 Run from this directory (`common/claude-code/workshop/workbench/`):
 
-- Lint: `shellcheck -x bin/workbench skills/workbench-review/scripts/*.sh tests/*.sh`
+- Lint: `shellcheck -x bin/workbench tests/*.sh`
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for
   `workbench`, in a temp repo
 
@@ -85,17 +84,14 @@ Sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
   probed 2.1.252: `x-workbench: true` on a definition still loaded, and its
   `tools:` still applied. That is what `render_agents` reaps by.
 - An `--agent` definition's `skills:` does **not** restrict — probed 2.1.252:
-  an agent listing one skill invoked a second one anyway. `wb-worker` lists
-  `workbench-review` regardless, because the day the field starts
-  restricting is the day the gate stops running.
+  an agent listing one skill invoked a second one anyway.
 - `effort:` on an agent is honoured when the agent is spawned by the Agent
   tool and when a `context: fork` skill names it in `agent:` (probed
-  2.1.263), which is why `wb-reviewer` and `wb-gate` carry one.
+  2.1.263), which is why `wb-reviewer` carries one.
 - Subagents get the five-minute cache TTL whatever the plan; the main
   conversation gets an hour on a subscription within plan usage. The
   reviewer idles while the worker fixes, so `wb-reviewer` carries
-  `experimental: cacheTtl: 1h` (honoured from 2.1.248). The gate runs in one
-  sitting and keeps the default.
+  `experimental: cacheTtl: 1h` (honoured from 2.1.248).
 - A worktree under a trusted repo inherits that trust. An untrusted
   directory (`hasTrustDialogAccepted` unset in `~/.claude.json`) drops the
   `permissions.allow` rules of its `.claude/settings.json` (stderr says
@@ -107,9 +103,7 @@ Sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
   governs `Write` too; a `Write(<pattern>)` rule is accepted and ignored
   (probed 2.1.263). Relative patterns resolve from the project root.
 - A `#` comment inside a skill's or an agent's frontmatter never reaches the
-  model — probed 2.1.266. The maintainer notes in
-  `workbench-review/SKILL.md`'s frontmatter and `wb-gate.md` cost nothing at
-  runtime.
+  model — probed 2.1.266.
 - `.claude/rules/*.md` with a `paths:` glob loads into a subagent spawned with
   the Agent tool once it reads a matching file — probed 2.1.258, for
   `wb-reviewer` and `general-purpose`; the unscoped rules load regardless.
@@ -128,7 +122,7 @@ follow-up" section of the review that ran it; harness in that session's
 scratchpad. Arms: A one session, criterion in the prompt, "gate:local green,
 commit"; B = A plus one spawned `wb-reviewer` with the criterion and the diff
 range, findings answered by number; C = `new` → `start` → `claude -p --agent
-wb-worker` → `merge` by hand, no pre-merge fork.
+wb-worker` → `merge` by hand, no gate.
 
 | | A | B | C |
 |---|---|---|---|
@@ -148,3 +142,10 @@ worker 9/9, so seed a probe with what a worker will not test, not with what it
 will not read. Setup default since: `wb-reviewer` plus a criterion habit
 (`workshop-setup`); `init` when the project wants items, parked calls and an
 archive.
+
+Why there is no gate: a fresh-context check of the item against its
+evidence was user-only at first, so a twenty-hour unattended session merged
+forty-six times and it ran zero times; made a required step of `merge`, it
+found no code defect the dialog had not, blocked a correct item twice on the
+wording of its criterion, and came out after three runs. The dialog is the
+required read, and the item checks it made are the reviewer's.

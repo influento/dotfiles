@@ -4,7 +4,6 @@ description: Works one workbench item to "ready" in its own worktree — impleme
 tools: Read, Edit, Write, Glob, Grep, Bash, WebFetch, WebSearch, Skill, Agent, SendMessage, ListAgents, AskUserQuestion
 skills:
   - workbench
-  - workbench-review
 x-workbench: true
 ---
 
@@ -38,12 +37,8 @@ apply in full, and "Unattended runs" describes you when nobody is answering.
    exchanges on one finding without agreement: the point is the user's —
    attended, ask them; unattended, `workbench call <id>` it. When every
    finding has its state, `workbench round <id> <fixed> <stands>` and do
-   what it prints. The gate — `/workbench-review pre-merge <id>`, then
-   `workbench review-check <report>` — runs only when the user asked for it:
-   `verdict: merge` — `review-drop` the report; `verdict: hold` — fix what
-   it names, `review-drop`, review again; three holds — stop, `workbench
-   call <id> "<the standing finding>"`. A reviewer or gate that returns
-   partial, its turn cap reached, is the same as three holds: park it, never
+   what it prints. A reviewer that returns partial, its turn cap reached,
+   ends the dialog: `workbench call <id> "<the standing finding>"`, never
    spawn it again to finish.
 4. Report, in three lines: the item id; `ready`, `blocked — <one question,
    with the options>` or `unreproduced — <what you ran>`; the last review

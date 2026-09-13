@@ -94,11 +94,8 @@ It reads the item file **from the branch**, and refuses when that copy is
 missing, has an unclosed fence, carries a status that is not one, says
 `awaiting` or `unverified` without naming a trigger, or is `open` with no fenced
 block under `## Evidence`. Those are structural questions — is there evidence at
-all — not whether the evidence shows what it claims, which is the pre-merge
-review's question; see [statuses.md](statuses.md), "What each gate asks".
-
-A pre-merge report lives untracked in the worktree, so it counts as
-uncommitted there: `workbench review-drop` it after triage, before merging.
+all — not whether the evidence shows what it claims, which is the
+reviewer's question; see [statuses.md](statuses.md), "What each gate asks".
 
 Needs git 2.38 or later: the conflict check is `merge-tree --write-tree`. Also
 GNU coreutils, findutils and sed (`date -r`, `find -printf`, `chmod

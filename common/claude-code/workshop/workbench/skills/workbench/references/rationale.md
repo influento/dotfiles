@@ -47,8 +47,7 @@ whether or not the store is versioned.
 Two more legs — memory that is machine-local, and keyed to the checkout's
 path so a worktree gets a store of its own — `init` removes by putting the
 store in the tree; [docs.md](docs.md), "Repository documents or agent
-memory", says how. What that buys is sync and a diff. What it does not buy
-is review, which is why the `memory` sweep reason exists.
+memory", says how. What that buys is sync and a diff, not review.
 
 ## Why the commands are thin, and the copies committed
 
@@ -89,29 +88,6 @@ gets an item, since the requests that most need the rule are the ones that look
 like small favours. So the obligation sits in `CLAUDE.md`, which is always in
 context, and the detail stays here, loaded only once the rule has fired.
 
-## Why the pre-merge review is the user's to ask for
-
-The sweep was user-only at first, so that a review meant a person had asked
-for one. That held until a session ran twenty hours with nobody there: it
-merged forty-six times, and the gate that reads the item against its
-evidence fired zero times, because the one thing the agent could not do was
-start it. So the gate became a required step of `merge`, invocable by the
-agent, with `review-check` recording the branch commit it read.
-
-Three measured runs later it came out of the required path again: the fork
-found no code defect the review dialog had not, blocked a correct item twice
-on the wording of its criterion, and cost a rerun each time. What it catches
-that the dialog does not — a criterion reworded after the code, a RED
-asserted rather than measured — is what a person reads for when they open
-an item, so the fork stays as the sweep to ask for, not the toll every merge
-pays. The dialog is the required read: a reviewer that runs the code and
-argues, then `round`, which records the exchange on the item.
-
-The fork is a fresh context by construction — `context: fork` starts the
-subagent with the skill's text and none of the conversation — and the
-baseline is taken by the skill's preprocessed block before the fork's first
-turn, so the proof that the sweep changed nothing holds whoever started it.
-
 ## Why an absent user's decisions are marked rather than made
 
 The statuses `awaiting` and `unverified`, a parked call — each is the user's because it is a claim about what
@@ -126,67 +102,6 @@ the decision is made in the one form the tools read — the status line — and
 marked as provisional in the same place, with the open question beside it
 in the item and listed by `workbench status` on return. Confirming is deleting the marker. The backlog goes back to being
 ideas, and nothing that is a question is written as a paragraph.
-
-## Why the sweep's contract is not enforced by a hook
-
-"Write exactly one file" reads like something a `PreToolUse` hook should hold,
-rejecting any path outside `workbench/reviews/`. Skill-scoped hooks do not fire
-inside a forked context, and the sweep is a fork by design, so the hook would
-never run. Declaring one would be worse than declaring nothing: the contract
-would read as enforced while nothing checked it.
-
-The tool set narrows the fork instead — no `Edit`, no subagents, no web. It
-is the `wb-gate` agent's `tools:` that does this, not the skill's
-`allowed-tools`: a fork takes its agent's tool set and nothing else, while
-`allowed-tools` only pre-approves what is listed and removes nothing (both
-probed on Claude Code 2.1.248, not taken from the docs). `Bash` has to stay
-so the sweep can build, test and grep, and `Bash` can write through a
-redirect. So the tool set removes the
-convenient path and nothing more. The paths the contract allows are the
-other half: `init` merges `Edit(workbench/reviews/**)` and
-`Edit(workbench/scratch/**)` into `permissions.allow`, because a fork takes
-the permission mode of the session that opened it, and under `dontAsk` a
-`Write` with no rule is refused — the sweep then falls back to a `Bash`
-redirect, two turns later, and the tool set has bounded nothing. An allow
-rule is honoured there, and it is the `Edit(...)` form that governs `Write`:
-a `Write(...)` rule is accepted and ignored (both probed 2.1.263). So the
-gate's `Write` lands whatever mode the session runs in. `workbench review-check` is the only thing
-that actually proves the contract held, which is why it is run on every
-returned report rather than only on a suspicious one.
-
-It can prove it because the baseline predates the fork's first turn: the
-skill's preprocessed block records the tree — status plus content hashes, since
-mid-item the tree is normally dirty and a modified file keeps the same status
-line when modified again, plus `HEAD`, since on a clean tree an edit that is
-then committed leaves all of those exactly as they were — and only then writes
-the skeleton. The one permitted delta is the report appearing.
-
-What it cannot prove is that the sweep did the work. The fork's reads happen in
-tools whose calls never touch the tree, so there is nothing to record. Two
-checks stand where the proof would: every `path:line` the report cites must
-exist, because the one mistake a sweep that read nothing cannot avoid is
-pointing at a place that is not there; and every file in a path scope must be
-named in the report, or its directory, because coverage that is stated can be
-wrong but coverage that is absent cannot even be questioned. The manifest is
-written into the skeleton and recorded in the baseline, and the check runs over
-the report with its comments stripped — what the sweep wrote, not what it was
-handed. A sweep that names every file without opening one still passes.
-
-The citation check reads the whole report, pasted command output included.
-Real output cites places outside the tree — a host and port, a stack frame
-under `/usr` — and those are skipped by their shape, never by where they sit.
-Real output also cites bare basenames, which is why a slashless token
-resolves against every file of that name and the sweep gets the benefit of
-the doubt when several match; and why a slashless name with an extension no
-tree file carries reads as a host rather than a fabrication. Both rules are
-decided from the tree — `git ls-files` — never from anything the report says
-about itself.
-Exempting a region of the report, a fenced block say, looks like the obvious
-relief the first time a report fails on a stack trace; it is not, because
-the sweep writes every byte of the report, so any region it can mark exempt is
-a region it can hide a bogus citation in. Provenance would be the real
-distinction, and the check has no access to it. When a new legitimate shape
-turns up, extend the skip list by shape.
 
 ## Why retrieval is keyed to files and capped
 
@@ -217,29 +132,3 @@ proposes the backlog for something item-shaped, and the user reaches it by
 saying so: `/idea` is that signal, and it takes the sentence in the user's
 words without argument. Deferral is an act of the user, not a level the
 agent assigns.
-
-## Why the review dialog is a subagent and the gate a fork
-
-They answer different questions. The dialog asks whether the code is good,
-which is argued: a reviewer that remembers what it said, that can be shown
-evidence and yield, or hold and say why. So it is spawned with the `Agent`
-tool — a fresh context that never sees the worker's reasoning — and kept by
-its id across the exchange. The gate asks whether the item is what it claims,
-which is checked, not argued: criterion met by pasted output, no step
-reworded, template only. A fresh fork each time, that never sees the
-previous report, and a worker that fixes or asks. Merging the two would make
-the gate persuadable, and the record of what was once persuaded away is what
-`review-check` and `rounds:` exist to keep.
-
-Round two always runs, a clean first round included. The dialog is the only
-reading of the code for defects — the gate reads the item against its
-evidence and template, and the code only for what the item promised — and a
-clean round is one reviewer's
-opinion of a branch it saw once; the second reviewer reads the branch the
-first round changed, or confirms that a clean one really was. It is also the
-cheapest context in the loop: an agent restricted to `Read`, `Glob`, `Grep`
-and `Bash` opens on a short definition and the diff, against a gate that
-opens on the whole sweep skill and its rules and reads everything again.
-Dropping it would save cents and remove the only independent second read
-before the gate.
-

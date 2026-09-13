@@ -56,6 +56,6 @@ This is the one place the status rules live; the other references link here.
 
 | Gate | Asks | Passes with |
 |---|---|---|
-| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the review dialog's question, and the gate's when the user asks for it; the command checks that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen before merge — by the user, or by the agent with ` (agent)` when nobody is there |
+| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the review dialog's question; the command checks that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen before merge — by the user, or by the agent with ` (agent)` when nobody is there |
 | archive (`workbench archive`) | has the criterion been satisfied? — the command checks that a fenced block sits under Evidence itself, that the status is one of the five, and that no heading outside the template is present; not what the evidence shows | `open` with evidence recorded; `unreproduced`, `unverified` and `abandoned` without |
 

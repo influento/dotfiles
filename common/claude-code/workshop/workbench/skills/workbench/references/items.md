@@ -103,7 +103,7 @@ the shape; size decides nothing.
 Until `workbench start`, every field is editable, on main's copy: a bug that
 turns out to be deeper than first written has its item updated to match.
 `start` freezes the criterion — it is the contract the evidence is matched
-against, and the reviewer and the gate hold a step reworded after the code
+against, and the reviewer holds a step reworded after the code
 ([verification.md](verification.md)) — and **Side effects** with it: what
 works today and changes is agreed before the code, `none` included. What
 changes on the branch after that is root cause, evidence and status; a miss

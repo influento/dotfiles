@@ -36,8 +36,8 @@ Evidence beside the criterion, never in the criterion field. An item whose only
 check is a guard has no contract.
 
 **A criterion the evidence cannot meet is missed, not amended.** Record the
-miss under Evidence with the number it reached, and let the pre-merge review
-decide whether the item ships with it. Rewriting the criterion to the number
+miss under Evidence with the number it reached, and let the reviewer, then
+the user, decide whether the item ships with it. Rewriting the criterion to the number
 the code produced is the criterion-after-code the whole rule exists to
 prevent, and a criterion "corrected before the evidence was run" because it
 was never run RED is the same thing a step earlier.

@@ -147,6 +147,6 @@ the one nested `CLAUDE.md` covering the area, or nothing.
 
 ## Documentation ships with the work
 
-Any document written goes in the same change as the code. The pre-merge review
+Any document written goes in the same change as the code. The reviewer
 checks the decision in both directions: something written that should not have
 been, and a fact the code depends on that is written nowhere the code can reach.

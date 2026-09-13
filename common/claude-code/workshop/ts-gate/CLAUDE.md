@@ -68,7 +68,7 @@ become an identifier at the stop that writes it — `accountId`, `getAccount`
 and `ACCOUNT_ID` for a rejected `account` (a worker writes those, never the
 bare word: measured three of three, 2026-09-13). Reads of a property another
 module owns (`stripe.account`) and strings are not checked; test names and
-prose stay with the pre-merge grep. Workbench knows nothing of ts-gate.
+prose stay with wb-reviewer's grep. Workbench knows nothing of ts-gate.
 
 ## Project requirements
 

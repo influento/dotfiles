@@ -1,6 +1,6 @@
 ---
 name: workbench
-description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, deciding whether work is one item or several, running the review dialog or a docs sweep, deciding whether something needs documentation, or preparing work for merge.
+description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, deciding whether work is one item or several, running the review dialog, deciding whether something needs documentation, or preparing work for merge.
 ---
 
 # Workbench
@@ -94,8 +94,7 @@ idea (workbench/BACKLOG.md line)
 10. **The project has no scratch folder.** A file that exists only for this
     session — a probe, a capture, a diagram, a rendered page, a call stack —
     goes to the scratchpad directory the environment names, outside the tree.
-    A review sweep's probes go under `workbench/scratch/<report>/` and leave
-    with the report. Nothing else is scratch: a fact worth keeping is a line
+    Nothing else is scratch: a fact worth keeping is a line
     in the item's Evidence or a backlog entry, never a file of its own.
 
 ## Setting up
@@ -124,7 +123,7 @@ what changes is what happens at a gate that is the user's:
 | the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, and never delete the item |
 | a question only the user can answer | `workbench call <id> "<the question, with options>"`, then move to work that is describable |
 | a permission not on the allow-list | a non-interactive session is refused it by Claude Code, and the refusal is what you see; park it with `workbench call`, never work around it |
-| review | the dialog, yourself — "The review loop" below — then triage as "Review sweeps" says; the gate only when the user asked for one |
+| review | the dialog, yourself — "The review loop" below |
 
 `(agent)` is what the user greps for when they return: every provisional
 decision, in the file that holds it, and `workbench status` lists every
@@ -222,40 +221,6 @@ records which lines fed which.
 documents over their line cap, and any duplicate IDs. Run it rather than reconstructing the answer
 from `git branch`, which cannot see the merged ones.
 
-## Review sweeps
-
-`/workbench-review <reason> ["scope"]` runs a sweep in a forked context —
-a fresh one, with none of this conversation in it — and returns the report
-path. Two reasons:
-
-| Reason | When |
-|---|---|
-| `pre-merge <id>` | the gate: the item against its evidence and template, read in fresh context. The user asks for it; `workbench merge` does not require it. `review-check` counts its holds, and at three the merge is the user's call |
-| `docs` | `workbench status` printed a `cap:` line — scoped to the file named; a document is past its line cap and the review says what to cut ([docs.md](references/docs.md), "Line caps") — or the user asks for an audit |
-
-Never started because the code looks like it needs one.
-
-The fork writes the report, and scratch under `workbench/scratch/` that git
-never sees — nothing tracked. When it returns with the path, prove that before
-reading the findings:
-
-```bash
-workbench review-check <report-path>
-```
-
-A failure names what went wrong; say so and do not triage until the user has
-seen it. A pass proves the contract held, never that the work was done.
-
-**Triage.** With the user when there is one. Without one, each finding gets
-exactly one of: fixed inside the item before merge, when it is within the
-item's criterion or is the same mechanism the item already changed — the
-function's twin in the same file, the caller the fix broke — because a
-shared function is fixed once, not per caller; `workbench
-new bug` when it is outside both; a `BACKLOG.md`
-line when it is an idea; or a one-line reason in the item's Evidence why it
-stands. No finding is dropped silently, and a finding that says the criterion
-is not met stops the merge. Then `workbench review-drop`.
-
 ## The review loop
 
 Every item — the work is done, then:
@@ -264,8 +229,6 @@ Every item — the work is done, then:
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
   findings → answered by number → each ends fixed / stands / withdrawn
   workbench round <id> <fixed> <stands>   again → a new reviewer · merge → workbench merge · call → park it
-/workbench-review pre-merge <id>      only when the user asks for the gate: a fresh wb-gate fork
-workbench review-check <report>       merge → review-drop, then merge; hold → fix on the branch, review-drop, review again
 ```
 
 The dialog is where judgement is argued: the reviewer keeps its context
@@ -274,13 +237,12 @@ saying why. A finding is shown, not read — the reviewer ran something on the
 branch and the output is wrong — and one the worker cannot reproduce from
 that demonstration is withdrawn; a bug nobody can show is nothing to fix,
 here as at archive (`unreproduced`). Round two always runs; `round` decides
-the rest by count and records `rounds:` on the item, which the gate reads
-when it runs. The gate is not argued with: it checks the item against its
-evidence and the template (`rules/pre-merge.md`), reads the code only for
-vocabulary, tests and documentation, never sees the worker's context or the
-last report, and holds only on what must change. Three holds and the work
-stops: `workbench call <id>` with the standing finding, and the merge is the
-user's.
+the rest by count and records `rounds:` on the item, and at the fifth round
+parks it: `workbench call <id>` with the standing finding, and the merge is
+the user's. A finding outside the item's criterion and the mechanism it
+changed is `workbench new bug`, or a `BACKLOG.md` line when it is an idea,
+never a fix on this branch; a shared function is fixed once, not per caller.
+No finding is dropped silently.
 
 ## By class
 
@@ -290,7 +252,6 @@ user's.
 | statuses, abandoning, what merge and archive ask | [statuses.md](references/statuses.md) |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
-| review sweeps, reports, triage | [reviews.md](references/reviews.md) |
 | what to document and where | [docs.md](references/docs.md) |
 | branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |
 | why the workflow is shaped this way, when a rule looks arbitrary | [rationale.md](references/rationale.md) |

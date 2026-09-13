@@ -104,7 +104,7 @@ a justification per occurrence.
 ## Binding
 
 The glossary binds prose — items, commit subjects, documents — and code
-identifiers. Inconsistent vocabulary in an item is a pre-merge review finding.
+identifiers. Inconsistent vocabulary in an item is a review finding.
 
 Because it binds code, a rename obliges the symbols to move with it, which is
 exactly why the rename is its own item with its own criterion instead of being
@@ -128,6 +128,6 @@ alias records only a rename, so a rejection has no home without this table:
 One row per rejection, written in the same commit as the item that first
 used the chosen word, as a new term is. `Because` names what the rejected
 word already means here, or is empty when it means nothing and was merely
-the second word for one thing. The pre-merge gate greps every `Never` word
+the second word for one thing. The reviewer greps every `Never` word
 over the item and the diff, so a row makes the check mechanical where it
 was judgment.

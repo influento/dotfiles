@@ -20,15 +20,13 @@ WB=workbench
 WB_COMMANDS="bug feature idea wb"
 # The agent definitions, one .md each under agents/. Named here rather than
 # globbed for the reason agent_sources() gives.
-WB_AGENTS="wb-worker wb-reviewer wb-gate"
+WB_AGENTS="wb-worker wb-reviewer"
 MARK_START='<!-- workbench:start -->'
 MARK_END='<!-- workbench:end -->'
 # One obvious sentence, one question: the caps that keep BACKLOG.md and
 # DECISIONS.md from becoming the place long prose goes when nobody is reading.
 IDEA_MAX=200
 CALL_MAX=300
-# Pre-merge rounds before the worker stops and asks.
-REVIEW_HOLDS=3
 # Line caps on the documents every session reads: root CLAUDE.md and the
 # three under workbench/. Over one, 'status' names it and the docs review
 # that cuts it. 'git config workbench.cap.<claude|glossary|backlog|decisions>'
@@ -63,12 +61,8 @@ usage:
                                        (workbench.guards: regex of steps start refuses as guards)
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what an abandoned branch carries
-  workbench status                     in flight, duplicate ids, reports, documents over their line caps
-  workbench review-check <report>      prove a sweep changed nothing tracked; a pre-merge's hold is counted
-  workbench review-drop [--force] <report>  delete a report, its baseline and scratch
-  workbench review <reason> [scope]    open a report; run by the sweep skill, not by hand
+  workbench status                     in flight, duplicate ids, documents over their line caps
 
-  reasons: pre-merge, docs
   state lives under workbench/
 EOF
   exit "${1:-2}"
@@ -300,8 +294,8 @@ ensure_gitignore() {
 }
 
 # The skill sources, in the dotfiles tree beside this script: the workflow
-# itself; the sweep, a separate skill so it can be forked fresh; and
-# one thin user-only skill per command, so '/bug <title>' is a thing to type.
+# itself and one thin user-only skill per command, so '/bug <title>' is a
+# thing to type.
 # The source directories, one per line. Each is named exactly as the skill it
 # renders to — the directory name is the name Claude Code loads — so nothing
 # here maps one to the other, and a renamed directory is a renamed skill.
@@ -309,7 +303,7 @@ skill_sources() {
   local base name
   base=$(readlink -f "$(wb_root)") || true
   [ -n "$base" ] && [ -d "$base" ] || die "workbench source not found at $(wb_root)"
-  printf '%s\n' "$base/skills/workbench" "$base/skills/workbench-review"
+  printf '%s\n' "$base/skills/workbench"
   for name in $WB_COMMANDS; do printf '%s\n' "$base/commands/$name"; done
 }
 
@@ -556,7 +550,7 @@ ensure_settings() {
   root=$(repo_root)
   f="$root/.claude/settings.json"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)', 'Edit(workbench/reviews/**)', 'Edit(workbench/scratch/**)', and a SessionStart hook running 'command -v workbench >/dev/null && workbench status || true'"
+    echo "  python3 not found; add to .claude/settings.json by hand: permissions.allow 'Bash(workbench:*)' and a SessionStart hook running 'command -v workbench >/dev/null && workbench status || true'"
     return 0
   fi
   mkdir -p "$root/.claude"
@@ -594,13 +588,7 @@ allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
 if not isinstance(allow, list):
     print("  permissions.allow is not a list in .claude/settings.json; left alone")
 else:
-    # The sweep's two paths, so the gate's Write lands whatever permission
-    # mode the session that forked it runs in — a fork under dontAsk honours
-    # an allow rule and nothing else. The rule is Edit(...): that form
-    # governs every file-writing tool, and a Write(...) rule is accepted
-    # and ignored (probed 2.1.263). references/rationale.md, "Why the
-    # sweep's contract is not enforced by a hook".
-    for rule in ("Bash(workbench:*)", "Edit(workbench/reviews/**)", "Edit(workbench/scratch/**)"):
+    for rule in ("Bash(workbench:*)",):
         if rule not in allow:
             allow.append(rule)
             changed.append("permissions.allow += " + rule)
@@ -699,7 +687,7 @@ cmd_init() {
   [ "$root" = "$mainr" ] \
     || die "init writes tracked files that are committed on the default branch; run it in the main checkout: cd $mainr && workbench init"
 
-  for d in items/bugs items/features items/archive reviews; do
+  for d in items/bugs items/features items/archive; do
     mkdir -p "$root/$WB/$d"
     [ -e "$root/$WB/$d/.gitkeep" ] || touch "$root/$WB/$d/.gitkeep"
   done
@@ -718,15 +706,13 @@ cmd_init() {
   setup_checklist
 }
 
-# What has to be decided with the user rather than scaffolded. Printed so the
-# agent running init has the list in front of it and takes each point to the
-# user; the skill says how.
+# What has to be decided with the user rather than scaffolded; the skill
+# takes each line to the user.
 setup_checklist() {
-  local root main
+  local root main premerge guards
   root=$(repo_root)
   echo
   echo "setup — decide these with the user:"
-
   if main=$(git config --get workbench.main 2>/dev/null) && [ -n "$main" ]; then
     echo "  default branch    $main (git config workbench.main)"
   elif main=$(default_branch 2>/dev/null); then
@@ -734,36 +720,24 @@ setup_checklist() {
   else
     echo "  default branch    UNRESOLVED — set 'git config workbench.main <branch>' before the first merge"
   fi
-
-  if grep -qs 'Bash(workbench:\*)' "$root/.claude/settings.json"; then
-    echo "  permissions       .claude/settings.json allows Bash(workbench:*), written now; sweeps run other commands through Bash and prompt for each unless allowed there too, or run in auto mode"
-  else
-    echo "  permissions       .claude/settings.json lacks Bash(workbench:*) — add it by hand; sweeps prompt for every Bash command unless allowed there, or run in auto mode"
-  fi
-
-  echo "  commands          /bug /feature /idea /wb are rendered under .claude/skills/, project-scoped; each tells the agent what to run"
-  echo "  session           .claude/settings.json runs 'workbench status' at session start and allows Bash(workbench:*) — the user may strike either. The allow rule covers 'archive --discard' and 'review-drop --force' too, so those run without a prompt; the skills have the agent confirm with the user first"
-  local premerge
   premerge=$(git config --get workbench.premerge 2>/dev/null || true)
   if [ -n "$premerge" ]; then
-    echo "  premerge          '$premerge' (git config workbench.premerge) runs in the branch's worktree before every squash; non-zero refuses the merge"
+    echo "  premerge          '$premerge' runs in the branch's worktree before every squash; non-zero refuses the merge"
   else
-    echo "  premerge          optional — 'git config workbench.premerge \"<command>\"' (tests, a lint gate) runs in the branch's worktree before every squash and refuses the merge on non-zero: the project's own tools, beside the review"
+    echo "  premerge          unset — 'git config workbench.premerge \"<command>\"' (tests, a lint gate) runs in the branch's worktree before every squash; non-zero refuses the merge. Per clone"
   fi
-  local guards
   guards=$(git config --get workbench.guards 2>/dev/null || true)
   if [ -n "$guards" ]; then
-    echo "  guards            '$guards' (git config workbench.guards): criterion steps matching it are refused at start as guards, with the built-in 'by inspection' and 'behaviour unchanged'"
+    echo "  guards            '$guards' — a criterion step matching it is refused at start, with the built-in 'by inspection' and 'behaviour unchanged'"
   else
-    echo "  guards            optional — 'git config workbench.guards \"<regex>\"' names the project's own tool runs (its gate, lint, typecheck, build) so a criterion step that only says one exits 0 is refused at start; the tool that installs those commands sets it"
+    echo "  guards            unset — 'git config workbench.guards \"<regex>\"' names the tool runs (gate, lint, typecheck, build) a criterion step may not consist of; the tool that installs them sets it"
   fi
   if [ -n "$(memory_dir_setting)" ]; then
-    echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~ ('status' warns in one laid out differently; .claude/settings.local.json overrides there); its edits land on the main checkout, commit them as housekeeping"
+    echo "  memory            autoMemoryDirectory points at .claude/memory/ in the tree: one store for every worktree, and for every clone at the same path under ~; its edits are unstaged housekeeping on main, commit them"
   else
-    echo "  memory            autoMemoryDirectory is unset (the project is not under ~, so init cannot write a portable path): set it by hand in .claude/settings.json to the absolute path of .claude/memory here, one store for every worktree; or leave memory where Claude Code keeps it"
+    echo "  memory            autoMemoryDirectory is unset (the project is not under ~): set it by hand in .claude/settings.json to the absolute path of .claude/memory, or leave memory where Claude Code keeps it"
   fi
-  echo "  commit            .claude/ with the rest: worktrees and other clones get the skills and settings from git, and 'workbench init' refreshes them when 'status' says they are stale"
-  echo "  glossary          $WB/GLOSSARY.md is empty; seed it with words this project uses in its own sense"
+  echo "  glossary          $WB/GLOSSARY.md is empty; seed it with the user's words for what this project means in its own sense"
 }
 
 cmd_adopt() {
@@ -1121,10 +1095,9 @@ cmd_start() {
     require_closed_fences "$id" "$path"
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
-    # The other half of rule 2: a step that passes on the unchanged tree is
-    # a guard — it proves the tools ran, not that the behaviour is there —
-    # and the pre-merge review rejects it once the code is written
-    # (rules/pre-merge.md). Refused here, while it is cheap to change.
+    # A step that passes on the unchanged tree is a guard — it proves the
+    # tools ran, not that the behaviour is there. Refused here, while it is
+    # cheap to change.
     local guard
     guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")" "$root")
     [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— a check that passes on the unchanged tree says the tools ran, not that the behaviour is there; name a command whose result differs when the feature is missing, then start"
@@ -1402,12 +1375,6 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
   if [ -n "$wt" ]; then
     dirt=$(git -C "$wt" status --porcelain --untracked-files=all)
     if [ -n "$dirt" ]; then
-      # A pre-merge report sits untracked in the worktree, so it is the usual
-      # dirt here — and it wants dropping, not committing.
-      if ! grep -qvE "^.. $WB/reviews/" <<<"$dirt"; then
-        die "$wt still holds a review report; triage it, then 'workbench review-drop' it before merging:
-$(printf '%s\n' "$dirt" | sed 's/^.. /  /')"
-      fi
       # The item file is the one edit a worker is likeliest to leave
       # uncommitted — evidence pasted, not yet committed — so name it rather
       # than say "changes".
@@ -1549,7 +1516,6 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   fi
   git -C "$root" branch -D --quiet "$branch" \
     || die "merged $id as $sha on $main, but the branch $branch could not be deleted; finish with 'git -C $root branch -D $branch'"
-  rm -f "$(git_common_dir)/review-holds/$id"
 
   echo "merged $id as $sha on $main"
   # The branch's copy of the item file overwrote main's in the squash, so
@@ -1797,8 +1763,7 @@ section_filled() {
 }
 
 # Criterion steps that check nothing: "by inspection", "behaviour unchanged".
-# The same list rules/pre-merge.md holds against the finished item; here it
-# stops the item before a branch is cut. Workbench knows no toolchain, so the
+# Workbench knows no toolchain, so the
 # steps that only prove a project's own tools ran — its gate, lint, typecheck
 # or build exiting 0 — come from 'git config workbench.guards', an extended
 # regex the tool that installs those commands sets beside workbench.premerge.
@@ -1986,8 +1951,7 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   echo "next: git -C $root add -A $WB/items && git -C $root commit -m 'archive $id'" >&2
 }
 
-# One line per document over its cap: the file, its length against the cap,
-# and the review that cuts it. Silent when every one is under. Caps are the
+# One line per document over its cap: the file and its length against the cap. Silent when every one is under. Caps are the
 # CAP_* defaults unless 'git config workbench.cap.<name>' says otherwise; a
 # value that is not a number falls back to the default rather than refusing.
 cap_alert() {
@@ -2002,7 +1966,7 @@ cap_alert() {
     n=$(git config --get "workbench.cap.$key" 2>/dev/null || true)
     case "$n" in ''|*[!0-9]*) ;; *) cap=$n ;; esac
     n=$(wc -l < "$mainr/$name")
-    [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — run /workbench-review docs\n' "$name" "$n" "$cap"
+    [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — cut it; docs.md, Line caps\n' "$name" "$n" "$cap"
   done
 }
 
@@ -2155,7 +2119,7 @@ cmd_round() {
   echo "rounds: $entries"
   case "$decision" in
     again) echo "next: review again — a new reviewer, round $((k + 1))" ;;
-    stop) echo "next: merge — workbench merge $id \"<subject>\"; /workbench-review pre-merge $id first when the user asks for the gate" ;;
+    stop) echo "next: merge — workbench merge $id \"<subject>\"" ;;
     call) echo "next: call — $ROUND_CAP rounds and still finding; workbench call $id with the standing findings, then report blocked" ;;
   esac
 }
@@ -2201,8 +2165,8 @@ cmd_call() {
     [ -f "$f" ] || write_decisions "$f"
     [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
     printf -- '- %s\n' "$line" >> "$f"
-    # Committed alone, like an item's start: the pre-merge gate reads git, and
-    # a call left unstaged on main is one it cannot see.
+    # Committed alone, like an item's start: the reviewer reads git, and a
+    # call left unstaged on main is one it cannot see.
     land_item "$f" "call parked"
     echo "$f"
     return 0
@@ -2437,7 +2401,7 @@ cmd_find() {
   fi
 }
 
-# --- reviews ----------------------------------------------------------------
+# --- status -----------------------------------------------------------------
 
 # In-flight work is branches plus items merged as 'awaiting', which have no
 # branch left. Both halves are needed; neither alone is the answer.
@@ -2546,14 +2510,14 @@ cmd_status() {
   git branch --format='  %(refname:short)' | grep -E '^  [bf]-[0-9]+-' \
     || echo "  (none)"
 
-  # Merged and open: invisible to 'git branch', so nothing but a grep or a
-  # sweep surfaces one whose trigger never fired. Merged means on the default
+  # Merged and open: invisible to 'git branch', so nothing but a grep
+  # surfaces one whose trigger never fired. Merged means on the default
   # branch, so main's copies are the ones read; a worktree's copy of one is
   # inherited from there.
   echo
   echo "merged, still awaiting a trigger"
   local hits=()
-  # 'awaiting' is chosen at pre-merge, so an item still on its branch carries
+  # 'awaiting' is chosen before merge, so an item still on its branch carries
   # it too; that one is in flight and listed above, not merged.
   mapfile -t hits < <(awaiting_on_main)
   if [ "${#hits[@]}" -eq 0 ]; then
@@ -2692,36 +2656,6 @@ cmd_status() {
       echo "memory: autoMemoryDirectory points at $mem, not this checkout's .claude/memory — the setting was written for a clone at another path; override it here in .claude/settings.local.json"
       ;;
   esac
-
-  # Reports are untracked and live per checkout; baselines live in the shared
-  # git directory. Classify each name over the union of both, from every
-  # worktree, so the labels hold from any checkout:
-  #   report + baseline  the sweep never returned (the invoker is blocked while
-  #                      one runs, so nobody sees this mid-sweep) — or
-  #                      review-check failed and left the baseline for a re-run
-  #   report only        checked, waiting for triage
-  #   baseline only      the report went without 'review-drop'
-  local reports=() name
-  mapfile -t reports < <({
-    wb_find reviews -maxdepth 1 -name '*.md' < <(all_roots) | sed 's|.*/||'
-    find "$(baseline_dir)" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | sed 's|.*/||'
-  } | sort -u)
-  if [ "${#reports[@]}" -gt 0 ]; then
-    echo
-    echo "reports"
-    for name in "${reports[@]}"; do
-      local has_report=0 has_base=0
-      [ -n "$(find_report "$name")" ] && has_report=1
-      [ -f "$(baseline_dir)/$name" ] && has_base=1
-      if [ "$has_report" -eq 1 ] && [ "$has_base" -eq 1 ]; then
-        printf '  %-40s unchecked — never returned, or review-check failed; inspect, then drop\n' "$name"
-      elif [ "$has_report" -eq 1 ]; then
-        printf '  %-40s awaiting triage\n' "$name"
-      else
-        printf '  %-40s stale marker — review-drop it\n' "$name"
-      fi
-    done
-  fi
 }
 
 # Item names in flight, over every checkout, once each — an item is in the
@@ -2772,140 +2706,10 @@ awaiting_on_main() {
 }
 
 # Every checkout of the repository, a removed-by-hand one included until it is
-# pruned; wb_dirs drops those. Reports are untracked and stay in the checkout
-# the sweep ran in, so unlike items — which wb_roots covers — a report can
-# sit in any worktree, and only the full list finds it.
+# pruned; wb_dirs drops those.
 all_roots() {
   git worktree list --porcelain | sed -n 's/^worktree //p'
 }
-
-# A report by bare name or path, searched over every checkout.
-find_report() {
-  wb_find reviews -maxdepth 1 -name "$(basename "$1")" -print -quit < <(all_roots)
-}
-
-# A report holds findings when something other than the heading, the date
-# line and HTML comments is present — structural,
-# like has_evidence, because the baseline predates the skeleton and so holds
-# no hash to compare against.
-has_findings() {
-  local body
-  body=$(strip_comments < "$1" \
-    | grep -v -e '^# ' -e '^date: ' -e '^checked: ') || true
-  grep -q '[^[:space:]]' <<<"$body"
-}
-
-# The one removal path for a report, at either end of its life: an orphan left
-# by a sweep that never returned, or a report whose triage is done. Deletes
-# whichever of the report and its baseline exist, so neither can be left behind
-# for the other to be forgotten about.
-cmd_review_drop() {
-  local report='' force='' name path base
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --force) force=--force ;;
-      -*) usage ;;
-      *) [ -z "$report" ] || usage; report="$1" ;;
-    esac
-    shift
-  done
-  [ -n "$report" ] || usage
-  require_init
-
-  name=$(basename "$report")
-  path=$(find_report "$name")
-  base="$(baseline_dir)/$name"
-  [ -n "$path" ] || [ -f "$base" ] || die "no report or baseline named '$name'"
-
-  # Triage leaves no mark on the report, so content alone cannot tell a triaged
-  # report from one nobody has read. The baseline can: review-check removes it
-  # on a clean pass, so while it exists the findings are unseen — or the check
-  # failed, and they are the findings of a sweep that tampered with the tree.
-  # Either way they do not vanish on a bare drop.
-  if [ -n "$path" ] && [ -f "$base" ] && has_findings "$path" && [ "$force" != "--force" ]; then
-    die "$name is unchecked and has findings; run review-check, or pass --force to discard them"
-  fi
-
-  # Scratch sits beside the report, in whichever checkout the sweep was rooted.
-  local root d
-  root=$(repo_root)
-  [ -z "$path" ] || root=${path%/"$WB"/reviews/*}
-  [ -n "$path" ] && rm -f "$path" && echo "deleted $path"
-  [ -f "$base" ] && rm -f "$base" && echo "deleted baseline for $name"
-  d=$(scratch_dir "$root" "$name")
-  [ -d "$d" ] && rm -rf "$d" && echo "deleted scratch for $name"
-  return 0
-}
-
-baseline_dir() {
-  printf '%s\n' "$(git_common_dir)/review-baseline"
-}
-
-# Where a sweep may write besides its report: helper scripts, captured output,
-# whatever investigation needs. The directory ignores itself, so it never
-# shows in the snapshot and needs no entry in the project's .gitignore.
-scratch_dir() {
-  printf '%s\n' "$1/$WB/scratch/$(basename "$2" .md)"
-}
-
-ensure_scratch() {
-  local d
-  d=$(scratch_dir "$1" "$2")
-  mkdir -p "$d"
-  [ -f "$d/../.gitignore" ] || printf '*\n' > "$d/../.gitignore"
-  printf '%s\n' "$d"
-}
-
-# 'git status --porcelain' reports status, not content: a file already showing
-# ' M' still shows ' M' after further edits, so porcelain alone cannot tell a
-# sweep's changes from the ones already in the tree. The snapshot therefore
-# carries content too — a hash of each modified tracked file's diff, and one
-# per untracked file — which is what makes the check hold on the dirty tree
-# it exists for, and name the file when it does not.
-# And HEAD itself: on a clean tree, an edit that is then committed leaves
-# status, diff and the untracked set exactly as they were, and only the
-# commit says anything happened. Same for a reset or an amend.
-#
-# Runs from the repository root, always. 'git status --porcelain' is
-# root-relative wherever it runs, but 'git ls-files --others' is scoped to the
-# current directory and prints paths relative to it — so an unpinned snapshot
-# would depend on where it was taken, and the two are taken in different places:
-# the baseline wherever the sweep stood, the check wherever the caller stands.
-#
-# Untracked files are listed one per line: porcelain otherwise collapses an
-# untracked directory to a single 'dir/' entry, so a report in a reviews/ that
-# holds nothing tracked would show as the directory rather than as itself.
-# The diff is git's own, uncoloured: an external diff may print mtimes.
-#
-# A memory sweep reads the agent's store, outside the tree, and the fork can
-# write there; so for that reason the store's files are hashed too, under
-# absolute paths, which no tree entry can be confused with.
-tree_snapshot() (
-  cd "${1:-$(repo_root)}" || die "cannot reach the repository root"
-  git status --porcelain --untracked-files=all | sed 's/^/S /'
-  if git rev-parse --verify -q HEAD >/dev/null; then
-    printf 'T %s\n' "$(git rev-parse HEAD)"
-    git diff HEAD --name-only -z \
-      | while IFS= read -r -d '' f; do
-          printf 'W %s %s\n' "$f" "$(git diff HEAD --no-ext-diff --no-color -- "$f" | sha256sum | cut -d' ' -f1)"
-        done
-  fi
-  git ls-files --others --exclude-standard -z \
-    | while IFS= read -r -d '' f; do
-        printf 'H %s %s\n' "$f" "$(sha256sum "$f" | cut -d' ' -f1)"
-      done
-  # Ignored by design — 'ensure_gitignore' keeps it that way — so both scans
-  # above look straight past it. It is also where the project's permission
-  # allow-list lives, so a sweep with Bash could widen what it is allowed to
-  # do and pass. Its own row type, because the refusal wants to say which
-  # file and why rather than read as a stray untracked write.
-  local s
-  while IFS= read -r s; do
-    [ -f "$s" ] || continue
-    printf 'P %s %s\n' "${s#"$PWD"/}" "$(sha256sum "$s" | cut -d' ' -f1)"
-  done < <(printf '%s\n' "$PWD/.claude/settings.local.json" \
-    "$(main_root)/.claude/settings.local.json" | awk '!seen[$0]++')
-)
 
 # Where Claude Code keeps this project's memory when a setting says so:
 # 'autoMemoryDirectory', local settings over project over user, absolute or
@@ -2924,518 +2728,6 @@ memory_dir_setting() {
   return 0
 }
 
-# Baseline the CLI recorded before the sweep's first turn, against the tree
-# now; the only acceptable delta is the report appearing. Why this and not a
-# hook or the tool set: references/rationale.md, "Why the sweep's contract is
-# not enforced by a hook".
-cmd_review_check() {
-  local report="${1:-}" name base root rel added removed
-  [ -n "$report" ] || usage
-  require_init
-
-  name=$(basename "$report")
-  base="$(baseline_dir)/$name"
-  [ -f "$base" ] || die "no baseline for '$name'; open the report with 'workbench review'"
-
-  # The report sits in the checkout the sweep ran in, which need not be the
-  # one the check runs from; the snapshot is taken there as the baseline was.
-  local found
-  found=$(find_report "$name")
-  [ -n "$found" ] || die "$WB/reviews/$name does not exist in any checkout; the sweep wrote no report"
-  root=${found%/"$WB"/reviews/*}
-  rel="$WB/reviews/$name"
-
-  # Every untracked file is hashed, twice per sweep; build output left
-  # unignored makes that a crawl. Said here, where a person is reading — the
-  # sweep's own open cannot warn, since its stdout is the report path alone.
-  local untracked
-  untracked=$(git -C "$root" ls-files --others --exclude-standard | wc -l)
-  [ "$untracked" -le "$SNAPSHOT_WARN" ] \
-    || echo "hashing $untracked untracked files; ignore build output to make this quick" >&2
-
-  # A skip-worktree (S) or assume-unchanged (the status letter in lowercase)
-  # bit takes a tracked file out of both 'git status' and 'git diff HEAD', so
-  # the snapshot cannot see it change at all: the file becomes an editable
-  # blind spot for the whole sweep. Nothing workbench does sets these, so a bit
-  # standing here is either the sweep's doing or a hand-set flag the reviewer
-  # has to clear before the proof means anything.
-  local hidden
-  hidden=$(git -C "$root" ls-files -v | grep -E '^([a-z]|S) ' | sed 's/^..//' || true)
-  [ -z "$hidden" ] || die "these files are hidden from git by a skip-worktree or assume-unchanged bit, so the review baseline cannot see them change; clear them with 'git update-index --no-skip-worktree --no-assume-unchanged <file>', then review again:
-$(printf '%s\n' "$hidden" | sed 's/^/  /')"
-
-  local now reason
-  reason=$(sed -n 's/^R //p' "$base")
-  now=$(tree_snapshot "$root" "$reason")
-  added=$(comm -13 <(grep -v -e '^M ' -e '^R ' "$base" | sort) <(printf '%s\n' "$now" | sort))
-  removed=$(comm -23 <(grep -v -e '^M ' -e '^R ' "$base" | sort) <(printf '%s\n' "$now" | sort))
-
-  # The report appearing is the whole permitted delta: its porcelain line, and
-  # its content hash. Everything else names something the sweep touched, and
-  # the first delta fails.
-  local bad=0 what
-  # A file clean at open and edited since gains both a status line and a diff
-  # hash; the status line names it, so its hash line stays quiet.
-  declare -A wadded=() sadded=() padded=()
-  while IFS= read -r line; do
-    case "$line" in
-      "S "*) sadded[${line:5}]=1 ;;
-      # A protected file that changed shows as both a removed and an added row;
-      # the added one carries the message, so the removal stays quiet.
-      "P "*) what=${line#P }; padded[${what% *}]=1 ;;
-    esac
-  done <<< "$added"
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-      "S ?? $rel") ;;
-      "H $rel "*) ;;
-      "W "*) what=${line#W }; what=${what% *}; wadded[$what]=1
-             [ -n "${sadded[$what]:-}" ] || { echo "the sweep changed: $what" >&2; bad=1; } ;;
-      "T "*) echo "the sweep moved HEAD to ${line#T }" >&2; bad=1 ;;
-      "H "*) echo "the sweep wrote: ${line#H }" >&2; bad=1 ;;
-      "P "*) what=${line#P }; what=${what% *}
-             echo "the sweep changed: $what — git ignores it, but it carries this project's permission allow-list and memory path. If an 'always allow' was answered during the review, the permissions moved under it: put it back, or review again." >&2; bad=1 ;;
-      "S ?? "*) echo "unexpected change: ${line#S }" >&2; bad=1 ;;  # its H line reports it
-      "S "*) echo "unexpected change: ${line#S }" >&2; bad=1 ;;
-      *) echo "unexpected change: $line" >&2; bad=1 ;;
-    esac
-  done <<< "$added"
-
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-      "T "*) ;;   # already reported by its replacement on the added side
-      "W "*) what=${line#W }; what=${what% *}
-             # a moved hash is reported by its replacement; a vanished one is a revert
-             [ -n "${wadded[$what]:-}" ] || { echo "the sweep reverted: $what" >&2; bad=1; } ;;
-      "S ?? "*) bad=1 ;;   # its H line reports it
-      "S "*) echo "the sweep reverted or staged: ${line#S }" >&2; bad=1 ;;
-      "H "*) what=${line#H }; echo "the sweep removed: ${what% *}" >&2; bad=1 ;;
-      "P "*) what=${line#P }; what=${what% *}
-             [ -z "${padded[$what]:-}" ] || continue
-             echo "the sweep removed: $what, which carries this project's permission allow-list and memory path" >&2; bad=1 ;;
-      *) echo "the sweep reverted or staged: $line" >&2; bad=1 ;;
-    esac
-  done <<< "$removed"
-
-  if [ "$bad" -ne 0 ]; then
-    die "the sweep modified the tree beyond its report. Inspect the changes above
-before triaging; the report may be reporting on code it edited. A file a build
-or test run left behind counts too: ignore it or delete it, then re-run."
-  fi
-
-  # Nothing here proves the sweep read anything. What it proves is that the
-  # evidence points at the tree as it stands — the one failure a sweep that
-  # read nothing cannot avoid is citing a place that is not there.
-  # The skeleton's own comments name every manifest file, so match against the
-  # report with its comments stripped — what the sweep wrote, not what it got.
-  local prose tok file line n
-  prose=$(mktemp)
-  strip_comments < "$root/$rel" > "$prose"
-
-  # Every file in the tree, once, for the slashless tokens below.
-  local index
-  index=$(git -C "$root" ls-files --cached --others --exclude-standard)
-
-  while IFS= read -r tok; do
-    [ -n "$tok" ] || continue
-    file=${tok%:*}; line=${tok##*:}
-    file=${file#./}
-    case "$file" in
-      */*)
-        if [ ! -f "$root/$file" ]; then
-          echo "cites $tok, and $file is not in the tree" >&2; bad=1
-        else
-          n=$(grep -c '' "$root/$file" || true)
-          [ "$line" -le "$n" ] || { echo "cites $tok, and $file has $n lines" >&2; bad=1; }
-        fi ;;
-      *)
-        # Test runners and compilers cite basenames — 'pos_test.go:42' — so a
-        # slashless token resolves against every file of that name, and passes
-        # when any of them reaches the line: this check is "cites nowhere",
-        # not "cites precisely". One that names no file is a host — 'db.internal:5432'
-        # — when nothing in the tree carries its extension, and a bogus
-        # citation otherwise. A dotless one — 'exit:1', 'localhost:5432' —
-        # has no extension to ask about, so it is a word unless a file of that
-        # name exists: 'Makefile:99' is checked when there is a Makefile and
-        # passes when there is none. Decided from the tree, never from the report.
-        local esc cands=() ok c
-        esc=$(printf '%s' "$file" | sed 's/[][\\.*+?(){}|^$]/\\&/g')
-        mapfile -t cands < <(printf '%s\n' "$index" | grep -E "(^|/)$esc\$" || true)
-        if [ "${#cands[@]}" -eq 0 ]; then
-          esc=$(printf '%s' "${file##*.}" | sed 's/[][\\.*+?(){}|^$]/\\&/g')
-          if [[ "$file" == *.* ]] && grep -qE "\\.$esc\$" <<<"$index"; then
-            echo "cites $tok, and no $file is in the tree" >&2; bad=1
-          fi
-        else
-          ok=0
-          for c in "${cands[@]}"; do
-            n=$(grep -c '' "$root/$c" || true)
-            [ "$line" -le "$n" ] && { ok=1; break; }
-          done
-          [ "$ok" -eq 1 ] || { echo "cites $tok, and no $file has $line lines" >&2; bad=1; }
-        fi ;;
-    esac
-  done < <(citations "$prose")
-
-  local missing=()
-  mapfile -t missing < <(uncovered "$prose" "$base")
-  rm -f "$prose"
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "in scope but never named in the report — unswept, or swept and unstated:" >&2
-    printf '  %s\n' "${missing[@]}" >&2
-    bad=1
-  fi
-
-  if [ "$bad" -ne 0 ]; then
-    die "the report does not hold up as written. Fix the citations or state the
-coverage, then re-run review-check; or review-drop --force to discard it."
-  fi
-
-  # A pre-merge ends in a verdict, and the verdict is what merge reads: a
-  # report without one is a review nobody finished, and the baseline stays so
-  # it can be finished and checked again.
-  local pid verdict=''
-  pid=$(printf '%s' "$name" | sed -n 's/^[0-9]*-pre-merge-\([bf]-[0-9]\{1,\}\)\(-.*\)\{0,1\}\(\.[0-9]*\)\{0,1\}\.md$/\1/p')
-  if [ -n "$pid" ]; then
-    # pre-merge.md asks for the verdict as the last line with nothing after it,
-    # and that is read literally here: the last non-blank line of the report,
-    # comments stripped. Taking the last *matching* line instead let a verdict
-    # sit under prose that qualifies or contradicts it, which is the one place
-    # merge cannot afford ambiguity — it reads this line and nothing else.
-    local tail_line stripped
-    tail_line=$(strip_comments < "$root/$rel" \
-      | grep -v '^[[:space:]]*$' | tail -1)
-    verdict=$(printf '%s' "$tail_line" | sed -n 's/^verdict: *//p')
-    case "$verdict" in
-      merge|merge\ *|hold\ *) ;;
-      "") stripped=$(strip_comments < "$root/$rel")
-          if grep -q '^verdict: ' <<<"$stripped"; then
-            die "$rel has a 'verdict:' line, but it must be the last line with nothing after it; move it to the end, then check again"
-          fi
-          die "$rel has no 'verdict:' line; a pre-merge ends with 'verdict: merge' or 'verdict: hold — <what must change>'" ;;
-      *) die "$rel says 'verdict: $verdict'; it is 'merge' or 'hold — <what must change>'" ;;
-    esac
-  fi
-
-  # Every report is checked once.
-  rm -f "$base"
-  echo "clean: $rel is the only change, its citations resolve, its scope is named"
-
-  # A passed pre-merge is what 'merge' asks for, and the report is dropped
-  # at triage, so the pass is recorded apart from it: the item id from the
-  # report's name, the branch commit the sweep read. A branch that moves
-  # after this is unreviewed again, which merge checks. A hold records
-  # nothing but a count: the worker fixes and reviews again, with a fresh
-  # reviewer, and at REVIEW_HOLDS holds it stops and asks.
-  if [ -n "$pid" ]; then
-    local pbranch holds
-    pbranch=$(local_branches "$root" "$pid" | head -1)
-    case "$verdict" in
-      merge*)
-        if [ -n "$pbranch" ]; then
-          rm -f "$(git_common_dir)/review-holds/$pid"
-          echo "verdict: merge for $pid at $(git -C "$root" rev-parse --short "$pbranch"); review-drop the report, then merge"
-        fi ;;
-      hold*)
-        mkdir -p "$(git_common_dir)/review-holds"
-        holds=$(( $(cat "$(git_common_dir)/review-holds/$pid" 2>/dev/null || echo 0) + 1 ))
-        printf '%s\n' "$holds" > "$(git_common_dir)/review-holds/$pid"
-        echo "verdict: ${verdict} — hold $holds of $REVIEW_HOLDS for $pid; fix on the branch, review-drop this report, then review again"
-        [ "$holds" -lt "$REVIEW_HOLDS" ] || echo "$REVIEW_HOLDS holds: stop, 'workbench call $pid \"<the standing finding>\"', and leave the merge to the user" ;;
-    esac
-  fi
-}
-
-# The path:line tokens in a report — the evidence form the sweep is told to
-# use. A clock time is cut by its leading digits; a URL's port arrives as
-# '//host/path:port' once the scheme is cut at its colon. A token with neither
-# slash nor dot — 'Makefile:99', 'exit:1' — is kept and resolved below. Real
-# command output cites places outside the tree too — a host:port, a stack
-# frame under /usr or ../vendor — and those are skipped by their shape. Only
-# ever by shape: the sweep writes the whole report, so any region exempted (a
-# fenced block, say) is a region it could hide a bogus citation in.
-#
-# Brackets and parentheses are path segments only when closed — 'app/[id]/',
-# 'src/(group)/' — so that '(README.md:1)' and '[README.md:1]' in prose, or a
-# markdown link, yield the path and not the bracket.
-citations() {
-  grep -oE '([A-Za-z0-9_.+/-]|\([A-Za-z0-9_.+-]+\)|\[[A-Za-z0-9_.+-]+\])+:[0-9]+' "$1" \
-    | grep -v -e '://' -e '^//' -e '^/' -e '^\.\./' -e '^[0-9.]*:' | sort -u
-}
-
-# Manifest files the report never mentions. A file counts as mentioned by its
-# own path or by any parent directory written with its trailing slash — "src/"
-# standing alone, not "src/" as the head of another path — so a sweep that
-# covered a directory says so once. A path is bounded by whitespace, quotes,
-# brackets or ,;:* on either side, with an optional "./" before and a
-# sentence-ending period after; every other character in it is literal, which
-# is what keeps "(group)" and "+page" from reading as regex. Only the ERE
-# metacharacters are escaped — a backslash before a space or an "@" is a
-# "stray \" warning from grep 3.8 on. A bad pattern is fatal — grep's exit 2
-# read as "not found" would credit every file.
-uncovered() {
-  local report="$1" base="$2" p cand found rc
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    found=0
-    cand=$p
-    while :; do
-      rc=0
-      grep -qE "(^|[[:space:]\`\"'(*,;:])(\./)?$(printf '%s' "$cand" | sed 's/[][\\.*+?(){}|^$]/\\&/g')(\.?([[:space:]\`\"'),;:*]|$))" "$report" || rc=$?
-      [ "$rc" -le 1 ] || die "coverage check: bad pattern for '$cand'"
-      if [ "$rc" -eq 0 ]; then
-        found=1; break
-      fi
-      cand=${cand%/}
-      case "$cand" in
-        */*) cand="${cand%/*}/" ;;
-        *) break ;;
-      esac
-    done
-    [ "$found" -eq 1 ] || printf '%s\n' "$p"
-  done < <(sed -n 's/^M //p' "$base")
-}
-
-# Nothing below writes to stderr short of die: the skill's open.sh hands the
-# fork stdout on success and stderr on failure, so a warning belongs in the
-# skeleton, where the sweep and then triage both read it.
-cmd_review() {
-  local reason="${1:-}" scope="${2:-}" root path stamp slug
-  [ -n "$reason" ] || usage
-  require_init
-
-  case "$reason" in
-    pre-merge|docs) ;;
-    *) die "reason must be one of: pre-merge, docs" ;;
-  esac
-
-  root=$(repo_root)
-  # A pre-merge is rooted at the item's worktree wherever it is invoked from:
-  # the code under review is there, so the baseline, the manifest and every
-  # citation resolve against it. The fork's tools do not follow on their own —
-  # the skeleton says so, below.
-  local item='' branch='' branches=''
-  if [ "$reason" = pre-merge ] && [[ "$scope" =~ ^[bf]-[0-9]+$ ]]; then
-    scope=$(require_id "$scope")
-    item=$(find_item "$scope")
-    [ -z "$item" ] || root=$(item_root "$item")
-    # Several branches carrying the id is merge's to refuse; the sweep must
-    # still return a report, so the first one's manifest and a note.
-    branches=$(local_branches "$root" "$scope")
-    branch=${branches%%$'\n'*}
-    # A branch with no worktree is the one case where rooting silently lands on
-    # the wrong tree: item files live on the default branch from creation, so
-    # find_item above always resolves, and the reviewer, the baseline and
-    # review-check would then all agree on main while review-check stamps the
-    # pass on the branch commit — which nobody read. There is no inconsistency
-    # left for anything downstream to catch, so it is refused here. An item with
-    # no branch at all is a different thing and still reviews.
-    if [ -n "$branch" ] && [ -z "$(live_worktree_of "$branch")" ]; then
-      die "$scope's branch $branch has no worktree; a pre-merge must read the branch, not $(default_branch) — 'workbench start $scope' cuts one, or check $branch out in a worktree, then review"
-    fi
-    # The reviewer reads the tree while review-check records the branch
-    # commit, so a worktree with uncommitted changes can never yield a pass
-    # that merge accepts — one more round, guaranteed. Refused at open, the
-    # cheap end. Reports are untracked in reviews/ by design and stay out of
-    # the dirt check; a report still standing is refused just below, on its
-    # own terms — the fresh reviewer must never see the last round's — and
-    # again by merge, which will not squash a worktree that still holds one.
-    # Both refusals are pre-merge-only: they sit inside this guard, so every
-    # other reason opens a numbered sibling beside the leftover instead.
-    if [ -n "$item" ] && [ -n "$branch" ]; then
-      local dirt leftover
-      dirt=$(git -C "$root" status --porcelain --untracked-files=all | grep -v " $WB/reviews/" || true)
-      [ -z "$dirt" ] || die "$root has uncommitted changes; the review records the branch commit it read, so commit first — then review:
-$(printf '%s\n' "$dirt" | sed 's/^/  /')"
-      leftover=$(find "$root/$WB/reviews" -maxdepth 1 -name '*.md' -printf '%f\n' 2>/dev/null | sort || true)
-      [ -z "$leftover" ] || die "$root still holds a review report; a fresh reviewer never sees the last round's — 'workbench review-drop' it, then review:
-$(printf '%s\n' "$leftover" | sed 's/^/  /')"
-    fi
-  fi
-  stamp=$(date +%Y%m%d)
-  slug=$(slugify "${scope:-$reason}")
-  path="$root/$WB/reviews/$stamp-$reason${scope:+-$slug}"
-
-  # A same-day collision is an orphan from an aborted sweep, not an error:
-  # number this one and let 'workbench status' show the other. The suffix is
-  # '.N' — a hyphen would be ambiguous, since a scope slug may end in '-2'.
-  # The baseline dir is shared by every worktree while reports are per
-  # checkout, so the collision test covers both or a second worktree's sweep
-  # would overwrite the first one's baseline.
-  local n=1 candidate="$path.md"
-  while [ -e "$candidate" ] || [ -e "$(baseline_dir)/$(basename "$candidate")" ]; do
-    n=$((n + 1))
-    candidate="$path.$n.md"
-  done
-  path=$candidate
-
-  # The baseline 'review-check' compares against. In the git directory, not
-  # the tree, or it would appear in its own diff; taken before the report is
-  # written, so the report is the one expected delta. While it exists a sweep
-  # is in flight or was aborted: 'review-check' removes it on a clean pass,
-  # 'review-drop' otherwise.
-  mkdir -p "$(baseline_dir)"
-  # The scratch directory exists before the snapshot, so its self-ignore is
-  # in place and nothing written there can ever show as a delta.
-  ensure_scratch "$root" "$path" >/dev/null
-  { tree_snapshot "$root" "$reason"; printf 'R %s\n' "$reason"; } > "$(baseline_dir)/$(basename "$path")"
-
-  local stem
-  stem=$(basename "$path" .md)
-  # A branch cut before the init commit has no reviews/ yet; an empty
-  # directory is invisible to the snapshot, so creating it here is safe.
-  mkdir -p "$(dirname "$path")"
-  cat > "$path" <<EOF
-# Review — $reason${scope:+ — $scope}
-
-date: $(date +%Y-%m-%d)
-
-<!-- opened by workbench review; findings with evidence, no template.
-     scratch: $WB/scratch/$stem/ — yours to write in. Anything else a build
-     or test run leaves in the tree fails review-check: send it there, or
-     delete it before returning. -->
-EOF
-
-  # A pre-merge reads the item as its branch has it — in that item's
-  # worktree, not necessarily where the sweep runs. Name it, or say it was
-  # not found:
-  # a missing item is the sweep's to report back, so it gets a skeleton with
-  # the note rather than a refusal.
-  if [ "$reason" = pre-merge ]; then
-    if [ -n "$item" ]; then
-      printf '\n<!-- item: %s -->\n' "$item" >> "$path"
-      if [ "$root" != "$(repo_root)" ]; then
-        cat >> "$path" <<EOF
-
-<!-- This sweep is rooted at $root — the item's worktree, not the checkout
-     you were invoked in. Every path here is relative to it: prefix Bash
-     commands with 'cd $root &&', and give Read, Write, Grep and Glob
-     absolute paths under it. review-check resolves every citation against
-     it. -->
-EOF
-      fi
-      if [ "$branches" != "$branch" ]; then
-        printf '\n<!-- several branches carry %s; the manifest is from %s. merge refuses\n     until one remains:\n%s\n-->\n' "$scope" "$branch" "$(printf '%s\n' "$branches" | sed 's/^/     /')" >> "$path"
-      fi
-    else
-      printf '\n<!-- no item file matching "%s" in any checkout; ask for the id -->\n' "$scope" >> "$path"
-    fi
-  fi
-
-  write_manifest "$path" "$(baseline_dir)/$(basename "$path")" "$scope" "$root" "$branch" "$reason"
-
-  echo "$path"
-}
-
-# An unswept file and a clean one look the same in a report, so when the scope
-# names paths, the skeleton lists what is in them and the baseline records the
-# same list as 'M ' lines. review-check then names every file the report never
-# mentions. Coverage stays self-reported — the sweep can name a file it never
-# opened — but an area it forgot is no longer silent.
-#
-# Nested CLAUDE.md files are listed alongside because they load on Read only,
-# never on cat, head or grep: a sweep that shells out for everything walks
-# straight past the instructions for the area it is reviewing. The ones that
-# cover a file sit anywhere on its path above the root, not only inside the
-# scope — 'src/api/CLAUDE.md' governs 'src/api/handlers/' — so they are found
-# by walking up from every manifest file.
-#
-# A pre-merge's scope is its branch: the files it changed against the default
-# branch are the manifest, so a changed file the report never names is caught
-# the same way an unswept one is.
-MANIFEST_CAP=300
-SNAPSHOT_WARN=500
-guides_for() {
-  local root="$1" f d g
-  shift
-  for f in "$@"; do
-    d=$f
-    while [ "${d%/*}" != "$d" ]; do
-      d=${d%/*}
-      for g in CLAUDE.md AGENTS.md; do
-        [ -f "$root/$d/$g" ] && printf '%s/%s\n' "$d" "$g"
-      done
-    done
-  done | sort -u
-}
-
-write_manifest() {
-  local report="$1" base="$2" scope="$3" root="$4" branch="${5:-}" reason="${6:-}"
-
-  local words=() w paths=()
-  read -ra words <<< "$scope"
-  for w in ${words+"${words[@]}"}; do
-    [ -e "$root/$w" ] && paths+=("$w")
-  done
-
-  local files=() guides=()
-  if [ -n "$branch" ]; then
-    mapfile -t files < <(git -C "$root" diff --name-only "$(default_branch)...$branch" | sort -u)
-    mapfile -t guides < <(guides_for "$root" ${files+"${files[@]}"})
-  elif [ "${#words[@]}" -gt 0 ] && [ "${#paths[@]}" -eq "${#words[@]}" ]; then
-    mapfile -t files < <(git -C "$root" ls-files --cached --others --exclude-standard -- "${paths[@]}" | sort -u)
-    mapfile -t guides < <(guides_for "$root" ${files+"${files[@]}"})
-  else
-    # A scope that is not entirely paths is a topic: no manifest, and the
-    # coverage check has nothing to hold the report to. Say so rather than
-    # letting it read as covered. A pre-merge's scope is its id, never
-    # paths, so it is not warned about.
-    if [ "${#words[@]}" -gt 0 ] && [ "$reason" != pre-merge ]; then
-      printf "\n<!-- scope '%s' is not all paths: a topic. No manifest, so coverage is\n     unchecked — say what was covered. -->\n" "$scope" >> "$report"
-    fi
-    mapfile -t guides < <(git -C "$root" ls-files -- '*/CLAUDE.md' '*/AGENTS.md' | grep '/')
-  fi
-
-  if [ "${#guides[@]}" -gt 0 ]; then
-    {
-      echo
-      echo '<!-- CLAUDE.md under the scope. Read each before sweeping its area; they do'
-      echo '     not auto-load on cat, head or grep:'
-      printf '     %s\n' "${guides[@]}"
-      echo '-->'
-    } >> "$report"
-  fi
-
-  # A pre-merge whose branch has no diff against the default branch — the
-  # work not yet committed — would get a skeleton with no manifest and no
-  # note, and review-check nothing to hold the report to. Say why.
-  if [ -n "$branch" ] && [ "${#files[@]}" -eq 0 ]; then
-    printf '\n<!-- %s carries no commits beyond %s: no manifest, so nothing for\n     review-check to hold the report to. Commit the work on the branch — the\n     item file with its evidence among it — then reopen this review. -->\n' "$branch" "$(default_branch)" >> "$report"
-    return 0
-  fi
-
-  [ "${#files[@]}" -gt 0 ] || return 0
-  if [ "${#files[@]}" -gt "$MANIFEST_CAP" ]; then
-    printf '\n<!-- scope holds %s files, above %s: no manifest, so coverage is\n     unchecked — say what was covered. -->\n' "${#files[@]}" "$MANIFEST_CAP" >> "$report"
-    return 0
-  fi
-
-  {
-    echo
-    if [ -n "$branch" ]; then
-      # The item is edited on the branch, so an item file not in the diff
-      # means the evidence was never written there — worth a line of its own.
-      if grep -qE "^$WB/items/[^/]+/[bf]-[0-9]+-[^/]*\.md\$" <<<"$(printf '%s\n' "${files[@]}")"; then
-        echo "<!-- changed on the branch: ${#files[@]} files, the item file among them. Name each"
-      else
-        echo "<!-- changed on the branch: ${#files[@]} files, and the item file is not among them:"
-        echo '     the branch holds no evidence and merge will refuse it. Name each'
-      fi
-      echo '     one the sweep covered, or the directory when a whole directory was;'
-      echo '     review-check lists any the report never mentions:'
-    else
-      echo "<!-- in scope: ${#files[@]} files. Name each one the sweep covered, or the"
-      echo '     directory when a whole directory was; review-check lists any the report'
-      echo '     never mentions:'
-    fi
-    printf '     %s\n' "${files[@]}"
-    echo '-->'
-  } >> "$report"
-  printf 'M %s\n' "${files[@]}" >> "$base"
-}
-
 case "${1:-}" in
   init) shift; cmd_init "$@" ;;
   adopt) shift; cmd_adopt "$@" ;;
@@ -3446,10 +2738,7 @@ case "${1:-}" in
   call) shift; cmd_call "$@" ;;
   find) shift; cmd_find "$@" ;;
   archive) shift; cmd_archive "$@" ;;
-  review) shift; cmd_review "$@" ;;
   status) shift; cmd_status "$@" ;;
-  review-check) shift; cmd_review_check "$@" ;;
-  review-drop) shift; cmd_review_drop "$@" ;;
   round) shift; cmd_round "$@" ;;
   effects) shift; cmd_effects "$@" ;;
   help|-h|--help) usage 0 ;;

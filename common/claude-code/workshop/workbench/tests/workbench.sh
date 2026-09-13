@@ -7,8 +7,6 @@ set -euo pipefail
 SELF=$(readlink -f "$0")  # every check runs from a temp repo, so paths here must be absolute
 # The suite lives inside the tool it tests, so every source is one hop up.
 WB=$(readlink -f "$(dirname "$0")/../bin/workbench")
-OPEN=$(readlink -f "$(dirname "$0")/../skills/workbench-review/scripts/open.sh")
-RULES=$(readlink -f "$(dirname "$0")/../skills/workbench-review/scripts/rules.sh")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -108,9 +106,8 @@ newc() {
   crit "$(find "$(mainroot)/workbench/items" -name "$id-*.md" -print -quit)"
   printf '%s\n' "$id"
 }
-# ready <worktree> — evidence on the branch's own item, committed, so merge's
-# gate passes; the review gate is skipped with where it is not
-# the subject.
+# ready <worktree> — evidence on the branch's own item, committed, so merge
+# passes.
 ready() {
   local f
   f=$(find "$1/workbench/items" -name "$(git -C "$1" symbolic-ref --short HEAD).md" -print -quit)
@@ -153,7 +150,7 @@ run "init on a repo with no commit completes" 0 "UNRESOLVED" "$WB" init
 new_repo loop
 run "init" 0 "workbench ready" "$WB" init
 run "init outside ~ says to set the memory path by hand" 0 "not under ~" "$WB" init
-for c in workbench workbench-review bug feature idea wb; do
+for c in workbench bug feature idea wb; do
   check "init renders /$c as a copy" bash -c "[ -f '.claude/skills/$c/SKILL.md' ] && [ ! -L '.claude/skills/$c' ] && [ -f '.claude/skills/$c/GENERATED' ]"
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
@@ -163,18 +160,13 @@ check "no /rename is rendered" [ ! -e .claude/skills/rename ]
 # opted-in project and skill_hash cannot count it — which would report every
 # project's copy stale on any CLI edit. Adding bin/ to skill_sources fails this.
 check "init renders no copy of the CLI" [ ! -e .claude/skills/bin ]
-# The source directories are named exactly as the skills they render to, so
-# this is the whole mapping: what is under .claude/skills/ is what Claude Code
-# loads by name, and the CLI's own messages ('/workbench-review pre-merge')
-# and its staleness regex both spell these two out.
-check "the two skills render under their own names" bash -c \
-  "[ -f .claude/skills/workbench/SKILL.md ] && [ -f .claude/skills/workbench-review/SKILL.md ]"
-for a in wb-worker wb-reviewer wb-gate; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
-check "the review skill runs as the gate" grep -qx 'agent: wb-gate' .claude/skills/workbench-review/SKILL.md
+# The source directory is named exactly as the skill it renders to: what is
+# under .claude/skills/ is what Claude Code loads by name.
+check "the skill renders under its own name" [ -f .claude/skills/workbench/SKILL.md ]
+for a in wb-worker wb-reviewer; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
-check "init allows the gate's Write on the report and scratch paths" bash -c "grep -q 'Edit(workbench/reviews/\*\*)' .claude/settings.json && grep -q 'Edit(workbench/scratch/\*\*)' .claude/settings.json"
 check "init writes the session hook" grep -q 'workbench status ||' .claude/settings.json
 check "the hook is guarded on PATH" grep -q '"command -v workbench >/dev/null && workbench status || true"' .claude/settings.json
 check "init does not set the agent-teams flag" bash -c "! grep -q AGENT_TEAMS .claude/settings.json"
@@ -247,32 +239,10 @@ run "new validates the class" 1 "class must be" "$WB" new bogus "t"
 
 ( cd "$wt" && mkdir -p sub && echo fix > src.txt && echo x > sub/x.txt && git add -A && git commit -qm wip )
 run "merge refuses an open item with no evidence on the branch" 1 "open with no evidence under '## Evidence' on b-001-crash-on-save" "$WB" merge b-001 "fix crash"
-report=$("$WB" review pre-merge b-001)
-check "pre-merge notes an item file the branch never touched" grep -q 'the item file is not among them' "$report"
-run "review pre-merge refuses while a report stands" 1 "still holds a review report" "$WB" review pre-merge b-001
-check "the refusal names the report" bash -c "'$WB' review pre-merge b-001 2>&1 | grep -q '^  $(basename "$report")\$'"
-"$WB" review-drop --force "$report" >/dev/null 2>&1
 # pasted output holds '## ' lines: a heading to markdown, not to the item
 fill_evidence "$wt/$item" "make test" $'## not a heading\nok'
-run "review pre-merge refuses a dirty worktree" 1 "uncommitted changes; the review records the branch commit" "$WB" review pre-merge b-001
-check "the refusal names the file" bash -c "'$WB' review pre-merge b-001 2>&1 | grep -q '^   M $item'"
 ( cd "$wt" && git commit -qam evidence )
 
-report=$("$WB" review pre-merge b-001)
-check "review pre-merge writes the skeleton in the worktree" [ -f "$report" ]
-check "pre-merge manifest names the item file" grep -q 'changed on the branch: 3 files, the item file among them' "$report"
-run "review-check fails on unstated coverage" 1 "never named in the report" "$WB" review-check "$report"
-printf '\ncovered: src.txt, sub/, %s\nno findings\n' "$item" >> "$report"
-run "review-check refuses a pre-merge without a verdict" 1 "no 'verdict:' line" "$WB" review-check "$report"
-printf 'verdict: merge\n' >> "$report"
-# 'the last line, and nothing after it': taking the last matching line instead
-# let a verdict be buried under prose that qualifies or contradicts it.
-printf '\nthough the caching is still worth a look before release.\n' >> "$report"
-run "review-check refuses a verdict that is not the last line" 1 "must be the last line" "$WB" review-check "$report"
-sed -i '/though the caching/d' "$report"
-run "review-check passes once coverage and verdict are in" 0 "^verdict: merge for b-001" "$WB" review-check "$report"
-run "merge refuses while a report stands" 1 "still holds a review report" "$WB" merge b-001 "fix crash"
-run "review-drop" 0 "deleted" "$WB" review-drop "$report"
 echo note >> "$wt/$item"
 run "merge names an edited, uncommitted item file" 1 "$item is edited and not committed on the branch" "$WB" merge b-001 "fix crash"
 ( cd "$wt" && git checkout -q "$item" )
@@ -292,14 +262,14 @@ cp workbench/BACKLOG.md "$TMP/backlog.orig"; cp CLAUDE.md "$TMP/claude.orig"
 check "status says nothing about caps while every file is under" bash -c "! '$WB' status | grep -q '^cap:'"
 pad() { local i; for ((i = $(wc -l < "$1"); i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
 pad workbench/BACKLOG.md 401 '- pad'
-run "status names a file over its cap with its length" 0 '^cap: workbench/BACKLOG.md 401/400 — run /workbench-review docs$' bash -c "'$WB' status | grep '^cap:'"
+run "status names a file over its cap with its length" 0 '^cap: workbench/BACKLOG.md 401/400 — cut it' bash -c "'$WB' status | grep '^cap:'"
 git config workbench.cap.backlog 500
 check "git config workbench.cap.<name> raises the cap" bash -c "! '$WB' status | grep -q '^cap:'"
 git config workbench.cap.backlog many
 run "a cap that is not a number falls back to the default" 0 '^cap: workbench/BACKLOG.md 401/400' bash -c "'$WB' status | grep '^cap:'"
 git config --unset workbench.cap.backlog
 pad CLAUDE.md 151 pad
-check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — run /workbench-review docs\|cap: workbench/BACKLOG.md 401/400 — run /workbench-review docs$'"
+check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — cut it; docs.md, Line caps\|cap: workbench/BACKLOG.md 401/400 — cut it; docs.md, Line caps$'"
 check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE '^(cap:|open items)' | grep -q 'cap:'"
 cp "$TMP/backlog.orig" workbench/BACKLOG.md; cp "$TMP/claude.orig" CLAUDE.md
 check "status is silent again once the files are back under" bash -c "! '$WB' status | grep -q '^cap:'"
@@ -334,17 +304,6 @@ run "find --grep without a word is usage" 2 "usage" "$WB" find --grep
 
 run "status" 0 "" "$WB" status
 
-# The skill's preprocessed block is fail-closed, so the wrapper must turn a
-# refusal into output with a zero exit.
-run "open.sh folds a refusal into stdout" 0 "^workbench: reason must be" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" bogus ""
-report=$("$WB" review docs 2>/dev/null)
-check "review docs opens a report" bash -c "[ -f '$report' ] && [[ '$report' == *-docs.md ]]"
-# The leftover refusal above is pre-merge's alone — it sits inside the item-and-
-# branch guard. Every other reason opens a numbered sibling beside the standing
-# report rather than refusing, which is easy to misread as a global rule from
-# either side. Pin the asymmetry so neither half moves unnoticed.
-second=$("$WB" review docs 2>/dev/null)
-check "a second docs review opens a sibling, not a refusal" bash -c "[ -f '$second' ] && [[ '$second' == *-docs.2.md ]]"
 # The note on 'check' is advisory and this shape has already shipped twice in
 # code neither review wrote, so the suite asserts it about itself: a check whose
 # command is a bare test bracket followed by &&, ||, ; or a pipe ends at the
@@ -352,130 +311,6 @@ check "a second docs review opens a sibling, not a refusal" bash -c "[ -f '$seco
 # holding those operators are untouched — the bracket must be the argument.
 check "no check call asserts only its first condition" \
   bash -c '! grep -nE "^\s*check \"[^\"]*\" \[[^]]*\] *(&&|\|\||;|\|)" "'"$SELF"'"'
-
-"$WB" review-drop "$second" >/dev/null 2>&1
-"$WB" review-drop "$report" >/dev/null 2>&1
-run "open.sh returns the path on success" 0 "/workbench/reviews/.*-docs\.md$" env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" docs ""
-"$WB" review-drop "$(command ls workbench/reviews/*-docs.md)" >/dev/null 2>&1
-report=$(env PATH="$(dirname "$WB"):$PATH" bash "$OPEN" docs "resize")
-check "open.sh with a topic scope returns the path alone" [ -f "$report" ]
-check "the topic warning is in the skeleton" grep -q "scope 'resize' is not all paths" "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-# rules.sh feeds the same fail-closed block, so a reason it cannot serve aborts
-# the sweep rather than sweeping without rules. The reason is already validated
-# by 'review' before it gets here, which is what makes that exit unreachable in
-# the real flow — and what makes the two lists drifting apart the actual risk:
-# a reason added to 'review' with no rules/ file would abort every sweep for it.
-# 'review bogus' exits non-zero and pipefail carries that to the assignment,
-# which under set -e would end the run here rather than fail a check.
-reasons=$("$WB" review bogus 2>&1 | sed -n 's/.*reason must be one of: //p' | tr -d ',' || true)
-# Non-empty, not a fixed count: a seventh reason with rules behind it is
-# growth, not drift, and should not fail here. What this guards is the loop
-# below going vacuous when the parse breaks — six checks would vanish and the
-# suite would still say it passed.
-check "the reason list is readable from review's refusal" [ -n "$reasons" ]
-for r in $reasons; do
-  run "rules.sh serves $r" 0 "^# " bash "$RULES" "$r"
-done
-# docs audits against the documentation reference; pre-merge must not carry
-# it, or the sweep reads rules it was never given.
-check "rules.sh appends the docs reference for docs" bash -c "bash '$RULES' docs | grep -qx '# Documentation'"
-check "rules.sh appends no reference for pre-merge" bash -c "! bash '$RULES' pre-merge | grep -qx '# Documentation'"
-run "rules.sh refuses a reason it has no rules for" 2 "no rules for reason 'nope'" bash "$RULES" nope
-run "rules.sh refuses no reason at all" 2 "usage: rules.sh" bash "$RULES"
-
-# --- review-check catches what the sweep did --------------------------------
-# Each case opens a fresh report on a clean main, does what a sweep must not,
-# and expects the named refusal; the tree is put back and the report dropped.
-
-sweep() { "$WB" review docs 2>/dev/null; }
-report=$(sweep)
-echo edited >> README
-run "review-check catches a tracked edit" 1 "unexpected change:  M README" "$WB" review-check "$report"
-check "a fresh edit is reported once" [ "$("$WB" review-check "$report" 2>&1 | grep -c README)" -eq 1 ]
-git checkout -q README
-run "review-check passes once the edit is reverted" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-report=$(sweep)
-echo stray > stray.txt
-run "review-check catches a new untracked file" 1 "the sweep wrote: stray.txt" "$WB" review-check "$report"
-rm stray.txt; "$WB" review-drop "$report" >/dev/null 2>&1
-
-echo stray > stray.txt
-report=$(sweep)
-rm stray.txt
-run "review-check catches a removed untracked file" 1 "the sweep removed: stray.txt" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-report=$(sweep)
-git commit -q --allow-empty -m moved
-run "review-check catches HEAD moving" 1 "the sweep moved HEAD" "$WB" review-check "$report"
-git reset -q HEAD~1; "$WB" review-drop "$report" >/dev/null 2>&1
-
-# settings.local.json is ignored by design, so 'git status' and 'ls-files
-# --others --exclude-standard' both look straight past it — and it is where a
-# permission allow-list lives. A sweep with Bash could widen its own permissions
-# and pass.
-mkdir -p .claude
-echo '{"permissions":{"allow":[]}}' > .claude/settings.local.json
-check "the local settings really are ignored here" git check-ignore -q .claude/settings.local.json
-report=$(sweep)
-echo '{"permissions":{"allow":["Bash"]}}' > .claude/settings.local.json
-run "review-check catches an edit to the local settings" 1 "the sweep changed: .claude/settings.local.json" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-report=$(sweep)
-rm .claude/settings.local.json
-run "review-check catches the local settings being removed" 1 "the sweep removed: .claude/settings.local.json" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-# a skip-worktree or assume-unchanged bit hides a tracked file from both
-# 'status' and 'diff HEAD', so the baseline cannot see it change at all
-report=$(sweep)
-git update-index --skip-worktree README
-run "review-check refuses a skip-worktree bit" 1 "hidden from git by a skip-worktree" "$WB" review-check "$report"
-git update-index --no-skip-worktree README
-run "review-check passes once the bit is cleared" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-report=$(sweep)
-printf '\nsee src.txt:999 and nowhere/at/all.go:3\n' >> "$report"
-run "review-check catches a citation past the end" 1 "cites src.txt:999, and no src.txt has 999 lines" "$WB" review-check "$report"
-run "review-check catches a citation to a missing file" 1 "cites nowhere/at/all.go:3, and nowhere/at/all.go is not in the tree" "$WB" review-check "$report"
-"$WB" review-drop --force "$report" >/dev/null 2>&1
-
-# a file already modified before the sweep, modified again by it
-echo before >> README
-report=$(sweep)
-echo during >> README
-run "review-check names a re-edited tracked file" 1 "the sweep changed: README" "$WB" review-check "$report"
-git checkout -q README
-run "review-check names a reverted tracked file" 1 "the sweep reverted: README" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-# dotless citations resolve against the tree
-printf 'all:\n\ttrue\n' > Makefile && git add Makefile && git commit -qm makefile
-report=$(sweep)
-printf '\nsee Makefile:2, exit:1 and localhost:5432\n' >> "$report"
-run "review-check accepts a dotless citation in range" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-report=$(sweep)
-printf '\nsee Makefile:99\n' >> "$report"
-run "review-check catches a dotless citation past the end" 1 "cites Makefile:99, and no Makefile has 99 lines" "$WB" review-check "$report"
-"$WB" review-drop --force "$report" >/dev/null 2>&1
-git rm -q Makefile && git commit -qm 'no makefile'
-report=$(sweep)
-printf '\nsee Makefile:99\n' >> "$report"
-run "a dotless citation with no such file is a word" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-
-# reviews/ holding nothing tracked: the report must still be its own line
-git rm -q workbench/reviews/.gitkeep && git commit -qm 'drop placeholder'
-report=$(sweep)
-run "review-check passes with no placeholder in reviews/" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-git revert --no-edit HEAD >/dev/null
 
 # --- status, find, adopt ------------------------------------------------------
 
@@ -515,14 +350,6 @@ git rm -q --cached "workbench/items/bugs/$idh-by-hand.md" && git commit -qm 'unt
 run "status labels an uncommitted item" 0 "$idh-by-hand +open +\[not committed" "$WB" status
 run "start lands an untracked item" 0 "committed workbench/items/bugs/$idh-by-hand.md on main" "$WB" start "$idh"
 check "the hand-written item is tracked now" git ls-files --error-unmatch "workbench/items/bugs/$idh-by-hand.md"
-
-# status report labels
-r1=$(sweep); r2=$(sweep); rm "$r2"
-r3=$(sweep); "$WB" review-check "$r3" >/dev/null 2>&1
-run "status labels an unchecked report" 0 "$(basename "$r1") *unchecked" "$WB" status
-run "status labels a stale marker" 0 "$(basename "$r2") *stale marker" "$WB" status
-run "status labels a checked report" 0 "$(basename "$r3") *awaiting triage" "$WB" status
-for r in "$r1" "$r2" "$r3"; do "$WB" review-drop "$r" >/dev/null 2>&1 || true; done
 
 # --- memory in the tree -------------------------------------------------------
 # Under ~, init points autoMemoryDirectory into the checkout, and merge
@@ -635,16 +462,16 @@ check "a stray file under agents/ is not rendered as an agent" [ ! -e .claude/ag
 rm "$TMP/src/agents/NOTES.md"
 # The other half of naming them: a source that does not exist under its own
 # name stops the init instead of leaving the project silently short an agent.
-mv "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-gate.md.bak"
+mv "$TMP/src/agents/wb-reviewer.md" "$TMP/src/agents/wb-reviewer.md.bak"
 run "a renamed agent source fails the init" 1 "agent source not found" env WORKBENCH_ROOT="$TMP/src" "$WB" init
-mv "$TMP/src/agents/wb-gate.md.bak" "$TMP/src/agents/wb-gate.md"
+mv "$TMP/src/agents/wb-reviewer.md.bak" "$TMP/src/agents/wb-reviewer.md"
 # An agent copy that no longer matches its source: skill_drift walks
 # skill_sources, which is skills and commands, so agents need their own check.
 env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
 run "status is quiet while the agents match" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
-printf '\nmoved on\n' >> "$TMP/src/agents/wb-gate.md"
+printf '\nmoved on\n' >> "$TMP/src/agents/wb-reviewer.md"
 run "status reports an agent whose source moved on" 0 "agents differ from their source" env WORKBENCH_ROOT="$TMP/src" "$WB" status
-run "status names the agent" 0 "" bash -c "env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -A1 'agents differ' | grep -q wb-gate"
+run "status names the agent" 0 "" bash -c "env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -A1 'agents differ' | grep -q wb-reviewer"
 env WORKBENCH_ROOT="$TMP/src" "$WB" init >/dev/null 2>&1
 run "init clears the agent drift" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' '$WB' status | grep -q 'agents differ'"
 
@@ -653,8 +480,8 @@ run "init clears the agent drift" 0 "" bash -c "! env WORKBENCH_ROOT='$TMP/src' 
 # a name it lists but cannot find. Without the reap the copy would stay in the
 # project for good, with nothing said by init or status.
 printf -- '---\nname: my-own\ndescription: a project agent, nothing to do with workbench\n---\nmine\n' > .claude/agents/my-own.md
-cp "$TMP/src/agents/wb-gate.md" "$TMP/src/agents/wb-spare.md"
-sed -i 's/^name: wb-gate$/name: wb-spare/' "$TMP/src/agents/wb-spare.md"
+cp "$TMP/src/agents/wb-reviewer.md" "$TMP/src/agents/wb-spare.md"
+sed -i 's/^name: wb-reviewer$/name: wb-spare/' "$TMP/src/agents/wb-spare.md"
 WB_SPARE=$(sed 's/^WB_AGENTS="\(.*\)"$/WB_AGENTS="\1 wb-spare"/' "$WB")
 printf '%s' "$WB_SPARE" > "$TMP/bin/wb-spare"; chmod +x "$TMP/bin/wb-spare"
 env WORKBENCH_ROOT="$TMP/src" "$TMP/bin/wb-spare" init >/dev/null 2>&1
@@ -666,7 +493,7 @@ check "the retired copy is gone" [ ! -e .claude/agents/wb-spare.md ]
 # The assertion that matters: the reap is guarded by the marker, so a project's
 # own agent in the same directory is not collateral.
 check "a project's own agent survives the reap" [ -f .claude/agents/my-own.md ]
-check "the shipped agents survive the reap" bash -c '[ -f .claude/agents/wb-worker.md ] && [ -f .claude/agents/wb-gate.md ] && [ -f .claude/agents/wb-reviewer.md ]'
+check "the shipped agents survive the reap" bash -c '[ -f .claude/agents/wb-worker.md ] && [ -f .claude/agents/wb-reviewer.md ]'
 rm .claude/agents/my-own.md
 
 # adopt on a symlinked CLAUDE.md edits the target, not the link
@@ -740,23 +567,7 @@ newc bug "notghost" >/dev/null; "$WB" start b-003 >/dev/null 2>&1
 ( cd .worktrees/b-003-notghost && echo w > work.txt && git add -A && git commit -qm w )
 set_status .worktrees/b-003-notghost/workbench/items/bugs/b-003-notghost.md unreproduced
 run "archive refuses to retire a branch with work" 1 "carries work beyond the item file" "$WB" archive b-003
-# A pre-merge must read the branch. With the worktree gone, find_item falls
-# through to the main checkout — item files live there from creation — so the
-# reviewer, the baseline and review-check all agree on main and the pass is
-# stamped on a branch commit nobody read. Nothing downstream can catch that.
 git add -A && git commit -qm "settle the archive above"
-idw=$(newc bug "no-worktree"); "$WB" start "$idw" >/dev/null 2>&1
-( cd ".worktrees/$idw-no-worktree" && echo w > w.txt && git add -A && git commit -qm w )
-git worktree remove --force ".worktrees/$idw-no-worktree"
-run "pre-merge refuses a branch whose worktree is gone" 1 "has no worktree" "$WB" review pre-merge "$idw"
-check "and no report was opened" [ -z "$(find workbench/reviews -name "*$idw*" 2>/dev/null)" ]
-run "the refusal says how to get one" 1 "workbench start $idw" "$WB" review pre-merge "$idw"
-git branch -D "$idw-no-worktree" >/dev/null
-# an item with no branch at all still reviews: it is a reachable pre-merge input
-idnb=$(newc bug "never-started")
-report=$("$WB" review pre-merge "$idnb")
-check "pre-merge still opens for an item never started" [ -f "$report" ]
-"$WB" review-drop --force "$report" >/dev/null 2>&1
 
 # retire overwrites main's copy, so a main-side edit since the cut is refused
 # rather than lost
@@ -851,7 +662,7 @@ check "the squash carries only the host's item" bash -c "! git show --stat --for
 
 # --- lookups over every worktree --------------------------------------------
 # A detached worktree with no workbench/, an item created in a sibling, a
-# pre-merge before the item commit, a worktree removed by hand, and archive
+# worktree removed by hand, and archive
 # run from a sibling that inherited the merged copy.
 
 new_repo roots
@@ -864,10 +675,6 @@ run "archive with a detached worktree present reports, not dies" 1 "no evidence 
 ids=$(cd .worktrees/b-001-one && newc bug "from sibling")
 run "start an item created from another worktree" 0 "started $ids-from-sibling in" "$WB" start "$ids"
 check "the worktree it was created from has no copy" [ ! -e ".worktrees/b-001-one/workbench/items/bugs/$ids-from-sibling.md" ]
-
-report=$("$WB" review pre-merge b-001 2>/dev/null)
-check "pre-merge on a branch with no commits says so" grep -q 'b-001-one carries no commits beyond main' "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
 
 ready .worktrees/b-001-one
 rm -rf .worktrees/b-001-one
@@ -975,7 +782,7 @@ new_repo findempty
 mkdir -p src && echo x > src/a.ts && git add -A && git commit -qm a
 run "find on a project with no items is quiet on stderr" 0 "" bash -c "! '$WB' find src/a.ts 2>&1 | grep -q \"can't read\""
 
-# --- gates: calls, provisional (agent) decisions, the review mark, holds ------
+# --- gates: calls, provisional (agent) decisions, rounds ---------------------
 
 new_repo gates
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
@@ -1035,24 +842,6 @@ run "archive refuses a provisional status" 1 "was entered unattended; confirm it
 set_status "workbench/items/bugs/$uid-unattended.md" 'unverified — the next deploy'
 run "archive takes it once confirmed" 0 "archived $uid" "$WB" archive "$uid"
 git add -A && git commit -qm "archive $uid"
-
-rid=$(newc bug "reviewed"); "$WB" start "$rid" >/dev/null 2>&1
-wt=.worktrees/$rid-reviewed
-( cd "$wt" && echo r > r.txt && git add -A && git commit -qm w ); ready "$wt"
-report=$("$WB" review pre-merge "$rid")
-printf '\ncovered: r.txt, workbench/items/bugs/%s-reviewed.md\nverdict: merge\n' "$rid" >> "$report"
-run "review-check names the branch commit a merge verdict read" 0 "verdict: merge for $rid at $(git -C "$wt" rev-parse --short HEAD)" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-( cd "$wt" && echo more >> r.txt && git commit -qam more )
-for n in 1 2 3; do
-  report=$("$WB" review pre-merge "$rid")
-  printf '\ncovered: r.txt, workbench/items/bugs/%s-reviewed.md\nverdict: hold — the count is wrong\n' "$rid" >> "$report"
-  out=$("$WB" review-check "$report" 2>&1)
-  [ "$n" -lt 3 ] && check "hold $n is counted" grep -q "hold $n of 3 for $rid" <<< "$out"
-  "$WB" review-drop "$report" >/dev/null 2>&1
-done
-check "the third hold says to stop and call" grep -q "3 holds: stop, 'workbench call $rid" <<< "$out"
-run "merge is the user's call after holds; the gate no longer blocks it (W3)" 0 "merged $rid" "$WB" merge "$rid" "reviewed"
 
 # --- round: the review dialog's accountant ------------------------------------
 # Round 2 always runs; after that the count decides, and the cap parks it.
@@ -1161,34 +950,19 @@ run "idea from a worktree writes to the main checkout" 0 "^$PWD/workbench/BACKLO
 check "the worktree's backlog is untouched" bash -c "! grep -q 'from the worktree' .worktrees/b-001-host/workbench/BACKLOG.md"
 check "main's backlog has both lines" [ "$(grep -c '^- ' workbench/BACKLOG.md)" -eq 2 ]
 
-# --- find's cap, and citations that name a file without its path ------------
+# --- find's cap ---------------------------------------------------------------
 
 new_repo cap
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
 for i in $(seq 1 11); do "$WB" new bug "cap $i" >/dev/null 2>&1; done
 check "find shows ten lines and counts the rest" bash -c "'$WB' find --grep cap | grep -c '^b-' | grep -qx 10 && '$WB' find --grep cap | grep -q '… 1 more'"
 check "find --all shows every line" bash -c "'$WB' find --grep cap --all | grep -c '^b-' | grep -qx 11 && ! '$WB' find --grep cap --all | grep -q 'more'"
-mkdir -p a b && seq 5 > a/pos_test.go && seq 50 > b/pos_test.go && git add -A && git commit -qm pos
-report=$("$WB" review docs 2>/dev/null)
-printf '\nsee pos_test.go:42, db.internal:5432 and 2026-08-26T10:15:30\n' >> "$report"
-run "a basename citation passes when any file of that name reaches the line" 0 "^clean:" "$WB" review-check "$report"
-"$WB" review-drop "$report" >/dev/null 2>&1
-report=$("$WB" review docs 2>/dev/null)
-printf '\nsee pos_test.go:99 and other.go:3\n' >> "$report"
-run "a basename citation fails when no file of that name reaches the line" 1 "cites pos_test.go:99, and no pos_test.go has 99 lines" "$WB" review-check "$report"
-run "a basename with a known extension and no such file is bogus" 1 "cites other.go:3, and no other.go is in the tree" "$WB" review-check "$report"
-"$WB" review-drop --force "$report" >/dev/null 2>&1
-
 # --- worktree cut before the init commit ------------------------------------
 
 new_repo early
 "$WB" init >/dev/null           # left uncommitted: main has no workbench/
 newc bug "early" >/dev/null
 run "start notes an uncommitted .claude" 0 "lacks the workbench commands" "$WB" start b-001
-[ ! -d .worktrees/b-001-early/workbench/reviews ] || fail "setup: reviews/ unexpectedly present"
-report=$("$WB" review pre-merge b-001 2>/dev/null) || true
-check "review pre-merge creates reviews/ when the branch lacks it" [ -f "$report" ]
-"$WB" review-drop "$report" >/dev/null 2>&1
 # The worktree's workbench/ holds nothing tracked but the item; the item must
 # still be seen as the one file it is, not as the directory.
 set_status .worktrees/b-001-early/workbench/items/bugs/b-001-early.md unreproduced
