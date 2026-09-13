@@ -212,6 +212,7 @@ idm=$(newc bug "mixed-fence")
 printf '\n~~~\n$ cat README.md\n```\n## Usage\n~~~\n' >> "workbench/items/bugs/$idm-mixed-fence.md"
 run "archive takes a ~~~ block holding a \`\`\` line" 0 "archived $idm" "$WB" archive "$idm"
 idq=$(newc bug "long-fence")
+# shellcheck disable=SC2016  # the '$ cat' prompt is literal evidence text
 printf '\n````\n$ cat notes.md\n```\n## Not a heading\n```\n````\n' >> "workbench/items/bugs/$idq-long-fence.md"
 run "archive takes a \`\`\`\` block holding a '## ' line between \`\`\` lines" 0 "archived $idq" "$WB" archive "$idq"
 
@@ -256,7 +257,7 @@ run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "a
 # Padding is appended to copies of the real files and undone after.
 cp workbench/BACKLOG.md "$TMP/backlog.orig"; cp CLAUDE.md "$TMP/claude.orig"
 check "status says nothing about caps while every file is under" bash -c "! '$WB' status | grep -q '^cap:'"
-pad() { local i; for ((i = $(wc -l < "$1"); i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
+pad() { local i n; n=$(wc -l < "$1"); for ((i = n; i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
 pad workbench/BACKLOG.md 401 '- pad'
 run "status names a file over its cap with its length" 0 '^cap: workbench/BACKLOG.md 401/400 — cut it' bash -c "'$WB' status | grep '^cap:'"
 git config workbench.cap.backlog 500
