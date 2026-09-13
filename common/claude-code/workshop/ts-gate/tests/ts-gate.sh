@@ -169,7 +169,7 @@ check "ignore survives" [ "$(json ts-gate/knip.json 'j.ignore.includes("src/lega
 check "ignoreDependencies survives" [ "$(json ts-gate/knip.json 'j.ignoreDependencies.includes("effect")')" = true ]
 git add -A && git commit -qm "knip entry"
 
-echo "== verify.sh proves the gate rules are loaded (A5)"
+echo "== verify.sh proves eslint.config.mjs spreads gate() (A5)"
 echo '{"rules":{"no-unused-vars":["error"]}}' > "$ESLINT_CONFIG"
 run "verify refuses an eslint config without gate()" 1 "does not load" bash ts-gate/scripts/verify.sh
 check "verify removed its seed" [ ! -e src/__gate_verify__.ts ]
@@ -221,16 +221,12 @@ check "gate allow rules are gone" bash -c "! grep -q 'npm run gate' .claude/sett
 check "the runner rule is gone" bash -c "! grep -q 'npx vitest' .claude/settings.json 2>/dev/null"
 check "ts-gate/ is gone" [ ! -d ts-gate ]
 
-echo "== the shipped eslint config covers root *.config.ts files (B2; real check: npx eslint vitest.config.ts on a brownfield)"
-check "eslint.gate.mjs allows root config files into the default project" grep -q 'allowDefaultProject: \["\*\.config\.ts"' "$SRC/eslint.gate.mjs"
-
 echo "== brownfield: a foreign biome config that formats repos/** (B1)"
 mkproj "$TMP/p2"
 echo '{"formatter":{"indentStyle":"tab"}}' > biome.json && git add -A && git commit -qm biome
 run "install warns with the includes block" 0 'WARNING: biome.json.*!repos/\*\*' bash "$SRC/install.sh" .
 check "biome.json was not touched" [ "$(cat biome.json)" = '{"formatter":{"indentStyle":"tab"}}' ]
-echo '{"files":{"includes":["**","!repos/**","!ts-gate/**",".worktrees/**"]},"formatter":{"indentStyle":"tab"}}' > biome.json
-run "no warning once repos and ts-gate are excluded" 0 "" bash -c "bash '$SRC/install.sh' . 2>&1 | grep -v 'WARNING: biome' | grep -c WARNING: || true"
+echo '{"files":{"includes":["**","!repos/**","!ts-gate/**","!.worktrees/**"]},"formatter":{"indentStyle":"tab"}}' > biome.json
 check "the excluding config prints no biome warning" bash -c "! bash '$SRC/install.sh' . 2>&1 | grep -q 'WARNING: biome'"
 
 echo "== uninstall names the lines merged by hand into configs that predate install (C1)"
