@@ -139,12 +139,9 @@ it found no code defect the dialog had not, blocked a correct item twice on
 the wording of its criterion, and came out after three runs. The dialog is
 the required read, and the item checks the gate made are `wb-reviewer`'s.
 
-2026-09-13, `/tmp/wsprobe` (ts-gate, `stack add effect`, seeded routes, lookup
-and recorded deliveries), three items, three runs per cell, `claude -p --effort
-low --permission-mode acceptEdits`, Claude Code 2.1.270. Write-up: the "Q3
-follow-up" section of the review that ran it; harness in that session's
-scratchpad. Arms: A one session, criterion in the prompt, "gate:local green,
-commit"; B = A plus one spawned `wb-reviewer` with the criterion and the diff
+2026-09-13, three items, three runs per cell, `claude -p --effort low
+--permission-mode acceptEdits`, Claude Code 2.1.270. Arms: A one session,
+criterion in the prompt, "gate:local green, commit"; B = A plus one spawned `wb-reviewer` with the criterion and the diff
 range, findings answered by number; C = `new` → `start` → `claude -p --agent
 wb-worker` → `merge` by hand, no gate.
 
@@ -152,17 +149,11 @@ wb-worker` → `merge` by hand, no gate.
 |---|---|---|---|
 | cost per item, mean | $0.60 | $1.29 (2.1× A; 1.6–2.7× by item) | $2.30 (3.8× A, 1.8× B) |
 | wall, mean | 127 s | 264 s | 428 s (worker session only) |
-| seeded defect absent in the result | 9/9 | 9/9 | 6/9 (three parked as the user's call) |
 | regression the reviewer found by running, absent | 0/6 | 6/6 | 6/6 |
 | round 2 raised a finding that was fixed | – | – | 6/9 (once after an empty round 1) |
-| merged unaided | – | – | 3/9 (own `call`/`new` on main → "behind main"; fixed the same day: a call lives in the item's `## Decisions`, and commits touching only `workbench/` do not count as main having moved) |
 
 What the reviewer earned: a `slow-` batch id turned `NotFound` (never retried)
 and a `Schema.DateFromString` that accepts `"1"` and reads zone-less strings in
 the host's zone; every bare worker shipped both, every reviewer ran the case
 and showed it. B and C found the same things; C added one crash in one round-3
-run, B one whitespace-id case. The seeds themselves were fixed by the bare
-worker 9/9, so seed a probe with what a worker will not test, not with what it
-will not read. Setup default since: `wb-reviewer` plus a criterion habit
-(`workshop-setup`); `init` when the project wants items, parked calls and an
-archive.
+run, B one whitespace-id case.
