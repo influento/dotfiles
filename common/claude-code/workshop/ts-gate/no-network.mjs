@@ -1,5 +1,4 @@
-// vitest setup file (test.setupFiles, written by install): no test reaches
-// the network. Contract and the live tier: CLAUDE.md in the ts-gate source, Rules.
+// vitest setup file: no test reaches the network (.claude/rules/ts-gate.md).
 import net from "node:net";
 import { expect } from "vitest";
 

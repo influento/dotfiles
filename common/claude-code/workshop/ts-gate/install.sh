@@ -20,10 +20,8 @@ grep -Eq '"strict"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING:
 grep -Eq '"noUncheckedIndexedAccess"[[:space:]]*:[[:space:]]*true' tsconfig.json || echo "WARNING: tsconfig.json lacks \"noUncheckedIndexedAccess\": true; arr[i] and obj[key] are typed as present without it"
 node -e 'process.exit(require("./package.json").engines?.node?0:1)' || echo "WARNING: package.json has no engines.node; a Dockerfile or a CI container has nothing to pin node to"
 
-# 1. Files: what the gate runs at the project. Everything but the manifest is
-#    replaced on a re-run, except what the project put in: knip.json's ignore
-#    lists and entry are merged back, and .dependency-cruiser.cjs (the
-#    architecture record) is kept once it exists.
+# 1. Files. A re-run keeps the project's knip lists and entry, and the
+#    architecture record.
 SHIP=".dependency-cruiser.cjs eslint.gate.mjs eslint-line.mjs knip.json no-network.mjs vitest.live.mjs scripts"
 KNIP_KEEP=""
 [ -f ts-gate/knip.json ] && KNIP_KEEP=$(node -p 'const j=require("./ts-gate/knip.json");JSON.stringify({ignore:j.ignore||[],ignoreDependencies:j.ignoreDependencies||[],entry:j.entry})')
@@ -39,7 +37,7 @@ if(k.entry) j.entry=k.entry;
 fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$KNIP_KEEP"
 [ -z "$DC_KEEP" ] || { command mv "$DC_KEEP" ts-gate/.dependency-cruiser.cjs; echo "ts-gate/.dependency-cruiser.cjs kept (the architecture record); the shipped default is in $SRC"; }
 
-# 2. Dependencies. Runner detection picks the test plugin.
+# 2. Dependencies.
 PM="npm i -D"
 [ -f pnpm-lock.yaml ] && PM="pnpm add -D"
 [ -f yarn.lock ] && PM="yarn add -D"
@@ -48,8 +46,7 @@ DEPS="typescript@5 eslint@10 typescript-eslint@8 eslint-plugin-sonarjs@4 knip@6 
 RUNNER=""
 grep -q '"vitest"' package.json && RUNNER=vitest && DEPS="$DEPS @vitest/eslint-plugin"
 grep -q '"jest"' package.json && [ -z "$RUNNER" ] && RUNNER=jest && DEPS="$DEPS eslint-plugin-jest"
-# A peer-installed vitest (@effect/vitest pulls one in) is in node_modules but
-# not in package.json, so it does not count: the gate would run no tests.
+# package.json only: a peer-installed vitest (@effect/vitest's) does not count.
 [ -n "$RUNNER" ] || echo "WARNING: no test runner in package.json (\"vitest\" or \"jest\" as a devDependency) — the gate will run no tests and write no vitest config; npm i -D vitest@5, then re-run install"
 # Only what the project lacks: a re-run must not move pins the project owns.
 NEW=$(node -e '
@@ -63,8 +60,6 @@ FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.j
 # install prints for a foreign one); the live tier's exclude stays here because
 # a foreign config that lacks it would run real network from gate:full.
 [ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude '**/*.live.test.*'"
-# test:live: the live tier (*.live.test.ts, real network), a script a person
-# runs; not in the allow rules, so an unattended worker cannot.
 [ "$RUNNER" != vitest ] || npm pkg set scripts.test:live="vitest run --config ts-gate/vitest.live.mjs"
 npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
@@ -73,11 +68,10 @@ npm pkg set \
   scripts.gate:fix='eslint . --fix; e=$?; biome format --write .; b=$?; exit $((e > b ? e : b))' \
   scripts.gate:verify="bash ts-gate/scripts/verify.sh"
 
-# A config this install wrote (the manifest names it under a key) is replaced
-# on re-run like every other file, unless it was edited since — then it is
-# kept, and not offered for merging again: its gate block is already there.
-# A config the project brought itself is never touched. Sets OWN to the file
-# to write (empty: keep), returns 1 when a foreign config exists.
+# A config the manifest names is replaced on re-run unless edited since (then
+# kept, and not offered for merging again); a foreign one is never touched.
+# Sets OWN to the file to write (empty: keep); returns 1 when a foreign config
+# exists.
 owned_target() { # key default-file foreign-file...
   local key=$1 def=$2 f="" sha="" g; shift 2
   OWN=""
@@ -136,8 +130,7 @@ else
   done
 fi
 
-# 4c. vitest config: the no-network setup file and the live-tier exclude. A
-#     project's own config gets the two lines to add.
+# 4c. vitest config.
 VITEST_WROTE=""
 if [ "$RUNNER" = vitest ]; then
   VCONFIG='import { configDefaults, defineConfig } from "vitest/config";
@@ -161,9 +154,9 @@ fi
 command mkdir -p .claude/rules
 command cp "$SRC"/rules/*.md .claude/rules/
 
-# 6. Stop hook: our entry is replaced, foreign entries are untouched. The
-#    allow rules: what the rule files tell the agent to run by hand and the
-#    test runner a criterion names; an unattended worker is denied the rest.
+# 6. Stop hook: our entry is replaced, foreign entries are untouched. Allow
+#    rules: what the rule files tell the agent to run and the test runner a
+#    criterion names.
 node -e '
 const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
@@ -214,17 +207,13 @@ if [ "$HAS_PREMERGE" -eq 0 ]; then
   echo "set premerge=$PREMERGE in $CONF"
 fi
 [ "$PREMERGE" = "npm run gate" ] || echo "NOTE: premerge is '$PREMERGE' in $CONF, left alone; the gate runs at merge only if that command runs 'npm run gate'"
-#    guards: the words for a criterion step that proves nothing. Workbench
-#    holds the rule; the words are this toolchain's.
 GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum:]]|$)'
 [ "$(git config --get workbench.guards 2>/dev/null || true)" = "$GUARDS" ] \
   || { git config workbench.guards "$GUARDS" 2>/dev/null && echo "set git config workbench.guards for npm run gate/lint/build/typecheck and tsc"; }
 
-# 8. Manifest: what this install added, so uninstall removes exactly that. A
-#    config written this run gets its sha (what the next run compares
-#    against); a kept or foreign one keeps its entry. On a re-run the runner
-#    is re-recorded (vitest may have arrived since) and the deps this run
-#    added join the list.
+# 8. Manifest, for uninstall. A config written this run gets its sha; a kept
+#    or foreign one keeps its entry. The runner is re-recorded (vitest may
+#    have arrived since).
 node -e '
 const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
 const m=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};

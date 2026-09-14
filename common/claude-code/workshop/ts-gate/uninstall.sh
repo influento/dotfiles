@@ -18,9 +18,8 @@ DEPS=$(node -p 'require("./ts-gate/.install.json").deps.join(" ")')
 # 2. Scripts
 npm pkg delete scripts.gate scripts.gate:local scripts.gate:full scripts.gate:fix scripts.gate:verify scripts.test:live
 
-# 3. eslint, biome and vitest configs: only the ones install wrote and nobody
-#    edited since. One that was there before install got the block by hand
-#    (install printed it), so the lines to take out are named here.
+# 3. Configs: only the ones install wrote and nobody edited since. For one
+#    that predates install, the hand-merged lines are named.
 node -e '
 const fs=require("fs"),c=require("crypto"),m=require("./ts-gate/.install.json");
 const merged={config:"eslint.config.mjs: remove the ts-gate lines you merged into it (the import of ./ts-gate/eslint.gate.mjs and the gate(...) spread)",

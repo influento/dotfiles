@@ -18,9 +18,7 @@ const vitest = await import("@vitest/eslint-plugin").then(
 // literal object. Names checked against repos/effect at 4.0.0-rc.115
 // (Match.tag/tags/tagsExhaustive/when/not, Effect.catchTag/catchTags,
 // Data.taggedEnum's $match/$is, Predicate.isTagged,
-// Schema.TaggedError/TaggedStruct, Data.TaggedError). Measured 2026-09-13 as
-// ts-gate's `gate/effect-tags`: 3/3 workers wrote `e._tag === ...` without
-// it, 0/3 with it (ts-gate's CLAUDE.md, Rules).
+// Schema.TaggedError/TaggedStruct, Data.TaggedError).
 const TAG_EQ = "BinaryExpression[operator=/^[!=]==?$/]";
 const TAG_SELECTORS = [
   [

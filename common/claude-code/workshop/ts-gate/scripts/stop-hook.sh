@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-# Claude Code Stop hook: blocks while gate:local is red, capped at
-# gate.repeat_cap identical failures (policy: CLAUDE.md in the ts-gate source,
-# Stop hook). The count lives outside the tree, per session.
+# Claude Code Stop hook (policy: CLAUDE.md in the ts-gate source, Stop hook).
+# The count lives outside the tree, per session.
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 FINDING='error|TS[0-9]{4}|✖|unused|FAIL'
 
-# conf_count <key> <default>: a positive integer from .claude/workshop.conf.
-# Read as workbench and eslint.gate.mjs read it: lines trimmed, blank and '#'
-# lines skipped, split at the first '=', the last occurrence wins, an invalid
-# value is the default.
+# conf_count <key> <default>: a positive integer from .claude/workshop.conf,
+# parsed as workshop/CLAUDE.md in the dotfiles source specifies.
 conf_count() {
   local line k v=""
   if [ -f .claude/workshop.conf ]; then
@@ -33,7 +30,7 @@ SAME=1
 if [ -n "$SID" ]; then
   MARK="${TMPDIR:-/tmp}/ts-gate-stop-$SID"
   # Hash the findings, not the log: biome and vitest print timings, so the raw
-  # output never repeats and the release below never fired while they ran.
+  # output never repeats.
   # Output with no finding line at all (a tool that could not start) is hashed whole.
   FINDINGS=$(printf '%s\n' "$OUT" | grep -iE "$FINDING" || true)
   HASH=$(printf '%s' "${FINDINGS:-$OUT}" | sha256sum | cut -c1-16)
@@ -46,7 +43,6 @@ if [ "$SAME" -gt "$CAP" ]; then
   exit 0
 fi
 
-# What the model reads back: enough to act on, never the whole log.
 LINES=$(printf '%s\n' "$OUT" | wc -l)
 if [ "$LINES" -gt "$MAX_LINES" ]; then
   OUT=$(printf '%s\n' "$OUT" | head -n "$MAX_LINES"; echo "… $((LINES - MAX_LINES)) more lines; run npm run gate:local for all of it")

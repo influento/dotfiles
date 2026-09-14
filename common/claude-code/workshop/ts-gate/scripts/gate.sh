@@ -32,9 +32,9 @@ fi
 list_added() { { git diff --name-only --diff-filter=A "$RANGE"; untracked; } | sort -u; }
 
 if [ "$MODE" = "--list" ]; then [ ${#FILES[@]} -eq 0 ] || printf '%s\n' "${FILES[@]}"; exit 0; fi
-# CI always runs the repo-wide tools: a branch that only edited tsconfig once
-# merged green and broke tsc on main. --local, at every stop, skips only when
-# nothing but code-irrelevant files changed.
+# CI always runs the repo-wide tools: a tsconfig-only change can break tsc.
+# --local, at every stop, skips only when nothing but code-irrelevant files
+# changed.
 if [ ${#FILES[@]} -eq 0 ]; then
   case "$MODE" in
     --local)
@@ -54,9 +54,7 @@ npx tsc --noEmit "${TSC_OPTS[@]}" || FAIL=1
 #    type info, so scoping to the diff is exact, not an approximation.
 [ ${#FILES[@]} -eq 0 ] || npx eslint "${ESLINT_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
-# 2b. Layout, changed files only. Biome as formatter alone (its linter is off:
-#     eslint above is the linter); `--reporter=summary` for the Stop hook, the diff
-#     for CI. `gate:fix` rewrites.
+# 2b. Layout, changed files only.
 [ ${#FILES[@]} -eq 0 ] || npx biome format --no-errors-on-unmatched "${BIOME_OPTS[@]}" "${FILES[@]}" || FAIL=1
 
 # 3. Dead code / abandoned attempts. Repo-wide: an export dies when its last
@@ -66,9 +64,7 @@ npx knip --config ts-gate/knip.json || FAIL=1
 # 4. Structure: cycles, barrel chains, layers. Repo-wide, zero tolerance.
 npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 
-# 5. Tests. Local: the tests the diff reaches (vitest --changed since the
-#    merge base, working tree included). CI: the whole suite. Only vitest;
-#    jest projects get the eslint plugin alone. Never the live tier.
+# 5. Tests: vitest only; jest projects get the eslint plugin alone.
 if grep -q '"vitest"' package.json; then
   VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*')
   case "$MODE" in

@@ -1,8 +1,7 @@
-// The gate's eslint rules: volume (more code than there should be), the
-// correctness subset of recommendedTypeChecked, and the inline `gate/*`
-// plugin. Cherry-picked on purpose: the rest of recommendedTypeChecked is not
-// here, and mixing all of it in is what makes day one unsurvivable. Tiers,
-// switches and the measured evidence: CLAUDE.md in the ts-gate source, Rules.
+// The gate's eslint rules: volume, the correctness subset of
+// recommendedTypeChecked (all of it makes day one unsurvivable), and the
+// inline `gate/*` plugin. Tiers and switches: CLAUDE.md in the ts-gate source,
+// Rules.
 //
 // Usage in your eslint.config.mjs:
 //   import gate from "./ts-gate/eslint.gate.mjs";
@@ -14,12 +13,9 @@ import { pathToFileURL } from "node:url";
 import tseslint from "typescript-eslint";
 import sonarjs from "eslint-plugin-sonarjs";
 
-// Lint a stack package brings (`stack add` copies packages/<name>/eslint.mjs to
-// .claude/eslint/<name>.mjs): each file's default export, an array of flat
-// config objects or a function of the gate's options returning one, appended
-// after the gate's own, in file-name order. The gate names no package; it
-// loads what is there. Imported at module load because import() is async and
-// gate() is not; ts-gate/ sits at the project root.
+// .claude/eslint/*.mjs, appended after the gate's blocks (the contract:
+// CLAUDE.md in the ts-gate source, Rules). Imported at module load because
+// import() is async and gate() is not; ts-gate/ sits at the project root.
 const extrasDir = join(import.meta.dirname, "..", ".claude", "eslint");
 const extras = [];
 for (const file of fs.existsSync(extrasDir) ? fs.readdirSync(extrasDir).filter((f) => f.endsWith(".mjs")).sort() : []) {
@@ -35,11 +31,8 @@ const extraBlocks = (opts) =>
     return out;
   });
 
-// The project's settings (.claude/workshop.conf, `key=value` lines; the key
-// table: workshop/CLAUDE.md in the dotfiles source), read as workbench and
-// scripts/stop-hook.sh read them: lines trimmed, blank and `#` lines skipped,
-// split at the first `=`, the last occurrence wins, an invalid value is the
-// default.
+// .claude/workshop.conf, parsed as workshop/CLAUDE.md in the dotfiles source
+// specifies, like workbench and scripts/stop-hook.sh.
 const workshopConf = (root) => {
   const conf = new Map();
   let text = "";
@@ -61,11 +54,8 @@ const confCount = (conf, key, fallback) => {
   return v !== undefined && /^[1-9][0-9]{0,8}$/.test(v) ? Number(v) : fallback;
 };
 
-// Words the workbench glossary rejects (`| Use | Never |` rows in
-// workbench/GLOSSARY.md), as a negative lookahead for id-match over what this
-// code declares. Substring, not exact: a worker writes `accountId`, never
-// `account` (CLAUDE.md, Touchpoints). A property another module owns
-// (`stripe.account`) is not ours to rename and is not checked.
+// The `Never` column of workbench/GLOSSARY.md as a negative lookahead for
+// id-match; substring, not exact (CLAUDE.md in the ts-gate source, Touchpoints).
 function neverPattern(words) {
   const alts = new Set(
     words.flatMap((w) => [w.toLowerCase(), w[0].toUpperCase() + w.slice(1).toLowerCase(), w.toUpperCase()]),
@@ -88,9 +78,7 @@ function neverWords(file) {
   return [...words];
 }
 
-// The gate's own rules, as an inline plugin so a project can switch one off
-// by name (`"gate/<rule>": "off"`) without losing the rest. Each is an
-// esquery selector or a comment lookup; none needs type information.
+// The inline `gate/*` plugin. None needs type information.
 const selectorRule = (description, entries) => ({
   meta: { type: "problem", docs: { description }, schema: [] },
   create: (ctx) =>
@@ -132,10 +120,8 @@ const noUnknownSignature = selectorRule("unknown stays out of parameters and ret
 ]);
 
 // Every `as` that survives no-unnecessary-type-assertion is a claim the
-// compiler could not make. It carries its reason as a `SAFETY:` comment on
-// the assertion or the statement holding it, so a reader (and the reviewer)
-// sees the invariant, or else the cast goes: decode with Schema, narrow
-// with a guard, fix the type. `as const` is not an assertion.
+// compiler could not make, so it states its invariant. `as const` is not an
+// assertion.
 const SAFETY = /(?:^|[^\w])SAFETY\s*:\s*\S/;
 const STATEMENTS = new Set(["ExpressionStatement", "VariableDeclaration", "ReturnStatement", "ThrowStatement", "PropertyDefinition"]);
 const safetyComment = {
@@ -192,9 +178,8 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
     {
       files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       plugins: { "@typescript-eslint": tseslint.plugin, sonarjs, gate: gatePlugin },
-      // No inline escape: a disable comment is a hole the Stop hook cannot see
-      // (measured; CLAUDE.md). A rule wrong for a file changes in
-      // eslint.config.mjs, in its own commit.
+      // No inline escape: a disable comment is a hole the Stop hook cannot
+      // see. A rule wrong for a file changes in eslint.config.mjs.
       linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "error" },
       languageOptions: {
         parser: tseslint.parser,
@@ -205,10 +190,8 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
       },
       rules: {
         // --- defensive padding (type-aware) -------------------------------
-        // Highest-value rule here. Catches null-checks and `?.` on values the
-        // type system already proves non-nullish. Note: it does NOT flag
-        // `if (!id)` on `id: string` — "" is falsy, so that check is real.
-        // Required-param guards are a skill concern, not a lint concern.
+        // `if (!id)` on `id: string` passes ("" is falsy); ts-lean-code's
+        // falsy-guard row judges that.
         "@typescript-eslint/no-unnecessary-condition": E,
         "@typescript-eslint/no-unnecessary-boolean-literal-compare": E,
         "@typescript-eslint/no-unnecessary-type-conversion": E,
@@ -235,7 +218,6 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
         ...(never.length
           ? { "id-match": [E, neverPattern(never), { onlyDeclarations: true, properties: true }] }
           : {}),
-        // The inline plugin above.
         "gate/no-double-assertion": E,
         "gate/no-module-mock": E,
         "gate/no-unknown-signature": E,
@@ -246,7 +228,7 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
         "@typescript-eslint/no-useless-empty-export": E,
         "@typescript-eslint/no-unnecessary-parameter-property-assignment": E,
         "@typescript-eslint/no-useless-constructor": E,
-        "no-useless-constructor": "off", // the TS-aware rule above covers it
+        "no-useless-constructor": "off",
         "no-useless-catch": E,
         "no-useless-return": E,
         "no-useless-rename": E,
@@ -259,7 +241,6 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
         "@typescript-eslint/no-unused-vars": E,
 
         // --- the same code, twice -----------------------------------------
-        // The single best "wrote the helper again instead of finding it" gate.
         "sonarjs/no-identical-functions": [E, 3],
         "sonarjs/no-identical-expressions": E,
 
@@ -274,7 +255,6 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
         "sonarjs/no-dead-store": E,
 
         // --- hand-rolled stdlib -------------------------------------------
-        // The loop or helper already exists as a method. Fix deletes code.
         "@typescript-eslint/prefer-includes": E,
         "@typescript-eslint/prefer-find": E,
         "@typescript-eslint/prefer-for-of": E,
@@ -285,9 +265,6 @@ export default function gate({ tsconfigRootDir, severity = "error" }) {
         "prefer-rest-params": E,
 
         // --- correctness (type-aware): wrong, not merely too much ---------
-        // A promise nobody awaits, a switch a new union member falls out of,
-        // `any` flowing through, string + number. Greenfield has no reason
-        // to wait for these; brownfield ratchets them with the rest.
         "@typescript-eslint/no-floating-promises": E,
         "@typescript-eslint/no-misused-promises": E,
         "@typescript-eslint/await-thenable": E,
