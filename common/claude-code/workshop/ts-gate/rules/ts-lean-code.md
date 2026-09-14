@@ -4,24 +4,24 @@ paths: ["**/*.{ts,tsx}"]
 
 # Lean code
 
-Everything countable is gated in `ts-gate/`. This pass covers only what needs
-intent to judge, over the files `bash ts-gate/scripts/gate.sh --list` prints.
-Apply it as you write, and in review — where what `npm run gate:local`
-reports is not a finding: the author's Stop hook blocks on it.
+Everything countable is gated in `ts-gate/`; this pass judges intent, over the
+files `bash ts-gate/scripts/gate.sh --list` prints. Apply it as you write and
+in review, where what `npm run gate:local` reports is not a finding: the
+author's Stop hook blocks on it.
 
 ## Before writing
 
 Stop at the first rung that holds:
 
-1. Needs to exist at all? Speculative need: skip it, say so in one line.
-2. Already in this codebase? Reuse the helper, type, or pattern. Look before you write.
+1. Needs to exist at all, or would deleting code solve it? Speculative need: skip it, say so in one line.
+2. Already in this codebase? Reuse the helper, type, or pattern.
 3. Stdlib does it? Use it.
 4. An installed dependency does it? Use it; never add a dependency for what a few lines do.
 5. One line? One line.
 6. Only then: the minimum code that works.
 
-Bug fix: a report names a symptom. Grep every caller of the function you touch
-and fix the shared function once, not the one path the ticket names.
+Bug fix: grep every caller of the function you touch and fix the shared
+function once, not the one path the report names.
 
 ## Must be zero
 
@@ -50,5 +50,3 @@ that is correct on edge cases. Non-trivial logic (a branch, loop, parser,
 money or security path) that the change adds leaves one test that fails if
 it breaks, within what the criterion describes; trivial one-liners get none,
 and that one test is never a deletion finding.
-
-Before adding code, check whether deleting code solves it instead.
