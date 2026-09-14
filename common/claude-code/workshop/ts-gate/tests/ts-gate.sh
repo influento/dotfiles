@@ -150,6 +150,11 @@ check "nothing ran for docs" [ ! -s "$LOG" ]
 run "gate in CI mode on a docs-only branch runs the repo-wide tools" 0 "" bash ts-gate/scripts/gate.sh
 check "tsc ran for CI on docs" called tsc
 git checkout -q main
+git checkout -qb lintcfg && mkdir -p .claude/eslint && echo 'export default [];' > .claude/eslint/x.mjs && git add .claude/eslint && git commit -qm lint
+: > "$LOG"
+run "gate --local on a branch that changes only a stack lint file runs the repo-wide tools" 0 "" bash ts-gate/scripts/gate.sh --local
+check "tsc ran for the lint file" called tsc
+git checkout -q main
 
 echo "== re-install keeps a project's premerge and a hand-set Stop hook timeout"
 sed -i 's|^premerge=.*|premerge=bash scripts/premerge.sh|' .claude/workshop.conf
@@ -237,6 +242,7 @@ for m in typescript-eslint eslint-plugin-sonarjs; do
   printf '{"name":"%s","type":"module","main":"index.js"}\n' "$m" > "node_modules/$m/package.json"
   echo 'export default { plugin: {}, parser: {} };' > "node_modules/$m/index.js"
 done
+# shellcheck disable=SC2016  # the ${} is JavaScript's
 limits() { node --input-type=module -e '
 const { default: gate } = await import(`${process.cwd()}/ts-gate/eslint.gate.mjs`);
 const r = gate({ tsconfigRootDir: process.cwd() })[0].rules;
@@ -250,6 +256,22 @@ git checkout -q -- .claude/workshop.conf
 printf 'lint.complexity=007\nlint.max_nesting=\nlint.max_params=0\nlint.max_depth=deep\nlint.nope=1\ngarbage\n# lint.max_statements=1\nlint.max_lines=10\n  lint.max_lines = 700  \n' >> .claude/workshop.conf
 run "invalid values are the default, the last occurrence wins, a comment is not read" 0 "^\[\"error\",15\] \[\"error\",\{\"threshold\":3\}\] \[\"warn\",\{\"max\":700,$O\}\] \[\"warn\",\{\"max\":100,$O\}\] \[\"warn\",30\] \[\"warn\",6\] \[\"warn\",4\]$" limits
 git checkout -q -- .claude/workshop.conf
+
+echo "== eslint.gate.mjs appends .claude/eslint/*.mjs after its own blocks, in file-name order"
+mkdir -p .claude/eslint
+echo 'export default [{ files: ["**/*.tsx"], rules: { "b/rule": "error" } }];' > .claude/eslint/b.mjs
+echo 'export default [{ rules: { "a/one": "warn" } }, { rules: { "a/two": "off" } }];' > .claude/eslint/a.mjs
+echo 'export default "not read";' > .claude/eslint/notes.js
+# shellcheck disable=SC2016  # the ${} is JavaScript's
+blocks() { node --input-type=module -e '
+const { default: gate } = await import(`${process.cwd()}/ts-gate/eslint.gate.mjs`);
+const c = gate({ tsconfigRootDir: process.cwd() });
+console.log(c.length, c.slice(-3).map((b) => Object.keys(b.rules).join()).join(" "));' 2>&1; }
+run "the gate's two blocks, then a.mjs's two, then b.mjs's one" 0 "^5 a/one a/two b/rule$" blocks
+echo 'export default { rules: {} };' > .claude/eslint/c.mjs
+run "a default export that is not an array fails the load, naming the file" 1 "\.claude/eslint/c\.mjs: the default export must be an array" blocks
+rm -rf .claude/eslint
+run "no .claude/eslint: the gate's two blocks alone" 0 "^2 " blocks
 rm -rf node_modules/typescript-eslint node_modules/eslint-plugin-sonarjs
 
 echo "== gate:fix runs the formatter even when eslint --fix leaves an error (C5)"

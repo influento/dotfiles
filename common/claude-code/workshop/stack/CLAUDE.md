@@ -78,9 +78,11 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | `packages/fixtures/`            | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/fixture.ts` (load, stream, record over `fixtures/`); the other half of ts-gate's network guard |
 | `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
-| `packages/shadcn/`              | public library: the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
+| `packages/shadcn/`              | public library: `NEEDS=tailwind`, the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
+| `packages/tailwind/`            | `@shadcn/lint` as dev dep, a rule for the v4 facts the lint cannot see (CSS, renamed scales), and `eslint.mjs`: the lint's rules, which ts-gate appends. No skill: Tailwind Labs publishes none, the skills.sh ones are tutorials. Standalone, since the lint works without shadcn |
 | `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
 | `packages/<name>/rule.md`       | optional; → `.claude/rules/<name>.md` verbatim                                    |
+| `packages/<name>/eslint.mjs`    | optional; → `.claude/eslint/<name>.mjs` verbatim, the rule's lifecycle (re-copied by update, removed by rm or when the registry drops it). Default export: an array of eslint flat config blocks importing their own plugin; `ts-gate/eslint.gate.mjs` appends every file there after its own blocks, so a project overrides one after the `gate()` spread. Inert without ts-gate |
 | `packages/<name>/skills/<s>/`   | optional; → `.claude/skills/<s>/`, own-written or vendored from upstream          |
 | `packages/<name>/files/<path>`  | optional; → `<path>` in the project once, never overwritten and never removed: source the project owns from the moment it lands (`money`'s `src/core/money.ts`) |
 | `tests/stack.sh`                | end-to-end, in a temp project against a temp registry and a local bare "private" repo |
@@ -125,11 +127,11 @@ Per package, what it `NEEDS` first, each part only when the conf names it: a
 `--squash` subtree at `repos/<name>` as a read-only reference (needs HEAD and
 a clean tree), the dependencies (and, when `ts-gate/knip.json` exists, their
 names in `ignoreDependencies`, because the package lands before the code that
-imports it), the rule, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet), the skills as committed copies, one line in the block
+imports it), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet), the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add
-fullstack` records `effect`, `atom-react`, `tanstack-start`, `shadcn`, in that order (`stack show
+fullstack` records `effect`, `atom-react`, `tanstack-start`, `tailwind`, `shadcn`, in that order (`stack show
 fullstack` prints it).
 
 A skill copied out of the subtree had relative links that climbed to its
@@ -171,5 +173,7 @@ Run from this directory (`common/claude-code/workshop/stack/`):
 4. If it is imported: `DEP`. If its own installer asks questions: `SETUP`.
 5. `rule.md`: what is non-negotiable, where to start. Short; path-scoped with
    `paths:` frontmatter when the thing has files of its own, always-on
-   otherwise. Skills only for tasks.
+   otherwise. Skills only for tasks. What a lint rule can check goes in
+   `eslint.mjs` instead, its plugin in `DEV_DEP`; the rule keeps what it
+   cannot.
 6. `stack show <name>`, then a real `stack add` in a scratch project.

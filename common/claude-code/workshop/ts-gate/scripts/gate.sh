@@ -39,7 +39,7 @@ if [ ${#FILES[@]} -eq 0 ]; then
   case "$MODE" in
     --local)
       printf '%s\n' "${CHANGED[@]}" \
-        | grep -qE '^(package(-lock)?\.json|tsconfig[^/]*\.json|biome\.jsonc?|eslint\.config\.[a-z]+|vitest?\.[a-z.]+|ts-gate/.*|\.dependency-cruiser\.cjs)$' \
+        | grep -qE '^(package(-lock)?\.json|tsconfig[^/]*\.json|biome\.jsonc?|eslint\.config\.[a-z]+|\.claude/eslint/.*|vitest?\.[a-z.]+|ts-gate/.*|\.dependency-cruiser\.cjs)$' \
         || { echo "no TS or config changes"; exit 0; } ;;
   esac
   echo "== no changed TS files; repo-wide checks only =="

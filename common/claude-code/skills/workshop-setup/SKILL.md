@@ -77,7 +77,8 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    brings and what to run after it; a package later (`stack add
    drizzle-sqlite` in a CLI that grew a database) is the same command.
    `stack add <name>...` brings each in (a read-only subtree under `repos/`,
-   the pinned dependency, a rule, skills, a line in CLAUDE.md), what a
+   the pinned dependency, a rule, a lint config the gate loads, skills, a
+   line in CLAUDE.md), what a
    package needs first. Needs a clean tree, which step 2's commit gives it.
    A package not in the registry is added to dotfiles first
    (`$WORKSHOP/stack/CLAUDE.md`, "Adding a package" and "What enters the

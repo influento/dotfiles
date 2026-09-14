@@ -4,6 +4,7 @@
   "ignore": [
     "repos/**",
     ".worktrees/**",
+    ".claude/eslint/**",
     "ts-gate/eslint-line.mjs"
   ],
   "ignoreDependencies": [],

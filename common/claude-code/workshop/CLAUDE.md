@@ -6,7 +6,7 @@ installed in this order by the `workshop-setup` skill:
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `ts-gate/`   | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
-| `stack/`     | `stack add <name>...` (the CLI is on PATH) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
+| `stack/`     | `stack add <name>...` (the CLI is on PATH) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/eslint/<name>.mjs`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
 | `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies rendered from `.claude/workshop.conf`, two `SessionStart` hooks and a `FileChanged` hook, `workbench/` state |
 
 Two files leave this tree at deploy: `workbench/bin/workbench` and
@@ -27,7 +27,9 @@ column of `workbench/GLOSSARY.md`, and `ts-lean-code.md`, the checklist
 of ts-gate: a dependency it installs goes into `ts-gate/knip.json`'s
 `ignoreDependencies`, a file it copies into `ignore`. What ts-gate knows of
 stack: `eslint.gate.mjs` turns its money and Effect blocks on when
-`.claude/stack.conf` lists `money` or `effect`. Effect itself is a stack
+`.claude/stack.conf` lists `money` or `effect`, and appends whatever
+`.claude/eslint/*.mjs` files stack copied in (a package's `eslint.mjs`,
+`tailwind`'s today) without naming the package. Effect itself is a stack
 package (`stack add effect`, in every TypeScript project through
 `workshop-setup`), not part of the gate.
 

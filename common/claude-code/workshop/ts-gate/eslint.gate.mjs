@@ -10,8 +10,22 @@
 
 import fs from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import tseslint from "typescript-eslint";
 import sonarjs from "eslint-plugin-sonarjs";
+
+// Lint a stack package brings (`stack add` copies packages/<name>/eslint.mjs to
+// .claude/eslint/<name>.mjs): each file's default export, an array of flat
+// config objects, appended after the gate's own, in file-name order. The gate
+// names no package; it loads what is there. Read at module load because
+// import() is async and gate() is not; ts-gate/ sits at the project root.
+const extrasDir = join(import.meta.dirname, "..", ".claude", "eslint");
+const extras = [];
+for (const file of fs.existsSync(extrasDir) ? fs.readdirSync(extrasDir).filter((f) => f.endsWith(".mjs")).sort() : []) {
+  const { default: blocks } = await import(pathToFileURL(join(extrasDir, file)).href);
+  if (!Array.isArray(blocks)) throw new Error(`.claude/eslint/${file}: the default export must be an array of eslint config objects`);
+  extras.push(...blocks);
+}
 
 // The money invariant's escape hatches (stack package `money`: amounts are
 // branded bigint or BigDecimal, never a number). The types stop a number
@@ -351,5 +365,6 @@ export default function gate({
         "max-statements": "off",
       },
     },
+    ...extras,
   ];
 }

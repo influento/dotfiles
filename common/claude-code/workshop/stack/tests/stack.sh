@@ -167,6 +167,33 @@ echo "export const one = 2" > src/core/lib.ts; git commit -qam mine
 "$STACK" update lib >/dev/null; check grep -q 'one = 2' src/core/lib.ts
 "$STACK" show lib > "$TMP/show.txt"; check grep -q '^file:    src/core/lib.ts' "$TMP/show.txt"
 
+echo "== eslint.mjs: copied to .claude/eslint/<name>.mjs, named in the block, status, update drops it with the registry, rm removes it"
+mkdir -p "$STACK_ROOT/packages/linted"
+printf 'KIND=lib\nNOTE="Linted."\n' > "$STACK_ROOT/packages/linted/package.conf"
+echo 'export default [];' > "$STACK_ROOT/packages/linted/eslint.mjs"
+"$STACK" show linted > "$TMP/show.txt"; check grep -q '^lint:    .claude/eslint/linted.mjs' "$TMP/show.txt"
+"$STACK" add linted >/dev/null
+check cmp -s "$STACK_ROOT/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
+check grep -q '^linted|||$' .claude/stack.conf
+# shellcheck disable=SC2016
+check grep -q '^- \*\*linted\*\* (lib) — Linted. Lint `.claude/eslint/linted.mjs`.$' CLAUDE.md
+out=$("$STACK" status); check grep -q '^linted *ok' <<< "$out"
+echo '// edited' >> .claude/eslint/linted.mjs
+out=$("$STACK" status); check grep -q 'linted *.claude/eslint/linted.mjs differs' <<< "$out"
+"$STACK" update linted >/dev/null
+check cmp -s "$STACK_ROOT/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
+rm "$STACK_ROOT/packages/linted/eslint.mjs"
+out=$("$STACK" status); check grep -q 'linted *.claude/eslint/linted.mjs has no source' <<< "$out"
+"$STACK" update linted >/dev/null
+check not test -e .claude/eslint
+check not grep -q '^- \*\*linted\*\*.* Lint ' CLAUDE.md
+echo 'export default [];' > "$STACK_ROOT/packages/linted/eslint.mjs"
+"$STACK" update linted >/dev/null
+check test -f .claude/eslint/linted.mjs
+"$STACK" rm linted >/dev/null
+check not test -e .claude/eslint
+check not grep -q '\*\*linted\*\*' CLAUDE.md
+
 echo "== add ui (skills.sh): flags answer every prompt, lock read back, setup printed not run"
 out=$("$STACK" add ui)
 check grep -q '^add acme/ui --agent claude-code --skill ui -y --copy$' "$SKILLS_LOG"

@@ -64,7 +64,18 @@ when `.claude/stack.conf` has a `money|` row — `stack add money` — and off
 otherwise; `gate({ money: true })` forces it. The Effect idiom rule
 `gate/effect-tags` is on when `.claude/stack.conf` lists `effect`;
 `gate({ effect: true })` forces it. Those two reads of `.claude/stack.conf`
-are the gate's only knowledge of stack.
+are the gate's only knowledge of stack packages by name.
+
+Lint a stack package brings is loaded, not known: every
+`.claude/eslint/*.mjs` (`stack add` copies `packages/<name>/eslint.mjs`
+there) is imported when `eslint.gate.mjs` loads, and its default export, an
+array of flat config blocks, is appended after the gate's blocks in file-name
+order. A file that is not an array fails the config load, naming the file. A
+package's rules keep their own severities (`gate({ severity })` does not
+reach them); a project overrides one after the spread, like a gate rule.
+`.claude/eslint/**` is in knip's `ignore` (nothing imports the files
+statically; stack puts their plugin in `ignoreDependencies`), and a change
+there alone still runs the repo-wide tools at stop.
 
 Three rules are the gate's own, an inline plugin `gate` in `eslint.gate.mjs`
 (what each matches is written above its selectors), so a project switches one
@@ -149,8 +160,8 @@ at merge (a build, a migration check) points it at its own wrapper —
 its extras — rather than editing files under `ts-gate/`, which the next
 install overwrites.
 
-Stack: the two `.claude/stack.conf` reads above, and `knip.json`'s lists it
-appends to. Effect is a stack package, not the gate's; `ts-lean-code.md`
+Stack: the two `.claude/stack.conf` reads above, the `.claude/eslint/*.mjs`
+files it loads, and `knip.json`'s lists stack appends to. Effect is a stack package, not the gate's; `ts-lean-code.md`
 names it because every project has it.
 
 ## Project requirements

@@ -4,10 +4,11 @@ set -euo pipefail
 # stack — the libraries, toolkits and tools a project has chosen, one at a time.
 #
 # A package is a directory under packages/ in this tree: a package.conf, an
-# optional rule.md and optional skills/. 'stack add <name>' brings the package
+# optional rule.md, eslint.mjs and skills/. 'stack add <name>' brings the package
 # into the project: a read-only --squash subtree at repos/<name> when the
 # package names a REFERENCE worth reading (the way ts-gate holds Effect), the
-# dependency when it has a DEP, the rule as .claude/rules/<name>.md, the skills
+# dependency when it has a DEP, the rule as .claude/rules/<name>.md, the lint
+# config as .claude/eslint/<name>.mjs (ts-gate's eslint loads it), the skills
 # as committed copies under .claude/skills/ — from this registry, from the
 # reference checkout, or through 'npx skills add' (skills.sh) — and one line in
 # a marked block of CLAUDE.md. What was added is recorded in .claude/stack.conf
@@ -41,7 +42,8 @@ usage:
 
 A package: packages/<name>/package.conf (KIND, NEEDS, REFERENCE, REF, DEP,
 DEV_DEP, SKILLS_ADD, SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE),
-packages/<name>/rule.md, packages/<name>/skills/, packages/<name>/files/
+packages/<name>/rule.md, packages/<name>/eslint.mjs (flat config blocks
+ts-gate appends), packages/<name>/skills/, packages/<name>/files/
 (copied into the project once, never overwritten). REFERENCE is
 'private:<repo>' (git config private.root, <root>/<repo>.git) or 'git:<url>';
 SKILLS_ADD is a skills.sh package ('shadcn/ui'); KIND=preset is NEEDS only.
@@ -230,6 +232,7 @@ claude_md_block() {
     line="$line — $note"
     [ -n "$subtree" ] && line="$line Reference \`$subtree\`."
     [ -n "$rule" ] && line="$line Rule \`$rule\`."
+    [ -f ".claude/eslint/$name.mjs" ] && line="$line Lint \`.claude/eslint/$name.mjs\`."
     [ -n "$skills" ] && line="$line Skills \`${skills//,/\`, \`}\`."
     echo "$line"
   done < <(manifest_rows)
@@ -284,6 +287,25 @@ copy_rule() {
   printf '.claude/rules/%s.md\n' "$name"
 }
 
+# packages/<name>/eslint.mjs → .claude/eslint/<name>.mjs, the rule's lifecycle:
+# re-copied on update, removed by rm, and removed on update when the registry
+# dropped it. Not in the manifest: the path is the package name.
+copy_lint() {
+  local dir=$1 name=$2
+  if [ -f "$dir/eslint.mjs" ]; then
+    command mkdir -p .claude/eslint
+    command cp "$dir/eslint.mjs" ".claude/eslint/$name.mjs"
+    echo "  lint    .claude/eslint/$name.mjs"
+  else
+    drop_lint "$name"
+  fi
+}
+
+drop_lint() {
+  rm -f ".claude/eslint/$1.mjs"
+  rmdir .claude/eslint 2>/dev/null || true
+}
+
 # packages/<name>/files/<path> → <path> in the project, once: a file that is
 # there already is the project's and is kept, on add and on update alike. Not
 # in the manifest, not removed by rm — it is source the project owns from the
@@ -327,6 +349,7 @@ place() {
   local name=$1 dir=$2 subtree=$3 mode=$4 from rule skills s pkg setup
   from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD); setup=$(conf "$dir" SETUP)
   rule=$(copy_rule "$dir" "$name")
+  copy_lint "$dir" "$name"
   copy_files "$dir"
   skills=""
   for s in $(registry_skills "$dir"); do
@@ -451,6 +474,7 @@ cmd_show() {
   [ -n "$(conf "$dir" DEP)" ] && echo "dep:     $(conf "$dir" DEP)"
   [ -n "$(conf "$dir" DEV_DEP)" ] && echo "dev dep: $(conf "$dir" DEV_DEP)"
   [ -f "$dir/rule.md" ] && echo "rule:    .claude/rules/$name.md"
+  [ -f "$dir/eslint.mjs" ] && echo "lint:    .claude/eslint/$name.mjs  (appended to ts-gate's eslint config)"
   [ -d "$dir/files" ] && find "$dir/files" -type f | sort | sed "s#^$dir/files/#file:    #; s#\$#  (copied once; kept if present)#"
   for s in $(registry_skills "$dir"); do echo "skill:   .claude/skills/$s (registry)"; done
   [ -n "$(conf "$dir" SKILLS_FROM_REFERENCE)" ] && echo "skills:  from $(conf "$dir" SKILLS_FROM_REFERENCE) in the subtree, copied after add"
@@ -557,6 +581,7 @@ cmd_rm() {
   done
   IFS='|' read -r _ subtree rule skills <<< "$row"
   [ -n "$rule" ] && rm -f "$rule"
+  drop_lint "$name"
   if [ -n "$(conf "$PACKAGES/$name" SKILLS_ADD 2>/dev/null || true)" ] && [ -f skills-lock.json ]; then
     pkg=$(conf "$PACKAGES/$name" SKILLS_ADD)
     for s in $(lock_skills "$pkg"); do
@@ -607,6 +632,11 @@ cmd_status() {
     if [ -n "$rule" ]; then
       if [ ! -f "$rule" ]; then printf '%s\t%s missing\n' "$name" "$rule"
       elif ! cmp -s "$dir/rule.md" "$rule"; then printf '%s\t%s differs\n' "$name" "$rule"; fi
+    fi
+    if [ -f "$dir/eslint.mjs" ]; then
+      if [ ! -f ".claude/eslint/$name.mjs" ]; then printf '%s\t.claude/eslint/%s.mjs missing\n' "$name" "$name"
+      elif ! cmp -s "$dir/eslint.mjs" ".claude/eslint/$name.mjs"; then printf '%s\t.claude/eslint/%s.mjs differs\n' "$name" "$name"; fi
+    elif [ -f ".claude/eslint/$name.mjs" ]; then printf '%s\t.claude/eslint/%s.mjs has no source\n' "$name" "$name"
     fi
     for s in ${skills//,/ }; do
       if [ -d "$dir/skills/$s" ]; then src="$dir/skills/$s"

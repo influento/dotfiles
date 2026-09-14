@@ -20,6 +20,8 @@ workbench tracks projects, this tracks workbench, stack and ts-gate.
 
 ## ts-gate
 
+- money through `.claude/eslint/`: move the money block out of `eslint.gate.mjs` into `packages/money/eslint.mjs` and drop `stackHas("money")`, as `tailwind` works since 2026-09-14. Blocker: a later flat config block replaces `no-restricted-syntax`'s options, so the package would erase the gate's double-assertion and module-mocking selectors; the gate exports them first (or the money selectors move to an inline plugin rule). `effect-tags` stays, it is the gate's own plugin
+
 - package boundaries: at the second top-level folder under `src/` in a real project, add four dependency-cruiser rules (about 30 lines, from mattpocock/skills `setup-ts-deep-modules`): a package's root files are its public surface, anything in a subfolder is private to it, tests reach a package only through its root files, `tests/` is reachable only from tests. Decided 2026-09-06: packages root is `src/` itself (every top-level folder is a package, no `src/packages/` move); entry files named after the folder (`src/wallet/wallet.ts`), never `index.ts`, so no clash with `no-barrel-chain`; Effect shape is Tag and Layer in the root file, implementation in `lib/`; `warn` first, `error` once clean; rule change in its own commit; no packages README, the config comment is the record. Why: makes interface hygiene countable where today it is reviewer judgment (ts-lean-code's one-consumer and pass-through rows), which is the gate's thesis and worth most to unattended workers
 
 ## delivery
