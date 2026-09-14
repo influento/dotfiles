@@ -119,6 +119,9 @@ echo "== list / show"
 out=$("$STACK" list); check grep -q '^general$' <<< "$out"; check grep -q '^  thing *toolkit' <<< "$out"
 out=$("$STACK" show thing); check grep -q "subtree: repos/thing from file://$TMP/srv/thing.git (main)" <<< "$out"
 check not "$STACK" show nope
+# private.root unset: refused with the reason, before anything reaches stdout
+check bash -c "HOME='$TMP/nohome' '$STACK' show thing 2>&1 >/dev/null | grep -q 'private.root is unset'"
+check test -z "$(HOME="$TMP/nohome" "$STACK" show thing 2>/dev/null)"
 
 echo "== add refuses without a source commit / on a dirty tree"
 echo x > dirty; git add dirty
@@ -235,13 +238,13 @@ check grep -q '"src/core/lib.ts"' ts-gate/knip.json
 git add -A && git commit -qm "knip lib"
 
 echo "== NEEDS: child pulls base in first, dev dep with -D, both in knip; rm base refused while child is added"
-mkdir -p "$STACK_REGISTRY/general/packages/base" "$STACK_REGISTRY/general/packages/child" "$STACK_REGISTRY/general/packages/bundle" "$STACK_REGISTRY/general/packages/empty"
+mkdir -p "$STACK_REGISTRY/general/packages/base" "$STACK_REGISTRY/general/packages/child" "$STACK_REGISTRY/general/packages/presets/bundle" "$STACK_REGISTRY/general/packages/presets/empty"
 printf 'KIND=lib\nDEP=base-pkg@1.0.0\nDEV_DEP="base-dev@2.0.0 base-dev2@2.0.0"\nNOTE="Base."\n' > "$STACK_REGISTRY/general/packages/base/package.conf"
 echo "# base rule" > "$STACK_REGISTRY/general/packages/base/rule.md"
 printf 'KIND=lib\nNEEDS=base\nNOTE="Child."\n' > "$STACK_REGISTRY/general/packages/child/package.conf"
 echo "# child rule" > "$STACK_REGISTRY/general/packages/child/rule.md"
-printf 'KIND=preset\nNEEDS="child plain"\nNOTE="Preset."\n' > "$STACK_REGISTRY/general/packages/bundle/package.conf"
-printf 'KIND=preset\nNOTE="Nothing."\n' > "$STACK_REGISTRY/general/packages/empty/package.conf"
+printf 'KIND=preset\nNEEDS="child plain"\nNOTE="Preset."\n' > "$STACK_REGISTRY/general/packages/presets/bundle/package.conf"
+printf 'KIND=preset\nNOTE="Nothing."\n' > "$STACK_REGISTRY/general/packages/presets/empty/package.conf"
 out=$("$STACK" show child); check grep -q '^needs:   base  (add order: base child)$' <<< "$out"
 out=$("$STACK" show bundle); check grep -q '(add order: base child plain)$' <<< "$out"
 out=$("$STACK" add child)
@@ -379,6 +382,27 @@ check bash -c "'$STACK' show cross 2>&1 | grep -q 'cross (lang/back) needs plain
 check bash -c "'$STACK' show far 2>&1 | grep -q 'far (general) needs core (lang/shared)'"
 check not "$STACK" add bad
 check test -z "$(git status --porcelain)"
+# A preset outside presets/ would let a backend package reach frontend through it.
+mkdir -p "$R/lang/packages/shared/bundle2" "$R/lang/packages/back/api" "$R/lang/packages/presets/notpreset"
+printf 'KIND=preset\nNEEDS=ui2\nNOTE="Preset in shared."\n' > "$R/lang/packages/shared/bundle2/package.conf"
+printf 'KIND=lib\nNEEDS=bundle2\nNOTE="Api."\n' > "$R/lang/packages/back/api/package.conf"
+printf 'KIND=lib\nNOTE="Not a preset."\n' > "$R/lang/packages/presets/notpreset/package.conf"
+check bash -c "'$STACK' show bundle2 2>&1 | grep -q 'bundle2 is KIND=preset in lang/shared'"
+check bash -c "'$STACK' show api 2>&1 | grep -q 'bundle2 is KIND=preset in lang/shared'"
+check not "$STACK" add api
+check bash -c "'$STACK' show notpreset 2>&1 | grep -q 'notpreset is in lang/presets without KIND=preset'"
+check test -z "$(git status --porcelain)"
+rm -rf "$R/lang/packages/shared/bundle2" "$R/lang/packages/back/api" "$R/lang/packages/presets/notpreset"
+# add, status and rm across groups: db (lang/back) needs core (lang/shared).
+out=$("$STACK" add db)
+check grep -q '^core: needed, added first$' <<< "$out"
+out=$("$STACK" status); check grep -q '^core *ok' <<< "$out"; check grep -q '^db *ok' <<< "$out"
+git add -A && git commit -qm "stack: add core db"
+check bash -c "'$STACK' rm core 2>&1 | grep -q 'db needs core'"
+check grep -q '^core|' .claude/stack.conf
+"$STACK" rm db >/dev/null && "$STACK" rm core >/dev/null
+check not grep -qE '^(core|db)\|' .claude/stack.conf
+git add -A && git commit -qm "stack: rm db core"
 mkdir -p "$R/lang/packages/front/plain" && printf 'KIND=lib\nNOTE="Twin."\n' > "$R/lang/packages/front/plain/package.conf"
 check bash -c "'$STACK' show plain 2>&1 | grep -q 'in the registry twice'"
 check bash -c "'$STACK' list 2>&1 | grep -q 'in the registry twice: plain'"
@@ -386,8 +410,11 @@ rm -rf "$R/lang" "$R/general/packages/far"
 
 echo "== the shipped registry: every package found once, every NEEDS inside the section rule"
 names=$(STACK_REGISTRY='' "$STACK" list | sed -n 's/^  \([^ ]*\).*/\1/p')
-check test "$(wc -w <<< "$names")" -ge 17
-for n in $names; do check env STACK_REGISTRY='' "$STACK" show "$n"; done
+# Every package.conf is listed: one placed a level too deep would be missing.
+WORKSHOP=$(readlink -f "$(dirname "$STACK")/../..")
+check test "$(wc -w <<< "$names")" -eq "$(find "$WORKSHOP"/*/packages -name package.conf | wc -l)"
+# No stack: error either; a die inside $(...) prints without failing show.
+for n in $names; do check bash -c "STACK_REGISTRY='' '$STACK' show '$n' >/dev/null 2>'$TMP/show.err' && test ! -s '$TMP/show.err'"; done
 
 echo "== rm drops the knip names it added and the block when nothing is left; modes survive (C6, C7)"
 mkdir -p "$TMP/p3/src" && cd "$TMP/p3" && git init -q && echo '{"name":"p3"}' > package.json && mkdir -p ts-gate && echo '{"ignore":[],"ignoreDependencies":[]}' > ts-gate/knip.json && printf '# p3\n\nhand-written\n' > CLAUDE.md && git add -A && git commit -qm scaffold

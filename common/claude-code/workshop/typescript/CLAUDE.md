@@ -44,9 +44,9 @@ package (`stack add effect`, in every TypeScript project through
 | `backend`  | `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`, `drizzle-libsql`, `duckdb`, `viem`, `solana-kit`, `jupiter` |
 | `frontend` | `tanstack-start`, `atom-react`, `shadcn`, `tailwind` |
 
-A package needs only its own section or `shared`; a preset any section
-(`../stack/CLAUDE.md`, The registry). Backend and frontend never need each
-other. Placement calls:
+A package needs only its own section or `shared`; a preset any section, and
+only a preset sits in `presets` (`../stack/CLAUDE.md`, The registry).
+Backend and frontend never need each other. Placement calls:
 - `money` is shared: the UI shows amounts, and it is pure Schema with no
   dependency.
 - `viem` and `solana-kit` are backend: their rules wrap them in a server

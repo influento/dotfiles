@@ -17,7 +17,10 @@ set -euo pipefail
 # needs effect); a preset is a package that is only NEEDS, expanded and not
 # recorded.
 
-REGISTRY=$(readlink -f "${STACK_REGISTRY:-$(dirname "$(readlink -f "$0")")/../..}")
+die() { echo "stack: $*" >&2; exit 1; }
+
+REGISTRY=$(readlink -f "${STACK_REGISTRY:-$(dirname "$(readlink -f "$0")")/../..}") && [ -d "$REGISTRY" ] \
+  || die "registry not found: ${STACK_REGISTRY:-the workshop tree}"
 MANIFEST=.claude/stack.conf
 MARK_START='<!-- stack:start -->'
 MARK_END='<!-- stack:end -->'
@@ -45,7 +48,8 @@ NEEDS, REFERENCE, REF, DEP, DEV_DEP, SKILLS_ADD, SKILLS_PICK,
 SKILLS_FROM_REFERENCE, SETUP, NOTE), rule.md, eslint.mjs (flat config blocks
 ts-gate appends), skills/, files/ (copied into the project once, never
 overwritten). NEEDS stay inside the package's language: its own section or
-'shared'; a preset any section. REFERENCE is 'private:<repo>' (git config
+'shared'; a preset any section. A preset sits in <language>/packages/presets/,
+and nothing else does. REFERENCE is 'private:<repo>' (git config
 private.root, <root>/<repo>.git) or 'git:<url>'; SKILLS_ADD is a skills.sh
 package ('shadcn/ui'); KIND=preset is NEEDS only. STACK_REGISTRY overrides
 where the registry is read from (default: the workshop tree); STACK_SKILLS_CMD
@@ -53,8 +57,6 @@ what runs for skills.sh (default 'npx -y skills').
 USAGE
   exit "${1:-2}"
 }
-
-die() { echo "stack: $*" >&2; exit 1; }
 
 repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
@@ -107,6 +109,19 @@ needs_allowed() {
   is_preset "$from" || [ "$fg" = "$tg" ] || [ "$tg" = "${tg%%/*}/shared" ]
 }
 
+# KIND=preset exactly where the section is presets. needs_allowed lets a
+# preset need any section; a preset elsewhere, needed from its section or
+# shared, would carry that past the rule.
+check_placement() {
+  local name=$1 dir=$2 g
+  g=$(pkg_group "$dir")
+  if is_preset "$dir"; then
+    [ "${g#*/}" = presets ] || die "$name is KIND=preset in $g: a preset sits in <language>/packages/presets/"
+  else
+    [ "${g#*/}" != presets ] || die "$name is in $g without KIND=preset: only a preset sits there"
+  fi
+}
+
 # One KEY=value per line; a value may be double-quoted. Read, never sourced.
 conf() {
   local dir=$1 key=$2 v
@@ -128,6 +143,7 @@ resolve() {
     case " $RESOLVING " in *" $name "*) die "NEEDS cycle at $name" ;; esac
     RESOLVING="$RESOLVING $name"
     dir=$(package_dir "$name")
+    check_placement "$name" "$dir"
     # shellcheck disable=SC2046
     resolve $(conf "$dir" NEEDS)
     for need in $(conf "$dir" NEEDS); do
@@ -516,9 +532,13 @@ cmd_list() {
 }
 
 cmd_show() {
-  local name=${1:-} dir s
+  local name=${1:-} dir s url
   [ -n "$name" ] || usage
   dir=$(package_dir "$name")
+  check_placement "$name" "$dir"
+  # Before any output: reference_url's die inside an echo's $(...) would
+  # print and let show go on.
+  url=$(reference_url "$(conf "$dir" REFERENCE)")
   cat "$dir/package.conf"
   echo
   echo "in:      $(pkg_group "$dir")"
@@ -528,7 +548,7 @@ cmd_show() {
     for n in $RESOLVED; do is_preset "$(package_dir "$n")" || order="$order $n"; done
     echo "needs:   $(conf "$dir" NEEDS)  (add order:$order)"
   fi
-  [ -n "$(conf "$dir" REFERENCE)" ] && echo "subtree: $REPOS/$name from $(reference_url "$(conf "$dir" REFERENCE)") ($(conf "$dir" REF))"
+  [ -n "$(conf "$dir" REFERENCE)" ] && echo "subtree: $REPOS/$name from $url ($(conf "$dir" REF))"
   [ -n "$(conf "$dir" DEP)" ] && echo "dep:     $(conf "$dir" DEP)"
   [ -n "$(conf "$dir" DEV_DEP)" ] && echo "dev dep: $(conf "$dir" DEV_DEP)"
   [ -f "$dir/rule.md" ] && echo "rule:    .claude/rules/$name.md"

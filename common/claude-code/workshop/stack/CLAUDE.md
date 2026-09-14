@@ -21,9 +21,9 @@ A package is `workshop/<language>/packages/[<section>/]<name>/`. A language
 directory holds its gate and its packages together (`typescript/`: the
 picks, sections and how its packages depend on the gate are in
 `../typescript/CLAUDE.md`); `general/packages/` holds packages with no
-language and has no sections: `shardx-scripts`, a private toolkit (reference
-subtree, its two skills copied out of it, a rule). A project may add packages
-from several languages and from `general`.
+language and has no sections except `presets/`: `shardx-scripts`, a private
+toolkit (reference subtree, its two skills copied out of it, a rule). A
+project may add packages from several languages and from `general`.
 
 - Names are unique across the registry; `bin/stack` refuses a name found
   twice, on the lookup and in `list`.
@@ -32,6 +32,9 @@ from several languages and from `general`.
   language. A typescript package never needs a `general` one, nor the
   reverse. `stack show` and `stack add` refuse a `NEEDS` outside that, naming
   both groups.
+- A preset sits in `<language>/packages/presets/`, and nothing else does.
+  A preset elsewhere could be needed from its section or `shared` and carry
+  that package into any section. `show` and `add` refuse either misplacement.
 - `stack list` prints a heading per `<language>/<section>`; `stack show`
   prints the package's group on its `in:` line.
 - `STACK_REGISTRY` points the CLI at another tree (the tests' temp registry).
