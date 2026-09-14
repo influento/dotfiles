@@ -38,7 +38,7 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    Greenfield with nothing yet: scaffold the least the tools going in need,
    commit `scaffold`. What that is belongs to the tools, not here: the gate's
    contract has a "Greenfield" section with the scaffold for its language
-   (`$WORKSHOP/ts-gate/CLAUDE.md` for TypeScript); a stack entry that
+   (`$WORKSHOP/typescript/gate/CLAUDE.md` for TypeScript); a stack entry that
    scaffolds itself says so in `stack show <entry>` (its `next:` line) and
    runs before the scaffold commit, the tree continuing from what it made.
    Nothing beyond what those two say: an extra dependency added here can
@@ -53,7 +53,7 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    sets `premerge=<the project's own check>` in `.claude/workshop.conf` by
    hand, so workbench still merges behind something.
 
-   TypeScript: `TS_GATE=$WORKSHOP/ts-gate`, read `$TS_GATE/CLAUDE.md` (the
+   TypeScript: `TS_GATE=$WORKSHOP/typescript/gate`, read `$TS_GATE/CLAUDE.md` (the
    gate's contract), then `bash "$TS_GATE/install.sh" .`. Act on every line
    it prints before going on (its "Install output" table says what each
    means), then run its full check green, or take the brownfield baseline
@@ -81,13 +81,16 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    line in CLAUDE.md), what a
    package needs first. Needs a clean tree, which step 2's commit gives it.
    A package not in the registry is added to dotfiles first
-   (`$WORKSHOP/stack/CLAUDE.md`, "Adding a package" and "What enters the
-   registry"), not improvised in the project. Commit: `stack: add <names>`.
+   (`$WORKSHOP/stack/CLAUDE.md`, "Adding a package", and the language's
+   "What enters the registry", `$WORKSHOP/typescript/CLAUDE.md`), not
+   improvised in the project. Commit: `stack: add <names>`.
    `stack add` works at any later time.
 
-   The registry is TypeScript on Effect today. A project in another language
-   has nothing to add until the registry has packages for it; the step is
-   skipped, not improvised.
+   The registry is by language: `typescript/packages/` (on Effect) and
+   `general/packages/` for packages with no language (`stack list` groups
+   them). A project in another language adds only `general` packages until
+   its language has a directory with a gate and packages; the rest of the
+   step is skipped, not improvised.
 
 5. **Review.** The default for every project: the reviewer agent and the
    habit that feeds it, without the item loop.
@@ -159,7 +162,7 @@ tool lands under its own subject.
 
 ## Removing
 
-The gate's own uninstaller (`bash "$WORKSHOP/ts-gate/uninstall.sh" .`)
+The gate's own uninstaller (`bash "$WORKSHOP/typescript/gate/uninstall.sh" .`)
 removes exactly what its manifest lists, including the premerge key if it is
 still the gate's command. `stack rm <name>` removes one package's subtree,
 rule and skills and leaves its dependency; it refuses while another added

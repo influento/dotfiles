@@ -5,9 +5,15 @@ installed in this order by the `workshop-setup` skill:
 
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ts-gate/`   | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
-| `stack/`     | `stack add <name>...` (the CLI is on PATH) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/eslint/<name>.mjs`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
+| `typescript/gate/` | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
+| `stack/`     | `stack add <name>...` (the CLI is on PATH; packages from `<language>/packages/`) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/eslint/<name>.mjs`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
 | `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies rendered from `.claude/workshop.conf`, two `SessionStart` hooks and a `FileChanged` hook, `workbench/` state |
+
+The registry sits beside them, by language: `typescript/` holds the
+TypeScript gate together with the packages written against it
+(`typescript/CLAUDE.md`), `general/packages/` the packages with no language.
+A second language gets the same shape, `<language>/gate/` and
+`<language>/packages/`.
 
 Two files leave this tree at deploy: `workbench/bin/workbench` and
 `stack/bin/stack` → `~/.local/bin/`, because they are what opts a project in.
@@ -23,14 +29,9 @@ beyond listing ts-gate's keys in `.claude/workshop.conf` where ts-gate is
 installed. What ts-gate knows of workbench: the `premerge` key, `workbench.guards`,
 the `permissions.allow` rules, `.worktrees/**` in its ignores, the `Never`
 column of `workbench/GLOSSARY.md`, and `ts-lean-code.md`, the checklist
-`wb-reviewer` applies (`ts-gate/CLAUDE.md`, Touchpoints). What stack knows
-of ts-gate: a dependency it installs goes into `ts-gate/knip.json`'s
-`ignoreDependencies`, a file it copies into `ignore`. What ts-gate knows of
-stack: `eslint.gate.mjs` appends whatever `.claude/eslint/*.mjs` files stack
-copied in (a package's `eslint.mjs`: `effect`, `money`, `tailwind` today),
-naming no package, and `repos/**` in its ignores. Effect itself is a stack
-package (`stack add effect`, in every TypeScript project through
-`workshop-setup`), not part of the gate.
+`wb-reviewer` applies (`typescript/gate/CLAUDE.md`, Touchpoints). How stack
+and ts-gate depend on each other, and why the gate goes in first:
+`typescript/CLAUDE.md`.
 
 ## .claude/workshop.conf
 
@@ -49,8 +50,8 @@ line. This table is the reference; the tools' docs link here.
 - Format: `key=value` lines, the value to the end of the line, no quoting;
   `#` comment lines and blank lines skipped. Keys and values are trimmed,
   the last occurrence of a key wins. Parsed the same way in
-  `workbench/bin/workbench`, `ts-gate/scripts/stop-hook.sh` and
-  `ts-gate/eslint.gate.mjs`.
+  `workbench/bin/workbench`, `typescript/gate/scripts/stop-hook.sh` and
+  `typescript/gate/eslint.gate.mjs`.
 - An unknown key, a line without `=` or an invalid value is never fatal:
   the default applies, and `workbench status` warns (ts-gate's keys only
   where a `ts-gate/` directory exists). `workbench config list` shows each
@@ -96,5 +97,5 @@ them. `git config workbench.guards` stays git config; ts-gate owns it.
 - Each tool's own `CLAUDE.md` holds its layout, commands and the platform facts
   it rests on. Lint and test from inside the tool's directory.
 - A change to a skill, agent or command under `workbench/` marks every rendered
-  copy stale; a change under `ts-gate/scripts/` reaches a project on its next
+  copy stale; a change under `typescript/gate/scripts/` reaches a project on its next
   `install.sh`. Say which in the commit.

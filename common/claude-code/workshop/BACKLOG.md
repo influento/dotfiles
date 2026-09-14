@@ -14,9 +14,9 @@ workbench tracks projects, this tracks workbench, stack and ts-gate.
 
 ## stack
 
-- effect pin: `REF`, `DEP` and `DEV_DEP` in `packages/effect` and the `@effect/*` lines in the `drizzle-*` packages and atom-react are `4.0.0-rc.115` (2026-09-12); one bump commit per RC worth taking, and the move to `4.0.0` when stable ships (Effect targets Q3/Q4 2026). `stack update effect` in each project after
+- effect pin: `REF`, `DEP` and `DEV_DEP` in `typescript/packages/shared/effect` and the `@effect/*` lines in the `drizzle-*` packages and atom-react are `4.0.0-rc.115` (2026-09-12); one bump commit per RC worth taking, and the move to `4.0.0` when stable ships (Effect targets Q3/Q4 2026). `stack update effect` in each project after
 - drizzle-orm pin, the same in all four `drizzle-*` packages, is a hash build (`1.0.0-rc.5-5935859`, the tagged rc.4 dies at import on Effect rc.115); move to the next tagged drizzle-orm release whose `devDependencies.effect` is at or past the stack's pin, and `drizzle-kit` with it
-- the six files in `tanstack-start/rule.md` are described, not shipped (no templates, `stack/CLAUDE.md`); if the first real fullstack project retypes them wrong from the description, ship them under `packages/tanstack-start/files/` (the copy-once mechanism exists since `money`, 2026-09-13)
+- the six files in `tanstack-start/rule.md` are described, not shipped (no templates, `stack/CLAUDE.md`); if the first real fullstack project retypes them wrong from the description, ship them under `typescript/packages/frontend/tanstack-start/files/` (the copy-once mechanism exists since `money`, 2026-09-13)
 
 ## ts-gate
 

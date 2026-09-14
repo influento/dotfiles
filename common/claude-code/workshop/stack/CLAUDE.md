@@ -1,10 +1,11 @@
 # stack (source tree)
 
 The libraries, toolkits and tools a project chooses, one at a time, and the
-way of working with each. Only `bin/stack` is deployed (→ `~/.local/bin/stack`);
-the registry under `packages/` is read from this tree when a project runs
-`stack add`, and what add copies is committed in the project so worktrees and
-clones carry it.
+way of working with each. This directory is the CLI only; the packages live
+beside it, under each language. Only `bin/stack` is deployed (→
+`~/.local/bin/stack`); the registry is read from the workshop tree when a
+project runs `stack add`, and what add copies is committed in the project so
+worktrees and clones carry it.
 
 No templates: a project's stack is whatever was added to it, and a preset
 (`fullstack`) is only a list of packages — what it expands to is
@@ -14,85 +15,45 @@ skill is that skill through skills.sh plus a short rule (`shadcn`); a plain
 dependency is `DEP` and a rule. Every key is optional, the package is
 whatever it needs.
 
-## What enters the registry
+## The registry
 
-The registry is the priority list: one pick per need, chosen once, the reason
-in the conf's comment. Anything that touches control flow, errors, IO or data
-is Effect-native, or wrapped once behind a service; UI,
-styling and tooling are orthogonal and free (`shadcn`). That is what keeps a
-second ORM, a second schema library or a second retry helper out of a
-project: a worker that needs one finds the pick in `stack list`, not on npm.
+A package is `workshop/<language>/packages/[<section>/]<name>/`. A language
+directory holds its gate and its packages together (`typescript/`: the
+picks, sections and how its packages depend on the gate are in
+`../typescript/CLAUDE.md`); `general/packages/` holds packages with no
+language and has no sections: `shardx-scripts`, a private toolkit (reference
+subtree, its two skills copied out of it, a rule). A project may add packages
+from several languages and from `general`.
 
-| Need | Pick | Why |
-|---|---|---|
-| runtime, HTTP, RPC, Schema, CLI, retry, streams | `effect` (core and `effect/unstable/*`) | in the box |
-| database | `drizzle-<dialect>`: `drizzle-postgres`, `drizzle-sqlite`, `drizzle-mysql`, `drizzle-libsql` (`drizzle-orm/effect-<dialect>` over `@effect/sql-<dialect>`) | native Effect v4 entries, the only ORM with them; one package per dialect because the dialect is the project's choice, not the registry's. Verified 2026-09-12: Postgres 17, SQLite on `node:sqlite`, libSQL on a file, MySQL 8. Not in the registry: `pglite` (tests), `d1`/`sqlite-do` (Cloudflare), `sqlite-bun`/`-wasm`/`-react-native` (not Node), `mssql`/`clickhouse` (no drizzle Effect entry) |
-| client state | `atom-react` | first party; `AtomRpc` bridges to RPC |
-| tracing, logs, metrics | in `effect` (`effect/unstable/observability`, OTLP out) | verified 2026-09-12; `@effect/opentelemetry` is the SDK bridge, not needed |
-| auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
-| framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
-| tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
-| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and `money/no-number` in its `eslint.mjs` (no `Number()`, `parseFloat`, `toFixed` on an amount). decimal.js, big.js, dinero are not added |
-| test data | `fixtures` (no dep: `Schema`, `Effect`, `Stream` in effect, `node:fs`) | recorded responses in place of the network, which ts-gate refuses in tests: `Fixture.load` / `stream` / `record` from `src/core/fixture.ts`, a rule; msw, nock, polly are not added |
-| EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
-| Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
-| Solana swaps | `jupiter` (`@jup-ag/api`) | the aggregator's generated client over its Swap API; needs `solana-kit` to sign and send |
-| analytical SQL, files | `duckdb` (`@duckdb/node-api`) | in-process over Parquet/CSV/JSON and a local file; not the app database (the SQL database reached through `drizzle-<dialect>`) |
-
-`effect` and every `@effect/*` share one version; the pins across `effect`,
-the `drizzle-*` packages and `atom-react` move in one commit. `drizzle-orm` is built against
-one Effect version (`devDependencies.effect` of the release): check that its
-`effect-core/errors.js` calls a `Schema` constructor the pinned Effect still
-has before moving either pin.
-
-## Two ways in, and the database
-
-A project starts with one of two, by what it is, and names its database
-(decided 2026-09-12; the `service` preset went the same day, when the
-database stopped being Postgres by default):
-
-| Project | Entry | Brings |
-|---|---|---|
-| CLI, library, worker, backend service | `stack add effect` | the runtime |
-| app with a UI | `stack add fullstack` | effect + tanstack-start, atom-react, shadcn |
-| anything that owns a database | `stack add drizzle-<dialect>` beside the entry | Drizzle on Effect for that dialect |
-
-The packages stay separate units under the preset rather than one `effect`
-package holding everything, because a CLI would then carry drizzle-kit and a
-database driver it never imports, and a service that grows a UI later runs
-`stack add tanstack-start atom-react`, not a reinstall. The database is never
-inside a preset: the dialect is the project's, so `workshop-setup` asks the
-entry and then the dialect (or none); a single package later (`stack add
-drizzle-sqlite` in a CLI that grew a database) is the same command.
+- Names are unique across the registry; `bin/stack` refuses a name found
+  twice, on the lookup and in `list`.
+- `NEEDS` never leave the package's language: a package needs only its own
+  section or `<language>/shared`; a preset (`KIND=preset`) any section of its
+  language. A typescript package never needs a `general` one, nor the
+  reverse. `stack show` and `stack add` refuse a `NEEDS` outside that, naming
+  both groups.
+- `stack list` prints a heading per `<language>/<section>`; `stack show`
+  prints the package's group on its `in:` line.
+- `STACK_REGISTRY` points the CLI at another tree (the tests' temp registry).
 
 ## Layout
 
 | Path                            | What it is                                                                       |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
-| `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table, `eslint.mjs`: `effect/tags` and @effect/vitest's test blocks for the vitest plugin |
-| `packages/drizzle-{postgres,sqlite,mysql,libsql}/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources. The four drizzle rules share one shape and differ in driver, table module and `drizzle.config.ts` dialect |
-| `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
-| `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
-| `packages/money/`               | `NEEDS=effect`, no dep, a path-scoped rule, `files/src/core/money.ts` and `eslint.mjs` (`money/no-number`) |
-| `packages/fixtures/`            | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/fixture.ts` (load, stream, record over `fixtures/`); the other half of ts-gate's network guard |
-| `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
-| `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
-| `packages/shadcn/`              | public library: `NEEDS=tailwind`, the `shadcn` skill through skills.sh, a path-scoped rule, a setup command printed |
-| `packages/tailwind/`            | `@shadcn/lint` as dev dep, a rule for the v4 facts the lint cannot see (CSS, renamed scales), and `eslint.mjs`: the lint's rules, which ts-gate appends. No skill: Tailwind Labs publishes none, the skills.sh ones are tutorials. Standalone, since the lint works without shadcn |
-| `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
-| `packages/<name>/rule.md`       | optional; → `.claude/rules/<name>.md` verbatim                                    |
-| `packages/<name>/eslint.mjs`    | optional; → `.claude/eslint/<name>.mjs` verbatim, the rule's lifecycle (re-copied by update, removed by rm or when the registry drops it). Default export: an array of eslint flat config blocks, or a function of `{ tsconfigRootDir, severity }` returning one; `ts-gate/eslint.gate.mjs` appends every file there after its own blocks, so a project overrides one after the `gate()` spread. Inert without ts-gate |
-| `packages/<name>/skills/<s>/`   | optional; → `.claude/skills/<s>/`, own-written or vendored from upstream          |
-| `packages/<name>/files/<path>`  | optional; → `<path>` in the project once, never overwritten and never removed: source the project owns from the moment it lands (`money`'s `src/core/money.ts`) |
-| `tests/stack.sh`                | end-to-end, in a temp project against a temp registry and a local bare "private" repo |
+| `<package>/package.conf`        | `KEY=value`, read line by line, never sourced; keys below                         |
+| `<package>/rule.md`             | optional; → `.claude/rules/<name>.md` verbatim                                    |
+| `<package>/eslint.mjs`          | optional; → `.claude/eslint/<name>.mjs` verbatim, the rule's lifecycle (re-copied by update, removed by rm or when the registry drops it). Default export: an array of eslint flat config blocks, or a function of `{ tsconfigRootDir, severity }` returning one; `ts-gate/eslint.gate.mjs` appends every file there after its own blocks, so a project overrides one after the `gate()` spread. Inert without ts-gate |
+| `<package>/skills/<s>/`         | optional; → `.claude/skills/<s>/`, own-written or vendored from upstream          |
+| `<package>/files/<path>`        | optional; → `<path>` in the project once, never overwritten and never removed: source the project owns from the moment it lands (`money`'s `src/core/money.ts`) |
+| `tests/stack.sh`                | end-to-end, in a temp project against a temp registry and a local bare "private" repo; also resolves every package of the shipped registry under the section rule |
 
 `package.conf` keys, every one optional but `NOTE`:
 
 | Key                     | Meaning                                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
 | `KIND`                  | `toolkit` (run as scripts), `lib` (imported), `cli`, `preset` (NEEDS only, expanded, not recorded); shown in `list` and the CLAUDE.md line |
-| `NEEDS`                 | package names, space separated, added first (transitively; a cycle is refused). `rm` refuses a package another added one needs |
+| `NEEDS`                 | package names, space separated, added first (transitively; a cycle is refused; within the section rule above). `rm` refuses a package another added one needs |
 | `REFERENCE`             | a repository worth reading, as a `--squash` subtree at `repos/<name>`: `private:<repo>` → `<git config private.root>/<repo>.git`, or `git:<url>`. Only when the agent should read the source or its docs; most public libraries have none |
 | `REF`                   | branch or tag for the subtree; default `main`. A pinned dependency pins its tag too (`effect@4.0.0-rc.115`) |
 | `DEP`                   | package-manager specs, space separated, exact versions (`effect@4.0.0-rc.115`); installed with the runner the lockfile says |
@@ -104,7 +65,7 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | `NOTE`                  | one line for the CLAUDE.md block: what it is and where to start                                           |
 
 Skills reach a project three ways and `status` treats them differently: from
-`packages/<name>/skills/` (compared with the registry), from the reference
+`<package>/skills/` (compared with the registry), from the reference
 subtree (compared with a fresh link rewrite), or through skills.sh (left to
 its lockfile). `rm` sends skills.sh skills back through `npx skills remove` so
 the lockfile stays true.
@@ -131,7 +92,9 @@ imports it; `update` writes them again, so a gate installed after the
 package gets them from `stack update`), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet; not on `update`, which keeps the file), the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
-`update` and `rm` read back. A preset writes no row and no line: `stack add
+`update` and `rm` read back. The row holds the name only, never a registry
+path, so moving a package between sections changes nothing in a project. A
+preset writes no row and no line: `stack add
 fullstack` records `effect`, `atom-react`, `tanstack-start`, `tailwind`, `shadcn`, in that order (`stack show
 fullstack` prints it).
 
@@ -154,18 +117,20 @@ they are learned.
 Run from this directory (`common/claude-code/workshop/stack/`):
 
 - Lint: `shellcheck -x bin/stack tests/stack.sh`
-- Test: `bash tests/stack.sh`; with `TSGATE_REAL_PROJECT` set to a project
-  with a real ts-gate install, it also runs the registry's `eslint.mjs` files
-  through real eslint under the gate
+- Test: `bash tests/stack.sh`. The registry's `eslint.mjs` files under the
+  real gate are the language's test: `../typescript/tests/registry.sh`
 - Real check: in a scratch git project with one commit, `stack add
   shardx-scripts`, then `stack status` and read the rewritten links in
   `.claude/skills/*/SKILL.md`
 
 ## Adding a package
 
-1. `mkdir packages/<name>`, write `package.conf` (at least `KIND` and `NOTE`).
-   First the "What enters the registry" test: is it the one pick for its
-   need, and Effect-native or wrapped once? The reason goes in the comment.
+1. Pick its place: `<language>/packages/<section>/<name>/`, the section its
+   `NEEDS` allow (the rule above), or `general/packages/<name>/` when it has
+   no language. Write `package.conf` (at least `KIND` and `NOTE`). First the
+   language's "What enters the registry" test
+   (`../typescript/CLAUDE.md` for TypeScript: the one pick for its need, and
+   Effect-native or wrapped once?). The reason goes in the comment.
    `NEEDS=effect` for anything that imports it; `DEP` at an exact version.
 2. If it publishes a skill (its docs, or `npx skills add <owner/repo> --list`):
    `SKILLS_ADD`, and `SKILLS_PICK` when not every skill applies. Nothing else
@@ -181,5 +146,7 @@ Run from this directory (`common/claude-code/workshop/stack/`):
    cannot. A selector rule is an inline plugin rule named after the package
    (`money/no-number`), never a core rule that takes options
    (`no-restricted-syntax`): a later block would replace the gate's. A
-   function export follows the gate's severity (`ts-gate/CLAUDE.md`, Rules).
-6. `stack show <name>`, then a real `stack add` in a scratch project.
+   function export follows the gate's severity
+   (`../typescript/gate/CLAUDE.md`, Rules).
+6. `stack show <name>`, then `bash tests/stack.sh` (its shipped-registry leg
+   resolves the new package), then a real `stack add` in a scratch project.

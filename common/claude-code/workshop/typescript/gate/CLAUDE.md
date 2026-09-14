@@ -49,14 +49,14 @@ Rules whose fix deletes code: `error`. Rules whose fix adds code (size limits,
 by default 1000 lines/file, 100/function, 30 statements, 6 params, depth 4):
 `warn`. Those thresholds, cognitive complexity (15) and nesting (3) are
 `lint.*` keys in `.claude/workshop.conf`, read when eslint loads the config
-(the key table: `../CLAUDE.md`). `gate({ severity })` sets the first tier;
+(the key table: `../../CLAUDE.md`). `gate({ severity })` sets the first tier;
 the correctness block (`no-floating-promises`, `switch-exhaustiveness-check`,
 `no-unsafe-*`, `restrict-plus-operands`, `no-misused-promises`,
 `await-thenable`) runs at `severity` too, so a brownfield `warn` pass covers
 it.
 
 The gate knows no stack package. Every `.claude/eslint/*.mjs` (`stack add`
-copies `packages/<name>/eslint.mjs` there) is imported when `eslint.gate.mjs`
+copies a package's `eslint.mjs` there) is imported when `eslint.gate.mjs`
 loads; its default export, an array of flat config blocks or a function of
 `{ tsconfigRootDir, severity }` returning one, is appended after the gate's
 blocks in file-name order. Anything else fails the config load, naming the

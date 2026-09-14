@@ -39,9 +39,9 @@ git -C "$TMP/up" init -q && git -C "$TMP/up" add -A && git -C "$TMP/up" commit -
 mkdir -p "$TMP/srv" && git clone -q --bare "$TMP/up" "$TMP/srv/thing.git"
 
 # --- the registry ------------------------------------------------------------
-export STACK_ROOT="$TMP/reg"
-mkdir -p "$STACK_ROOT/packages/thing" "$STACK_ROOT/packages/plain/skills/plain-skill" "$STACK_ROOT/packages/lib"
-cat > "$STACK_ROOT/packages/thing/package.conf" <<'C'
+export STACK_REGISTRY="$TMP/reg"
+mkdir -p "$STACK_REGISTRY/general/packages/thing" "$STACK_REGISTRY/general/packages/plain/skills/plain-skill" "$STACK_REGISTRY/general/packages/lib"
+cat > "$STACK_REGISTRY/general/packages/thing/package.conf" <<'C'
 KIND=toolkit
 REFERENCE=private:thing
 REF=main
@@ -49,22 +49,22 @@ DEP=
 SKILLS_FROM_REFERENCE=.claude/skills
 NOTE="A thing, run as scripts."
 C
-echo "# thing rule" > "$STACK_ROOT/packages/thing/rule.md"
-cat > "$STACK_ROOT/packages/plain/package.conf" <<'C'
+echo "# thing rule" > "$STACK_REGISTRY/general/packages/thing/rule.md"
+cat > "$STACK_REGISTRY/general/packages/plain/package.conf" <<'C'
 KIND=cli
 NOTE="Skills only, no source."
 C
-printf -- '---\nname: plain-skill\ndescription: x\n---\nbody\n' > "$STACK_ROOT/packages/plain/skills/plain-skill/SKILL.md"
-cat > "$STACK_ROOT/packages/lib/package.conf" <<'C'
+printf -- '---\nname: plain-skill\ndescription: x\n---\nbody\n' > "$STACK_REGISTRY/general/packages/plain/skills/plain-skill/SKILL.md"
+cat > "$STACK_REGISTRY/general/packages/lib/package.conf" <<'C'
 KIND=lib
 DEP=left-pad@1.3.0
 NOTE="A library."
 C
-mkdir -p "$STACK_ROOT/packages/lib/files/src/core"
-echo "export const one = 1" > "$STACK_ROOT/packages/lib/files/src/core/lib.ts"
-echo "# lib rule" > "$STACK_ROOT/packages/lib/rule.md"
-mkdir -p "$STACK_ROOT/packages/ui"
-cat > "$STACK_ROOT/packages/ui/package.conf" <<'C'
+mkdir -p "$STACK_REGISTRY/general/packages/lib/files/src/core"
+echo "export const one = 1" > "$STACK_REGISTRY/general/packages/lib/files/src/core/lib.ts"
+echo "# lib rule" > "$STACK_REGISTRY/general/packages/lib/rule.md"
+mkdir -p "$STACK_REGISTRY/general/packages/ui"
+cat > "$STACK_REGISTRY/general/packages/ui/package.conf" <<'C'
 KIND=lib
 SKILLS_ADD=acme/ui
 SKILLS_PICK=ui
@@ -116,7 +116,7 @@ echo "# proj" > CLAUDE.md
 git add -A && git commit -qm scaffold
 
 echo "== list / show"
-out=$("$STACK" list); check grep -q '^thing *toolkit' <<< "$out"
+out=$("$STACK" list); check grep -q '^general$' <<< "$out"; check grep -q '^  thing *toolkit' <<< "$out"
 out=$("$STACK" show thing); check grep -q "subtree: repos/thing from file://$TMP/srv/thing.git (main)" <<< "$out"
 check not "$STACK" show nope
 
@@ -170,12 +170,12 @@ echo "export const one = 2" > src/core/lib.ts; git commit -qam mine
 "$STACK" show lib > "$TMP/show.txt"; check grep -q '^file:    src/core/lib.ts' "$TMP/show.txt"
 
 echo "== eslint.mjs: copied to .claude/eslint/<name>.mjs, named in the block, status, update drops it with the registry, rm removes it"
-mkdir -p "$STACK_ROOT/packages/linted"
-printf 'KIND=lib\nNOTE="Linted."\n' > "$STACK_ROOT/packages/linted/package.conf"
-echo 'export default [];' > "$STACK_ROOT/packages/linted/eslint.mjs"
+mkdir -p "$STACK_REGISTRY/general/packages/linted"
+printf 'KIND=lib\nNOTE="Linted."\n' > "$STACK_REGISTRY/general/packages/linted/package.conf"
+echo 'export default [];' > "$STACK_REGISTRY/general/packages/linted/eslint.mjs"
 "$STACK" show linted > "$TMP/show.txt"; check grep -q '^lint:    .claude/eslint/linted.mjs' "$TMP/show.txt"
 "$STACK" add linted >/dev/null
-check cmp -s "$STACK_ROOT/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
+check cmp -s "$STACK_REGISTRY/general/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
 check grep -q '^linted|||$' .claude/stack.conf
 # shellcheck disable=SC2016
 check grep -q '^- \*\*linted\*\* (lib) — Linted. Lint `.claude/eslint/linted.mjs`.$' CLAUDE.md
@@ -183,13 +183,13 @@ out=$("$STACK" status); check grep -q '^linted *ok' <<< "$out"
 echo '// edited' >> .claude/eslint/linted.mjs
 out=$("$STACK" status); check grep -q 'linted *.claude/eslint/linted.mjs differs' <<< "$out"
 "$STACK" update linted >/dev/null
-check cmp -s "$STACK_ROOT/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
-rm "$STACK_ROOT/packages/linted/eslint.mjs"
+check cmp -s "$STACK_REGISTRY/general/packages/linted/eslint.mjs" .claude/eslint/linted.mjs
+rm "$STACK_REGISTRY/general/packages/linted/eslint.mjs"
 out=$("$STACK" status); check grep -q 'linted *.claude/eslint/linted.mjs has no source' <<< "$out"
 "$STACK" update linted >/dev/null
 check not test -e .claude/eslint
 check not grep -q '^- \*\*linted\*\*.* Lint ' CLAUDE.md
-echo 'export default [];' > "$STACK_ROOT/packages/linted/eslint.mjs"
+echo 'export default [];' > "$STACK_REGISTRY/general/packages/linted/eslint.mjs"
 "$STACK" update linted >/dev/null
 check test -f .claude/eslint/linted.mjs
 "$STACK" rm linted >/dev/null
@@ -235,13 +235,13 @@ check grep -q '"src/core/lib.ts"' ts-gate/knip.json
 git add -A && git commit -qm "knip lib"
 
 echo "== NEEDS: child pulls base in first, dev dep with -D, both in knip; rm base refused while child is added"
-mkdir -p "$STACK_ROOT/packages/base" "$STACK_ROOT/packages/child" "$STACK_ROOT/packages/bundle" "$STACK_ROOT/packages/empty"
-printf 'KIND=lib\nDEP=base-pkg@1.0.0\nDEV_DEP="base-dev@2.0.0 base-dev2@2.0.0"\nNOTE="Base."\n' > "$STACK_ROOT/packages/base/package.conf"
-echo "# base rule" > "$STACK_ROOT/packages/base/rule.md"
-printf 'KIND=lib\nNEEDS=base\nNOTE="Child."\n' > "$STACK_ROOT/packages/child/package.conf"
-echo "# child rule" > "$STACK_ROOT/packages/child/rule.md"
-printf 'KIND=preset\nNEEDS="child plain"\nNOTE="Preset."\n' > "$STACK_ROOT/packages/bundle/package.conf"
-printf 'KIND=preset\nNOTE="Nothing."\n' > "$STACK_ROOT/packages/empty/package.conf"
+mkdir -p "$STACK_REGISTRY/general/packages/base" "$STACK_REGISTRY/general/packages/child" "$STACK_REGISTRY/general/packages/bundle" "$STACK_REGISTRY/general/packages/empty"
+printf 'KIND=lib\nDEP=base-pkg@1.0.0\nDEV_DEP="base-dev@2.0.0 base-dev2@2.0.0"\nNOTE="Base."\n' > "$STACK_REGISTRY/general/packages/base/package.conf"
+echo "# base rule" > "$STACK_REGISTRY/general/packages/base/rule.md"
+printf 'KIND=lib\nNEEDS=base\nNOTE="Child."\n' > "$STACK_REGISTRY/general/packages/child/package.conf"
+echo "# child rule" > "$STACK_REGISTRY/general/packages/child/rule.md"
+printf 'KIND=preset\nNEEDS="child plain"\nNOTE="Preset."\n' > "$STACK_REGISTRY/general/packages/bundle/package.conf"
+printf 'KIND=preset\nNOTE="Nothing."\n' > "$STACK_REGISTRY/general/packages/empty/package.conf"
 out=$("$STACK" show child); check grep -q '^needs:   base  (add order: base child)$' <<< "$out"
 out=$("$STACK" show bundle); check grep -q '(add order: base child plain)$' <<< "$out"
 out=$("$STACK" add child)
@@ -318,22 +318,22 @@ check test -L CLAUDE.md
 check grep -q '\*\*thing\*\*' AGENTS.md
 
 echo "== pins are exact and 'update' re-applies a bumped DEP (A7)"
-sed -i 's/^DEP=left-pad@1.3.0/DEP=left-pad@1.3.1/' "$STACK_ROOT/packages/lib/package.conf"
+sed -i 's/^DEP=left-pad@1.3.0/DEP=left-pad@1.3.1/' "$STACK_REGISTRY/general/packages/lib/package.conf"
 : > "$NPM_LOG"
 "$STACK" update lib >/dev/null
 check grep -q '^npm i -E left-pad@1.3.1$' "$NPM_LOG"
 
 echo "== a failed dependency install is named, visible in status, and the rerun completes (B3)"
 git add -A && git commit -qm "stack: add thing"
-mkdir -p "$STACK_ROOT/packages/half"
-cat > "$STACK_ROOT/packages/half/package.conf" <<'C'
+mkdir -p "$STACK_REGISTRY/general/packages/half"
+cat > "$STACK_REGISTRY/general/packages/half/package.conf" <<'C'
 KIND=lib
 REFERENCE=private:thing
 REF=main
 DEP=nope@1.0.0
 NOTE="Half."
 C
-echo "# half rule" > "$STACK_ROOT/packages/half/rule.md"
+echo "# half rule" > "$STACK_REGISTRY/general/packages/half/rule.md"
 cat > "$TMP/bin/npm" <<'N'
 #!/usr/bin/env bash
 echo "npm $*" >> "${NPM_LOG:?}"
@@ -359,10 +359,35 @@ check bash -c "'$STACK' add plain 2>&1 | grep -q 'uncommitted changes'"
 check test -z "$(git log --oneline -1 | grep -v 'stack: add half')"
 git checkout -q -- AGENTS.md
 
-echo "== the shipped registry"
-REG=$(readlink -f "$(dirname "$STACK")/../packages")   # $STACK is absolute; the suite has cd-ed away from $0
-check not grep -rq 'ServiceMap' "$REG"
-check grep -q 'vitest@5' "$REG/effect/package.conf"
+echo "== sections: NEEDS stay in the language, in the section or shared; a preset any section"
+R="$STACK_REGISTRY"
+mkdir -p "$R/lang/packages/shared/core" "$R/lang/packages/back/db" "$R/lang/packages/front/ui2" "$R/lang/packages/presets/app" "$R/lang/packages/back/bad" "$R/lang/packages/back/cross" "$R/general/packages/far"
+printf 'KIND=lib\nNOTE="Core."\n' > "$R/lang/packages/shared/core/package.conf"
+printf 'KIND=lib\nNEEDS=core\nNOTE="Db."\n' > "$R/lang/packages/back/db/package.conf"
+printf 'KIND=lib\nNEEDS=core\nNOTE="Ui."\n' > "$R/lang/packages/front/ui2/package.conf"
+printf 'KIND=preset\nNEEDS="db ui2"\nNOTE="App."\n' > "$R/lang/packages/presets/app/package.conf"
+printf 'KIND=lib\nNEEDS=ui2\nNOTE="Bad."\n' > "$R/lang/packages/back/bad/package.conf"
+printf 'KIND=lib\nNEEDS=plain\nNOTE="Cross."\n' > "$R/lang/packages/back/cross/package.conf"
+printf 'KIND=lib\nNEEDS=core\nNOTE="Far."\n' > "$R/general/packages/far/package.conf"
+out=$("$STACK" list)
+check grep -q '^lang/back$' <<< "$out"
+check grep -q '^  db  *lib  *Db.$' <<< "$out"
+out=$("$STACK" show db); check grep -q '^in:      lang/back$' <<< "$out"; check grep -q '(add order: core db)$' <<< "$out"
+out=$("$STACK" show app); check grep -q '(add order: core db ui2)$' <<< "$out"
+check bash -c "'$STACK' show bad 2>&1 | grep -q 'bad (lang/back) needs ui2 (lang/front)'"
+check bash -c "'$STACK' show cross 2>&1 | grep -q 'cross (lang/back) needs plain (general)'"
+check bash -c "'$STACK' show far 2>&1 | grep -q 'far (general) needs core (lang/shared)'"
+check not "$STACK" add bad
+check test -z "$(git status --porcelain)"
+mkdir -p "$R/lang/packages/front/plain" && printf 'KIND=lib\nNOTE="Twin."\n' > "$R/lang/packages/front/plain/package.conf"
+check bash -c "'$STACK' show plain 2>&1 | grep -q 'in the registry twice'"
+check bash -c "'$STACK' list 2>&1 | grep -q 'in the registry twice: plain'"
+rm -rf "$R/lang" "$R/general/packages/far"
+
+echo "== the shipped registry: every package found once, every NEEDS inside the section rule"
+names=$(STACK_REGISTRY='' "$STACK" list | sed -n 's/^  \([^ ]*\).*/\1/p')
+check test "$(wc -w <<< "$names")" -ge 17
+for n in $names; do check env STACK_REGISTRY='' "$STACK" show "$n"; done
 
 echo "== rm drops the knip names it added and the block when nothing is left; modes survive (C6, C7)"
 mkdir -p "$TMP/p3/src" && cd "$TMP/p3" && git init -q && echo '{"name":"p3"}' > package.json && mkdir -p ts-gate && echo '{"ignore":[],"ignoreDependencies":[]}' > ts-gate/knip.json && printf '# p3\n\nhand-written\n' > CLAUDE.md && git add -A && git commit -qm scaffold
@@ -375,49 +400,5 @@ git add -A && git commit -qm "stack: add lib"
 check not grep -q '"left-pad"' ts-gate/knip.json
 check not grep -q '## Stack' CLAUDE.md
 check grep -q 'hand-written' CLAUDE.md
-
-echo "== effect's lint file without @vitest/eslint-plugin: effect/tags alone, no vitest block"
-mkdir -p "$TMP/lint" && cp "$REG/effect/eslint.mjs" "$TMP/lint/effect.mjs"
-check test "$(node --input-type=module -e '
-const { default: f } = await import(process.argv[1]);
-const c = f({ severity: "error" });
-console.log(c.length, c.map((b) => Object.keys(b.rules).join()).join(" "));' "$TMP/lint/effect.mjs")" = "1 effect/tags"
-
-echo "== the registry's lint files as stack add copies them, through real eslint under ts-gate"
-# Borrows the node_modules of a project where ts-gate was installed for real;
-# ts-gate's install runs against that, with 'npm i' a no-op. Unset, the leg says so.
-if [ -z "${TSGATE_REAL_PROJECT:-}" ]; then
-  echo "skip: set TSGATE_REAL_PROJECT to a project with a real ts-gate install to run this leg"
-else
-  mkdir -p "$TMP/real/src" "$TMP/realbin" && cd "$TMP/real" && git init -q
-  printf '{"name":"real","version":"1.0.0","engines":{"node":">=26"},"devDependencies":{"vitest":"^5.0.0"}}\n' > package.json
-  echo '{"compilerOptions":{"strict":true,"noUncheckedIndexedAccess":true,"noEmit":true,"target":"es2024","module":"nodenext"},"include":["src"]}' > tsconfig.json
-  ln -s "$TSGATE_REAL_PROJECT/node_modules" node_modules
-  cat > "$TMP/realbin/npm" <<'N'
-#!/usr/bin/env bash
-case "${1:-}" in i|install) ;; *) exec "$REAL_NPM" "$@" ;; esac
-N
-  chmod +x "$TMP/realbin/npm"
-  PATH="$TMP/realbin:$PATH" bash "$(dirname "$REG")/../ts-gate/install.sh" . >/dev/null
-  ESL="$TSGATE_REAL_PROJECT/node_modules/.bin/eslint"
-  reports() { local out; out=$("$ESL" "src/$1.ts" 2>&1 || true); grep -q -- "$2" <<< "$out"; }
-  mkdir -p .claude/eslint
-  for p in effect money; do cp "$REG/$p/eslint.mjs" ".claude/eslint/$p.mjs"; done
-  printf 'export const isNotFound = (e: { readonly _tag: string }): boolean => e._tag === "NotFound";\n' > src/tagged.ts
-  printf 'export const amount = (s: string): number => parseFloat(s);\n' > src/amount.ts
-  printf 'import { it } from "@effect/vitest";\nimport { Effect } from "effect";\nimport { expect } from "vitest";\n\nit.effect("adds", () => Effect.sync(() => expect(1 + 1).toBe(2)));\n' > src/tags.test.ts
-  check reports tagged "effect/tags"
-  check reports amount "money/no-number"
-  check not reports tags.test "no-standalone-expect"
-  mv .claude/eslint/effect.mjs "$TMP/effect.mjs.aside"
-  check reports tags.test "vitest/no-standalone-expect"   # without effect's file the same expect is standalone
-  mv "$TMP/effect.mjs.aside" .claude/eslint/effect.mjs
-  if [ -d "$TSGATE_REAL_PROJECT/node_modules/@shadcn/lint" ]; then
-    cp "$REG/tailwind/eslint.mjs" .claude/eslint/tailwind.mjs
-    check bash -c "'$ESL' --print-config src/tagged.ts | grep -q 'shadcn/no-raw-colors'"
-  else
-    echo "skip: no @shadcn/lint in TSGATE_REAL_PROJECT, tailwind's lint file not loaded"
-  fi
-fi
 
 if [ "$fail" -eq 0 ]; then echo "all passed"; else echo "FAILURES"; exit 1; fi

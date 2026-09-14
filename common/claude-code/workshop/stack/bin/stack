@@ -3,8 +3,9 @@ set -euo pipefail
 
 # stack — the libraries, toolkits and tools a project has chosen, one at a time.
 #
-# A package is a directory under packages/ in this tree: a package.conf, an
-# optional rule.md, eslint.mjs and skills/. 'stack add <name>' brings the package
+# A package is a directory <language>/packages/[<section>/]<name>/ under the
+# workshop tree: a package.conf, an optional rule.md, eslint.mjs, skills/ and
+# files/. Names are unique across the registry. 'stack add <name>' brings the package
 # into the project: a read-only --squash subtree at repos/<name> when the
 # package names a REFERENCE worth reading (the way ts-gate holds Effect), the
 # dependency when it has a DEP, the rule as .claude/rules/<name>.md, the lint
@@ -16,8 +17,7 @@ set -euo pipefail
 # needs effect); a preset is a package that is only NEEDS, expanded and not
 # recorded.
 
-STACK_ROOT=${STACK_ROOT:-$(readlink -f "$(dirname "$(readlink -f "$0")")/..")}
-PACKAGES="$STACK_ROOT/packages"
+REGISTRY=$(readlink -f "${STACK_REGISTRY:-$(dirname "$(readlink -f "$0")")/../..}")
 MANIFEST=.claude/stack.conf
 MARK_START='<!-- stack:start -->'
 MARK_END='<!-- stack:end -->'
@@ -30,7 +30,7 @@ usage() {
   [ "${1:-2}" -eq 0 ] || exec >&2
   cat <<'USAGE'
 usage:
-  stack list                  every package in the registry, with its kind and note
+  stack list                  every package in the registry by language and section, with its kind and note
   stack show <name>           the package's conf and what add would bring in
   stack add <name>...         subtree at repos/<name>, dependency, rule, skills, CLAUDE.md line;
                               what the package NEEDS first; a preset expands to its NEEDS
@@ -40,15 +40,16 @@ usage:
                               refused while another added package NEEDS it
   stack status                added packages, and copies that differ from their source
 
-A package: packages/<name>/package.conf (KIND, NEEDS, REFERENCE, REF, DEP,
-DEV_DEP, SKILLS_ADD, SKILLS_PICK, SKILLS_FROM_REFERENCE, SETUP, NOTE),
-packages/<name>/rule.md, packages/<name>/eslint.mjs (flat config blocks
-ts-gate appends), packages/<name>/skills/, packages/<name>/files/
-(copied into the project once, never overwritten). REFERENCE is
-'private:<repo>' (git config private.root, <root>/<repo>.git) or 'git:<url>';
-SKILLS_ADD is a skills.sh package ('shadcn/ui'); KIND=preset is NEEDS only.
-STACK_ROOT overrides where the registry is read from; STACK_SKILLS_CMD what
-runs for skills.sh (default 'npx -y skills').
+A package: <language>/packages/[<section>/]<name>/ with package.conf (KIND,
+NEEDS, REFERENCE, REF, DEP, DEV_DEP, SKILLS_ADD, SKILLS_PICK,
+SKILLS_FROM_REFERENCE, SETUP, NOTE), rule.md, eslint.mjs (flat config blocks
+ts-gate appends), skills/, files/ (copied into the project once, never
+overwritten). NEEDS stay inside the package's language: its own section or
+'shared'; a preset any section. REFERENCE is 'private:<repo>' (git config
+private.root, <root>/<repo>.git) or 'git:<url>'; SKILLS_ADD is a skills.sh
+package ('shadcn/ui'); KIND=preset is NEEDS only. STACK_REGISTRY overrides
+where the registry is read from (default: the workshop tree); STACK_SKILLS_CMD
+what runs for skills.sh (default 'npx -y skills').
 USAGE
   exit "${1:-2}"
 }
@@ -61,10 +62,49 @@ repo_root() {
 
 # ---- registry ---------------------------------------------------------------
 
+# Every package directory in the registry, one per line.
+registry_dirs() {
+  local c
+  for c in "$REGISTRY"/*/packages/*/package.conf "$REGISTRY"/*/packages/*/*/package.conf; do
+    [ -f "$c" ] && printf '%s\n' "${c%/package.conf}"
+  done
+  return 0
+}
+
+# The package's directory, or nothing when the registry has no such package.
+# Called as an assignment, so a name found twice stops the command.
+package_find() {
+  local hits
+  hits=$(registry_dirs | awk -F/ -v n="$1" '$NF == n')
+  [ "$(printf '%s' "$hits" | grep -c '^')" -le 1 ] || die "package '$1' is in the registry twice: ${hits//$'\n'/ }"
+  [ -z "$hits" ] || printf '%s\n' "$hits"
+}
+
 package_dir() {
-  local d="$PACKAGES/$1"
-  [ -f "$d/package.conf" ] || die "no package '$1' in $PACKAGES"
+  local d
+  d=$(package_find "$1") || exit 1
+  [ -n "$d" ] || die "no package '$1' in $REGISTRY"
   printf '%s\n' "$d"
+}
+
+# Where a package sits: <language>/<section>, or <language> for a package
+# directly under <language>/packages/.
+pkg_group() {
+  local rel=${1#"$REGISTRY"/} lang rest
+  lang=${rel%%/*}; rest=${rel#*/packages/}
+  case "$rest" in
+    */*) printf '%s/%s\n' "$lang" "${rest%/*}" ;;
+    *) printf '%s\n' "$lang" ;;
+  esac
+}
+
+# A package needs only packages of its own language: its own section or
+# <language>/shared. A preset may need any section of its language.
+needs_allowed() {
+  local from=$1 to=$2 fg tg
+  fg=$(pkg_group "$from"); tg=$(pkg_group "$to")
+  [ "${fg%%/*}" = "${tg%%/*}" ] || return 1
+  is_preset "$from" || [ "$fg" = "$tg" ] || [ "$tg" = "${tg%%/*}/shared" ]
 }
 
 # One KEY=value per line; a value may be double-quoted. Read, never sourced.
@@ -77,24 +117,31 @@ conf() {
 
 # NEEDS, transitively, into RESOLVED: what a package needs before the package
 # itself, each name once at its first place, unknown names refused by
-# package_dir. A preset is resolved like any other and dropped by the caller.
+# package_dir, a NEEDS outside needs_allowed refused. A preset is resolved like
+# any other and dropped by the caller.
 RESOLVED=""
 RESOLVING=""
 resolve() {
-  local name
+  local name dir need to
   for name in "$@"; do
     case " $RESOLVED " in *" $name "*) continue ;; esac
     case " $RESOLVING " in *" $name "*) die "NEEDS cycle at $name" ;; esac
     RESOLVING="$RESOLVING $name"
+    dir=$(package_dir "$name")
     # shellcheck disable=SC2046
-    resolve $(conf "$(package_dir "$name")" NEEDS)
+    resolve $(conf "$dir" NEEDS)
+    for need in $(conf "$dir" NEEDS); do
+      to=$(package_dir "$need")
+      needs_allowed "$dir" "$to" \
+        || die "$name ($(pkg_group "$dir")) needs $need ($(pkg_group "$to")): a package needs only its own section or shared, a preset only its own language"
+    done
     RESOLVED="$RESOLVED $name"
   done
 }
 
 is_preset() { [ "$(conf "$1" KIND)" = preset ]; }
 
-# Skills shipped in the registry: packages/<name>/skills/<skill>/SKILL.md.
+# Skills shipped in the registry: <package>/skills/<skill>/SKILL.md.
 registry_skills() {
   local dir=$1 s
   [ -d "$dir/skills" ] || return 0
@@ -224,8 +271,9 @@ claude_md_block() {
   echo
   while IFS='|' read -r name subtree rule skills; do
     [ -n "$name" ] || continue
-    if [ -f "$PACKAGES/$name/package.conf" ]; then
-      dir="$PACKAGES/$name"; kind=$(conf "$dir" KIND); note=$(conf "$dir" NOTE)
+    dir=$(package_find "$name")
+    if [ -n "$dir" ]; then
+      kind=$(conf "$dir" KIND); note=$(conf "$dir" NOTE)
     else
       kind=""; note="(package no longer in the registry)"
     fi
@@ -289,7 +337,7 @@ copy_rule() {
   printf '.claude/rules/%s.md\n' "$name"
 }
 
-# packages/<name>/eslint.mjs → .claude/eslint/<name>.mjs, the rule's lifecycle:
+# <package>/eslint.mjs → .claude/eslint/<name>.mjs, the rule's lifecycle:
 # re-copied on update, removed by rm, and removed on update when the registry
 # dropped it. Not in the manifest: the path is the package name.
 copy_lint() {
@@ -308,7 +356,7 @@ drop_lint() {
   rmdir .claude/eslint 2>/dev/null || true
 }
 
-# packages/<name>/files/<path> → <path> in the project, once: a file that is
+# <package>/files/<path> → <path> in the project, once: a file that is
 # there already is the project's and is kept, on add and on update alike. Not
 # in the manifest, not removed by rm — it is source the project owns from the
 # moment it lands, like a scaffold's.
@@ -403,8 +451,9 @@ add_deps() {
 
 # The bare names of a package's DEP and DEV_DEP, the way knip lists them.
 pkg_dep_names() {
-  local dir="$PACKAGES/$1"
-  [ -f "$dir/package.conf" ] || return 0
+  local dir
+  dir=$(package_find "$1") || exit 1
+  [ -n "$dir" ] || return 0
   # shellcheck disable=SC2046
   printf '%s\n' $(conf "$dir" DEP) $(conf "$dir" DEV_DEP) | sed -E '/^$/d; s/^(@?[^@]+)@.*/\1/' | tr '\n' ' '
 }
@@ -451,13 +500,19 @@ require_clean() {
 
 # ---- commands ---------------------------------------------------------------
 
+# Under a heading per <language>/<section>, the rows aligned across headings.
 cmd_list() {
-  local d name
-  for d in "$PACKAGES"/*/; do
-    [ -f "$d/package.conf" ] || continue
-    name=$(basename "$d")
-    printf '%s\t%s\t%s\n' "$name" "$(conf "$d" KIND)" "$(conf "$d" NOTE)"
-  done | column -t -s $'\t'
+  local d rows dups group line last=""
+  rows=$(registry_dirs | while IFS= read -r d; do
+    printf '%s\t%s\t%s\t%s\n' "$(pkg_group "$d")" "${d##*/}" "$(conf "$d" KIND)" "$(conf "$d" NOTE)"
+  done | sort -t $'\t' -k1,1 -k2,2)
+  [ -n "$rows" ] || return 0
+  dups=$(cut -f2 <<< "$rows" | sort | uniq -d | paste -sd' ')
+  [ -z "$dups" ] || die "in the registry twice: $dups"
+  while IFS=$'\t' read -r group line; do
+    [ "$group" = "$last" ] || { [ -z "$last" ] || echo; echo "$group"; last=$group; }
+    echo "  $line"
+  done < <(paste <(cut -f1 <<< "$rows") <(cut -f2- <<< "$rows" | column -t -s $'\t'))
 }
 
 cmd_show() {
@@ -466,10 +521,11 @@ cmd_show() {
   dir=$(package_dir "$name")
   cat "$dir/package.conf"
   echo
+  echo "in:      $(pkg_group "$dir")"
   if [ -n "$(conf "$dir" NEEDS)" ]; then
     local order="" n
     RESOLVED=""; resolve "$name"
-    for n in $RESOLVED; do is_preset "$PACKAGES/$n" || order="$order $n"; done
+    for n in $RESOLVED; do is_preset "$(package_dir "$n")" || order="$order $n"; done
     echo "needs:   $(conf "$dir" NEEDS)  (add order:$order)"
   fi
   [ -n "$(conf "$dir" REFERENCE)" ] && echo "subtree: $REPOS/$name from $(reference_url "$(conf "$dir" REFERENCE)") ($(conf "$dir" REF))"
@@ -495,7 +551,7 @@ cmd_add() {
   cd "$(repo_root)"
   RESOLVED=""; resolve "$@"
   for name in $RESOLVED; do
-    is_preset "$PACKAGES/$name" && continue
+    is_preset "$(package_dir "$name")" && continue
     names="$names $name"
     case "$asked" in *" $name "*) ;; *) echo "$name: needed, added first" ;; esac
   done
@@ -572,20 +628,23 @@ cmd_update() {
 }
 
 cmd_rm() {
-  local name=${1:-} row subtree rule skills s pkg
+  local name=${1:-} row subtree rule skills s pkg dir sdir
   [ -n "$name" ] || usage
   cd "$(repo_root)"
   row=$(manifest_row "$name")
   [ -n "$row" ] || die "'$name' is not added (see $MANIFEST)"
+  dir=$(package_find "$name")
   for s in $(manifest_names); do
-    [ "$s" != "$name" ] && [ -f "$PACKAGES/$s/package.conf" ] || continue
-    case " $(conf "$PACKAGES/$s" NEEDS) " in *" $name "*) die "$s needs $name: 'stack rm $s' first" ;; esac
+    [ "$s" != "$name" ] || continue
+    sdir=$(package_find "$s")
+    [ -n "$sdir" ] || continue
+    case " $(conf "$sdir" NEEDS) " in *" $name "*) die "$s needs $name: 'stack rm $s' first" ;; esac
   done
   IFS='|' read -r _ subtree rule skills <<< "$row"
   [ -n "$rule" ] && rm -f "$rule"
   drop_lint "$name"
-  if [ -n "$(conf "$PACKAGES/$name" SKILLS_ADD 2>/dev/null || true)" ] && [ -f skills-lock.json ]; then
-    pkg=$(conf "$PACKAGES/$name" SKILLS_ADD)
+  if [ -n "$dir" ] && [ -n "$(conf "$dir" SKILLS_ADD)" ] && [ -f skills-lock.json ]; then
+    pkg=$(conf "$dir" SKILLS_ADD)
     for s in $(lock_skills "$pkg"); do
       # shellcheck disable=SC2086
       npm_config_loglevel=error $SKILLS_CMD remove --skill "$s" -y >/dev/null 2>&1 || true
@@ -601,7 +660,7 @@ cmd_rm() {
   # The knip names this package put in, minus what another added package
   # shares. Its files/ copies are the project's (copy_files) and stay, so
   # their ignore rows stay too.
-  if [ -f "$PACKAGES/$name/package.conf" ]; then
+  if [ -n "$dir" ]; then
     local mine theirs=" "
     mine=$(pkg_dep_names "$name")
     for s in $(manifest_names); do theirs="$theirs$(pkg_dep_names "$s") "; done
@@ -626,10 +685,11 @@ cmd_status() {
   [ -n "$(manifest_names)" ] || { echo "nothing added (stack add <name>)"; return 0; }
   while IFS='|' read -r name subtree rule skills; do
     [ -n "$name" ] || continue
-    if [ ! -f "$PACKAGES/$name/package.conf" ]; then
+    dir=$(package_find "$name")
+    if [ -z "$dir" ]; then
       printf '%s\tnot in the registry any more\n' "$name"; continue
     fi
-    dir="$PACKAGES/$name"; from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD)
+    from=$(conf "$dir" SKILLS_FROM_REFERENCE); pkg=$(conf "$dir" SKILLS_ADD)
     [ -z "$subtree" ] || [ -d "$subtree" ] || printf '%s\t%s missing\n' "$name" "$subtree"
     if [ -n "$rule" ]; then
       if [ ! -f "$rule" ]; then printf '%s\t%s missing\n' "$name" "$rule"
