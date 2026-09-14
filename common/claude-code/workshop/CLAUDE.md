@@ -26,10 +26,9 @@ column of `workbench/GLOSSARY.md`, and `ts-lean-code.md`, the checklist
 `wb-reviewer` applies (`ts-gate/CLAUDE.md`, Touchpoints). What stack knows
 of ts-gate: a dependency it installs goes into `ts-gate/knip.json`'s
 `ignoreDependencies`, a file it copies into `ignore`. What ts-gate knows of
-stack: `eslint.gate.mjs` turns its money and Effect blocks on when
-`.claude/stack.conf` lists `money` or `effect`, and appends whatever
-`.claude/eslint/*.mjs` files stack copied in (a package's `eslint.mjs`,
-`tailwind`'s today) without naming the package. Effect itself is a stack
+stack: `eslint.gate.mjs` appends whatever `.claude/eslint/*.mjs` files stack
+copied in (a package's `eslint.mjs`: `effect`, `money`, `tailwind` today),
+naming no package, and `repos/**` in its ignores. Effect itself is a stack
 package (`stack add effect`, in every TypeScript project through
 `workshop-setup`), not part of the gate.
 

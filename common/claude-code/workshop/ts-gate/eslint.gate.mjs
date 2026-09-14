@@ -16,30 +16,24 @@ import sonarjs from "eslint-plugin-sonarjs";
 
 // Lint a stack package brings (`stack add` copies packages/<name>/eslint.mjs to
 // .claude/eslint/<name>.mjs): each file's default export, an array of flat
-// config objects, appended after the gate's own, in file-name order. The gate
-// names no package; it loads what is there. Read at module load because
-// import() is async and gate() is not; ts-gate/ sits at the project root.
+// config objects or a function of the gate's options returning one, appended
+// after the gate's own, in file-name order. The gate names no package; it
+// loads what is there. Imported at module load because import() is async and
+// gate() is not; ts-gate/ sits at the project root.
 const extrasDir = join(import.meta.dirname, "..", ".claude", "eslint");
 const extras = [];
 for (const file of fs.existsSync(extrasDir) ? fs.readdirSync(extrasDir).filter((f) => f.endsWith(".mjs")).sort() : []) {
   const { default: blocks } = await import(pathToFileURL(join(extrasDir, file)).href);
-  if (!Array.isArray(blocks)) throw new Error(`.claude/eslint/${file}: the default export must be an array of eslint config objects`);
-  extras.push(...blocks);
+  extras.push({ file, blocks });
 }
-
-// The money invariant's escape hatches (stack package `money`: amounts are
-// branded bigint or BigDecimal, never a number). The types stop a number
-// from getting in; these stop one from being made on purpose.
-const moneyEscapes = [
-  {
-    selector: "CallExpression[callee.name=/^(parseFloat|parseInt|Number)$/]",
-    message: "money: no float or Number() conversion; decode through the wire Schema into a branded unit or BigDecimal (src/core/money.ts)",
-  },
-  {
-    selector: "CallExpression[callee.property.name=/^(toNumber|toFixed)$/]",
-    message: "money: format with BigDecimal.format or String(units), never through a number",
-  },
-];
+const extraBlocks = (opts) =>
+  extras.flatMap(({ file, blocks }) => {
+    const out = typeof blocks === "function" ? blocks(opts) : blocks;
+    if (!Array.isArray(out)) {
+      throw new Error(`.claude/eslint/${file}: the default export must be an array of eslint config objects, or a function returning one`);
+    }
+    return out;
+  });
 
 // The project's settings (.claude/workshop.conf, `key=value` lines; the key
 // table: workshop/CLAUDE.md in the dotfiles source), read as workbench and
@@ -65,16 +59,6 @@ const workshopConf = (root) => {
 const confCount = (conf, key, fallback) => {
   const v = conf.get(key);
   return v !== undefined && /^[1-9][0-9]{0,8}$/.test(v) ? Number(v) : fallback;
-};
-
-// Whether `stack add <name>` is recorded in the project (.claude/stack.conf,
-// one `name|…` row per package).
-const stackHas = (root, name) => {
-  try {
-    return fs.readFileSync(join(root, ".claude/stack.conf"), "utf8").split("\n").some((l) => l.startsWith(`${name}|`));
-  } catch {
-    return false;
-  }
 };
 
 // Words the workbench glossary rejects (`| Use | Never |` rows in
@@ -113,29 +97,19 @@ const selectorRule = (description, entries) => ({
     Object.fromEntries(entries.map(([selector, message]) => [selector, (node) => ctx.report({ node, message })])),
 });
 
-// Effect idioms (stack package `effect`): a tagged value is branched on with
-// Match or caught with catchTag, never by reading `_tag` by hand, and it is
-// built by its constructor, never as a literal object. Names checked against
-// repos/effect at 4.0.0-rc.115 (Match.tag/tags/tagsExhaustive/when/not,
-// Effect.catchTag/catchTags, Data.taggedEnum's $match/$is,
-// Predicate.isTagged, Schema.TaggedError/TaggedStruct, Data.TaggedError).
-const TAG_EQ = 'BinaryExpression[operator=/^[!=]==?$/]';
-const effectTags = selectorRule("Effect tagged values go through Match, catchTag and their constructors", [
+// `x as unknown as Y` is a deliberate override — worse than `any`.
+const noDoubleAssertion = selectorRule("no double assertion through unknown", [
+  ['TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]', "Double assertion through unknown. Fix the type instead."],
+]);
+
+// `vi.mock` / `jest.mock` replaces a module wholesale: the test then proves
+// the mock, and the seam the code should have (a Layer, an injected
+// interface) never gets written. Spies and `vi.fn` stay: they fake at a
+// boundary the caller chose.
+const noModuleMock = selectorRule("no module mocking", [
   [
-    `:matches(${TAG_EQ}[left.property.name="_tag"][right.type="Literal"], ${TAG_EQ}[right.property.name="_tag"][left.type="Literal"])`,
-    "Effect: no `_tag ===`. In an error channel use Effect.catchTag / catchTags; on a value use Match.value(x).pipe(Match.tag(...), Match.exhaustive), Data.taggedEnum's $is/$match, or Predicate.isTagged for a reusable guard.",
-  ],
-  [
-    'SwitchStatement[discriminant.property.name="_tag"]',
-    "Effect: no `switch (x._tag)`. Use Match.value(x).pipe(Match.tagsExhaustive({...})) or the tagged enum's $match, which fail to compile when a member is missed.",
-  ],
-  [
-    ':not(CallExpression[callee.object.name="Match"][callee.property.name=/^(when|not)$/]) > ObjectExpression > Property[key.name="_tag"][value.type="Literal"]',
-    "Effect: no literal `_tag:` object. Construct it: `new NotFound({...})` for a Schema.TaggedError / Data.TaggedError, `.make` for a Schema.TaggedStruct, the variant constructor for Data.taggedEnum.",
-  ],
-  [
-    'ConditionalExpression[test.type="BinaryExpression"][test.operator=/^[!=]==?$/][test.right.type="Literal"] > ConditionalExpression.alternate[test.type="BinaryExpression"][test.operator=/^[!=]==?$/][test.right.type="Literal"]',
-    "Effect: a chain of literal ternaries is a match. Use Match.value(x).pipe(Match.when(\"a\", ...), Match.when(\"b\", ...), Match.orElse(...)).",
+    'CallExpression[callee.object.name=/^(vi|jest)$/][callee.property.name=/^(mock|doMock|unstable_mockModule)$/]',
+    "Module mocking. Reach the dependency through a seam the code has: a Layer, an injected interface, or a fake at a boundary not ours (an external service, time, randomness).",
   ],
 ]);
 
@@ -194,21 +168,21 @@ const safetyComment = {
   },
 };
 
-const gatePlugin = { rules: { "effect-tags": effectTags, "no-unknown-signature": noUnknownSignature, "safety-comment": safetyComment } };
+const gatePlugin = {
+  rules: {
+    "no-double-assertion": noDoubleAssertion,
+    "no-module-mock": noModuleMock,
+    "no-unknown-signature": noUnknownSignature,
+    "safety-comment": safetyComment,
+  },
+};
 
 /**
  * @param {object}  opts
  * @param {string}  opts.tsconfigRootDir  directory holding your tsconfig.json
  * @param {"error"|"warn"} [opts.severity="error"]  use "warn" for the first rollout pass
- * @param {boolean} [opts.money]  the money escape-hatch block; default: on when `.claude/stack.conf` lists `money`
- * @param {boolean} [opts.effect]  the Effect idiom rule (`gate/effect-tags`); default: on when `.claude/stack.conf` lists `effect`
  */
-export default function gate({
-  tsconfigRootDir,
-  severity = "error",
-  money = stackHas(tsconfigRootDir, "money"),
-  effect = stackHas(tsconfigRootDir, "effect"),
-}) {
+export default function gate({ tsconfigRootDir, severity = "error" }) {
   const E = severity;
   const never = neverWords(join(tsconfigRootDir, "workbench/GLOSSARY.md"));
   // Thresholds only; severities and options stay as written below.
@@ -258,32 +232,14 @@ export default function gate({
           E,
           { assertionStyle: "as", objectLiteralTypeAssertions: "never" },
         ],
-        // `x as unknown as Y` is a deliberate override — worse than `any`.
-        // `vi.mock` / `jest.mock` replaces a module wholesale: the test then
-        // proves the mock, and the seam the code should have (a Layer, an
-        // injected interface) never gets written. Spies and `vi.fn` stay:
-        // they fake at a boundary the caller chose.
-        "no-restricted-syntax": [
-          E,
-          {
-            selector: 'TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]',
-            message: "Double assertion through unknown. Fix the type instead.",
-          },
-          {
-            selector:
-              'CallExpression[callee.object.name=/^(vi|jest)$/][callee.property.name=/^(mock|doMock|unstable_mockModule)$/]',
-            message:
-              "Module mocking. Reach the dependency through a seam the code has: a Layer, an injected interface, or a fake at a boundary not ours (an external service, time, randomness).",
-          },
-          ...(money ? moneyEscapes : []),
-        ],
         ...(never.length
           ? { "id-match": [E, neverPattern(never), { onlyDeclarations: true, properties: true }] }
           : {}),
         // The inline plugin above.
+        "gate/no-double-assertion": E,
+        "gate/no-module-mock": E,
         "gate/no-unknown-signature": E,
         "gate/safety-comment": "warn",
-        ...(effect ? { "gate/effect-tags": E } : {}),
 
         // --- ceremony with no effect --------------------------------------
         "@typescript-eslint/no-useless-default-assignment": E,
@@ -365,6 +321,6 @@ export default function gate({
         "max-statements": "off",
       },
     },
-    ...extras,
+    ...extraBlocks({ tsconfigRootDir, severity }),
   ];
 }

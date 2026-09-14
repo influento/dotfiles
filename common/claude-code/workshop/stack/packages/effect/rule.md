@@ -4,6 +4,9 @@ paths: ["**/*.{ts,tsx}"]
 
 # Effect v4
 
+Before writing a helper: Effect ships it (Schedule, Cache, Duration, Stream,
+Schema, HTTP, RPC, CLI)? Use it.
+
 Recalled API names are often v3 and no longer exist, so check before writing
 rather than after it fails to compile.
 

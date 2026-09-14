@@ -55,35 +55,35 @@ by default 1000 lines/file, 100/function, 30 statements, 6 params, depth 4):
 `restrict-plus-operands`, `no-misused-promises`, `await-thenable`) runs at
 `severity` too, so a brownfield `warn` pass covers it.
 
-Two `no-restricted-syntax` selectors are the gate's own: the double assertion
-through `unknown`, and `vi.mock` / `jest.mock` / `doMock` /
-`unstable_mockModule` (module mocking; `vi.fn` and `spyOn` pass). The second
-moves ts-lean-code's mocking row from reviewer judgment into the Stop hook.
-The money block (`no-restricted-syntax`, the calls in `moneyEscapes`) is on
-when `.claude/stack.conf` has a `money|` row — `stack add money` — and off
-otherwise; `gate({ money: true })` forces it. The Effect idiom rule
-`gate/effect-tags` is on when `.claude/stack.conf` lists `effect`;
-`gate({ effect: true })` forces it. Those two reads of `.claude/stack.conf`
-are the gate's only knowledge of stack packages by name.
-
-Lint a stack package brings is loaded, not known: every
+The gate knows no stack package. Lint a package brings is loaded: every
 `.claude/eslint/*.mjs` (`stack add` copies `packages/<name>/eslint.mjs`
-there) is imported when `eslint.gate.mjs` loads, and its default export, an
-array of flat config blocks, is appended after the gate's blocks in file-name
-order. A file that is not an array fails the config load, naming the file. A
-package's rules keep their own severities (`gate({ severity })` does not
-reach them); a project overrides one after the spread, like a gate rule.
-`.claude/eslint/**` is in knip's `ignore` (nothing imports the files
+there) is imported when `eslint.gate.mjs` loads; its default export, an
+array of flat config blocks or a function of `{ tsconfigRootDir, severity }`
+returning one, is appended after the gate's blocks in file-name order.
+Anything else fails the config load, naming the file. Only a function
+follows `gate({ severity })`. A package file registers its own inline plugin
+and never sets a core rule that takes options (`no-restricted-syntax`): a
+later block replaces a rule's options, so two files setting one would erase
+each other. Install writes the runner's block before the spread, so a
+package's options for a runner rule (`effect`'s test-block list) come after
+the recommended ones. A project overrides a package rule after the spread, like a gate
+rule. `.claude/eslint/**` is in knip's `ignore` (nothing imports the files
 statically; stack puts their plugin in `ignoreDependencies`), and a change
-there alone still runs the repo-wide tools at stop.
+there alone still runs the repo-wide tools at stop. Today: `effect`
+(`effect/tags`, @effect/vitest's test blocks), `money` (`money/no-number`),
+`tailwind` (@shadcn/lint).
 
-Three rules are the gate's own, an inline plugin `gate` in `eslint.gate.mjs`
+Four rules are the gate's own, an inline plugin `gate` in `eslint.gate.mjs`
 (what each matches is written above its selectors), so a project switches one
 off by name (`"gate/<rule>": "off"` after the spread) without losing the
-rest: `effect-tags` at `severity`; `no-unknown-signature` (`unknown` on a
+rest: `no-double-assertion` (`x as unknown as Y`) and `no-module-mock`
+(`vi.mock` / `jest.mock` / `doMock` / `unstable_mockModule`; `vi.fn` and
+`spyOn` pass, and ts-lean-code's mocking row moves from reviewer judgment
+into the Stop hook) at `severity`; `no-unknown-signature` (`unknown` on a
 parameter or a return; `cause` and the subject of a type predicate excepted)
 at `severity`; `safety-comment` (every `as` except `as const` carries a
 `SAFETY:` comment on the assertion or the statement holding it) at `warn`.
+`effect-tags` in the table below is `effect/tags` in the `effect` package now.
 Ported from anti-slop and measured 2026-09-13, three `claude -p --effort low`
 workers per cell on a task that tempts the pattern, rule off in the base
 branch of the before cell, a reviewer in both cells and a fixer in the before
@@ -160,9 +160,8 @@ at merge (a build, a migration check) points it at its own wrapper —
 its extras — rather than editing files under `ts-gate/`, which the next
 install overwrites.
 
-Stack: the two `.claude/stack.conf` reads above, the `.claude/eslint/*.mjs`
-files it loads, and `knip.json`'s lists stack appends to. Effect is a stack package, not the gate's; `ts-lean-code.md`
-names it because every project has it.
+Stack: the `.claude/eslint/*.mjs` files the gate loads, and `knip.json`'s
+lists stack appends to. Effect is a stack package, not the gate's.
 
 ## Project requirements
 

@@ -94,12 +94,11 @@ const m=require("./ts-gate/.install.json"),k=process.argv[1];console.log(m[k]?m[
 # 4. ESLint config
 TESTS='"**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"'
 case "$RUNNER" in
-  # @effect/vitest's testers (it.effect, it.live, it.scoped, it.scopedLive,
-  # it.prop) are test blocks the plugin does not recognise; without the list
-  # every Effect test is a standalone expect.
+  # Written before the gate's spread: a test-block list a library needs
+  # (@effect/vitest's it.effect) comes from its stack package's .claude/eslint
+  # file, which gate() appends, and a later block's options win.
   vitest) IMP='import vitest from "@vitest/eslint-plugin";'
-          BLOCKS='["it.effect", "it.live", "it.scoped", "it.scopedLive", "it.prop", "effect", "live", "scoped", "scopedLive"]'
-          CFG="{ files: [$TESTS], ...vitest.configs.recommended, rules: { ...vitest.configs.recommended.rules, \"vitest/expect-expect\": [\"error\", { additionalTestBlockFunctions: $BLOCKS }], \"vitest/no-standalone-expect\": [\"error\", { additionalTestBlockFunctions: $BLOCKS }] } }," ;;
+          CFG="{ files: [$TESTS], ...vitest.configs.recommended }," ;;
   jest)   IMP='import jest from "eslint-plugin-jest";'
           CFG="{ files: [$TESTS], ...jest.configs[\"flat/recommended\"], rules: { ...jest.configs[\"flat/recommended\"].rules, \"jest/expect-expect\": \"error\" } }," ;;
   *)      IMP=""; CFG="" ;;
@@ -109,8 +108,8 @@ $IMP
 
 export default [
   { ignores: [\"dist/**\", \"coverage/**\", \"repos/**\", \".worktrees/**\", \"**/*.generated.ts\"] },
-  ...gate({ tsconfigRootDir: import.meta.dirname }),
   $CFG
+  ...gate({ tsconfigRootDir: import.meta.dirname }),
 ];"
 WROTE=""
 if owned_target config eslint.config.mjs eslint.config.mjs eslint.config.js eslint.config.ts; then

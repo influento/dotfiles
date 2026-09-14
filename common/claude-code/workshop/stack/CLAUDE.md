@@ -32,7 +32,7 @@ project: a worker that needs one finds the pick in `stack list`, not on npm.
 | auth | none | Better Auth dropped 2026-09-12 (no Effect API planned); a project that needs auth writes it over Drizzle and `HttpApiMiddleware` |
 | framework | `tanstack-start` | Effect RPC from one file route; decided over Next.js 2026-09-12 |
 | tests, AI, CLI | in `effect` (`@effect/vitest`, `@effect/ai-*`, `effect/unstable/cli`) | first party |
-| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and ts-gate's money lint switched on by its `.claude/stack.conf` row. decimal.js, big.js, dinero are not added |
+| money | `money` (no dep: `Schema.BigInt`, `Schema.BigDecimal`, `Schema.brand`) | the invariant prebuilt: branded units and kinds from `src/core/money.ts`, a rule, and `money/no-number` in its `eslint.mjs` (no `Number()`, `parseFloat`, `toFixed` on an amount). decimal.js, big.js, dinero are not added |
 | test data | `fixtures` (no dep: `Schema`, `Effect`, `Stream` in effect, `node:fs`) | recorded responses in place of the network, which ts-gate refuses in tests: `Fixture.load` / `stream` / `record` from `src/core/fixture.ts`, a rule; msw, nock, polly are not added |
 | EVM chains | `viem` | the one EVM client; ethers and web3.js are not added. Promise-based, wrapped once in a service |
 | Solana | `solana-kit` (`@solana/kit`) | the current SDK, functions over values; `@solana/web3.js` 1.x is not added. Wrapped once |
@@ -70,11 +70,11 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | Path                            | What it is                                                                       |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `bin/stack`                     | the CLI: `list`, `show`, `add`, `update` (per part: subtree pull, skills.sh update, re-copy), `rm`, `status` |
-| `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table |
+| `packages/effect/`              | the runtime: subtree pinned to the release tag, `effect` + `@effect/platform-node`, `@effect/vitest` as dev dep, the always-on rule with the never-added table, `eslint.mjs`: `effect/tags` (measured in ts-gate as `gate/effect-tags`) and @effect/vitest's test blocks for the vitest plugin |
 | `packages/drizzle-{postgres,sqlite,mysql,libsql}/`, `atom-react/` | `NEEDS=effect`, a pinned dep, a rule; no subtree — the Effect monorepo already holds `@effect/*` sources. The four drizzle rules share one shape and differ in driver, table module and `drizzle.config.ts` dialect |
 | `packages/viem/`, `solana-kit/`, `jupiter/`, `duckdb/` | `NEEDS=effect` (`jupiter` also `solana-kit`), a pinned dep, a rule that wraps the Promise API once in a service; no subtree, no skill — none of the four repositories publishes one, and the docs are the types in `node_modules` (plus `viem.sh/llms.txt`) |
 | `packages/tanstack-start/`      | `NEEDS="effect atom-react"`, no dep (its CLI scaffolds), `SETUP` printed, the RPC-route rule |
-| `packages/money/`               | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/money.ts`; `ts-gate/eslint.gate.mjs` reads `.claude/stack.conf` and enables its money block when the row is there |
+| `packages/money/`               | `NEEDS=effect`, no dep, a path-scoped rule, `files/src/core/money.ts` and `eslint.mjs` (`money/no-number`) |
 | `packages/fixtures/`            | `NEEDS=effect`, no dep, a path-scoped rule and `files/src/core/fixture.ts` (load, stream, record over `fixtures/`); the other half of ts-gate's network guard |
 | `packages/fullstack/`           | preset: `KIND=preset`, `NEEDS` only |
 | `packages/shardx-scripts/`      | private toolkit: reference subtree, its two skills copied out of it, a rule       |
@@ -82,7 +82,7 @@ drizzle-sqlite` in a CLI that grew a database) is the same command.
 | `packages/tailwind/`            | `@shadcn/lint` as dev dep, a rule for the v4 facts the lint cannot see (CSS, renamed scales), and `eslint.mjs`: the lint's rules, which ts-gate appends. No skill: Tailwind Labs publishes none, the skills.sh ones are tutorials. Standalone, since the lint works without shadcn |
 | `packages/<name>/package.conf`  | `KEY=value`, read line by line, never sourced; keys below                         |
 | `packages/<name>/rule.md`       | optional; → `.claude/rules/<name>.md` verbatim                                    |
-| `packages/<name>/eslint.mjs`    | optional; → `.claude/eslint/<name>.mjs` verbatim, the rule's lifecycle (re-copied by update, removed by rm or when the registry drops it). Default export: an array of eslint flat config blocks importing their own plugin; `ts-gate/eslint.gate.mjs` appends every file there after its own blocks, so a project overrides one after the `gate()` spread. Inert without ts-gate |
+| `packages/<name>/eslint.mjs`    | optional; → `.claude/eslint/<name>.mjs` verbatim, the rule's lifecycle (re-copied by update, removed by rm or when the registry drops it). Default export: an array of eslint flat config blocks, or a function of `{ tsconfigRootDir, severity }` returning one; `ts-gate/eslint.gate.mjs` appends every file there after its own blocks, so a project overrides one after the `gate()` spread. Inert without ts-gate |
 | `packages/<name>/skills/<s>/`   | optional; → `.claude/skills/<s>/`, own-written or vendored from upstream          |
 | `packages/<name>/files/<path>`  | optional; → `<path>` in the project once, never overwritten and never removed: source the project owns from the moment it lands (`money`'s `src/core/money.ts`) |
 | `tests/stack.sh`                | end-to-end, in a temp project against a temp registry and a local bare "private" repo |
@@ -127,7 +127,8 @@ Per package, what it `NEEDS` first, each part only when the conf names it: a
 `--squash` subtree at `repos/<name>` as a read-only reference (needs HEAD and
 a clean tree), the dependencies (and, when `ts-gate/knip.json` exists, their
 names in `ignoreDependencies`, because the package lands before the code that
-imports it), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet), the skills as committed copies, one line in the block
+imports it; `update` writes them again, so a gate installed after the
+package gets them from `stack update`), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet; not on `update`, which keeps the file), the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. A preset writes no row and no line: `stack add
@@ -175,5 +176,8 @@ Run from this directory (`common/claude-code/workshop/stack/`):
    `paths:` frontmatter when the thing has files of its own, always-on
    otherwise. Skills only for tasks. What a lint rule can check goes in
    `eslint.mjs` instead, its plugin in `DEV_DEP`; the rule keeps what it
-   cannot.
+   cannot. A selector rule is an inline plugin rule named after the package
+   (`money/no-number`), never a core rule that takes options
+   (`no-restricted-syntax`): a later block would replace the gate's. A
+   function export follows the gate's severity (`ts-gate/CLAUDE.md`, Rules).
 6. `stack show <name>`, then a real `stack add` in a scratch project.

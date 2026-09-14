@@ -172,6 +172,7 @@ check "re-install leaves the project's premerge" bash -c "[ \"\$(grep -c '^preme
 run "and says it does not run the gate by itself" 0 "NOTE: premerge is 'bash scripts/premerge.sh'" bash "$SRC/install.sh" .
 check "re-install keeps the hand-set timeout, one entry" [ "$(stop_timeouts)" = 900 ]
 check "the manifest now records the runner" [ "$(json ts-gate/.install.json 'j.runner')" = vitest ]
+check "the vitest block comes before the gate's spread" bash -c "[ \"\$(grep -n 'vitest.configs.recommended' eslint.config.mjs | cut -d: -f1)\" -lt \"\$(grep -n '\.\.\.gate(' eslint.config.mjs | cut -d: -f1)\" ]"
 check "the manifest lists the plugin the re-install added" [ "$(json ts-gate/.install.json 'j.deps.includes("@vitest/eslint-plugin")')" = true ]
 check "vitest.config.mjs is written and owned" bash -c "test -f vitest.config.mjs && [ \"$(json ts-gate/.install.json 'j.vitest.file')\" = vitest.config.mjs ]"
 check "the runner's allow rule is added" grep -q 'Bash(npx vitest:\*)' .claude/settings.json
@@ -268,10 +269,19 @@ const { default: gate } = await import(`${process.cwd()}/ts-gate/eslint.gate.mjs
 const c = gate({ tsconfigRootDir: process.cwd() });
 console.log(c.length, c.slice(-3).map((b) => Object.keys(b.rules).join()).join(" "));' 2>&1; }
 run "the gate's two blocks, then a.mjs's two, then b.mjs's one" 0 "^5 a/one a/two b/rule$" blocks
+echo 'export default ({ severity, tsconfigRootDir }) => [{ rules: { "d/sev": [severity, tsconfigRootDir === process.cwd()] } }];' > .claude/eslint/d.mjs
+# shellcheck disable=SC2016  # the ${} is JavaScript's
+sev() { node --input-type=module -e '
+const { default: gate } = await import(`${process.cwd()}/ts-gate/eslint.gate.mjs`);
+console.log(JSON.stringify(gate({ tsconfigRootDir: process.cwd(), severity: "warn" }).at(-1).rules["d/sev"]));' 2>&1; }
+run "a function export gets the gate's severity and root" 0 '^\["warn",true\]$' sev
 echo 'export default { rules: {} };' > .claude/eslint/c.mjs
 run "a default export that is not an array fails the load, naming the file" 1 "\.claude/eslint/c\.mjs: the default export must be an array" blocks
 rm -rf .claude/eslint
 run "no .claude/eslint: the gate's two blocks alone" 0 "^2 " blocks
+mkdir -p .claude/eslint && cp "$SRC/../stack/packages/effect/eslint.mjs" .claude/eslint/effect.mjs
+run "effect's lint file without @vitest/eslint-plugin: effect/tags alone, no vitest block" 0 "^3 .* effect/tags$" blocks
+rm -rf .claude/eslint
 rm -rf node_modules/typescript-eslint node_modules/eslint-plugin-sonarjs
 
 echo "== gate:fix runs the formatter even when eslint --fix leaves an error (C5)"
@@ -356,6 +366,25 @@ else
   check "and six are reported" reports six "too many statements (6). Maximum allowed is 5"
   check "lint.complexity=3: complexity 3 passes" bash -c "$(declare -f reports); ESL='$ESL'; ! reports three cognitive-complexity"
   check "and 4 is reported" reports four "from 4 to the 3 allowed"
+
+  # The packages' lint files as stack add copies them, through real eslint.
+  mkdir -p .claude/eslint
+  for p in effect money; do cp "$SRC/../stack/packages/$p/eslint.mjs" ".claude/eslint/$p.mjs"; done
+  printf 'export const isNotFound = (e: { readonly _tag: string }): boolean => e._tag === "NotFound";\n' > src/tagged.ts
+  printf 'export const amount = (s: string): number => parseFloat(s);\n' > src/amount.ts
+  printf 'import { it } from "@effect/vitest";\nimport { Effect } from "effect";\nimport { expect } from "vitest";\n\nit.effect("adds", () => Effect.sync(() => expect(1 + 1).toBe(2)));\n' > src/tags.test.ts
+  check "effect/tags reports _tag ===" reports tagged "effect/tags"
+  check "money/no-number reports parseFloat" reports amount "money/no-number"
+  check "an expect inside it.effect is not standalone" bash -c "$(declare -f reports); ESL='$ESL'; ! reports tags.test no-standalone-expect"
+  mv .claude/eslint/effect.mjs effect.mjs.aside
+  check "without effect's lint file the same expect is standalone" reports tags.test "vitest/no-standalone-expect"
+  mv effect.mjs.aside .claude/eslint/effect.mjs
+  if [ -d "$TSGATE_REAL_PROJECT/node_modules/@shadcn/lint" ]; then
+    cp "$SRC/../stack/packages/tailwind/eslint.mjs" .claude/eslint/tailwind.mjs
+    check "tailwind's lint file loads its rules" bash -c "'$ESL' --print-config src/tagged.ts | grep -q 'shadcn/no-raw-colors'"
+  else
+    echo "skip: no @shadcn/lint in TSGATE_REAL_PROJECT, tailwind's lint file not loaded"
+  fi
 fi
 
 echo

@@ -218,7 +218,9 @@ claude_md_block() {
   echo
   echo "Chosen for this project with \`stack add\`. A reference under \`$REPOS/\` is"
   echo "read-only: never edit it, never import from it. How to work with each is"
-  echo "in its rule and skills."
+  echo "in its rule and skills. Before installing a dependency, check \`stack list\`:"
+  echo "a package that covers the need is proposed as \`stack add <name>\`, never"
+  echo "installed ad hoc."
   echo
   while IFS='|' read -r name subtree rule skills; do
     [ -n "$name" ] || continue
