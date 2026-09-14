@@ -538,7 +538,8 @@ deploy_configs() {
         link_config "${item}workshop/workbench/bin/workbench" \
           "${user_home}/.local/bin/workbench"
         # workshop/stack/ likewise: the registry of packages a project may
-        # choose stays here, 'stack add' copies from it.
+        # choose (workshop/<language>/packages/) stays here, 'stack add'
+        # copies from it.
         link_config "${item}workshop/stack/bin/stack" \
           "${user_home}/.local/bin/stack"
         ;;
