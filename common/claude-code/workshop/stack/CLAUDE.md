@@ -154,7 +154,9 @@ they are learned.
 Run from this directory (`common/claude-code/workshop/stack/`):
 
 - Lint: `shellcheck -x bin/stack tests/stack.sh`
-- Test: `bash tests/stack.sh`
+- Test: `bash tests/stack.sh`; with `TSGATE_REAL_PROJECT` set to a project
+  with a real ts-gate install, it also runs the registry's `eslint.mjs` files
+  through real eslint under the gate
 - Real check: in a scratch git project with one commit, `stack add
   shardx-scripts`, then `stack status` and read the rewritten links in
   `.claude/skills/*/SKILL.md`
