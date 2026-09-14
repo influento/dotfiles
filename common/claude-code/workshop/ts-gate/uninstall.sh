@@ -47,7 +47,7 @@ if(s.hooks?.Stop){
   if(!Object.keys(s.hooks).length) delete s.hooks;
 }
 if(Array.isArray(s.permissions?.allow)){
-  const ours=new Set(["Bash(npm ci)","Bash(npm run gate:*)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)","Bash(npx vitest:*)","Bash(npx jest:*)"]);
+  const ours=new Set(["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)","Bash(npx vitest:*)","Bash(npx jest:*)"]);
   s.permissions.allow=s.permissions.allow.filter(r=>!ours.has(r));
   if(!s.permissions.allow.length) delete s.permissions.allow;
   if(!Object.keys(s.permissions).length) delete s.permissions;

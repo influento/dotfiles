@@ -170,14 +170,12 @@ s.permissions??={}; s.permissions.allow??=[];
 // Not gate:* — that would cover gate:verify, which starts a model session.
 const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
 if(process.argv[1]) rules.push("Bash(npx "+process.argv[1]+":*)");
-s.permissions.allow=s.permissions.allow.filter(r=>r!=="Bash(npm run gate:*)");
 for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 
 # 7. workbench keys; inert without workbench. premerge goes in the committed
 #    .claude/workshop.conf, only when the file has no premerge key: a project
-#    points it at its own wrapper, which a re-install must not undo. A value
-#    an older install left in git config is carried over instead. Read with
+#    points it at its own wrapper, which a re-install must not undo. Read with
 #    the same last-occurrence rule as scripts/stop-hook.sh.
 CONF=.claude/workshop.conf
 PREMERGE=""
@@ -192,8 +190,7 @@ if [ -f "$CONF" ]; then
   done < "$CONF"
 fi
 if [ "$HAS_PREMERGE" -eq 0 ]; then
-  PREMERGE=$(git config --local --get workbench.premerge 2>/dev/null || true)
-  [ -n "$PREMERGE" ] || PREMERGE="npm run gate"
+  PREMERGE="npm run gate"
   command mkdir -p .claude
   # Over the commented-out line workbench init writes, else appended.
   if [ -f "$CONF" ] && grep -Eq '^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=' "$CONF"; then
@@ -203,7 +200,6 @@ if [ "$HAS_PREMERGE" -eq 0 ]; then
     [ ! -s "$CONF" ] || [ -z "$(tail -c1 "$CONF")" ] || echo >> "$CONF"
     printf 'premerge=%s\n' "$PREMERGE" >> "$CONF"
   fi
-  git config --local --unset workbench.premerge 2>/dev/null || true
   echo "set premerge=$PREMERGE in $CONF"
 fi
 [ "$PREMERGE" = "npm run gate" ] || echo "NOTE: premerge is '$PREMERGE' in $CONF, left alone; the gate runs at merge only if that command runs 'npm run gate'"

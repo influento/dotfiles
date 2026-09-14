@@ -321,11 +321,9 @@ check "fills that line in place" [ "$(cat .claude/workshop.conf)" = "$(printf 'c
 
 echo "== brownfield: a foreign biome config that formats repos/** (B1)"
 mkproj "$TMP/p2"
-git config workbench.premerge "bash old-premerge.sh"
 echo '{"formatter":{"indentStyle":"tab"}}' > biome.json && git add -A && git commit -qm biome
 run "install warns with the includes block" 0 'WARNING: biome.json.*!repos/\*\*' bash "$SRC/install.sh" .
 check "biome.json was not touched" [ "$(cat biome.json)" = '{"formatter":{"indentStyle":"tab"}}' ]
-check "a premerge an older install left in git config moves to the file" bash -c "grep -qx 'premerge=bash old-premerge.sh' .claude/workshop.conf && ! git config --get workbench.premerge"
 echo '{"files":{"includes":["**","!repos/**","!ts-gate/**","!.worktrees/**"]},"formatter":{"indentStyle":"tab"}}' > biome.json
 check "the excluding config prints no biome warning" bash -c "! bash '$SRC/install.sh' . 2>&1 | grep -q 'WARNING: biome'"
 
