@@ -24,9 +24,37 @@ set -euo pipefail
 readonly restore_script="$HOME/.local/share/tmux/plugins/tmux-resurrect/scripts/restore.sh"
 readonly lock_file="${XDG_RUNTIME_DIR:-/tmp}/tmux-attach.lock"
 readonly restored_flag='@dotfiles-restored'
+# Not `main`: saved state may hold a `main` of its own, and a name no saved
+# state can hold is one this script can drop without touching real work.
+readonly bootstrap_session='tmux-attach-bootstrap'
 
 server_running() {
   tmux list-sessions >/dev/null 2>&1
+}
+
+# The session a terminal lands on: the most recently used one holding real
+# work, or nothing. Skipped are the bootstrap session and tmux-overlay's
+# hidden `ov-*` sessions.
+# session_last_attached is empty for a session never attached — every session
+# right after a restore — so the format substitutes 0 rather than leave a
+# field that would shift the ones after it.
+attach_target() {
+  local last activity name
+  local best_last=-1 best_activity=-1 best=''
+  while IFS=' ' read -r last activity name; do
+    case "$name" in
+      "$bootstrap_session" | ov-*) continue ;;
+    esac
+    if [ "$last" -gt "$best_last" ] ||
+      { [ "$last" -eq "$best_last" ] && [ "$activity" -gt "$best_activity" ]; }; then
+      best_last="$last"
+      best_activity="$activity"
+      best="$name"
+    fi
+  done < <(tmux list-sessions -F \
+    '#{?session_last_attached,#{session_last_attached},0} #{?session_activity,#{session_activity},0} #{session_name}' \
+    2>/dev/null 9>&-)
+  printf '%s' "$best"
 }
 
 # Set on the server, so it survives for the server's lifetime and no second
@@ -35,16 +63,17 @@ already_restored() {
   [ "$(tmux show-options -gv "$restored_flag" 2>/dev/null || true)" = "1" ]
 }
 
-# A server holding nothing but the bare `main` this script creates is one a
-# restore may fill. Anything else is live work, and restoring onto it is
-# never right whatever the flag says: tmux-resurrect names windows by index,
-# so on a layout that has since closed windows and renumbered it stamps saved
-# names on the wrong windows, with automatic-rename off, and they keep them
-# for good.
+# A server holding nothing but the bootstrap session this script creates, or a
+# one-window `main`, is one a restore may fill. Anything else is live work, and
+# restoring onto it is never right whatever the flag says: tmux-resurrect names
+# windows by index, so on a layout that has since closed windows and renumbered
+# it stamps saved names on the wrong windows, with automatic-rename off, and
+# they keep them for good.
 server_is_bare() {
   local name windows
   while IFS=$'\t' read -r name windows; do
     case "$name" in
+      "$bootstrap_session") ;;
       main) [ "$windows" -le 1 ] || return 1 ;;
       *) return 1 ;;
     esac
@@ -57,7 +86,7 @@ server_is_bare() {
 # so a server holding fd 9 holds the lock forever and every later terminal
 # blocks on flock with no way out.
 restore_once() {
-  server_running || tmux new-session -d -s main 9>&-
+  server_running || tmux new-session -d -s "$bootstrap_session" 9>&-
   if already_restored; then
     return 0
   fi
@@ -80,10 +109,29 @@ restore_once() {
   tmux set-option -g "$restored_flag" 1 9>&-
 }
 
+# The bootstrap session only existed to give the restore a tmux context. With
+# work restored it goes, so the terminal lands on that work; with nothing
+# restored it becomes `main` — unless a `main` already exists, and a failed
+# rename would abort this script before any terminal attaches.
+settle_bootstrap() {
+  tmux has-session -t "=$bootstrap_session" 2>/dev/null 9>&- || return 0
+  if [ -n "$(attach_target)" ] || tmux has-session -t '=main' 2>/dev/null 9>&-; then
+    tmux kill-session -t "=$bootstrap_session" 9>&- || true
+  else
+    tmux rename-session -t "=$bootstrap_session" main 9>&- || true
+  fi
+}
+
 # Two terminals opening at once must not both restore.
 exec 9>"$lock_file"
 flock 9
 restore_once
+settle_bootstrap
 exec 9>&-
 
+# `main` is only a fallback, for a server with no work in it.
+target=$(attach_target)
+if [ -n "$target" ] && tmux has-session -t "=$target" 2>/dev/null; then
+  exec tmux attach-session -t "=$target"
+fi
 exec tmux new-session -A -s main
