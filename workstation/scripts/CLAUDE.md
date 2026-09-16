@@ -48,7 +48,7 @@ auto-restore fails in two independent ways:
 | Restore silently skipped | `another_tmux_server_running_on_startup` counts `ps -u \| grep "^tmux"` and bails above 1. A second terminal opening in the same moment is a second `tmux` process, so the restore never runs and the sessions have to be recovered by hand with `prefix + Ctrl-r` |
 | Layouts corrupted | The restore runs in the background while the shell is already live. Panes created in those seconds beat tmux-resurrect's `pane_exists` check, so it splits a pane that already exists; the pane count then no longer matches the saved layout, `select-layout` refuses it (the error is discarded by `restore_window_properties >/dev/null 2>&1`), and the window is left as horizontal strips with 1-row-tall panes. The broken layout is then what gets saved, so it ratchets on every boot |
 
-Three things in the script are load-bearing and look removable:
+These things in the script are load-bearing and look removable:
 
 - **`tmux run-shell "$restore_script"`, not a direct call.** `restore.sh` derives
   the server socket from `$TMUX` (`echo $TMUX | cut -d, -f1`). Run outside a tmux
@@ -65,8 +65,20 @@ Three things in the script are load-bearing and look removable:
   with the flag somehow unset (2026-09-10; the trigger was never found), and
   resurrect renames windows by index, so after windows had closed and the rest
   renumbered, a dead Claude session's title landed on an ssh window for good.
-  So the flag is not trusted alone: a server holding anything beyond a
-  one-window `main` is never restored onto, and gets the flag set instead.
+  So the flag is not trusted alone: a server holding anything beyond the
+  bootstrap session or a one-window `main` is never restored onto, and gets the
+  flag set instead.
+- **The `tmux-attach-bootstrap` session, not `main`.** The restore needs a
+  server to `run-shell` in, so the script starts one with a session no saved
+  state can be named. Afterwards it is killed if anything was restored, or
+  renamed to `main` if nothing was. A terminal then attaches to the most
+  recently used session that is not `ov-*`, and only falls back to creating
+  `main` when there is none. Starting the server with `main` itself left an
+  empty `main` after every reboot. Two traps here:
+  `session_last_attached` is empty for every just-restored session, so the
+  format substitutes 0 to keep the fields from shifting; and a rename onto a
+  `main` that saved state already restored fails, which under `set -e` exits
+  before the attach, leaving every terminal unable to open.
 
 After the resurrect restore it runs `claude-tmux restore`, which types
 `claude --resume` into the panes that ran Claude Code and re-flags what they
