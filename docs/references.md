@@ -13,7 +13,7 @@ Check these when upgrading tools or debugging config issues.
 | **tmux** | `common/tmux/tmux.conf.tpl` | [tmux man page](https://man.openbsd.org/tmux.1) | Themed template, generates `tmux.conf` |
 | **Git** | `common/git/.gitconfig` | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
 | **fontconfig** | `common/fontconfig/fonts.conf` | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
-| **btop** | `common/btop/btop.conf` | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format |
+| **btop** | `common/btop/btop.conf`, `themes/dotfiles.theme.tpl` | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format; theme file is a themed template, generates `dotfiles.theme` |
 | **fastfetch** | `common/fastfetch/config.jsonc` | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |
 | **fzf** | Configured in `.zshrc` | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
 | **zoxide** | Configured in `.zshrc` | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | `eval "$(zoxide init zsh)"` |
