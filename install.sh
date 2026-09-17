@@ -114,12 +114,12 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info ""
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
-  log_info "  common configs: zsh, nvim, tmux, git, starship, fontconfig, btop, fastfetch"
+  log_info "  common configs: $(list_config_dirs "${DOTFILES_DIR}/common")"
   log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
   log_info "  tmux plugins: download tmux-warp from GitHub Releases"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  workstation configs: sway, waybar, ghostty, swaylock, swayidle, mako, swaybg, wlsunset, swayosd, cliphist, lazygit, mimeapps, theming"
+    log_info "  workstation configs: $(list_config_dirs "${DOTFILES_DIR}/workstation")"
     log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
@@ -127,6 +127,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$PROFILE" == "server" ]]; then
     log_info "  systemd: server-auto-update timer + service (auto-enabled)"
   fi
+    log_info "  server configs: $(list_config_dirs "${DOTFILES_DIR}/server")"
   log_info "  oh-my-zsh: install if missing"
   exit 0
 fi
@@ -149,18 +150,18 @@ if [[ "$PROFILE" == "workstation" ]]; then
   validate_rendered "${DOTFILES_DIR}/workstation"
 fi
 
-# Ensure all shell scripts are executable
-find "${DOTFILES_DIR}" -name '*.sh' ! -name '*.tpl' -exec chmod +x {} +
-find "${DOTFILES_DIR}/common/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+# Ensure all shell scripts are executable (the per-directory CLAUDE.md files are docs, not scripts)
+find "${DOTFILES_DIR}" -name '*.sh' -exec chmod +x {} +
+find "${DOTFILES_DIR}/common/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
 # workbench is a self-contained tool under common/claude-code/workshop/, not a script in
 # common/scripts/ — see the claude-code case in deploy_configs.
 chmod +x "${DOTFILES_DIR}/common/claude-code/workshop/workbench/bin/workbench" 2>/dev/null || true
 chmod +x "${DOTFILES_DIR}/common/claude-code/workshop/stack/bin/stack" 2>/dev/null || true
 if [[ "$PROFILE" == "workstation" ]]; then
-  find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+  find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
 fi
 if [[ "$PROFILE" == "server" ]]; then
-  find "${DOTFILES_DIR}/server/scripts" -type f ! -name '.gitkeep' -exec chmod +x {} + 2>/dev/null || true
+  find "${DOTFILES_DIR}/server/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
 fi
 
 # Deploy common configs (all profiles)
