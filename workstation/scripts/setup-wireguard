@@ -62,8 +62,11 @@ for conf in "${configs[@]}"; do
 done
 
 # --- Mark as completed ---
-mkdir -p ~/.local/state/dotfiles
-echo "setup-wireguard" >> ~/.local/state/dotfiles/completed
+# The state file is a list of reminder keys (see startup-reminders); add ours
+# once, not on every run.
+state_file="$HOME/.local/state/dotfiles/completed"
+mkdir -p "$(dirname "$state_file")"
+grep -qxF "setup-wireguard" "$state_file" 2>/dev/null || echo "setup-wireguard" >> "$state_file"
 
 # --- Done ---
 echo ""

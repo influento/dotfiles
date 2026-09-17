@@ -37,7 +37,7 @@ unbind %
 bind c new-window -c "#{pane_current_path}"
 
 # Windows name themselves after the foreground command; an ssh window takes
-# the destination as typed instead, `crisp-desktop(ssh)` or the IP when that is
+# the destination as typed instead, `myserver(ssh)` or the IP when that is
 # what was typed. The shell's preexec hook puts it in the pane option
 # @ssh_host (common/zsh/.zshrc.tpl) and clears it at the next prompt, so the
 # name falls back to the shell when ssh ends. A window renamed by hand has
