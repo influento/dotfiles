@@ -20,7 +20,14 @@ link_config() {
     local expected
     expected="$(readlink -f "$src")"
     if [[ "$current" == "$expected" ]]; then
-      log_info "Already linked: $target"
+      # Same file, but the link text differs (a trailing slash left by an
+      # older deploy_configs): rewrite the link so it reads cleanly.
+      if [[ "$(readlink "$target")" != "$src" ]]; then
+        ln -sfn "$src" "$target"
+        log_info "Relinked: $target → $src"
+      else
+        log_info "Already linked: $target"
+      fi
       return 0
     fi
   fi
@@ -514,6 +521,34 @@ install_claude_code() {
   log_info "Claude Code installed"
 }
 
+# Children of a profile root that deploy_configs does not symlink: handled by
+# a dedicated function (obsidian, npm, systemd) or read in place from the repo
+# (cheatsheets, opened by the _cheat zsh function).
+# Usage: is_config_dir_skipped "obsidian"
+is_config_dir_skipped() {
+  case "$1" in
+    obsidian|npm|systemd|cheatsheets) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Print the config names deploy_configs would deploy from a profile root,
+# space-separated. The dry-run summary in install.sh uses it so that list
+# cannot go stale.
+# Usage: list_config_dirs "/path/to/dotfiles/common"
+list_config_dirs() {
+  local source_dir="$1"
+  local -a names=()
+  local item name
+  for item in "${source_dir}"/*/; do
+    [[ -d "$item" ]] || continue
+    name="$(basename "$item")"
+    is_config_dir_skipped "$name" && continue
+    names+=("$name")
+  done
+  echo "${names[*]:-}"
+}
+
 # Deploy all config files/directories from a source directory.
 # Maps each child of source_dir to the appropriate target location.
 # Usage: deploy_configs "/path/to/dotfiles/common" "/home/username" "common"
@@ -532,39 +567,37 @@ deploy_configs() {
   local item
   for item in "${source_dir}"/*/; do
     [[ ! -d "$item" ]] && continue
+    item="${item%/}"  # the glob leaves a trailing slash; keep link targets clean
     local name
     name="$(basename "$item")"
+    is_config_dir_skipped "$name" && continue
 
     case "$name" in
-      # Handled by dedicated functions, not symlinked
-      obsidian|npm|systemd)
-        continue
-        ;;
       # Files that go directly in $HOME (not .config)
       zsh)
         # common/zsh: symlink .zshrc
         # workstation/zsh: symlink .zshrc-workstation
         if [[ "$config_type" == "common" ]]; then
-          link_config "${item}.zshrc" "${user_home}/.zshrc"
+          link_config "${item}/.zshrc" "${user_home}/.zshrc"
           # .zshenv is read by non-interactive shells too (ssh commands),
           # which is what puts ~/.local/bin on PATH for remote invocations.
-          link_config "${item}.zshenv" "${user_home}/.zshenv"
+          link_config "${item}/.zshenv" "${user_home}/.zshenv"
         else
-          link_config "${item}.zshrc-workstation" "${user_home}/.zshrc-workstation"
+          link_config "${item}/.zshrc-workstation" "${user_home}/.zshrc-workstation"
         fi
         ;;
       git)
-        link_config "${item}.gitconfig" "${user_home}/.gitconfig"
+        link_config "${item}/.gitconfig" "${user_home}/.gitconfig"
         ;;
       ideavim)
-        link_config "${item}.ideavimrc" "${user_home}/.ideavimrc"
+        link_config "${item}/.ideavimrc" "${user_home}/.ideavimrc"
         ;;
       # XDG MIME associations: single file directly in ~/.config/, plus the
       # desktop entry its text and source types point at (see that file's comment)
       mimeapps)
-        link_config "${item}mimeapps.list" "${user_home}/.config/mimeapps.list"
+        link_config "${item}/mimeapps.list" "${user_home}/.config/mimeapps.list"
         ensure_dir "${user_home}/.local/share/applications"
-        link_config "${item}nvim-ghostty.desktop" \
+        link_config "${item}/nvim-ghostty.desktop" \
           "${user_home}/.local/share/applications/nvim-ghostty.desktop"
         ;;
       # Claude Code: skills dir symlinked, settings.json merged (Claude Code
@@ -572,46 +605,42 @@ deploy_configs() {
       # merge_json_config)
       claude-code)
         ensure_dir "${user_home}/.claude"
-        link_config "${item}skills" "${user_home}/.claude/skills"
-        merge_json_config "${item}settings.json" "${user_home}/.claude/settings.json"
+        link_config "${item}/skills" "${user_home}/.claude/skills"
+        merge_json_config "${item}/settings.json" "${user_home}/.claude/settings.json"
         # workshop/workbench/ is a whole tool, not a config: its skills, agents and
         # commands are rendered into a project by its own CLI ('workbench
         # init'), never deployed from here. Only the CLI is, because it is what
         # does the opting in — it has to be runnable before a project can ask
         # for any of the rest.
         ensure_dir "${user_home}/.local/bin"
-        link_config "${item}workshop/workbench/bin/workbench" \
+        link_config "${item}/workshop/workbench/bin/workbench" \
           "${user_home}/.local/bin/workbench"
         # workshop/stack/ likewise: the registry of packages a project may
         # choose (workshop/<language>/packages/) stays here, 'stack add'
         # copies from it.
-        link_config "${item}workshop/stack/bin/stack" \
+        link_config "${item}/workshop/stack/bin/stack" \
           "${user_home}/.local/bin/stack"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/
       scripts)
         ensure_dir "${user_home}/.local/bin"
         local script
-        for script in "${item}"*; do
+        for script in "${item}"/*; do
           [[ -f "$script" ]] || continue
           local script_name
           script_name="$(basename "$script")"
-          [[ "$script_name" == ".gitkeep" ]] && continue
           [[ "$script_name" == *.tpl ]] && continue
           # Per-directory docs live beside the scripts; they are not executables
           [[ "$script_name" == *.md ]] && continue
           link_config "$script" "${user_home}/.local/bin/${script_name}"
         done
         ;;
-      # Cheatsheets: opened directly from dotfiles repo via _cheat zsh func
-      cheatsheets)
-        continue
-        ;;
       # Theming has nested subdirectories
       theming)
         local subdir
         for subdir in "${item}"/*/; do
           [[ ! -d "$subdir" ]] && continue
+          subdir="${subdir%/}"
           local subname
           subname="$(basename "$subdir")"
           link_config "$subdir" "${user_home}/.config/${subname}"
