@@ -385,8 +385,9 @@ copy_files() {
     else
       command mkdir -p "$(dirname "$rel")"; command cp "$f" "$rel"
       echo "  file    $rel (yours now; add never touches it again)"
-      knip_ignore_file "$rel"
     fi
+    # Kept or not: a gate installed after the package gets the row from update.
+    knip_ignore_file "$rel"
   done < <(find "$dir/files" -type f | sort)
 }
 

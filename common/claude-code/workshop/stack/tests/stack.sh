@@ -231,9 +231,14 @@ git add -A && git commit -qm knip
 "$STACK" add lib >/dev/null
 check grep -q '"left-pad"' ts-gate/knip.json
 check grep -q '"effect"' ts-gate/knip.json
-check not grep -q 'src/core/lib.ts' ts-gate/knip.json
+check grep -q '"src/core/lib.ts"' ts-gate/knip.json   # the kept file's row too: the gate came after the package
+echo '{"ignoreDependencies":["effect"]}' > ts-gate/knip.json
+"$STACK" update lib >/dev/null
+check grep -q '"left-pad"' ts-gate/knip.json
+check grep -q '"src/core/lib.ts"' ts-gate/knip.json
 rm src/core/lib.ts; git commit -qam "drop the file"
 "$STACK" add lib >/dev/null
+check grep -q 'one = 1' src/core/lib.ts
 check grep -q '"src/core/lib.ts"' ts-gate/knip.json
 git add -A && git commit -qm "knip lib"
 

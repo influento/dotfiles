@@ -92,7 +92,7 @@ Per package, what it `NEEDS` first, each part only when the conf names it: a
 a clean tree), the dependencies (and, when `ts-gate/knip.json` exists, their
 names in `ignoreDependencies`, because the package lands before the code that
 imports it; `update` writes them again, so a gate installed after the
-package gets them from `stack update`), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet; not on `update`, which keeps the file), the skills as committed copies, one line in the block
+package gets them from `stack update`), the rule, the lint config, the `files/` copied once (kept when present, never removed; a copied path goes into knip's `ignore` when `ts-gate/knip.json` exists, since nothing imports it yet; `update` keeps the file and writes the row again), the skills as committed copies, one line in the block
 between `<!-- stack:start -->` and `<!-- stack:end -->` in CLAUDE.md, and a
 row in `.claude/stack.conf` (`name|subtree|rule|skills`) that `status`,
 `update` and `rm` read back. The row holds the name only, never a registry
