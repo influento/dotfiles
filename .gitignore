@@ -39,3 +39,9 @@ common/claude-code/skills-optional/**/__pycache__/
 # build-cv contains real CV data (name, employers, dates) — this repo is public,
 # and identity is deliberately kept untracked (see common/git/.gitconfig)
 common/claude-code/skills-optional/build-cv/
+
+# Claude Code writes claude.ai skill sync into ~/.claude/skills, which is a symlink
+# into this repo — 4.3 MB of proprietary-licensed skills that are not ours to publish.
+# .trash/ is where disabling the sync moves them.
+common/claude-code/skills/synced/
+common/claude-code/skills/.trash/
