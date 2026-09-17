@@ -65,7 +65,7 @@ Bindings come from:
 
 - `common/nvim/lua/keymaps.lua`, `common/nvim/lua/plugins/*.lua`
 - `common/ideavim/.ideavimrc`
-- `common/tmux/tmux.conf`
+- `common/tmux/tmux.conf.tpl`
 
 When updating: read the live config, mirror only what's bound, never invent. If a binding is added/removed, update the matching `<dl>` row.
 
