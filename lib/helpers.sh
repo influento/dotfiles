@@ -522,12 +522,12 @@ install_claude_code() {
 }
 
 # Children of a profile root that deploy_configs does not symlink: handled by
-# a dedicated function (obsidian, npm, systemd) or read in place from the repo
+# a dedicated function (obsidian, npm) or read in place from the repo
 # (cheatsheets, opened by the _cheat zsh function).
 # Usage: is_config_dir_skipped "obsidian"
 is_config_dir_skipped() {
   case "$1" in
-    obsidian|npm|systemd|cheatsheets) return 0 ;;
+    obsidian|npm|cheatsheets) return 0 ;;
     *) return 1 ;;
   esac
 }
