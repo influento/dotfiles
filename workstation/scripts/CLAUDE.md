@@ -1,8 +1,8 @@
 # Workstation scripts
 
-Deployed to `~/.local/bin/` by `deploy_scripts`, which skips `*.md` -- this
-file stays here. Every script here is desktop-specific (Sway/Wayland); the
-shared ones live in `common/scripts/`.
+Deployed to `~/.local/bin/` by the `scripts` case of `deploy_configs` in
+`lib/helpers.sh`, which skips `*.md` -- this file stays here. Every script here
+is desktop-specific (Sway/Wayland); the shared ones live in `common/scripts/`.
 
 The rows in the root CLAUDE.md name each script and where it deploys. What
 follows is what a reader cannot get from the code quickly enough.
