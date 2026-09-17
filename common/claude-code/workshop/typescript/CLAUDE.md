@@ -15,8 +15,9 @@ without the other:
 stack → gate:
 - `stack add` writes a package's dependencies into `ts-gate/knip.json`'s
   `ignoreDependencies` and a copied file into `ignore`, when that file
-  exists; `rm` drops them. `update` writes them again, so a gate installed
-  after the packages gets them from `stack update`.
+  exists; `rm` drops the dependency names, a copied file's row stays with
+  the file. `update` writes both again, so a gate installed after the
+  packages gets them from `stack update`.
 - `effect`, `money` and `tailwind` ship an `eslint.mjs` written to the gate's
   loader contract (`gate/CLAUDE.md`, Rules): a function of `{ severity }`, an
   inline plugin, no core rule that takes options. effect's vitest block relies
