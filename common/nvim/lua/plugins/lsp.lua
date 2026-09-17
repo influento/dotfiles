@@ -21,10 +21,27 @@ return {
     dependencies = {
       "williamboman/mason.nvim",
       "neovim/nvim-lspconfig",
+      "saghen/blink.cmp",
     },
     config = function()
-      local lspconfig = require("lspconfig")
-      local capabilities = require("blink.cmp").get_lsp_capabilities()
+      -- Servers are configured through vim.lsp.config: nvim-lspconfig ships
+      -- the per-server defaults under lsp/, and mason-lspconfig v2 enables
+      -- every installed server with vim.lsp.enable. It has no `handlers`
+      -- option any more; a handlers table is silently ignored.
+      --
+      -- blink registers its completion capabilities into vim.lsp.config("*")
+      -- from its own plugin/ file, but only once it loads (InsertEnter).
+      -- Setting them here, with blink as a dependency, means the first server
+      -- to start already gets them instead of the plain nvim defaults.
+      vim.lsp.config("*", { capabilities = require("blink.cmp").get_lsp_capabilities() })
+      vim.lsp.config("lua_ls", {
+        settings = {
+          Lua = {
+            workspace = { checkThirdParty = false },
+            telemetry = { enable = false },
+          },
+        },
+      })
 
       require("mason-lspconfig").setup({
         ensure_installed = {
@@ -40,22 +57,6 @@ return {
           "taplo",
           "ts_ls",
           "yamlls",
-        },
-        handlers = {
-          function(server_name)
-            lspconfig[server_name].setup({ capabilities = capabilities })
-          end,
-          ["lua_ls"] = function()
-            lspconfig.lua_ls.setup({
-              capabilities = capabilities,
-              settings = {
-                Lua = {
-                  workspace = { checkThirdParty = false },
-                  telemetry = { enable = false },
-                },
-              },
-            })
-          end,
         },
       })
 

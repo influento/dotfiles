@@ -43,10 +43,9 @@ end, { desc = "Jump to mark" })
 map("n", "]m", "]'", { desc = "Next mark" })
 map("n", "[m", "['", { desc = "Previous mark" })
 
-map("n", "<leader>rc", function()
-  vim.cmd("source " .. vim.fn.stdpath("config") .. "/init.lua")
-  vim.notify("Config reloaded")
-end, { desc = "Reload Neovim config" })
+-- :restart (nvim 0.12) replaces the process and reopens the session; re-sourcing
+-- init.lua only made lazy.nvim warn that it cannot be set up twice.
+map("n", "<leader>rc", "<cmd>restart<CR>", { desc = "Restart Neovim" })
 
 map("n", "<leader>qq", "<cmd>qa<CR>", { desc = "Quit all" })
 map("n", "<leader>qw", "<cmd>wa | qa<CR>", { desc = "Save all and quit" })
