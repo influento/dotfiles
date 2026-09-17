@@ -21,15 +21,18 @@ than writing through it, so a symlinked settings file silently degrades into a
 stale copy on the first `/config` change. A hard link breaks the same way; a bind
 mount makes the write fail with `EBUSY`. On merge, tracked values win for every key
 we define — and arrays are replaced wholesale, so dropping one entry from an
-allow-list here drops it there — while keys only Claude Code knows about
-(`enabledPlugins`, feature flags, onboarding state) survive untouched.
+allow-list here drops it there, and the install log names every live entry that
+goes — while keys only Claude Code knows about (`enabledPlugins`, feature flags,
+onboarding state) survive untouched.
 
 Two consequences of merging rather than replacing:
 
 - **Deletions do not propagate.** Removing a whole key from the tracked file leaves
   it in place in `~/.claude/settings.json`. Delete it there by hand as well.
-- **`/config` edits do not show up in `git diff`.** Mirror anything worth keeping
-  into the tracked file.
+- **`/config` edits do not show up in `git diff`**, and a list entry they add (a
+  permission allowed at user scope, say) is dropped by the next install, named in
+  its log and kept in the timestamped backup. Mirror anything worth keeping into
+  the tracked file.
 
 ## workshop
 
