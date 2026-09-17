@@ -30,6 +30,34 @@ const { default: f } = await import(process.argv[1]);
 const c = f({ severity: "error" });
 console.log(c.length, c.map((b) => Object.keys(b.rules).join()).join(" "));' "$TMP/lint/effect.mjs")" = "1 effect/tags"
 
+echo "== no shipped lint file sets a core rule with options, and no two set one core rule (gate/CLAUDE.md, Rules)"
+# tailwind's file imports @shadcn/lint; a stub stands in for it, the rule keys are what is read.
+mkdir -p "$TMP/lint/node_modules/@shadcn/lint"
+printf '{"name":"@shadcn/lint","type":"module","main":"index.js"}\n' > "$TMP/lint/node_modules/@shadcn/lint/package.json"
+echo 'export const plugin = { rules: {} };' > "$TMP/lint/node_modules/@shadcn/lint/index.js"
+for f in "$REG"/*/*/eslint.mjs; do cp "$f" "$TMP/lint/$(basename "$(dirname "$f")").mjs"; done
+# shellcheck disable=SC2016  # the ${} is JavaScript's
+core_rules() { node --input-type=module -e '
+import fs from "node:fs";
+const dir = process.argv[1], seen = new Map(), bad = [];
+for (const f of fs.readdirSync(dir).filter((n) => n.endsWith(".mjs")).sort()) {
+  const { default: x } = await import(`${dir}/${f}`);
+  const blocks = typeof x === "function" ? x({ severity: "error", tsconfigRootDir: dir }) : x;
+  for (const b of blocks) for (const [rule, v] of Object.entries(b.rules ?? {})) {
+    if (rule.includes("/")) continue;
+    if (Array.isArray(v) && v.length > 1) bad.push(`${f}: core rule ${rule} takes options`);
+    if (seen.has(rule) && seen.get(rule) !== f) bad.push(`${f} and ${seen.get(rule)} both set ${rule}`);
+    seen.set(rule, f);
+  }
+}
+console.log(bad.length ? bad.join("; ") : "clean");' "$1"; }
+check test "$(core_rules "$TMP/lint")" = clean
+# The check itself, on two files that break the contract.
+mkdir -p "$TMP/bad"
+echo 'export default [{ rules: { "no-restricted-syntax": ["error", { selector: "x" }] } }];' > "$TMP/bad/a.mjs"
+echo 'export default ({ severity }) => [{ rules: { "no-restricted-syntax": [severity, { selector: "y" }] } }];' > "$TMP/bad/b.mjs"
+check test "$(core_rules "$TMP/bad")" = "a.mjs: core rule no-restricted-syntax takes options; b.mjs: core rule no-restricted-syntax takes options; b.mjs and a.mjs both set no-restricted-syntax"
+
 echo "== the registry's lint files as stack add copies them, through real eslint under the gate"
 # Borrows the node_modules of a project where ts-gate was installed for real;
 # the gate's install runs against that, with 'npm i' a no-op. Unset, the leg says so.
