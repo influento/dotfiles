@@ -50,9 +50,9 @@ link_config() {
 # write fail with EBUSY.
 #
 # Merge semantics: our tracked values win for every key we define (arrays are
-# replaced wholesale, so deleting an entry upstream deletes it here), while
-# keys only the app knows about (enabledPlugins, feature flags, onboarding
-# state) survive untouched. The merge only adds and overrides — deleting a
+# replaced wholesale, so deleting an entry upstream deletes it here, and the
+# log names every live entry that goes), while keys only the app knows about
+# (enabledPlugins, feature flags, onboarding state) survive untouched. The merge only adds and overrides — deleting a
 # whole key from the tracked file does NOT remove it from the live one.
 #
 # Usage: merge_json_config "/path/to/tracked.json" "/path/to/live.json"
@@ -86,10 +86,13 @@ merge_json_config() {
     log_warn "$target is not valid JSON — rebuilding it from $src"
   fi
 
-  local merged
+  local merged dropped
   merged="$(mktemp)"
+  dropped="$(mktemp)"
 
-  if ! python3 - "$src" "$target" >"$merged" 2>/dev/null <<'PY'
+  # stdout is the merged document; stderr lists every live list entry the
+  # tracked copy replaces away, one "path: entry" per line, logged below.
+  if ! python3 - "$src" "$target" >"$merged" 2>"$dropped" <<'PY'
 import json
 import sys
 
@@ -105,6 +108,19 @@ def deep_merge(base, over):
     return out
 
 
+def dropped_entries(base, over, path=""):
+    """Yield (path, entry) for each list entry in `base` that `over` replaces away."""
+    for key, value in over.items():
+        here = f"{path}.{key}" if path else key
+        current = base.get(key)
+        if isinstance(value, dict) and isinstance(current, dict):
+            yield from dropped_entries(current, value, here)
+        elif isinstance(value, list) and isinstance(current, list):
+            for entry in current:
+                if entry not in value:
+                    yield here, entry
+
+
 src_path, target_path = sys.argv[1], sys.argv[2]
 
 with open(src_path, encoding="utf-8") as handle:
@@ -116,17 +132,20 @@ try:
 except (json.JSONDecodeError, UnicodeDecodeError):
     live = {}
 
+for path, entry in dropped_entries(live, tracked):
+    print(f"{path}: {json.dumps(entry, ensure_ascii=False)}", file=sys.stderr)
+
 json.dump(deep_merge(live, tracked), sys.stdout, indent=2, ensure_ascii=False)
 sys.stdout.write("\n")
 PY
   then
-    rm -f "$merged"
+    rm -f "$merged" "$dropped"
     log_warn "Could not build merged config from $src — leaving $target untouched"
     return 0
   fi
 
   if cmp -s "$merged" "$target"; then
-    rm -f "$merged"
+    rm -f "$merged" "$dropped"
     log_info "Already current: $target"
     return 0
   fi
@@ -136,8 +155,16 @@ PY
   cp "$target" "$backup"
   log_warn "Backing up existing: $target → $backup"
 
+  # Arrays are replaced wholesale, so an entry only the live file had (a
+  # permission allowed from inside Claude Code, say) is gone after this write.
+  # Name each one; the backup above still holds it.
+  local line
+  while IFS= read -r line; do
+    log_warn "Dropped from $target, not in $src: $line"
+  done <"$dropped"
+
   install -m 600 "$merged" "$target"
-  rm -f "$merged"
+  rm -f "$merged" "$dropped"
   log_info "Merged: $src → $target"
 }
 
