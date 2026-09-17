@@ -140,9 +140,11 @@ Workbench, all on this side:
   `workbench/GLOSSARY.md` when the file exists and feeds it to `id-match`
   over what the code declares, as a substring: a worker writes `accountId`,
   `getAccount` and `ACCOUNT_ID` for a rejected `account`, never the bare
-  word. Reads of a property another module owns (`stripe.account`)
-  and strings are not checked; test names and prose stay with wb-reviewer's
-  grep.
+  word. One word or a comma list per cell; English function words in a
+  cell written as prose are skipped, `$` is literal, and the column is
+  found by its `Never` header. Reads of a property another module owns
+  (`stripe.account`) and strings are not checked; test names and prose stay
+  with wb-reviewer's grep.
 
 Stack: the `.claude/eslint/*.mjs` files the gate loads, and `knip.json`'s
 lists stack appends to.

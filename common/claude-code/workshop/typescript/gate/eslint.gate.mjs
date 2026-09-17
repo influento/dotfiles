@@ -60,19 +60,35 @@ function neverPattern(words) {
   const alts = new Set(
     words.flatMap((w) => [w.toLowerCase(), w[0].toUpperCase() + w.slice(1).toLowerCase(), w.toUpperCase()]),
   );
-  return `^(?!.*(?:${[...alts].join("|")})).*$`;
+  // `$` is the one regex metacharacter an identifier can hold.
+  return `^(?!.*(?:${[...alts].map((a) => a.replaceAll("$", () => "\\$")).join("|")})).*$`;
 }
+// A cell written as prose ("never account or acct") would otherwise reject
+// every identifier holding "or": a cell is one word, or a comma list.
+const PROSE = new Set([
+  "a", "an", "and", "any", "as", "at", "be", "but", "by", "for", "in", "is", "it",
+  "never", "no", "nor", "not", "of", "on", "or", "the", "to", "use", "with",
+]);
+const tableCells = (line) => {
+  const c = line.split("|").map((s) => s.trim());
+  c.shift();
+  if (c.length && c[c.length - 1] === "") c.pop();
+  return c;
+};
 function neverWords(file) {
   if (!fs.existsSync(file)) return [];
   const lines = fs.readFileSync(file, "utf8").split("\n");
-  const head = lines.findIndex((l) => /^\|\s*use\s*\|\s*never\s*\|/i.test(l));
+  // The column by its header, wherever the table puts it.
+  const isNever = (c) => /^never$/i.test(c);
+  const head = lines.findIndex((l) => l.startsWith("|") && tableCells(l).some(isNever));
   if (head < 0) return [];
+  const col = tableCells(lines[head]).findIndex(isNever);
   const words = new Set();
   for (const line of lines.slice(head + 2)) {
     if (!line.startsWith("|")) break;
-    const cell = line.split("|")[2] ?? "";
+    const cell = tableCells(line)[col] ?? "";
     for (const w of cell.replaceAll("`", "").split(/[\s,]+/)) {
-      if (/^[A-Za-z_$][\w$]*$/.test(w)) words.add(w);
+      if (/^[A-Za-z_$][\w$]*$/.test(w) && !PROSE.has(w.toLowerCase())) words.add(w);
     }
   }
   return [...words];

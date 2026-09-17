@@ -303,6 +303,27 @@ printf 'lint.complexity=007\nlint.max_nesting=\nlint.max_params=0\nlint.max_dept
 run "invalid values are the default, the last occurrence wins, a comment is not read" 0 "^\[\"error\",15\] \[\"error\",\{\"threshold\":3\}\] \[\"warn\",\{\"max\":700,$O\}\] \[\"warn\",\{\"max\":100,$O\}\] \[\"warn\",30\] \[\"warn\",6\] \[\"warn\",4\]$" limits
 git checkout -q -- .claude/workshop.conf
 
+echo "== eslint.gate.mjs reads the glossary's Never column as a substring rejection"
+# shellcheck disable=SC2016  # the ${} is JavaScript's
+never() { node --input-type=module -e '
+const { default: gate } = await import(`${process.cwd()}/ts-gate/eslint.gate.mjs`);
+const r = gate({ tsconfigRootDir: process.cwd() }).map((b) => b.rules?.["id-match"]).find(Boolean);
+if (!r) { console.log("unset"); process.exit(0); }
+const re = new RegExp(r[1]);
+console.log(process.argv.slice(1).map((id) => id + ":" + (re.test(id) ? "ok" : "no")).join(" "));' "$@"; }
+mkdir -p workbench
+printf '## Use, never\n\n| Use | Never | Because |\n|---|---|---|\n| customer | account | the login record |\n' > workbench/GLOSSARY.md
+run "a rejected word is refused inside any declared identifier" 0 "^accountId:no getAccount:no ACCOUNT_ID:no total:ok$" never accountId getAccount ACCOUNT_ID total
+printf '## Use, never\n\n| Use | Never | Because |\n|---|---|---|\n| customer | never account or acct | prose |\n' > workbench/GLOSSARY.md
+run "function words in a cell written as prose are not rejections" 0 "^accountId:no acctNo:no error:ok color:ok sort:ok$" never accountId acctNo error color sort
+# shellcheck disable=SC2016  # $amount is the glossary word under test
+printf '## Use, never\n\n| Use | Never | Because |\n|---|---|---|\n| amount | $amount, `total` | x |\n' > workbench/GLOSSARY.md
+# shellcheck disable=SC2016  # as above
+run "a \$ word and a backticked word are literal" 0 '^\$amount:no subtotal:no price:ok$' never '$amount' subtotal price
+printf '## Use, never\n\n| Term | Use | Never |\n|---|---|---|\n| x | customer | account |\n' > workbench/GLOSSARY.md
+run "the Never column is found by its header, wherever it sits" 0 "^accountId:no total:ok$" never accountId total
+rm -rf workbench
+
 echo "== eslint.gate.mjs appends .claude/eslint/*.mjs after its own blocks, in file-name order"
 mkdir -p .claude/eslint
 echo 'export default [{ files: ["**/*.tsx"], rules: { "b/rule": "error" } }];' > .claude/eslint/b.mjs
