@@ -181,6 +181,12 @@ echo 'export const y = 1' > src/y.ts && git add src/y.ts && git commit -qm 'code
 run "while code beside it is still listed" 0 "^src/y.ts$" bash ts-gate/scripts/gate.sh --list
 git checkout -q main && git branch -q -D spike
 
+git checkout -qb vitecfg && echo 'export default {};' > vite.config.mjs && git add vite.config.mjs && git commit -qm vite
+: > "$LOG"
+run "gate --local on a branch that changes only vite.config.mjs runs the repo-wide tools" 0 "" bash ts-gate/scripts/gate.sh --local
+check "tsc ran for the vite config" called tsc
+git checkout -q main
+
 echo "== re-install keeps a project's premerge and a hand-set Stop hook timeout"
 sed -i 's|^premerge=.*|premerge=bash scripts/premerge.sh|' .claude/workshop.conf
 set_timeout() { node -e 'const fs=require("fs"),p=".claude/settings.json",s=JSON.parse(fs.readFileSync(p));for(const e of s.hooks.Stop)for(const h of e.hooks)if(h.command==="bash ts-gate/scripts/stop-hook.sh")h.timeout=Number(process.argv[1]);fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")' "$1"; }
