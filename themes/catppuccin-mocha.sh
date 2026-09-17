@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # themes/catppuccin-mocha.sh — Catppuccin Mocha color palette
 # https://github.com/catppuccin/catppuccin
-set -euo pipefail
+#
+# Sourced by lib/theme.sh, never executed: no shell options here.
 
 # Used by lib/theme.sh after sourcing
 # shellcheck disable=SC2034
