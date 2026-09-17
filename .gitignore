@@ -24,8 +24,6 @@ workstation/mpv/mpv.conf
 workstation/mpv/script-opts/osc.conf
 common/tmux/tmux.conf
 common/btop/themes/dotfiles.theme
-workstation/ghostty/themes/dotfiles.conf
-workstation/yazi/theme.toml
 workstation/sway/config
 
 # Runtime config (written by widgets)
