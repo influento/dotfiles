@@ -126,10 +126,6 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
   fi
-  if [[ "$PROFILE" == "server" ]]; then
-    log_info "  server configs: $(list_config_dirs "${DOTFILES_DIR}/server")"
-    log_info "  systemd: server-auto-update timer + service (auto-enabled)"
-  fi
   log_info "  oh-my-zsh: install if missing"
   exit 0
 fi
@@ -162,9 +158,6 @@ chmod +x "${DOTFILES_DIR}/common/claude-code/workshop/stack/bin/stack" 2>/dev/nu
 if [[ "$PROFILE" == "workstation" ]]; then
   find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
 fi
-if [[ "$PROFILE" == "server" ]]; then
-  find "${DOTFILES_DIR}/server/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
-fi
 
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
@@ -180,25 +173,18 @@ if [[ "$PROFILE" == "workstation" ]]; then
   install_obsidian_plugins "$USER_HOME"
 fi
 
-# Deploy server configs (server profile only)
-if [[ "$PROFILE" == "server" ]]; then
-  deploy_configs "${DOTFILES_DIR}/server" "$USER_HOME" "server"
-
-  # Deploy systemd user units and enable timer
-  systemd_src="${DOTFILES_DIR}/server/systemd/user"
-  if [[ -d "$systemd_src" ]]; then
-    log_section "Deploying systemd user units"
-    ensure_dir "${USER_HOME}/.config/systemd/user"
-    for unit in "${systemd_src}"/*; do
-      [[ -f "$unit" ]] || continue
-      link_config "$unit" "${USER_HOME}/.config/systemd/user/$(basename "$unit")"
-    done
-
-    # Enable and start the timer
-    systemctl --user daemon-reload
-    systemctl --user enable --now server-auto-update.timer
-    log_info "server-auto-update timer enabled"
-  fi
+# The server profile is common-only. Earlier deploys enabled a
+# server-auto-update timer whose only job, npm updates from
+# common/npm/packages.conf, had an empty list; retire it where it exists.
+# This block can go once every server has been redeployed.
+if [[ "$PROFILE" == "server" && -L "${USER_HOME}/.config/systemd/user/server-auto-update.timer" ]]; then
+  systemctl --user stop server-auto-update.timer 2>/dev/null || true
+  systemctl --user disable server-auto-update.timer 2>/dev/null || true
+  rm -f "${USER_HOME}/.config/systemd/user/server-auto-update.timer" \
+    "${USER_HOME}/.config/systemd/user/server-auto-update.service" \
+    "${USER_HOME}/.config/systemd/user/timers.target.wants/server-auto-update.timer"
+  systemctl --user daemon-reload 2>/dev/null || true
+  log_info "Retired the server-auto-update timer"
 fi
 
 # Remove symlinks left behind by scripts or configs deleted or renamed in the repo

@@ -23,7 +23,7 @@ and idempotent so it can be safely re-run at any time.
 
 | Profile       | What gets deployed                                        |
 | ------------- | --------------------------------------------------------- |
-| `server`      | Common + server: adds systemd timer for auto-updates      |
+| `server`      | Common only                                               |
 | `workstation` | Common + workstation: adds sway, waybar, ghostty, theming |
 
 ### Deployment Method
@@ -65,8 +65,6 @@ propagate in both directions: `common/claude-code/CLAUDE.md`.
 | `common/scripts/*`                                               | `~/.local/bin/*`                                                                                            | all         |
 | `common/claude-code/workshop/workbench/bin/workbench`                     | `~/.local/bin/workbench` (with `stack`, the only files deployed out of `workshop/`, because they are what opts a project in) | all         |
 | `common/claude-code/workshop/stack/bin/stack`                     | `~/.local/bin/stack` (the package registry under `workshop/<language>/packages/` is read from here at `stack add` time) | all         |
-| `server/scripts/*`                                               | `~/.local/bin/*`                                                                                            | server      |
-| `server/systemd/user/`                                           | `~/.config/systemd/user/`                                                                                   | server      |
 | `workstation/sway/`                                              | `~/.config/sway/`                                                                                           | workstation |
 | `workstation/swaylock/`                                          | `~/.config/swaylock/`                                                                                       | workstation |
 | `workstation/swayidle/`                                          | `~/.config/swayidle/`                                                                                       | workstation |
@@ -167,14 +165,6 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **npm packages**     | `common/npm/packages.conf`          | Global npm packages (all profiles): installed to user prefix (`~/.local`), update via auto-update                                                                                                                                                                                                                                                                                                                              |
 | **tmux-warp**        | `influento/tmux-plugins` (binary)   | Flash.nvim-style jump navigation for tmux: search + char modes                                                                                                                                                                                                                                                                                                                                                                 |
 | **scripts (common)** | `common/scripts/`                   | Shared personal scripts → `~/.local/bin/`                                                                                                                                                                                                                                                                                                                                                                                      |
-
-### Server only
-
-| Tool                   | Config location                     | Purpose                                                            |
-| ---------------------- | ----------------------------------- | ------------------------------------------------------------------ |
-| **server-auto-update** | `server/scripts/server-auto-update` | Unattended server maintenance: npm updates via systemd timer (12h) |
-| **systemd units**      | `server/systemd/user/`              | Timer-triggered services: server-auto-update.timer/.service        |
-| **scripts (server)**   | `server/scripts/`                   | Server-specific scripts → `~/.local/bin/`                          |
 
 ### Workstation only
 
