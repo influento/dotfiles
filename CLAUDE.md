@@ -244,7 +244,7 @@ sense inside one kind of project (`go/` in Go repos, `manim` in animation projec
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh $(find common/scripts workstation/scripts server/scripts -type f ! -name "*.md") common/claude-code/workshop/typescript/gate/*.sh`
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh $(find common/scripts workstation/scripts -type f ! -name "*.md") common/claude-code/workshop/typescript/gate/*.sh`
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
