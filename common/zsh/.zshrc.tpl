@@ -92,9 +92,9 @@ export LANG="en_US.UTF-8"
 
 # Modern replacements, interactive shells only. An agent that sources this
 # file from a `zsh -c` shell (Claude Code snapshots it that way into every
-# Bash tool call) would otherwise get eza and bat rejecting the flags a
-# model passes to ls and cat, and -i prompts hanging a tool call until its
-# timeout, since nobody is there to answer.
+# Bash tool call) would otherwise get eza, bat, rg and fd rejecting the
+# flags a model passes to ls, cat, grep and find, and -i prompts hanging a
+# tool call until its timeout, since nobody is there to answer.
 if [[ -o interactive ]]; then
   alias ls='eza --group-directories-first --icons'
   alias ll='eza -la --group-directories-first --icons'
@@ -102,10 +102,10 @@ if [[ -o interactive ]]; then
   alias lt='eza -T --group-directories-first --icons --level=2'
   alias lta='eza -Ta --group-directories-first --icons --level=2'
   alias cat='bat --plain'
+  alias grep='rg'
+  alias find='fd'
 fi
 alias vim='nvim'
-alias grep='rg'
-alias find='fd'
 alias diff='diff --color=auto'
 
 # Git shortcuts
