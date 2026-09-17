@@ -82,7 +82,7 @@ bindkey '^H' backward-kill-word
 export EDITOR="nvim"
 export VISUAL="nvim"
 export LANG="en_US.UTF-8"
-[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+# ~/.local/bin is put on PATH by .zshenv, which every zsh reads first.
 [[ -d "$HOME/.dotnet/tools" && ":$PATH:" != *":$HOME/.dotnet/tools:"* ]] && export PATH="$HOME/.dotnet/tools:$PATH"
 # Let `require()` find globally-installed npm libs (prefix ~/.local), e.g. the
 # `docx` lib used by the Claude docx skill. CLI bins resolve via PATH already.
@@ -152,9 +152,6 @@ if [[ -o interactive ]]; then
   alias mv='mv -i'
   alias cp='cp -i'
 fi
-
-# Tmux
-alias ts='tmux-session'
 
 # Misc
 alias reload='source ~/.zshrc'

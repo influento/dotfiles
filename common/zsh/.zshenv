@@ -7,7 +7,8 @@
 # fails with "command not found", which would break remote control of headless
 # mode — the exact path relied on to recover a machine with no monitor.
 #
-# The guard mirrors the one in .zshrc so the entry is never added twice.
+# Guarded because every nested zsh (tmux panes, subshells) reads this file
+# again with PATH already inherited; without it the entry would stack up.
 
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   export PATH="$HOME/.local/bin:$PATH"
