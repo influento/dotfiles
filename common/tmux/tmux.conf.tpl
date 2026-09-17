@@ -70,7 +70,7 @@ set -g @attention_fg_working "@@BLUE@@"
 set -g @attention_fg_dim "@@OVERLAY0@@"
 set -g @attention_glyph "#{?#{m:wb-*,#{session_name}},,#{?#{==:#{@attention_win},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention_win},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention_win},working},#[fg=@@BLUE@@]● ,}}}}"
 set -g @attention_pane_glyph "#{?#{==:#{@attention},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention},working},#[fg=@@BLUE@@]● ,}}}"
-bind f display-popup -E -w 70% -h 60% "tmux-attention pick"
+bind f run-shell -b "tmux-attention popup #{client_name}"
 bind o run-shell "tmux-attention jump"
 set-hook -g pane-focus-in 'run-shell -b "tmux-attention seen #{pane_id}"'
 set-hook -g after-select-window 'run-shell -b "tmux-attention seen #{pane_id}"'

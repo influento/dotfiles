@@ -36,7 +36,7 @@ otherwise; callers use that to write records on transitions alone.
 `set --owner <cmd>` ties the flag to a process: `sweep` drops it once the
 pane's foreground command is something else, which is what a crash, an OOM
 kill or a closed terminal look like when no hook ran to clear it, and leaves
-`@attention_gone` ("working · claude exited") for the picker to show. The
+`@attention_gone` ("working · claude exited") for `list` to show. The
 sweep runs inside `status`, `list` and `seen`, so any event anywhere, a
 focus change included, clears a dead flag; there is no timer, because an
 agent is legitimately silent for a long time. A flag set without an owner is
@@ -50,7 +50,7 @@ What the config wires (`common/tmux/tmux.conf.tpl`, "Attention"):
 
 | Key or hook | Does |
 | --- | --- |
-| `prefix f` | fzf popup over every pane, flagged first; supersedes the old session-only switcher on the same key |
+| `prefix f` | fzf popup over sessions, each row its windows with their flag glyphs inline, flagged sessions first; Enter switches to the session. Panes were listed here once and dropped: with many windows the list buried the sessions |
 | `prefix o` | jump to the next pane that needs you, else the next unread done; a second press walks on |
 | `pane-focus-in`, `after-select-window`, `after-select-pane` | `seen`: a focused `done` pane goes idle; sweeps dead flags first |
 | `client-focus-in` | `status`: sweep and recount when the terminal regains focus |
