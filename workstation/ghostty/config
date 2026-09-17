@@ -9,7 +9,7 @@ font-feature = calt
 font-feature = liga
 
 # Theme
-theme = catppuccin-mocha.conf
+theme = dotfiles.conf
 bold-is-bright = true
 
 # Window

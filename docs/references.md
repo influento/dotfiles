@@ -23,10 +23,10 @@ Check these when upgrading tools or debugging config issues.
 | Tool | Config file(s) | Docs | Notes |
 |---|---|---|---|
 | **LazyGit** | `workstation/lazygit/config.yml.tpl` | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | Themed template, generates `config.yml` |
-| **Yazi** | `workstation/yazi/yazi.toml`, `keymap.toml`, `theme.toml` | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name` |
+| **Yazi** | `workstation/yazi/yazi.toml`, `keymap.toml`, `theme.toml.tpl` | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name`; theme is a themed template, generates `theme.toml` |
 | **Sway** | `workstation/sway/config.tpl` | [swaywm.org](https://man.archlinux.org/man/sway.5) | i3-compatible syntax, themed template |
 | **Waybar** | `workstation/waybar/config.tpl`, `style.css.tpl` | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling; themed templates, generate `config` and `style.css` |
-| **Ghostty** | `workstation/ghostty/config` | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format |
+| **Ghostty** | `workstation/ghostty/config`, `themes/dotfiles.conf.tpl` | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format; theme file is a themed template, generates `dotfiles.conf` |
 | **swaylock** | `workstation/swaylock/config.tpl` | [swaylock man](https://man.archlinux.org/man/swaylock.1) | Themed template |
 | **swayidle** | `workstation/swayidle/config` | [swayidle man](https://man.archlinux.org/man/swayidle.1) | — |
 | **mako** | `workstation/mako/config.tpl` | [mako man](https://man.archlinux.org/man/mako.5) | Themed template |
