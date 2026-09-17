@@ -43,6 +43,8 @@ usage:
   tmux-attention list                  every pane, flagged first: rank, id, glyph, name, target, detail, age
   tmux-attention pick                  fzf over sessions with their windows' flags inline; switches to the chosen one
   tmux-attention popup [CLIENT]        'pick' in a popup sized to its rows
+  tmux-attention rows                  the session rows 'pick' lists, for its own reload
+  tmux-attention kill-session NAME     kill it, unless it is the last one
   tmux-attention jump [--pane ID]      go to the next pane that needs you, else the next unread done
   tmux-attention status                re-render the counts into @attention_status
   tmux-attention sweep                 drop flags whose owner command is gone
@@ -340,11 +342,26 @@ session_rows() {
   | cut -f3-
 }
 
+# Kill a session from the picker. The last one is refused: killing it would
+# take the client, and with it the terminal, down with it.
+cmd_kill_session() {
+  local name="${1:-}" left
+  [ -n "$name" ] || usage
+  left=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -cv '^ov-' || true)
+  if [ "$left" -le 1 ]; then
+    tmux display-message "tmux-attention: $name is the last session"
+    return 0
+  fi
+  tmux kill-session -t "=$name"
+}
+
 cmd_pick() {
   command -v fzf >/dev/null 2>&1 || die "fzf is not installed"
   local choice pane
   choice=$(session_rows \
-    | fzf --ansi --height=100% --reverse --delimiter=$'\t' --with-nth=2 --header='sessions: ? needs you  ● working  ✓ done' --no-info \
+    | fzf --ansi --height=100% --reverse --delimiter=$'\t' --with-nth=2 --no-info \
+        --header='sessions: ? needs you  ● working  ✓ done   ctrl-x: kill' \
+        --bind "ctrl-x:execute-silent($0 kill-session {1})+reload($0 rows)" \
     | cut -f1) || true
   [ -n "$choice" ] || return 0
   tmux switch-client -t "=$choice"
@@ -426,6 +443,8 @@ case "$cmd" in
   seen) cmd_seen "$@" ;;
   list) cmd_list ;;
   pick) cmd_pick ;;
+  rows) session_rows ;;
+  kill-session) cmd_kill_session "$@" ;;
   popup) cmd_popup "$@" ;;
   jump) cmd_jump "$@" ;;
   status) cmd_status ;;
