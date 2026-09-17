@@ -35,6 +35,9 @@ not_called() { ! grep -q "^$1" "$LOG"; }
 # lacks <text> <pattern>: no line of the text matches.
 lacks() { ! grep -q -- "$2" <<< "$1"; }
 json() { node -p "const j=require('$PWD/$1'); $2"; }
+# same_json <file> <rev>: the file parses to what it held at that commit (npm
+# pkg and the shim pretty-print, so bytes are not the measure).
+same_json() { node -e 'const fs=require("fs"),a=JSON.parse(fs.readFileSync(process.argv[1],"utf8")),b=JSON.parse(process.argv[2]);process.exit(JSON.stringify(a)===JSON.stringify(b)?0:1)' "$1" "$(git show "$2:$1")"; }
 
 # --- shims -------------------------------------------------------------------
 # npm: 'i' and 'rm' edit package.json the way the real one would; everything
@@ -402,6 +405,31 @@ run "uninstall names the eslint lines it cannot remove" 0 "eslint.config.mjs: re
 check "the project's eslint config is left in place" test -f eslint.config.mjs
 check "the project's vitest config is left in place" test -f vitest.config.mjs
 check "an unedited default record is deleted with the tree, not kept" test ! -e dependency-cruiser.kept.cjs
+
+echo "== uninstall puts back what the project had before install"
+mkproj "$TMP/p5" '{"vitest":"^5.0.0"}'
+npm pkg set scripts.gate="echo project-gate" scripts.test:live="echo project-live"
+mkdir -p .claude
+node -e 'require("fs").writeFileSync(".claude/settings.json",JSON.stringify({permissions:{allow:["Bash(npm ci)","Bash(npx vitest:*)","Bash(ls:*)"]}},null,2)+"\n")'
+git add -A && git commit -qm "own scripts and rules" >/dev/null
+run "install over the project's own gate script" 0 "installed" bash "$SRC/install.sh" .
+check "install's gate script replaces the project's" [ "$(json package.json 'j.scripts.gate')" = "bash ts-gate/scripts/gate.sh" ]
+check "the manifest records what the project had under the names" [ "$(json ts-gate/.install.json 'j.scripts.gate+" / "+j.scripts["test:live"]+" / "+j.scripts["gate:local"]')" = "echo project-gate / echo project-live / null" ]
+check "and only the allow rules install added" [ "$(json ts-gate/.install.json 'j.allow.join(" ")')" = "Bash(npm run gate) Bash(npm run gate:local) Bash(npm run gate:full) Bash(npm run gate:fix) Bash(npm test:*)" ]
+check "and the rule files it copied" [ "$(json ts-gate/.install.json 'j.rules.includes("ts-gate.md")')" = true ]
+run "re-install" 0 "installed" bash "$SRC/install.sh" .
+check "a re-run keeps the recorded scripts" [ "$(json ts-gate/.install.json 'j.scripts.gate')" = "echo project-gate" ]
+git add -A && git commit -qm "ts-gate: install" >/dev/null
+run "uninstall" 0 "uninstalled" bash "$SRC/uninstall.sh" .
+check "the project's gate and test:live scripts are back" [ "$(json package.json 'j.scripts.gate+" / "+j.scripts["test:live"]')" = "echo project-gate / echo project-live" ]
+check "install's other scripts are gone" [ "$(json package.json 'j.scripts["gate:local"]')" = undefined ]
+check "the project's own allow rules stay" [ "$(json .claude/settings.json 'j.permissions.allow.join(" ")')" = "Bash(npm ci) Bash(npx vitest:*) Bash(ls:*)" ]
+check "package.json holds what it held before install" same_json package.json HEAD~1
+check "settings.json holds what it held before install" same_json .claude/settings.json HEAD~1
+check "a manifest from before the entries still strips every rule install writes" bash -c "
+  echo '{\"runner\":\"vitest\",\"deps\":[],\"config\":null,\"biome\":null,\"vitest\":null}' > x.json
+  node -e 'const m=require(\"./x.json\");if(m.allow||m.scripts||m.rules)process.exit(1)'"
+rm -f x.json
 
 echo "== real eslint reports at the configured threshold and not below it"
 # Borrows the node_modules of a project where install ran for real (npm, the

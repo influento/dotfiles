@@ -85,7 +85,9 @@ if [ ! -e "$PROBE" ]; then
     || echo "WARNING: tsc would compile files under workbench/, where a spike's prototypes live; narrow tsconfig.json to the project's code, e.g. \"include\": [\"src\"]"
 fi
 
-# 3. Scripts
+# 3. Scripts. What the project had under one of these names goes into the
+#    manifest, so uninstall puts it back.
+PRIOR_SCRIPTS=$(node -p 'JSON.stringify(require("./package.json").scripts||{})')
 FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
 # repos/**, .worktrees/** and workbench/** are excluded by vitest.config.mjs (or the lines
 # install prints for a foreign one); the live tier's exclude stays here because
@@ -191,14 +193,15 @@ for g in eslint.config.mjs eslint.config.js eslint.config.ts; do
   grep -q 'workbench/' "$g" || echo "WARNING: $g does not leave workbench/** out; add \"workbench/**\" to its ignores"
 done
 
-# 5. Rule files
+# 5. Rule files, their names recorded for uninstall.
 command mkdir -p .claude/rules
 command cp "$SRC"/rules/*.md .claude/rules/
+RULES=$(cd "$SRC/rules" && for f in *.md; do printf '%s\n' "$f"; done)
 
 # 6. Stop hook: our entry is replaced, foreign entries are untouched. Allow
 #    rules: what the rule files tell the agent to run and the test runner a
-#    criterion names.
-node -e '
+#    criterion names; the ones absent are added, and those are uninstall's.
+ALLOW=$(node -e '
 const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
 s.hooks??={}; s.hooks.Stop??=[];
@@ -211,8 +214,10 @@ s.permissions??={}; s.permissions.allow??=[];
 // Not gate:* — that would cover gate:verify, which starts a model session.
 const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
 if(process.argv[1]) rules.push("Bash(npx vitest:*)");
-for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
-fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
+const added=rules.filter(r=>!s.permissions.allow.includes(r));
+s.permissions.allow.push(...added);
+fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");
+console.log(JSON.stringify({added,all:rules}));' "$RUNNER")
 
 # 7. workbench keys; inert without workbench. premerge goes in the committed
 #    .claude/workshop.conf, only when the file has no premerge key: a project
@@ -250,14 +255,24 @@ GUARDS='npm run (gate|lint|build|typecheck)|(^|[^[:alnum:]])(npx )?tsc([^[:alnum
 
 # 8. Manifest, for uninstall. A config written this run gets its sha; a kept
 #    or foreign one keeps its entry. The runner is re-recorded (vitest may
-#    have arrived since).
+#    have arrived since). Scripts, allow rules and rule files: what install
+#    added, kept across re-runs; a script's entry is what the project had
+#    under the name before install, null for nothing. A manifest from before
+#    these entries gets the whole set, which is what uninstall removed then.
 node -e '
-const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,...specs]=process.argv.slice(1);
-const m=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
+const fs=require("fs"),c=require("crypto"),p="ts-gate/.install.json",[runner,cfg,bio,vit,newDeps,prior,allow,rules]=process.argv.slice(1);
+const old=fs.existsSync(p),m=old?JSON.parse(fs.readFileSync(p,"utf8")):{};
 for(const [k,f] of [["config",cfg],["biome",bio],["vitest",vit]])
   if(f) m[k]={file:f,sha256:c.createHash("sha256").update(fs.readFileSync(f)).digest("hex")}; else m[k]??=null;
-m.runner=runner; m.deps=[...new Set([...(m.deps||[]),...specs.map(d=>d.replace(/(.)@.*/,"$1"))])];
-fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" $NEW
+m.runner=runner; m.deps=[...new Set([...(m.deps||[]),...newDeps.split(/\s+/).filter(Boolean).map(d=>d.replace(/(.)@.*/,"$1"))])];
+const was=JSON.parse(prior),now=require("./package.json").scripts||{},legacy=old&&!m.scripts;
+m.scripts??={};
+for(const k of ["gate","gate:local","gate:full","gate:fix","gate:verify",...(runner==="vitest"?["test:live"]:[])])
+  if(!(k in m.scripts)) m.scripts[k]=!legacy&&k in was&&was[k]!==now[k]?was[k]:null;
+const a=JSON.parse(allow);
+m.allow=[...new Set([...(m.allow||(old?a.all:[])),...a.added])];
+m.rules=[...new Set([...(m.rules||[]),...rules.split("\n").filter(Boolean)])];
+fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" "$NEW" "$PRIOR_SCRIPTS" "$ALLOW" "$RULES"
 
 echo
 echo "installed. runner: ${RUNNER:-none}"

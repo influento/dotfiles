@@ -26,12 +26,12 @@ Install refuses outside git. Then:
 
 - `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json`, `knip.vitest.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry` and writing its `vitest` key again (Touchpoints), and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
 - Dependencies by lockfile (`typescript` included); `@vitest/eslint-plugin` when `vitest` is in `package.json`, which also gives the gate its test step.
-- The npm scripts above.
+- The npm scripts above; a script the project had under one of those names is recorded, and uninstall puts it back.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone; for a project's own, install prints what to merge (Install output).
 - `rules/ts-*.md` → `.claude/rules/`.
 - One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` with vitest. A re-run replaces the hook entry and keeps its `timeout` (600 for a new entry).
 - `premerge=npm run gate` in `.claude/workshop.conf` (Touchpoints); `git config workbench.guards`, the regex naming `npm run gate|lint|build|typecheck` and `tsc`.
-- The manifest, `ts-gate/.install.json`: what uninstall reads.
+- The manifest, `ts-gate/.install.json`: the dependencies, scripts, allow rules and rule files install added, and the configs it wrote with their hashes; what uninstall reads.
 
 Biome is the formatter only: `biome.json` at the root, copied from
 `biome.template.json` (why the name: `install.sh`), linter and assist off.

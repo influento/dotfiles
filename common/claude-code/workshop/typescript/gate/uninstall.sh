@@ -15,8 +15,14 @@ PM="npm rm"
 DEPS=$(node -p 'require("./ts-gate/.install.json").deps.join(" ")')
 [ -z "$DEPS" ] || $PM $DEPS
 
-# 2. Scripts
-npm pkg delete scripts.gate scripts.gate:local scripts.gate:full scripts.gate:fix scripts.gate:verify scripts.test:live
+# 2. Scripts: the ones install set, each back to what the project had under
+#    the name. A manifest without the entry recorded none: the whole set goes.
+node -e '
+const m=require("./ts-gate/.install.json");
+const s=m.scripts??Object.fromEntries(["gate","gate:local","gate:full","gate:fix","gate:verify","test:live"].map(k=>[k,null]));
+for(const [k,v] of Object.entries(s)) console.log(k+"\t"+(v===null?"":"="+v));' | while IFS=$'\t' read -r k v; do
+  if [ -z "$v" ]; then npm pkg delete "scripts.$k"; else npm pkg set "scripts.$k=${v#=}"; fi
+done
 
 # 3. Configs: only the ones install wrote and nobody edited since. For one
 #    that predates install, the hand-merged lines are named.
@@ -32,22 +38,29 @@ for(const k of ["config","biome","vitest"]){
   else console.log(o.file+" was edited after install, left in place."+(k==="config"?" It imports ./ts-gate/eslint.gate.mjs, which is gone: fix by hand.":k==="vitest"?" Its setupFiles names ./ts-gate/no-network.mjs, which is gone: fix by hand.":""));
 }'
 
-# 4. Rule files
-for f in "$SRC"/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done
+# 4. Rule files: the names install recorded; the source's names for a
+#    manifest without them.
+RULES=$(node -p 'const m=require("./ts-gate/.install.json");(m.rules??[]).join("\n")')
+if [ -n "$RULES" ]; then
+  while IFS= read -r f; do command rm -f ".claude/rules/$(basename "$f")"; done <<< "$RULES"
+else
+  for f in "$SRC"/rules/*.md; do command rm -f ".claude/rules/$(basename "$f")"; done
+fi
 rmdir .claude/rules 2>/dev/null || true
 
 # 5. Stop hook and allow rules. Empty containers are pruned; an empty settings.json is removed.
 S=.claude/settings.json
 if [ -f "$S" ]; then
   node -e '
-const fs=require("fs"),p=process.argv[1],s=JSON.parse(fs.readFileSync(p,"utf8")),cmd="bash ts-gate/scripts/stop-hook.sh";
+const fs=require("fs"),p=process.argv[1],s=JSON.parse(fs.readFileSync(p,"utf8")),cmd="bash ts-gate/scripts/stop-hook.sh",m=require("./ts-gate/.install.json");
 if(s.hooks?.Stop){
   s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!==cmd)})).filter(e=>e.hooks.length);
   if(!s.hooks.Stop.length) delete s.hooks.Stop;
   if(!Object.keys(s.hooks).length) delete s.hooks;
 }
 if(Array.isArray(s.permissions?.allow)){
-  const ours=new Set(["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)","Bash(npx vitest:*)"]);
+  // The rules install added; every one it writes, for a manifest that recorded none.
+  const ours=new Set(m.allow??["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)","Bash(npx vitest:*)"]);
   s.permissions.allow=s.permissions.allow.filter(r=>!ours.has(r));
   if(!s.permissions.allow.length) delete s.permissions.allow;
   if(!Object.keys(s.permissions).length) delete s.permissions;
