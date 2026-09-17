@@ -18,7 +18,7 @@ step()  { echo -e "\n${BLUE}${BOLD}→ $1${RESET}"; }
 error() { echo -e "${RED}[✗]${RESET} $1"; }
 
 # --- Preflight checks ---
-for cmd in ssh-keygen ssh-add gh git; do
+for cmd in ssh-keygen gh git; do
   if ! command -v "$cmd" &>/dev/null; then
     error "Required command not found: $cmd"
     exit 1
@@ -42,18 +42,7 @@ else
   info "SSH key generated: $SSH_KEY"
 fi
 
-# --- Step 2: Start ssh-agent and add key ---
-step "ssh-agent"
-
-if ssh-add -l &>/dev/null 2>&1; then
-  info "ssh-agent already has keys loaded."
-else
-  eval "$(ssh-agent -s)" > /dev/null
-  ssh-add "$SSH_KEY"
-  info "Key added to ssh-agent."
-fi
-
-# --- Step 3: Authenticate with GitHub ---
+# --- Step 2: Authenticate with GitHub ---
 step "GitHub authentication"
 
 if gh auth status &>/dev/null 2>&1; then
@@ -66,7 +55,7 @@ else
   info "GitHub authentication complete."
 fi
 
-# --- Step 4: Refresh token with admin:public_key scope ---
+# --- Step 3: Refresh token with admin:public_key scope ---
 step "SSH key upload scope"
 
 # Check if we can list SSH keys (requires admin:public_key scope)
@@ -80,7 +69,7 @@ else
   info "SSH key scope granted."
 fi
 
-# --- Step 5: Upload SSH key to GitHub ---
+# --- Step 4: Upload SSH key to GitHub ---
 step "Upload SSH key to GitHub"
 
 key_title="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo 'unknown')}"
@@ -93,7 +82,7 @@ else
   info "SSH key uploaded to GitHub as: $key_title"
 fi
 
-# --- Step 6: Configure git identity ---
+# --- Step 5: Configure git identity ---
 step "Git identity"
 
 gitconfig_local="$HOME/.gitconfig.local"
@@ -118,7 +107,7 @@ EOF
   fi
 fi
 
-# --- Step 7: Private git root ---
+# --- Step 6: Private git root ---
 step "Private git root"
 
 if [[ -n "$(git config --file "$gitconfig_local" private.root 2>/dev/null || true)" ]]; then
@@ -135,15 +124,12 @@ else
   fi
 fi
 
-# --- Step 8: Switch dotfiles remote to SSH ---
+# --- Step 7: Switch dotfiles remote to SSH ---
 step "Dotfiles remote"
 
-# Find dotfiles repo: check new location first, fall back to legacy
-if [[ -d "$HOME/dev/infra/dotfiles/.git" ]]; then
-  dotfiles_dir="$HOME/dev/infra/dotfiles"
-elif [[ -d "$HOME/.dotfiles/.git" ]]; then
-  dotfiles_dir="$HOME/.dotfiles"
-else
+# Where arch-install and debian-server clone the repo
+dotfiles_dir="$HOME/dev/infra/dotfiles"
+if [[ ! -d "$dotfiles_dir/.git" ]]; then
   dotfiles_dir=""
 fi
 
@@ -168,7 +154,7 @@ if [[ -n "$dotfiles_dir" ]]; then
     warn "Dotfiles remote is not a GitHub URL: $current_remote"
   fi
 else
-  warn "No dotfiles repo found at ~/dev/infra/dotfiles or ~/.dotfiles"
+  warn "No dotfiles repo found at ~/dev/infra/dotfiles"
 fi
 
 # --- Done ---
