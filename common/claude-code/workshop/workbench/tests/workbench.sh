@@ -781,6 +781,8 @@ check "call committed the item on main, so a gate that reads git sees it (C10)" 
 check "and committed nothing else" bash -c "git status --porcelain | grep -q '^?? stray.txt'"
 rm stray.txt
 check "the template has the section" grep -q '^## Decisions' "$citem"
+run "call keeps a backslash as typed" 0 "$citem$" "$WB" call "$cid" 'the regex \d+\t or C:\new?'
+check "the bullet holds the text, not the characters awk -v would read the escapes as" bash -c "grep -qxF -- '- the regex \d+\t or C:\new?' $citem"
 run "call takes - for no item" 0 "" "$WB" call - "which realm first?"
 check "the id-less call is a bullet in DECISIONS.md" grep -qx -- '- which realm first?' workbench/DECISIONS.md
 run "call refuses a newline" 1 "a call is one line" "$WB" call - $'a\nb'
@@ -802,7 +804,7 @@ fill_evidence "$cwt/$citem" "run" "ok"
 run "merge is not behind main when only workbench/ landed since" 0 "merged $cid" "$WB" merge "$cid" "count"
 check "the branch's decision line survived the squash" bash -c "sed -n '/^## Decisions/,\$p' $citem | grep -q 'greeting: move or drop?'"
 run "archive refuses an item with a decision waiting" 1 "has a decision waiting under '## Decisions'" "$WB" archive "$cid"
-sed -i '/^- greeting: move or drop?$/d; /^- criterion: is the count right?$/d' "$citem" && git commit -qam answered
+sed -i '/^- greeting: move or drop?$/d; /^- criterion: is the count right?$/d; /^- the regex /d' "$citem" && git commit -qam answered
 run "archive takes it once the lines are gone" 0 "" "$WB" archive "$cid"
 cid2=$(newc bug "behind")
 "$WB" start "$cid2" >/dev/null 2>&1

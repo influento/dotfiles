@@ -2417,7 +2417,10 @@ cmd_call() {
   # At the end of the section.
   local tmp
   tmp=$(mktemp)
-  awk -v l="- $line" '
+  # Through the environment: awk -v reads '\n' and '\t' in the text as escapes
+  # and writes the characters they name.
+  WB_LINE="- $line" awk '
+    BEGIN { l = ENVIRON["WB_LINE"] }
     /^## Decisions/ { inside = 1 }
     inside && /^## / && !/^## Decisions/ { print l; print ""; inside = 0 }
     { print; prev = $0 }
