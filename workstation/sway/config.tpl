@@ -146,10 +146,10 @@ bindsym --inhibited $mod+Ctrl+q kill
 # Fn brightness keys (XF86MonBrightness*), plus $mod+F5/F6 as a fallback for
 # keyboards without them. Backend (laptop backlight / DDC) is picked by
 # display-brightness from gtk-widgets. --locked: works on the lock screen.
-bindsym --locked XF86MonBrightnessDown exec display-brightness down
-bindsym --locked XF86MonBrightnessUp exec display-brightness up
-bindsym --locked $mod+F5 exec display-brightness down
-bindsym --locked $mod+F6 exec display-brightness up
+bindsym --locked XF86MonBrightnessDown exec ~/.local/bin/display-brightness down
+bindsym --locked XF86MonBrightnessUp exec ~/.local/bin/display-brightness up
+bindsym --locked $mod+F5 exec ~/.local/bin/display-brightness down
+bindsym --locked $mod+F6 exec ~/.local/bin/display-brightness up
 
 # --- Keybindings: Resize mode ---
 mode "resize" {
@@ -198,8 +198,8 @@ exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus drop
 # Screenshots live for one session: clear the previous session's on start.
 # exec, not exec_always -- a config reload must not wipe them mid-session.
 exec bash -c 'mkdir -p ~/pictures/screenshots && find ~/pictures/screenshots -maxdepth 1 -name "screenshot-*.png" -delete'
-exec startup-reminders
-exec auto-update
+exec ~/.local/bin/startup-reminders
+exec ~/.local/bin/auto-update
 
 # Lock immediately at session start. Required by the tty1 autologin drop-in in
 # arch-install: autologin exists so Sway comes up unattended after a reboot and
