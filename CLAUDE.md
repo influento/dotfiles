@@ -243,7 +243,7 @@ sense inside one kind of project (`go/` in Go repos, `manim` in animation projec
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh`
+- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh $(find common/scripts workstation/scripts server/scripts -type f ! -name "*.md") common/claude-code/workshop/typescript/gate/*.sh`
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
@@ -281,7 +281,7 @@ When modifying any config, follow this workflow:
 4. If the target path follows `~/.config/<name>/`, it works automatically via `deploy_configs`
 5. If the target path is special (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
 6. Update the mapping table in this CLAUDE.md
-7. Run `shellcheck -x install.sh lib/*.sh themes/*.sh` to verify
+7. Run the Lint command from [Commands](#commands) to verify
 
 ## Documentation
 
