@@ -127,9 +127,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
   fi
   if [[ "$PROFILE" == "server" ]]; then
+    log_info "  server configs: $(list_config_dirs "${DOTFILES_DIR}/server")"
     log_info "  systemd: server-auto-update timer + service (auto-enabled)"
   fi
-    log_info "  server configs: $(list_config_dirs "${DOTFILES_DIR}/server")"
   log_info "  oh-my-zsh: install if missing"
   exit 0
 fi
