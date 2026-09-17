@@ -50,7 +50,7 @@ What the config wires (`common/tmux/tmux.conf.tpl`, "Attention"):
 
 | Key or hook | Does |
 | --- | --- |
-| `prefix f` | fzf popup over sessions, each row its windows with their flag glyphs inline, flagged sessions first; Enter switches to the session. Panes were listed here once and dropped: with many windows the list buried the sessions |
+| `prefix f` | fzf popup over sessions, each row its windows with their flag glyphs inline, flagged sessions first; Enter switches to the session, `ctrl-x` kills it (refused for the last one, which would take the terminal with it). Panes were listed here once and dropped: with many windows the list buried the sessions |
 | `prefix o` | jump to the next pane that needs you, else the next unread done; a second press walks on |
 | `pane-focus-in`, `after-select-window`, `after-select-pane` | `seen`: a focused `done` pane goes idle; sweeps dead flags first |
 | `client-focus-in` | `status`: sweep and recount when the terminal regains focus |
