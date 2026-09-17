@@ -3,6 +3,7 @@
 
 # --- Workstation aliases ---
 alias lg='lazygit'
+alias ts='tmux-session'
 
 # --- yazi — cd into directory on exit ---
 y() {
