@@ -31,11 +31,12 @@ A script silences its own reminder by appending its key to that state file; see
 `setup-wireguard`, whose reminder exists because the WireGuard configs do not
 exist until Dropbox has synced.
 
-Two things to know before editing it. The parse loop is duplicated in
-`install.sh`, which renders the same files as `log_warn` lines at the end of a
-deploy — change the format in one place and you must change it in both. And the
-key split is on the *first* colon in the line, so a keyless reminder containing
-a colon loses everything before it; give such a line a key, even a dummy one.
+Two things to know before editing it. The parse loop is `pending_reminders` in
+`lib/reminders.sh`, shared with `install.sh`, which shows the same pending lines
+as `log_warn` at the end of a deploy — a format change there reaches both. And
+the key split is on the *first* colon in the line, so a keyless reminder
+containing a colon loses everything before it; give such a line a key, even a
+dummy one.
 
 ## tmux-attach
 
