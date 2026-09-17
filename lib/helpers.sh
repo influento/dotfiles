@@ -50,9 +50,9 @@ link_config() {
 # write fail with EBUSY.
 #
 # Merge semantics: our tracked values win for every key we define (arrays are
-# replaced wholesale, so deleting an entry upstream deletes it here, and the
-# log names every live entry that goes), while keys only the app knows about
-# (enabledPlugins, feature flags, onboarding state) survive untouched. The merge only adds and overrides — deleting a
+# replaced wholesale, so deleting an entry upstream deletes it here), while
+# keys only the app knows about (enabledPlugins, feature flags, onboarding
+# state) survive untouched. The merge only adds and overrides — deleting a
 # whole key from the tracked file does NOT remove it from the live one.
 #
 # Usage: merge_json_config "/path/to/tracked.json" "/path/to/live.json"
@@ -86,13 +86,10 @@ merge_json_config() {
     log_warn "$target is not valid JSON — rebuilding it from $src"
   fi
 
-  local merged dropped
+  local merged
   merged="$(mktemp)"
-  dropped="$(mktemp)"
 
-  # stdout is the merged document; stderr lists every live list entry the
-  # tracked copy replaces away, one "path: entry" per line, logged below.
-  if ! python3 - "$src" "$target" >"$merged" 2>"$dropped" <<'PY'
+  if ! python3 - "$src" "$target" >"$merged" 2>/dev/null <<'PY'
 import json
 import sys
 
@@ -108,19 +105,6 @@ def deep_merge(base, over):
     return out
 
 
-def dropped_entries(base, over, path=""):
-    """Yield (path, entry) for each list entry in `base` that `over` replaces away."""
-    for key, value in over.items():
-        here = f"{path}.{key}" if path else key
-        current = base.get(key)
-        if isinstance(value, dict) and isinstance(current, dict):
-            yield from dropped_entries(current, value, here)
-        elif isinstance(value, list) and isinstance(current, list):
-            for entry in current:
-                if entry not in value:
-                    yield here, entry
-
-
 src_path, target_path = sys.argv[1], sys.argv[2]
 
 with open(src_path, encoding="utf-8") as handle:
@@ -132,20 +116,17 @@ try:
 except (json.JSONDecodeError, UnicodeDecodeError):
     live = {}
 
-for path, entry in dropped_entries(live, tracked):
-    print(f"{path}: {json.dumps(entry, ensure_ascii=False)}", file=sys.stderr)
-
 json.dump(deep_merge(live, tracked), sys.stdout, indent=2, ensure_ascii=False)
 sys.stdout.write("\n")
 PY
   then
-    rm -f "$merged" "$dropped"
+    rm -f "$merged"
     log_warn "Could not build merged config from $src — leaving $target untouched"
     return 0
   fi
 
   if cmp -s "$merged" "$target"; then
-    rm -f "$merged" "$dropped"
+    rm -f "$merged"
     log_info "Already current: $target"
     return 0
   fi
@@ -155,16 +136,8 @@ PY
   cp "$target" "$backup"
   log_warn "Backing up existing: $target → $backup"
 
-  # Arrays are replaced wholesale, so an entry only the live file had (a
-  # permission allowed from inside Claude Code, say) is gone after this write.
-  # Name each one; the backup above still holds it.
-  local line
-  while IFS= read -r line; do
-    log_warn "Dropped from $target, not in $src: $line"
-  done <"$dropped"
-
   install -m 600 "$merged" "$target"
-  rm -f "$merged" "$dropped"
+  rm -f "$merged"
   log_info "Merged: $src → $target"
 }
 
@@ -177,24 +150,26 @@ ensure_dir() {
   fi
 }
 
-# Remove symlinks in ~/.local/bin that point into this dotfiles repo but whose
-# targets no longer exist (scripts deleted or renamed in the repo).
-# Usage: prune_dead_bin_links "/home/username"
-prune_dead_bin_links() {
+# Remove symlinks that point into this dotfiles repo but whose targets no
+# longer exist (a script or config deleted or renamed in the repo). Scans one
+# level of each directory deploy_configs links into: $HOME dotfiles,
+# ~/.local/bin, ~/.config and ~/.claude.
+# Usage: prune_dead_links "/home/username"
+prune_dead_links() {
   local user_home="$1"
-  local bin_dir="${user_home}/.local/bin"
+  local dir link target
 
-  [[ -d "$bin_dir" ]] || return 0
-
-  local link target
-  for link in "$bin_dir"/*; do
-    [[ -L "$link" ]] || continue
-    target="$(readlink "$link")"
-    [[ "$target" == "${DOTFILES_DIR}"/* ]] || continue
-    if [[ ! -e "$link" ]]; then
-      log_warn "Pruning dead symlink: ${link} → ${target}"
-      rm -f "$link"
-    fi
+  for dir in "$user_home" "${user_home}/.local/bin" "${user_home}/.config" "${user_home}/.claude"; do
+    [[ -d "$dir" ]] || continue
+    for link in "$dir"/* "$dir"/.[!.]*; do
+      [[ -L "$link" ]] || continue
+      target="$(readlink "$link")"
+      [[ "$target" == "${DOTFILES_DIR}"/* ]] || continue
+      if [[ ! -e "$link" ]]; then
+        log_warn "Pruning dead symlink: ${link} → ${target}"
+        rm -f "$link"
+      fi
+    done
   done
 }
 
@@ -210,7 +185,19 @@ install_omz() {
 
   log_info "Installing oh-my-zsh..."
 
-  RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  # Download first, then run. `sh -c "$(curl ...)"` runs an empty script when
+  # curl fails, so an offline install reported success with nothing installed.
+  local installer
+  installer="$(mktemp)"
+  if ! curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$installer"; then
+    rm -f "$installer"
+    die "Could not download the oh-my-zsh installer (no network?)"
+  fi
+  if ! RUNZSH=no CHSH=no sh "$installer"; then
+    rm -f "$installer"
+    die "oh-my-zsh installer failed"
+  fi
+  rm -f "$installer"
 
   # Remove the default .zshrc that oh-my-zsh creates — we deploy our own
   rm -f "${user_home}/.zshrc"
