@@ -197,6 +197,7 @@ run "new refuses when the main checkout is off the default branch" 1 "has 'side'
 check "the refusal spent no id" [ -z "$(find workbench/items -name '*.md')" ]
 git checkout -q main
 id=$("$WB" new bug "crash on save" 2>/dev/null)
+run "new refuses a newline in the title" 1 "a title is one line" "$WB" new bug $'first line\nsecond line'
 check "new allocates b-001" [ "$id" = b-001 ]
 item=workbench/items/bugs/b-001-crash-on-save.md
 check "new writes the item file" [ -f "$item" ]

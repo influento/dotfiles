@@ -1267,6 +1267,7 @@ cmd_new() {
   local class="${1:-}" title="${2:-}" letter dir slug num id path root
   [ $# -eq 2 ] && [ -n "$class" ] && [ -n "$title" ] || usage
   require_init
+  case "$title" in *$'\n'*) die "a title is one line" ;; esac
   case "$class" in
     bug) letter=b; dir=bugs ;;
     feature) letter=f; dir=features ;;
