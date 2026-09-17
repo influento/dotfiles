@@ -52,9 +52,6 @@ build_sed_script() {
   for key in "${!THEME_COLORS[@]}"; do
     SED_SCRIPT+="s|@@${key}_RAW@@|${THEME_COLORS[$key]}|g;"
   done
-  for key in "${!THEME_META[@]}"; do
-    SED_SCRIPT+="s|@@${key}_RAW@@|${THEME_META[$key]}|g;"
-  done
 
   # Hash-prefixed replacements second
   for key in "${!THEME_COLORS[@]}"; do
