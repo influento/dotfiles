@@ -54,7 +54,8 @@ line. This table is the reference; the tools' docs link here.
   the last occurrence of a key wins. Parsed the same way in
   `workbench/bin/workbench`, `typescript/gate/scripts/stop-hook.sh` and
   `typescript/gate/eslint.gate.mjs`.
-- An unknown key, a line without `=` or an invalid value is never fatal:
+- An unknown key, a line without `=` or without a key, or an invalid value
+  is never fatal:
   the default applies, and `workbench status` warns (ts-gate's keys only
   where a `ts-gate/` directory exists). `workbench config list` shows each
   key's effective value and whether it comes from the file.

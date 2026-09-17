@@ -1391,6 +1391,10 @@ unconf main
 # Invalid and unknown: the default, a warning, no crash.
 printf 'no equals sign here\nfoo.bar=1\nworker.effort=huge\n# worker.model=commented\n\n   review.exchange_cap  =  5  \n' >> .claude/workshop.conf
 run "status warns about a line that is not key=value" 0 "^config: .claude/workshop.conf line [0-9]+: no equals sign here is not key=value$" "$WB" status
+printf '=no key here\n' >> .claude/workshop.conf
+run "status warns about a line with no key, and completes" 0 "^config: .claude/workshop.conf line [0-9]+: =no key here is not key=value$" "$WB" status
+run "config get survives it" 0 "^5$" "$WB" config get review.exchange_cap
+sed -i '/^=no key here$/d' .claude/workshop.conf
 run "status warns about an unknown key" 0 "^config: .claude/workshop.conf: unknown key 'foo.bar', ignored$" "$WB" status
 run "status warns about an invalid effort" 0 "worker.effort='huge' is not inherit, low, medium, high, xhigh or max; the default applies" "$WB" status
 run "config get gives the default for it" 0 "^inherit$" "$WB" config get worker.effort

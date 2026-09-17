@@ -234,7 +234,7 @@ next_id() {
 # Read the same way as ts-gate's stop-hook.sh and eslint.gate.mjs: each line
 # trimmed, blank and '#' lines skipped, split at the first '=', key and value
 # trimmed, the last occurrence of a key wins. Fills CONF_V (key → value) and
-# CONF_JUNK ("<line number>: <text>" for a line with no '=').
+# CONF_JUNK ("<line number>: <text>" for a line with no '=' or no key).
 declare -A CONF_V=()
 CONF_JUNK=()
 conf_scan() {
@@ -246,6 +246,8 @@ conf_scan() {
     line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
     case "$line" in ''|'#'*) continue ;; *=*) ;; *) CONF_JUNK+=("$n: $line"); continue ;; esac
     k=${line%%=*}; k="${k%"${k##*[![:space:]]}"}"
+    # '=x' has no key; an empty subscript would abort the whole command.
+    [ -n "$k" ] || { CONF_JUNK+=("$n: $line"); continue; }
     v=${line#*=}; v="${v#"${v%%[![:space:]]*}"}"
     CONF_V[$k]=$v
   done < "$f"
