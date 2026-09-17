@@ -210,7 +210,11 @@ check "and ignores workbench/**" grep -q '"workbench/\*\*"' vitest.config.mjs
 # vitest_key: the entry install writes for vitest into ts-gate/knip.json.
 vitest_key() { node -p "JSON.stringify({entry:[...require('$SRC/knip.vitest.json').entry,'!workbench/**']})"; }
 check "knip's vitest entry is its defaults plus !workbench/**" [ "$(json ts-gate/knip.json 'JSON.stringify(j.vitest)')" = "$(vitest_key)" ]
-check "the runner's allow rule is added" grep -q 'Bash(npx vitest:\*)' .claude/settings.json
+check "no npx runner rule: one --config flag from the live tier; npm test -- <file> is the way to one file" bash -c "! grep -q 'npx vitest' .claude/settings.json"
+node -e 'const fs=require("fs");const s=JSON.parse(fs.readFileSync(".claude/settings.json"));s.permissions.allow.push("Bash(npx vitest:*)");fs.writeFileSync(".claude/settings.json",JSON.stringify(s,null,2)+"\n");const m=JSON.parse(fs.readFileSync("ts-gate/.install.json"));m.allow.push("Bash(npx vitest:*)");fs.writeFileSync("ts-gate/.install.json",JSON.stringify(m,null,2)+"\n")'
+run "re-install over a rule an earlier install wrote and this one does not" 0 "runner: vitest" bash "$SRC/install.sh" .
+check "drops it from settings" bash -c "! grep -q 'npx vitest' .claude/settings.json"
+check "and from the manifest" [ "$(json ts-gate/.install.json 'j.allow.includes("Bash(npx vitest:*)")')" = false ]
 check "test:live is set" grep -q '"test:live"' package.json
 git add -A && git commit -qm "vitest"
 

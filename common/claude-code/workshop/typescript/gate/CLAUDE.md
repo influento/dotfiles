@@ -29,7 +29,7 @@ Install refuses outside git. Then:
 - The npm scripts above; a script the project had under one of those names is recorded, and uninstall puts it back.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone; for a project's own, install prints what to merge (Install output).
 - `rules/ts-*.md` → `.claude/rules/`.
-- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` with vitest. A re-run replaces the hook entry and keeps its `timeout` (600 for a new entry).
+- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model) and `npm test`. Not `npx vitest`: `--config ts-gate/vitest.live.mjs` would be one flag from the live tier; a criterion that names one file runs `npm test -- <file>`, through the project config. A re-run replaces the hook entry, keeps its `timeout` (600 for a new entry), and drops a rule an earlier install wrote that it no longer writes.
 - `premerge=npm run gate` in `.claude/workshop.conf` (Touchpoints); `git config workbench.guards`, the regex naming `npm run gate|lint|build|typecheck` and `tsc`.
 - The manifest, `ts-gate/.install.json`: the dependencies, scripts, allow rules and rule files install added, and the configs it wrote with their hashes; what uninstall reads.
 

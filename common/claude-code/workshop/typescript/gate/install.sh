@@ -202,8 +202,9 @@ command cp "$SRC"/rules/*.md .claude/rules/
 RULES=$(cd "$SRC/rules" && for f in *.md; do printf '%s\n' "$f"; done)
 
 # 6. Stop hook: our entry is replaced, foreign entries are untouched. Allow
-#    rules: what the rule files tell the agent to run and the test runner a
-#    criterion names; the ones absent are added, and those are uninstall's.
+#    rules: what the rule files tell the agent to run; the ones absent are
+#    added, and those are uninstall's. A rule an earlier install wrote and
+#    this one no longer writes goes.
 ALLOW=$(node -e '
 const fs=require("fs"),p=".claude/settings.json";
 const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")):{};
@@ -215,12 +216,18 @@ s.hooks.Stop=s.hooks.Stop.map(e=>({...e,hooks:(e.hooks??[]).filter(h=>h.command!
 s.hooks.Stop.push({hooks:[{type:"command",command,timeout}]});
 s.permissions??={}; s.permissions.allow??=[];
 // Not gate:* — that would cover gate:verify, which starts a model session.
+// No npx <runner>: one --config flag from the live tier. A criterion that
+// names one file runs it as npm test -- <file>, through the project config.
 const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
-if(process.argv[1]) rules.push("Bash(npx vitest:*)");
+// What an earlier install wrote: its manifest, or (from before the manifest recorded it) the runner rules only install ever wrote.
+const mp="ts-gate/.install.json",m=fs.existsSync(mp)?JSON.parse(fs.readFileSync(mp,"utf8")):null;
+const was=m?(m.allow??[...rules,"Bash(npx vitest:*)"]):[];
+const removed=was.filter(r=>!rules.includes(r)&&s.permissions.allow.includes(r));
+s.permissions.allow=s.permissions.allow.filter(r=>!removed.includes(r));
 const added=rules.filter(r=>!s.permissions.allow.includes(r));
 s.permissions.allow.push(...added);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");
-console.log(JSON.stringify({added,all:rules}));' "$RUNNER")
+console.log(JSON.stringify({added,all:rules,removed}));')
 
 # 7. workbench keys; inert without workbench. premerge goes in the committed
 #    .claude/workshop.conf, only when the file has no premerge key: a project
@@ -280,7 +287,7 @@ m.scripts??={};
 for(const k of ["gate","gate:local","gate:full","gate:fix","gate:verify",...(runner==="vitest"?["test:live"]:[])])
   if(!(k in m.scripts)) m.scripts[k]=!legacy&&k in was&&was[k]!==now[k]?was[k]:null;
 const a=JSON.parse(allow);
-m.allow=[...new Set([...(m.allow||(old?a.all:[])),...a.added])];
+m.allow=[...new Set([...(m.allow||(old?a.all:[])),...a.added])].filter(r=>!a.removed.includes(r));
 m.rules=[...new Set([...(m.rules||[]),...rules.split("\n").filter(Boolean)])];
 fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");' "$RUNNER" "$WROTE" "$BIOME_WROTE" "$VITEST_WROTE" "$NEW" "$PRIOR_SCRIPTS" "$ALLOW" "$RULES"
 

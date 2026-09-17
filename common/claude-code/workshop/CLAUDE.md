@@ -5,7 +5,7 @@ installed in this order by the `workshop-setup` skill:
 
 | Tree         | Installed by                          | Into a project as                                                                                  |
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `typescript/gate/` | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and the test runner, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
+| `typescript/gate/` | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and `npm test`, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
 | `stack/`     | `stack add <name>...` (the CLI is on PATH; packages from `<language>/packages/`) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/eslint/<name>.mjs`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
 | `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies rendered from `.claude/workshop.conf`, two `SessionStart` hooks and a `FileChanged` hook, `workbench/` state |
 
