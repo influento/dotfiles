@@ -358,6 +358,9 @@ printf 'cap.claude=150\n# premerge=<command>\nmain=main\n' > .claude/workshop.co
 git add -A && git commit -qm "uninstalled again" >/dev/null
 run "install over workbench's commented-out premerge" 0 "set premerge=npm run gate" bash "$SRC/install.sh" .
 check "fills that line in place" [ "$(cat .claude/workshop.conf)" = "$(printf 'cap.claude=150\npremerge=npm run gate\nmain=main')" ]
+printf 'cap.claude=150\npremerge=\nmain=main\npremerge =  \n' > .claude/workshop.conf
+run "install over an empty premerge=, which workbench reads as unset" 0 "set premerge=npm run gate" bash "$SRC/install.sh" .
+check "fills the last empty line in place and drops the other" [ "$(cat .claude/workshop.conf)" = "$(printf 'cap.claude=150\nmain=main\npremerge=npm run gate')" ]
 
 echo "== brownfield: a foreign biome config that formats repos/**"
 mkproj "$TMP/p2"

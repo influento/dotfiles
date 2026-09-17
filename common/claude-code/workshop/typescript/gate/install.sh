@@ -235,14 +235,21 @@ if [ -f "$CONF" ]; then
     case "$line" in '#'*) continue ;; *=*) ;; *) continue ;; esac
     k=${line%%=*}; k="${k%"${k##*[![:space:]]}"}"
     [ "$k" = premerge ] || continue
-    HAS_PREMERGE=1; PREMERGE=${line#*=}; PREMERGE="${PREMERGE#"${PREMERGE%%[![:space:]]*}"}"
+    PREMERGE=${line#*=}; PREMERGE="${PREMERGE#"${PREMERGE%%[![:space:]]*}"}"
+    # An empty value is no command: unset, as workbench reads it.
+    if [ -n "$PREMERGE" ]; then HAS_PREMERGE=1; else HAS_PREMERGE=0; fi
   done < "$CONF"
 fi
 if [ "$HAS_PREMERGE" -eq 0 ]; then
   PREMERGE="npm run gate"
   command mkdir -p .claude
-  # Over the commented-out line workbench init writes, else appended.
-  if [ -f "$CONF" ] && grep -Eq '^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=' "$CONF"; then
+  # Over the last empty 'premerge=' (the others go), else over the
+  # commented-out line workbench init writes, else appended.
+  if [ -f "$CONF" ] && grep -Eq '^[[:space:]]*premerge[[:space:]]*=[[:space:]]*$' "$CONF"; then
+    n=$(grep -Ec '^[[:space:]]*premerge[[:space:]]*=[[:space:]]*$' "$CONF")
+    PREMERGE="$PREMERGE" awk -v n="$n" '/^[[:space:]]*premerge[[:space:]]*=[[:space:]]*$/ { if (++i == n) print "premerge=" ENVIRON["PREMERGE"]; next } { print }' "$CONF" > "$CONF.tmp"
+    command mv "$CONF.tmp" "$CONF"
+  elif [ -f "$CONF" ] && grep -Eq '^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=' "$CONF"; then
     PREMERGE="$PREMERGE" awk '!done && /^[[:space:]]*#[[:space:]]*premerge[[:space:]]*=/ { print "premerge=" ENVIRON["PREMERGE"]; done = 1; next } { print }' "$CONF" > "$CONF.tmp"
     command mv "$CONF.tmp" "$CONF"
   else

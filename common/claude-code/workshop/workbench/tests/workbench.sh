@@ -1214,6 +1214,9 @@ new_repo "stale"
 printf 'export const foo = () => 1;\n' > a.mjs
 git add -A && git commit -qm wb
 run "status says when premerge is unset" 0 "premerge: unset" "$WB" status
+conf premerge ""
+run "an empty premerge is warned about as no command" 0 "premerge='' is not a command; the default applies" "$WB" status
+run "and is unset" 0 "premerge: unset" "$WB" status
 conf premerge true
 run "status is quiet about premerge once set" 0 "" bash -c "! '$WB' status | grep -q 'premerge: unset'"
 sa=$(newc feature "use foo")

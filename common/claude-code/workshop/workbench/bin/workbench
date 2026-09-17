@@ -267,7 +267,7 @@ conf_valid() {
     model) [[ "$2" =~ ^[^[:space:]]+$ ]] ;;
     effort) case "$2" in inherit|low|medium|high|xhigh|max) ;; *) return 1 ;; esac ;;
     count) [[ "$2" =~ ^[1-9][0-9]{0,8}$ ]] ;;
-    command) return 0 ;;
+    command) [ -n "$2" ] ;;
     branch) [ -n "$2" ] && git check-ref-format "refs/heads/$2" ;;
   esac
 }
@@ -277,6 +277,7 @@ conf_expects() {
     model) echo "inherit or a model name without spaces" ;;
     effort) echo "inherit, low, medium, high, xhigh or max" ;;
     count) echo "a positive integer" ;;
+    command) echo "a command" ;;
     branch) echo "a branch name" ;;
   esac
 }
