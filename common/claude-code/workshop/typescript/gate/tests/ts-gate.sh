@@ -351,6 +351,24 @@ rm -rf .claude/eslint
 run "no .claude/eslint: the gate's two blocks alone" 0 "^2 " blocks
 rm -rf node_modules/typescript-eslint node_modules/eslint-plugin-sonarjs
 
+echo "== no-network.mjs refuses TCP, UDP and fetch off loopback (192.0.2.1 is TEST-NET, unroutable)"
+mkdir -p node_modules/vitest && printf '{"name":"vitest","type":"module","main":"index.js"}\n' > node_modules/vitest/package.json
+echo 'export const expect = { getState: () => ({ currentTestName: "t" }) };' > node_modules/vitest/index.js
+# shellcheck disable=SC2016  # the ${} is JavaScript's
+guard() { node --input-type=module -e '
+import net from "node:net"; import dgram from "node:dgram";
+await import(`${process.cwd()}/ts-gate/no-network.mjs`);
+const out = [];
+const attempt = (label, f) => { try { f(); out.push(label + ":open"); } catch (e) { out.push(label + (/^no-network/.test(e.message) ? ":refused" : ":" + e.message)); } };
+attempt("tcp", () => net.connect(80, "192.0.2.1"));
+attempt("udp-send", () => dgram.createSocket("udp4").send(Buffer.from("x"), 53, "192.0.2.1"));
+attempt("udp-connect", () => dgram.createSocket("udp4").connect(53, "192.0.2.1"));
+attempt("udp-loopback", () => { const s = dgram.createSocket("udp4"); s.send(Buffer.from("x"), 9, "127.0.0.1"); s.close(); });
+try { await fetch("http://192.0.2.1/"); out.push("fetch:open"); } catch (e) { out.push("fetch" + (/^no-network/.test(e.message) ? ":refused" : ":" + e.message)); }
+console.log(out.join(" ")); process.exit(0);' 2>&1; }
+run "off loopback refused on every door, loopback UDP open" 0 "^tcp:refused udp-send:refused udp-connect:refused udp-loopback:open fetch:refused$" guard
+rm -rf node_modules/vitest
+
 echo "== gate:fix runs the formatter even when eslint --fix leaves an error"
 echo 1 > "$TSGATE_TEST/exit.eslint"; : > "$LOG"
 run "gate:fix exits non-zero on an unfixable eslint error" 1 "" npm run -s gate:fix

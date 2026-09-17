@@ -1,4 +1,5 @@
 // vitest setup file: no test reaches the network (.claude/rules/ts-gate.md).
+import dgram from "node:dgram";
 import net from "node:net";
 import { expect } from "vitest";
 
@@ -32,6 +33,19 @@ net.Socket.prototype.connect = function (...args) {
   if (!loopback(host)) refuse(`${host}:${port}`);
   return connect.apply(this, args);
 };
+
+// UDP has its own door: send carries the address, or connect did for a
+// connected socket. No address is Node's default, loopback. A child process
+// is outside all of this.
+for (const method of ["send", "connect"]) {
+  const original = dgram.Socket.prototype[method];
+  dgram.Socket.prototype[method] = function (...args) {
+    // send(msg, [offset, length,] port, address?, cb?); connect(port, address?, cb?)
+    const host = method === "send" ? args.slice(1).find((a) => typeof a === "string") : args[1];
+    if (typeof host === "string" && !loopback(host)) refuse(`udp ${host}`);
+    return original.apply(this, args);
+  };
+}
 
 // fetch is caught above too, but through undici the error surfaces as
 // "fetch failed" with the cause buried; checking the URL first names it.

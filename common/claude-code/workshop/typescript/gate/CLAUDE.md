@@ -82,9 +82,10 @@ in `eslint.config.mjs`, in its own commit.
 
 No test reaches the network (the contract: `rules/ts-gate.md`):
 `vitest.config.mjs` loads `ts-gate/no-network.mjs`, which patches
-`net.Socket.prototype.connect` and `fetch` to throw, naming the test and the
-host, for any host off loopback (`loopback()` in `no-network.mjs`; a unix
-socket path is local). The stack's `fixtures` package is the recording
+`net.Socket.prototype.connect`, `fetch` and `dgram.Socket`'s `send` and
+`connect` (UDP) to throw, naming the test and the host, for any host off
+loopback (`loopback()` in `no-network.mjs`; a unix socket path is local). A
+child process is outside it. The stack's `fixtures` package is the recording
 loader. Only vitest loads the file; scripts and the app keep the network.
 `*.live.test.ts` is excluded from `npm test`, the gate and the Stop hook.
 
