@@ -23,6 +23,7 @@ workstation/theming/gtk-4.0/gtk.css
 workstation/mpv/mpv.conf
 workstation/mpv/script-opts/osc.conf
 common/tmux/tmux.conf
+common/btop/themes/dotfiles.theme
 workstation/sway/config
 
 # Runtime config (written by widgets)

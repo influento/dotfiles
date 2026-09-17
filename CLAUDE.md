@@ -123,22 +123,23 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 
 ### Template Files
 
-| Template                                   | Generated file  | Token format    |
-| ------------------------------------------ | --------------- | --------------- |
-| `common/zsh/.zshrc.tpl`                    | `.zshrc`        | `@@TOKEN@@`     |
-| `common/starship/starship.toml.tpl`        | `starship.toml` | `@@TOKEN@@`     |
-| `common/tmux/tmux.conf.tpl`                | `tmux.conf`     | `@@TOKEN@@`     |
-| `workstation/lazygit/config.yml.tpl`       | `config.yml`    | `@@TOKEN@@`     |
-| `workstation/mako/config.tpl`              | `config`        | `@@TOKEN@@`     |
-| `workstation/swaylock/config.tpl`          | `config`        | `@@TOKEN_RAW@@` |
-| `workstation/swayosd/style.css.tpl`        | `style.css`     | `@@TOKEN@@`     |
-| `workstation/swaybg/wallpaper.sh.tpl`      | `wallpaper.sh`  | `@@TOKEN@@`     |
-| `workstation/theming/gtk-4.0/gtk.css.tpl`  | `gtk.css`       | `@@TOKEN@@`     |
-| `workstation/sway/config.tpl`              | `config`        | `@@TOKEN@@`     |
-| `workstation/waybar/config.tpl`            | `config`        | `@@TOKEN@@`     |
-| `workstation/waybar/style.css.tpl`         | `style.css`     | `@@TOKEN@@`     |
-| `workstation/mpv/mpv.conf.tpl`             | `mpv.conf`      | `@@TOKEN@@`     |
-| `workstation/mpv/script-opts/osc.conf.tpl` | `osc.conf`      | `@@TOKEN@@`     |
+| Template                                   | Generated file   | Token format    |
+| ------------------------------------------ | ---------------- | --------------- |
+| `common/zsh/.zshrc.tpl`                    | `.zshrc`         | `@@TOKEN@@`     |
+| `common/starship/starship.toml.tpl`        | `starship.toml`  | `@@TOKEN@@`     |
+| `common/tmux/tmux.conf.tpl`                | `tmux.conf`      | `@@TOKEN@@`     |
+| `common/btop/themes/dotfiles.theme.tpl`    | `dotfiles.theme` | `@@TOKEN@@`     |
+| `workstation/lazygit/config.yml.tpl`       | `config.yml`     | `@@TOKEN@@`     |
+| `workstation/mako/config.tpl`              | `config`         | `@@TOKEN@@`     |
+| `workstation/swaylock/config.tpl`          | `config`         | `@@TOKEN_RAW@@` |
+| `workstation/swayosd/style.css.tpl`        | `style.css`      | `@@TOKEN@@`     |
+| `workstation/swaybg/wallpaper.sh.tpl`      | `wallpaper.sh`   | `@@TOKEN@@`     |
+| `workstation/theming/gtk-4.0/gtk.css.tpl`  | `gtk.css`        | `@@TOKEN@@`     |
+| `workstation/sway/config.tpl`              | `config`         | `@@TOKEN@@`     |
+| `workstation/waybar/config.tpl`            | `config`         | `@@TOKEN@@`     |
+| `workstation/waybar/style.css.tpl`         | `style.css`      | `@@TOKEN@@`     |
+| `workstation/mpv/mpv.conf.tpl`             | `mpv.conf`       | `@@TOKEN@@`     |
+| `workstation/mpv/script-opts/osc.conf.tpl` | `osc.conf`       | `@@TOKEN@@`     |
 
 ## What Each Tool Does
 
