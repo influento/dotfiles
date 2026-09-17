@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Install the TS gate into a TypeScript project.
 #   install.sh <target-dir>
+# shellcheck disable=SC2016  # the $ inside single quotes is JavaScript's, throughout
 set -euo pipefail
 SRC="$(cd "$(dirname "$0")" && pwd)"
 T="$(cd "${1:?usage: install.sh <target-dir>}" && pwd)"
@@ -51,9 +52,11 @@ grep -q '"vitest"' package.json && RUNNER=vitest && DEPS="$DEPS @vitest/eslint-p
 # package.json only: a peer-installed vitest (@effect/vitest's) does not count.
 [ -n "$RUNNER" ] || echo "WARNING: no test runner in package.json (\"vitest\" as a devDependency) — the gate will run no tests and write no vitest config; npm i -D vitest@5, then re-run install"
 # Only what the project lacks: a re-run must not move pins the project owns.
+# shellcheck disable=SC2086  # $DEPS is a space-separated list of specs
 NEW=$(node -e '
 const p=require("./package.json"),have={...p.dependencies,...p.devDependencies};
 console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have)).join(" "))' $DEPS)
+# shellcheck disable=SC2086  # $PM is "pnpm add -D" etc., $NEW a word list
 [ -z "$NEW" ] || $PM $NEW
 
 # 2b. knip counts what a test file imports as used, and a plugin's test files

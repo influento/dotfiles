@@ -13,6 +13,7 @@ PM="npm rm"
 [ -f yarn.lock ] && PM="yarn remove"
 { [ -f bun.lockb ] || [ -f bun.lock ]; } && PM="bun remove"
 DEPS=$(node -p 'require("./ts-gate/.install.json").deps.join(" ")')
+# shellcheck disable=SC2086  # $PM is "pnpm remove" etc., $DEPS a word list
 [ -z "$DEPS" ] || $PM $DEPS
 
 # 2. Scripts: the ones install set, each back to what the project had under
