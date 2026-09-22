@@ -18,10 +18,6 @@ Check these when upgrading tools or debugging config issues.
 | **fzf** | Configured in `.zshrc` | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
 | **zoxide** | Configured in `.zshrc` | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | `eval "$(zoxide init zsh)"` |
 
-The hooks, CLI and tmux facts behind `workbench lead` / `open` / `signal` /
-`gate` are in `common/claude-code/workshop/workbench/CLAUDE.md`, with the session model
-they belong to.
-
 ## Workstation only
 
 | Tool | Config file(s) | Docs | Notes |
