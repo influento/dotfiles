@@ -187,13 +187,17 @@ local function open()
   -- window's usable width, so the gutter has to be gone first or the page ends up
   -- inset by the number column instead of by its own margin. (A reader line
   -- number would mean nothing anyway -- one source line can render as several.)
-  vim.wo[win].number = false
-  vim.wo[win].relativenumber = false
-  vim.wo[win].signcolumn = "no"
-  vim.wo[win].foldcolumn = "0"
-  vim.wo[win].list = false
-  vim.wo[win].wrap = true      -- text is wrapped already; this catches overflow
-  vim.wo[win].linebreak = true
+  -- [0] is :setlocal. Plain vim.wo[win] is :set, which also rewrites the window's
+  -- global values, and every file opened in this window afterwards -- and every
+  -- split or tab made from it -- inherited no gutter.
+  local wo = vim.wo[win][0]
+  wo.number = false
+  wo.relativenumber = false
+  wo.signcolumn = "no"
+  wo.foldcolumn = "0"
+  wo.list = false
+  wo.wrap = true      -- text is wrapped already; this catches overflow
+  wo.linebreak = true
   -- The buffer is deliberately nameless. A name like "reader://<path>" is not a
   -- path that exists, and anything that resolves the current buffer against the
   -- cwd trips over it -- neo-tree's follow_current_file asked to change the cwd
