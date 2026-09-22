@@ -518,9 +518,13 @@ deploy_configs() {
       ideavim)
         link_config "${item}.ideavimrc" "${user_home}/.ideavimrc"
         ;;
-      # XDG MIME associations: single file directly in ~/.config/
+      # XDG MIME associations: single file directly in ~/.config/, plus the
+      # desktop entry its text and source types point at (see that file's comment)
       mimeapps)
         link_config "${item}mimeapps.list" "${user_home}/.config/mimeapps.list"
+        ensure_dir "${user_home}/.local/share/applications"
+        link_config "${item}nvim-ghostty.desktop" \
+          "${user_home}/.local/share/applications/nvim-ghostty.desktop"
         ;;
       # Claude Code: skills dir symlinked, settings.json merged (Claude Code
       # rewrites that file itself and would replace a symlink — see

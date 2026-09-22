@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Neovim (Ghostty)
+Comment=Open text files in nvim in a new Ghostty window
+# nvim.desktop upstream is Terminal=true, which xdg-open's generic path ignores:
+# it runs the command inline in the calling terminal, so opening a file from
+# lazygit or yazi launches an invisible nvim that fights for the same pty.
+# Spawning our own window sidesteps that entirely.
+Exec=ghostty -e nvim %F
+Terminal=false
+NoDisplay=true
+MimeType=text/plain;text/markdown;text/x-markdown;text/x-shellscript;application/x-shellscript;text/x-python;application/x-python-code;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/x-go;text/x-lua;text/x-java;text/rust;text/x-rust;application/json;application/x-yaml;text/x-yaml;application/toml;text/x-toml;application/xml;text/xml;text/css;text/javascript;application/javascript;text/x-typescript;text/x-sql;text/x-makefile;text/x-cmake;text/x-diff;text/x-patch;text/x-tex;text/x-ruby;text/x-perl;text/x-php;text/x-haskell;text/x-scala;text/x-kotlin;text/x-dockerfile;application/x-desktop;text/x-ini;text/x-log;
