@@ -16,6 +16,7 @@ require("options")
 require("keymaps")
 require("autocmds")
 require("markdown-reader")
+require("remote-edit")
 require("scrollback")
 
 require("lazy").setup("plugins", {

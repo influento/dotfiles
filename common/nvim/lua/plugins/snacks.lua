@@ -6,7 +6,20 @@ return {
     { "<leader>gv", function() Snacks.lazygit() end, desc = "Lazygit" },
   },
   opts = {
-    lazygit = {},
+    lazygit = {
+      -- Replace lazygit's nvim-remote preset. That preset edits in three
+      -- separate `nvim --server` calls -- send "q", --remote-tab, send
+      -- ":{line}<CR>" -- and both the "q" and the trailing jump land in the
+      -- wrong place often enough to matter (see lua/remote-edit.lua). One
+      -- <cmd> mapping is atomic and works from terminal mode, so lazygit is
+      -- never sent a key it did not ask for and keeps running in the float.
+      config = {
+        os = {
+          edit = 'nvim --server "$NVIM" --remote-send "<cmd>EditAt 0 {{filename}}<cr>"',
+          editAtLine = 'nvim --server "$NVIM" --remote-send "<cmd>EditAt {{line}} {{filename}}<cr>"',
+        },
+      },
+    },
     dashboard = {
       preset = {
         header = "  " .. (vim.uv.os_gethostname or vim.loop.os_gethostname)():upper() .. "  ",
