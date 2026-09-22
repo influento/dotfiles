@@ -741,7 +741,7 @@ fill_evidence workbench/items/bugs/b-001-gone.md "run" "ok"
 "$WB" archive b-001 >/dev/null 2>&1
 run "start refuses an archived item whose ref is left on origin" 1 "already archived" "$WB" start b-001
 
-# --- gates: calls, provisional (agent) decisions, rounds ---------------------
+# --- gates: calls, rounds ---------------------------------------------------
 
 new_repo gates
 "$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
@@ -786,27 +786,22 @@ fill_evidence ".worktrees/$cid2-behind/workbench/items/bugs/$cid2-behind.md" "ru
 run "merge is behind main when code landed since" 1 "is behind main" "$WB" merge "$cid2" "behind"
 unconf premerge
 
-uid=$(newc bug "unattended"); "$WB" start "$uid" >/dev/null 2>&1
-wt=.worktrees/$uid-unattended
+uid=$(newc bug "awaiting"); "$WB" start "$uid" >/dev/null 2>&1
+wt=.worktrees/$uid-awaiting
 ( cd "$wt" && echo w > w.txt && git add -A && git commit -qm w )
-set_status "$wt/workbench/items/bugs/$uid-unattended.md" 'awaiting — the next deploy (agent)'
-( cd "$wt" && git commit -qam provisional )
-run "status lists a provisional status" 0 "provisional decisions \(agent\)" "$WB" status
-check "the provisional line names the item and the status" bash -c "'$WB' status | grep -q '^  $uid-unattended  *status: awaiting — the next deploy (agent)$'"
-check "main's as-started copy is not what status reads" bash -c "! grep -q '(agent)' workbench/items/bugs/$uid-unattended.md"
-run "merge accepts a provisional awaiting" 0 "merged $uid" "$WB" merge "$uid" "unattended"
-run "status still lists it, from main now" 0 "$uid-unattended  *status: awaiting — the next deploy \(agent\)" "$WB" status
-set_status "workbench/items/bugs/$uid-unattended.md" 'unverified — the next deploy (agent)'
-run "archive refuses a provisional status" 1 "was entered unattended; confirm it by deleting the '\(agent\)' marker" "$WB" archive "$uid"
-set_status "workbench/items/bugs/$uid-unattended.md" 'unverified — the next deploy'
-run "archive takes it once confirmed" 0 "archived $uid" "$WB" archive "$uid"
+set_status "$wt/workbench/items/bugs/$uid-awaiting.md" 'awaiting — the next deploy'
+( cd "$wt" && git commit -qam awaiting )
+run "merge accepts an awaiting status" 0 "merged $uid" "$WB" merge "$uid" "awaiting"
+run "status lists it merged and still awaiting" 0 "$uid-awaiting  *awaiting — the next deploy" "$WB" status
+set_status "workbench/items/bugs/$uid-awaiting.md" 'unverified — the next deploy'
+run "archive takes it" 0 "archived $uid" "$WB" archive "$uid"
 
 # --- round: the review dialog's accountant ------------------------------------
 # Round 2 always runs; after that the count decides, and the cap parks it.
 rd=$(newc bug "rounds"); rdf=workbench/items/bugs/$rd-rounds.md
 run "round 1 always asks for round 2" 0 "next: review again" "$WB" round "$rd" 0 0
 check "round writes the rounds line under the status line" bash -c "sed -n '/^status: /{n;p}' $rdf | grep -qx 'rounds: r1 0/0 · again'"
-run "a second round with one fix after a clean one stops" 0 "next: merge" "$WB" round "$rd" 1 0
+run "a second round with one fix after a clean one stops" 0 "next: ready — report the item to the user" "$WB" round "$rd" 1 0
 check "the line records both rounds and the decision" grep -qx 'rounds: r1 0/0 · r2 1/0 · stop' "$rdf"
 run "round refuses a count that is not a number" 1 "fixed and stands are counts" "$WB" round "$rd" x 0
 rd2=$(newc bug "rounds on"); rdf2=workbench/items/bugs/$rd2-rounds-on.md
@@ -870,10 +865,6 @@ run "status lists merged-then-abandoned as a fault, not silence" 0 "$ids-shipped
 touch main && git add main && git commit -qm "a file named for the branch"
 run "and refuses it with a file named 'main' in the tree" 1 "shipped work is not abandoned" "$WB" archive "$ids"
 git rm -q main && git commit -qm "drop the file named for the branch"
-# a provisional one is unarchivable
-idp=$(newc feature "unattended drop")
-set_status "workbench/items/features/$idp-unattended-drop.md" 'abandoned — looked pointless (agent)'
-run "archive refuses a provisional abandoned" 1 "entered unattended" "$WB" archive "$idp"
 
 # --- ideas land on the main checkout --------------------------------------
 

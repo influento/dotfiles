@@ -79,8 +79,15 @@ idea (workbench/BACKLOG.md line)
    reader needs to judge the claim — root cause, criterion, output — not
    the reasoning behind the code; that is in the code or the commit.
 
-9. **Some decisions are the user's, and an absent user does not transfer
-   them.** "Unattended runs" says what to do at each.
+9. **Some decisions are the user's.** How an item is sized, the criterion,
+   accepting a side effect, abandoning the work, a standing finding at the
+   round cap, and the merge. Ask. A question you cannot get answered is
+   `workbench call <id> "<the question, with options>"`, or `workbench call
+   - "<question>"` when it belongs to no item, which parks it where
+   `workbench status` lists it; a parked call stays parked — never resolve
+   it by doing more work under a new item, never reverse it because later
+   items made it look moot. A permission not on the allow-list is Claude
+   Code's refusal rather than a decision: park it, never work around it.
 
 10. **The project has no scratch folder.** A file that exists only for this
     session — a probe, a capture, a rendered page — goes to the scratchpad
@@ -95,28 +102,6 @@ item is created; none is yours to settle. Two more: allow-list entries are
 written only with the user's OK, and the glossary is seeded with the user's
 words, never yours.
 
-## Unattended runs
-
-The loop does not change; what changes is what happens at a decision that
-is the user's:
-
-| Decision | Unattended, do this |
-|---|---|
-| sizing needs confirming | take the item row when it fits; anything else, `workbench call - "<question>"` and move to work that is describable |
-| criterion agreed | run it RED, write it, `workbench call <id> "criterion: …"` in one line, and proceed |
-| merged, criterion cannot run yet | set `status: awaiting — <trigger> (agent)` or `unverified — <trigger> (agent)` and `workbench call <id>` naming the trigger. Never leave a merged item `open`; `status` lists that as a fault |
-| a parked call would unblock work | it stays parked. Do other work; never resolve it by doing more work under a new item, never reverse it because later items made it look moot |
-| the work looks not worth finishing | `workbench call <id> "abandon? …"` and move on. Never enter `abandoned` yourself, never delete the item |
-| a question only the user can answer | `workbench call <id> "<the question, with options>"`, then move to work that is describable |
-| a permission not on the allow-list | Claude Code refuses it and the refusal is what you see; park it with `workbench call`, never work around it |
-
-`(agent)` marks every provisional decision, in the file that holds it, and
-`workbench status` lists each with its open `## Decisions` line. The user
-confirms by deleting the marker, or overrules by editing the item. A
-question tied to no item (`workbench call -`) goes to
-`workbench/DECISIONS.md`. Nothing else records that a decision was
-provisional — not the backlog, not memory.
-
 ## Commands
 
 `/bug`, `/feature`, `/idea` and `/wb` are thin — the sizing check, the
@@ -130,8 +115,15 @@ the copy.
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
 workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
-workbench merge b-038 "<subject>"      # after the review dialog: squash, trailer, cleanup
+workbench merge b-038 "<subject>"      # the user's command, never yours: squash, trailer, cleanup
 ```
+
+**Neither merge nor archive is yours to start.** Both land work the user
+has not seen. When the review dialog ends and `round` says ready, report
+the item with its last round and stop — say what the merge would be, do
+not run it. The same for `archive`. Asked for either in so many words, run
+it: what is refused is taking the step yourself, not the command. Being
+told to work the item is not being told to merge it.
 
 IDs come from a counter shared by every worktree; never hand-pick one.
 The file lands in the main checkout wherever `new` runs. Between `new` and
@@ -177,9 +169,9 @@ which fed which.
 ## What is in flight
 
 `workbench status`: open items, merged and still `awaiting`, merged and
-still `open` (a fault — "Unattended runs"), decisions waiting in items and
-in `DECISIONS.md`, documents over their line cap, duplicate IDs. `git
-branch` cannot see the merged ones.
+still `open` (a fault), decisions waiting in items and in `DECISIONS.md`,
+documents over their line cap, duplicate IDs. `git branch` cannot see the
+merged ones.
 
 ## The review dialog
 
@@ -188,7 +180,7 @@ Every item — the work is done, then:
 ```
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
   findings → answered by number → each ends fixed / stands / withdrawn
-  workbench round <id> <fixed> <stands>   again → a new reviewer · merge → workbench merge · call → park it
+  workbench round <id> <fixed> <stands>   again → a new reviewer · ready → report it, the merge is the user's · call → park it
 ```
 
 The reviewer keeps its context across the exchange; a finding that stands
@@ -197,7 +189,7 @@ reviewer ran something on the branch and the output is wrong — and one the
 worker cannot reproduce from that demonstration is withdrawn, as at archive
 (`unreproduced`). Round two always runs; `round` decides the rest by count,
 records `rounds:` on the item, and at round @@REVIEW_ROUND_CAP@@ parks it: `workbench
-call <id>` with the standing finding, and the merge is the user's. A
+call <id>` with the standing finding, and the item is reported blocked. A
 finding outside the item's criterion and the mechanism it changed is
 `workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix
 on this branch; a shared function is fixed once, not per caller. No finding

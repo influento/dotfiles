@@ -21,5 +21,5 @@ The `workbench` skill's rules apply; load it if it is not in context.
    it, or `none`; the user agrees it with the criterion.
 4. Draft **How to confirm it is fixed**, run it on the unchanged tree so it
    is seen failing, and bring it to the user. Nothing else happens until
-   the criterion is agreed — unattended, as "Unattended runs" says.
+   the criterion is agreed.
 5. `workbench start <id>`, then work in the worktree it prints.

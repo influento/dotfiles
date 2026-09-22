@@ -78,10 +78,6 @@ verified and shipped. `unreproduced` and `unverified` are the only archive
 bypasses for a claim about code, and each archives a statement of what was
 *not* proved; `abandoned` makes no claim at all.
 
-A provisional status carries ` (agent)` at the end (SKILL.md, "Unattended
-runs"): `merge` reads the status the same with or without it; `archive`
-refuses it.
-
 **Merged and still `open`, with no branch, is not a state.** It is an item
 that merged with its criterion unrun and did not say so. `workbench status`
 lists it under its own heading; the repair is to archive it or give it the
@@ -100,5 +96,5 @@ trailer on main the item merged, and `archive` refuses the status.
 
 | Gate | Asks | Passes with |
 |---|---|---|
-| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the review dialog's question; the command checks that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen before merge — by the user, or by the agent with ` (agent)` when nobody is there |
+| merge (`workbench merge`) | has everything that *can* be verified now been verified? — the review dialog's question; the command checks that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen before merge — by the user, whose command `merge` is |
 | archive (`workbench archive`) | has the criterion been satisfied? — the command checks that a fenced block sits under Evidence, that the status is one of the five, and that no heading outside the template is present; not what the evidence shows | `open` with evidence recorded; `unreproduced`, `unverified` and `abandoned` without |

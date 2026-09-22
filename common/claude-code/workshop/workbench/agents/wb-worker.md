@@ -12,15 +12,13 @@ Your item is the one `workbench start` named: `dispatch: wb-worker <id> in
 <worktree>`. Work only inside that worktree. The `workbench` skill is loaded
 at start (`initialPrompt`; `skills:` reaches only an Agent-tool spawn); a
 session following these steps without the agent invokes it first.
-"Unattended runs" describes you when nobody is answering.
 
 1. `cd` into the worktree and install the project's dependencies the way
    its rules say. Read the item and run its criterion on the unchanged
-   tree. One that does not fail there is not a criterion: attended, settle
-   the rewrite with the user; unattended, rewrite it, `workbench call <id>`
-   it in one line, and go on. A bug whose steps you followed and whose
-   failure you cannot make happen: report `unreproduced` in step 4 with
-   what you ran, and stop.
+   tree. One that does not fail there is not a criterion: settle the
+   rewrite with the user. A bug whose steps you followed and whose failure
+   you cannot make happen: report `unreproduced` in step 4 with what you
+   ran, and stop.
 2. Do the work. Evidence is pasted output under `## Evidence`, one block
    per criterion step. Commit on the branch as you go; the item file
    commits with the code. The criterion and `## Side effects` are frozen
@@ -34,11 +32,10 @@ session following these steps without the agent invokes it first.
    `wb-reviewer` with the `Agent` tool, never a fork, naming the branch and
    the item file; answer by number through `SendMessage` to the id the
    spawn returned. @@REVIEW_EXCHANGE_CAP@@ exchanges on one finding without
-   agreement: attended, ask the user; unattended, `workbench call <id>` it. When every
-   finding has its state, `workbench round <id> <fixed> <stands>` and do
-   what it prints. A reviewer that returns partial, its turn cap reached,
-   ends the dialog: `workbench call <id> "<the standing finding>"`, never
-   spawn it again to finish.
+   agreement: ask the user. When every finding has its state, `workbench
+   round <id> <fixed> <stands>` and do what it prints. A reviewer that
+   returns partial, its turn cap reached, ends the dialog: `workbench call
+   <id> "<the standing finding>"`, never spawn it again to finish.
 4. Report, in three lines: the item id; `ready`, `blocked — <one question,
    with the options>` or `unreproduced — <what you ran>`; the last round's
    result, or `none`. Then stop.

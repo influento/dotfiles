@@ -516,8 +516,8 @@ write_decisions() {
   cat > "$1" <<'EOF'
 # Decisions
 
-<!-- One line per call that is the user's, was parked because they were not
-     there, and belongs to no item: 'workbench call - "<question>"'. A call
+<!-- One line per call that is the user's and belongs to no item:
+     'workbench call - "<question>"'. A call
      on an item goes under that item's '## Decisions' instead. The user
      answers by deciding, then deletes the line. Nothing here is a status
      report. -->
@@ -1144,7 +1144,7 @@ status: open
 ## Decisions
 
 <!-- Open questions only, one line each, written by 'workbench call <id>':
-     a call that is the user's, parked because they were not there. Answered
+     a call that is the user's, parked. Answered
      by editing the field it changes and deleting the line; archive refuses
      an item with one open. Delete this comment. -->
 
@@ -1193,7 +1193,7 @@ status: open
 ## Decisions
 
 <!-- Open questions only, one line each, written by 'workbench call <id>':
-     a call that is the user's, parked because they were not there. Answered
+     a call that is the user's, parked. Answered
      by editing the field it changes and deleting the line; archive refuses
      an item with one open. Delete this comment. -->
 
@@ -1938,10 +1938,6 @@ cmd_archive() {
   status=$(item_status "$path")
   known_status "$status" \
     || die "$id has 'status: $status', which is not a status; the archive takes 'open' (with evidence), 'unreproduced', 'unverified — <trigger>' or 'abandoned — <why>'"
-  # The archive is the locked record and takes no provisional decision.
-  case "$status" in
-    *"(agent)"*) die "$id's 'status: $status' was entered unattended; confirm it by deleting the '(agent)' marker, or change it, then archive" ;;
-  esac
   if [ "$discard" -eq 1 ]; then
     case "$status" in
       abandoned*) ;;
@@ -2156,7 +2152,7 @@ cmd_round() {
   echo "rounds: $entries"
   case "$decision" in
     again) echo "next: review again — a new reviewer, round $((k + 1))" ;;
-    stop) echo "next: merge — workbench merge $id \"<subject>\"" ;;
+    stop) echo "next: ready — report the item to the user; the merge is theirs" ;;
     call) echo "next: call — $cap rounds and still finding; workbench call $id with the standing findings, then report blocked" ;;
   esac
 }
@@ -2392,24 +2388,8 @@ cmd_status() {
   [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger"; printf '%s\n' "$await_body"; }
   [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body"; }
 
-  # Provisional decisions, from the copy that is the item.
-  local prov=() pf pl
-  for name in "${names[@]}"; do
-    pf=$(item_copy "$name")
-    [ -n "$pf" ] || continue
-    while IFS= read -r pl; do
-      [ -n "$pl" ] || continue
-      prov+=("$(printf '%-34s %s' "${name%.md}" "$pl")")
-    done < <(without_fences "$pf" | grep -E '^status:.*\(agent\)' | sed 's/[[:space:]]*$//' || true)
-  done
-  if [ "${#prov[@]}" -gt 0 ]; then
-    sep
-    echo "provisional decisions (agent) — confirm by deleting the marker, or overrule in the item"
-    printf '  %s\n' "${prov[@]}"
-  fi
-
   # Decisions parked in the items themselves, from the copy that is the item.
-  local dec=() dl
+  local dec=() dl pf
   for name in "${names[@]}"; do
     pf=$(item_copy "$name")
     [ -n "$pf" ] || continue

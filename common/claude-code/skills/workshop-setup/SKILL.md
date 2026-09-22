@@ -120,12 +120,11 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    what the full loop finds at 2.1× a bare session against the loop's 3.8×.
 
 6. **workbench, when the user wants it.** Tracked items, a criterion frozen
-   at `start`, parked calls for an absent user, an archive: `workbench init`
-   (greenfield) or `workbench adopt` (brownfield; refuses a dirty tree, then
-   prints the survey command). It renders the same `wb-reviewer.md` over the
-   copy from step 5. Commit: `workbench: init` or `workbench: adopt`. Ask;
-   never assume. Unattended, the loop parks what a bare session decides
-   itself, so it earns its cost where someone reads the items.
+   at `start`, parked calls, an archive: `workbench init` (greenfield) or
+   `workbench adopt` (brownfield; refuses a dirty tree, then prints the
+   survey command). It renders the same `wb-reviewer.md` over the copy from
+   step 5. Commit: `workbench: init` or `workbench: adopt`. Ask; never
+   assume — it earns its cost only where someone reads the items.
 
 7. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read the gate's command
