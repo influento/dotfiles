@@ -12,7 +12,7 @@ Surface architectural friction and propose **deepening opportunities**: refactor
 This command is _informed_ by the project's domain model and built on a shared design vocabulary:
 
 - Call the Skill tool with "codebase-design" for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly in every suggestion, and don't drift into "component," "service," "API," or "boundary."
-- The project's domain language (`workbench/GLOSSARY.md` when the repo has one) gives names to good seams. In a workbench repo this run is a research item: `workbench new research "deepen <area>"`, `workbench start` it, and read the archive's research items first — a concept there that ended `dropped` is a candidate not to re-suggest.
+- The project's domain language (its glossary when it has one) gives names to good seams.
 
 ## Process
 
@@ -54,8 +54,6 @@ End the report with a **Top recommendation** section: which candidate you'd tack
 
 **Use the glossary's vocabulary for the domain, and the codebase-design vocabulary for the architecture.** If the glossary defines "Order," talk about "the Order intake module," not "the FooBarHandler," and not "the Order service."
 
-In a workbench repo, each candidate is also a concept in the research item, `state: open`, in the same words as its card.
-
 See [HTML-REPORT.md](HTML-REPORT.md) for the full HTML scaffold, diagram patterns, and styling guidance.
 
 Do NOT propose interfaces yet. After the file is written, ask the user: "Which of these would you like to explore?"
@@ -64,11 +62,5 @@ Do NOT propose interfaces yet. After the file is written, ask the user: "Which o
 
 Once the user picks a candidate, read `~/.claude/skills/grilling/SKILL.md` and follow it (it is user-invoked, so the Skill tool cannot load it) to walk the decision tree with them: constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive.
 
-In a workbench repo the grilling ends in the item's concept states: the
-candidate the user takes ends `-> <id>`, a feature item opened with `/feature`
-whose **Why** cites the research id; a candidate rejected for a reason that
-should stop the next run ends `dropped — <why>`; the rest stay `open` for the
-next run. A deepened module named after a word not in the glossary coins it
-with the feature item (the workbench skill's glossary reference, "Coining").
 To explore alternative interfaces for the deepened module, use
 codebase-design's design-it-twice pattern.

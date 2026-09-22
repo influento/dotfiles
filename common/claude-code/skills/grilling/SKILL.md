@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Grill the user relentlessly about a plan, decision, or idea until every branch of the design tree is settled. Invoke as /grilling <topic> before opening a workbench item.
+description: Grill the user relentlessly about a plan, decision, or idea until every branch of the design tree is settled. Invoke as /grilling <topic>.
 argument-hint: "<plan, decision, or idea>"
 disable-model-invocation: true
 ---

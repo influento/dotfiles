@@ -6,9 +6,7 @@ description: Build a throwaway prototype that answers one design question. TRIGG
 # Prototype
 
 A prototype is throwaway code that answers one question. The question decides
-the shape; getting the shape wrong wastes the whole prototype. In a workbench
-repo it is built inside a research item's worktree, and the item's concepts
-carry the answer; archive discards or copies the code. Elsewhere, keep it on a
+the shape; getting the shape wrong wastes the whole prototype. Keep it on a
 throwaway branch and record the verdict where the decision lands.
 
 Two shapes:
