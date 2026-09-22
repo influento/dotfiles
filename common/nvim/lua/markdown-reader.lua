@@ -42,6 +42,76 @@ local function render(rbuf, sbuf, win)
   return map
 end
 
+local function following(rbuf, sbuf)
+  return reader[rbuf] ~= nil and reader[rbuf].src == sbuf
+end
+
+-- Rebuild the mirror where it stands. Replacing every line drops the cursor to
+-- the top of the replaced range, so the view is carried across by hand. Found
+-- with win_findbuf rather than bufwinid, which only looks in the current tab.
+local function refresh(rbuf, sbuf)
+  local win = vim.fn.win_findbuf(rbuf)[1]
+  if not win or not vim.api.nvim_buf_is_valid(sbuf) then return end
+  vim.api.nvim_win_call(win, function()
+    local view = vim.fn.winsaveview()
+    render(rbuf, sbuf, win)
+    vim.fn.winrestview(view)
+  end)
+end
+
+-- The mirror is built once, from a source buffer nobody is looking at, so a
+-- change to the file -- an agent rewriting it, git -- showed only after leaving
+-- the reader and coming back. Two halves fix that. The directory watch pulls an
+-- outside write into the source buffer: the checktime autocmds fire only on
+-- focus and idle, so a page you are just watching would never pick it up. It
+-- watches the directory, not the file, because an atomic save renames a new
+-- file over the old one and a watch on the old inode goes quiet. The buffer
+-- attachment then re-renders on any change to the source, however it arrived.
+local function follow(rbuf, sbuf)
+  local function debounced(fn)
+    local pending = false
+    return function()
+      if pending then return end
+      pending = true
+      -- One save is several events (truncate, write, close); act once, after.
+      vim.defer_fn(function()
+        pending = false
+        fn()
+      end, 100)
+    end
+  end
+
+  local rerender = debounced(function()
+    if following(rbuf, sbuf) then refresh(rbuf, sbuf) end
+  end)
+  vim.api.nvim_buf_attach(sbuf, false, {
+    on_lines = function()
+      if not following(rbuf, sbuf) then return true end -- detach
+      rerender()
+    end,
+    on_reload = function() rerender() end,
+  })
+
+  local path = vim.api.nvim_buf_get_name(sbuf)
+  local watcher = path ~= "" and vim.uv.new_fs_event() or nil
+  if not watcher then return end
+  local reload = debounced(function()
+    if following(rbuf, sbuf) then vim.cmd.checktime(tostring(sbuf)) end
+  end)
+  local name = vim.fs.basename(path)
+  watcher:start(vim.fs.dirname(path), {}, function(err, fname)
+    if not err and fname == name then vim.schedule(reload) end
+  end)
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = rbuf,
+    once = true,
+    callback = function()
+      watcher:stop()
+      watcher:close()
+    end,
+  })
+end
+
 -- Reading or editing is a mode for the whole session, not a per-file memory:
 -- leaving the reader means "I am editing now", so the next markdown file opens
 -- raw too. One <leader>z puts you back into reading for good. Set
@@ -135,6 +205,7 @@ local function open()
 
   mdtable.set_highlights()
   local map = render(rbuf, sbuf, win)
+  follow(rbuf, sbuf)
 
   local target = math.max(1, math.min(map[cursor] or 1, vim.api.nvim_buf_line_count(rbuf)))
   vim.api.nvim_win_set_cursor(win, { target, 0 })
