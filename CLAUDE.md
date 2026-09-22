@@ -1,31 +1,5 @@
 # Dotfiles
 
-<!--toc:start-->
-- [Dotfiles](#dotfiles)
-  - [Project Overview](#project-overview)
-  - [How It Works](#how-it-works)
-    - [Profiles](#profiles)
-    - [Deployment Method](#deployment-method)
-    - [Config Mapping](#config-mapping)
-  - [Theming System](#theming-system)
-    - [How It Works](#how-it-works-1)
-    - [Token Syntax](#token-syntax)
-    - [Theme Selection](#theme-selection)
-    - [Adding a New Theme](#adding-a-new-theme)
-    - [Adding Colors to a Config](#adding-colors-to-a-config)
-    - [Template Files](#template-files)
-  - [What Each Tool Does](#what-each-tool-does)
-    - [Common (all profiles)](#common-all-profiles)
-    - [Server only](#server-only)
-    - [Workstation only](#workstation-only)
-  - [Claude Code Skills](#claude-code-skills)
-  - [Code Conventions](#code-conventions)
-  - [Commands](#commands)
-  - [Editing Configs](#editing-configs)
-    - [Adding New Configs](#adding-new-configs)
-  - [Documentation](#documentation)
-<!--toc:end-->
-
 ## Project Overview
 
 Profile-driven, idempotent dotfiles manager for user-level configuration. Part of a
