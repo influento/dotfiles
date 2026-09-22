@@ -35,18 +35,17 @@ already_restored() {
   [ "$(tmux show-options -gv "$restored_flag" 2>/dev/null || true)" = "1" ]
 }
 
-# A server holding nothing but the bare `main` this script creates, or the
-# wb-* session `workbench lead` starts, is one a restore may fill. Anything
-# else is live work, and restoring onto it is never right whatever the flag
-# says: tmux-resurrect names windows by index, so on a layout that has since
-# closed windows and renumbered it stamps saved names on the wrong windows,
-# with automatic-rename off, and they keep them for good.
+# A server holding nothing but the bare `main` this script creates is one a
+# restore may fill. Anything else is live work, and restoring onto it is
+# never right whatever the flag says: tmux-resurrect names windows by index,
+# so on a layout that has since closed windows and renumbered it stamps saved
+# names on the wrong windows, with automatic-rename off, and they keep them
+# for good.
 server_is_bare() {
   local name windows
   while IFS=$'\t' read -r name windows; do
     case "$name" in
       main) [ "$windows" -le 1 ] || return 1 ;;
-      wb-*) ;;
       *) return 1 ;;
     esac
   done < <(tmux list-sessions -F $'#{session_name}\t#{session_windows}' 2>/dev/null 9>&-)

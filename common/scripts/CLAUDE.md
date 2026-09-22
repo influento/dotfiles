@@ -56,11 +56,6 @@ What the config wires (`common/tmux/tmux.conf.tpl`, "Attention"):
 | `client-focus-in` | `status`: sweep and recount when the terminal regains focus |
 | `after-split-window`, `after-kill-pane`, `pane-exited` | `borders`: `pane-border-status top` only while the window is split |
 
-In `wb-*` sessions the window-list glyph is suppressed by the format itself
-(`#{m:wb-*,#{session_name}}`) because workbench titles those windows, and
-`claude-tmux` sets flags there `--quiet` because workbench already notifies.
-The picker, jump and counts still include them.
-
 Notifications go through `notify-send` when present, for `needs-you` and
 `done` only, after a one-second settle that re-reads the state, and never for
 the pane that is on screen in a focused client. Clicking one runs `jump
@@ -81,15 +76,14 @@ plus the `session:window.pane` target that `sync` refreshes after each save. The
 reports `other`, which is what a reboot looks like; so does a finished
 `claude -p`, which is why a record alone never triggers a resume.
 
-Outside `wb-*` sessions the Stop hook also names the window from the first
-prompt — its first three words after any opener ("can you", "please"), cut
-at 15 characters and trimmed of trailing space — but only while the window still has tmux's automatic
-name: a rename turns `automatic-rename` off, and that option is the whole
+The Stop hook also names the window from the first prompt — its first
+three words after any opener ("can you", "please"), cut at 15 characters and
+trimmed of trailing space — but only while the window still has tmux's
+automatic name: a rename turns `automatic-rename` off, and that option is the whole
 check, so a name the user set is never touched and a window named once is
 never renamed again. The name is kept in the record and in the window option
 `@claude_title`, and SessionEnd sets `automatic-rename` back on when the
 window still carries it, so a window whose claude ended names itself again.
-Workbench windows are titled by workbench.
 
 A title must never outlive its claude, and two things would let it.
 tmux-resurrect saves a titled window as user-named and restores names by
@@ -117,8 +111,7 @@ re-applies the flag.
 What comes back is information, not a live prompt: a pending permission or
 question is gone with the process, so the pane returns as `needs-you`
 "before restart: …"; a turn cut mid-work returns as `needs-you` "interrupted
-mid-turn"; an unread `done` stays `done`. Panes in `wb-*` sessions are left
-to `workbench open`, which resumes with the worker's own flags. `claude` is
+mid-turn"; an unread `done` stays `done`. `claude` is
 deliberately not in `@resurrect-processes`: resurrect would relaunch it bare
 and lose the conversation.
 

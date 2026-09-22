@@ -63,12 +63,11 @@ bind X confirm-before -p "kill session #S? (y/n)" "run-shell 'tmux switch-client
 # Panes flag themselves through tmux-attention; Claude Code does it via the
 # hooks in common/claude-code/settings.json. The glyph sits before the window
 # name, the counts on the status right, and split windows label their panes.
-# In wb-* sessions workbench titles the windows itself, so no glyph there.
 set -g @attention_fg_needs_you "@@RED@@"
 set -g @attention_fg_done "@@GREEN@@"
 set -g @attention_fg_working "@@BLUE@@"
 set -g @attention_fg_dim "@@OVERLAY0@@"
-set -g @attention_glyph "#{?#{m:wb-*,#{session_name}},,#{?#{==:#{@attention_win},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention_win},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention_win},working},#[fg=@@BLUE@@]● ,}}}}"
+set -g @attention_glyph "#{?#{==:#{@attention_win},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention_win},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention_win},working},#[fg=@@BLUE@@]● ,}}}"
 set -g @attention_pane_glyph "#{?#{==:#{@attention},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention},working},#[fg=@@BLUE@@]● ,}}}"
 bind f run-shell -b "tmux-attention popup #{client_name}"
 bind o run-shell "tmux-attention jump"
