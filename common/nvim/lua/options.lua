@@ -23,6 +23,9 @@ opt.hlsearch = true
 -- Appearance
 opt.termguicolors = true
 opt.signcolumn = "yes"
+-- One-cell sign lane, and numbers only as wide as the file needs: lua/statuscolumn.lua
+opt.statuscolumn = "%!v:lua.require'statuscolumn'.render()"
+opt.numberwidth = 1
 opt.cursorline = true
 opt.scrolloff = 8
 opt.sidescrolloff = 8
