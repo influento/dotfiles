@@ -48,6 +48,27 @@ end
 -- vim.g.markdown_reader_auto = false to start in editing mode instead.
 local auto = vim.g.markdown_reader_auto ~= false
 
+local M = {}
+
+-- Open one named file raw, without touching `auto` -- the session stays in
+-- reading mode, this one file does not. :EditAt uses it so lazygit's `e` lands
+-- on editable source at the exact line.
+--
+-- Keyed by path rather than a bare "skip the next one" flag: opening a file runs
+-- several window-enters (`:tab drop` enters the new tab's empty buffer first)
+-- and reading it from disk can pump the event loop, so neither "the next one"
+-- nor "clear it on the next tick" identifies the right buffer. A path does.
+local skip = {} ---@type table<string, true>
+function M.suppress(path)
+  local key = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
+  skip[key] = true
+  -- The entry only has to outlive one `:drop`, which fires BufWinEnter twice for
+  -- the same buffer. By then the buffer carries b:markdown_reader_edit and no
+  -- longer needs the path, so a later, unrelated open of the same file reads
+  -- normally instead of inheriting this one's intent.
+  vim.defer_fn(function() skip[key] = nil end, 500)
+end
+
 -- Where the file sits in the repository, which is what identifies it -- a bare
 -- basename does not distinguish the four CLAUDE.md files in this tree. Falls back
 -- to a ~-relative path outside a repo.
@@ -180,6 +201,8 @@ vim.api.nvim_create_user_command("MarkdownRead", function()
     close()
   else
     auto = true
+    -- Asking for the reader by hand overrides having arrived here through :EditAt.
+    vim.b[vim.api.nvim_get_current_buf()].markdown_reader_edit = nil
     open()
   end
 end, { desc = "Toggle the rendered markdown view" })
@@ -204,6 +227,15 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
   callback = function(args)
     if not auto or vim.bo[args.buf].filetype ~= "markdown" then return end
     if vim.bo[args.buf].buftype ~= "" or reader[args.buf] then return end
+    -- Opened for editing: by :EditAt just now, or earlier in this buffer's life.
+    -- Buffer-scoped rather than one-shot so that leaving the tab and coming back
+    -- does not quietly turn the file being edited into the rendered view.
+    -- <leader>z still works -- MarkdownRead clears the mark.
+    if vim.b[args.buf].markdown_reader_edit then return end
+    if skip[vim.fs.normalize(vim.api.nvim_buf_get_name(args.buf))] then
+      vim.b[args.buf].markdown_reader_edit = true
+      return
+    end
     local win = vim.api.nvim_get_current_win()
     if vim.api.nvim_win_get_buf(win) ~= args.buf or vim.wo[win].diff then return end
     -- Deferred, so the buffer under the cursor may have moved on by the time this
@@ -230,3 +262,5 @@ vim.api.nvim_create_autocmd("ColorScheme", {
     if next(reader) then mdtable.set_highlights() end
   end,
 })
+
+return M
