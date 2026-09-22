@@ -30,11 +30,11 @@ set -euo pipefail
 # Every flag is set --owner claude, so a claude that dies without SessionEnd
 # firing takes its flag with it on the next tmux-attention sweep.
 #
-# Outside workbench a window running claude is named "claude" like every
-# other. On Stop, while the window still carries tmux's automatic name, it
-# takes the first words of the first prompt; SessionEnd hands the name back
-# to tmux when it is still the one set here. A window the user named is never
-# touched: renaming turns automatic-rename off, and that is the check.
+# A window running claude is named "claude" like every other. On Stop,
+# while the window still carries tmux's automatic name, it takes the first
+# words of the first prompt; SessionEnd hands the name back to tmux when it
+# is still the one set here. A window the user named is never touched:
+# renaming turns automatic-rename off, and that is the check.
 #
 # A title must not outlive its claude. tmux-resurrect saves a titled window
 # as user-named and restores names by window index, so after windows close
@@ -54,9 +54,7 @@ set -euo pipefail
 # you know to answer or say "continue". A turn cut mid-work comes back as
 # needs-you "interrupted mid-turn". An unread done stays done.
 #
-# Outside tmux every subcommand exits 0 silently. In wb-* sessions workbench
-# owns the window title and the needs-you notification, so flags there are set
-# --quiet and restore leaves those panes to `workbench open`.
+# Outside tmux every subcommand exits 0 silently.
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-tmux"
 
@@ -158,20 +156,11 @@ record_drop() { rm -f "$(record_path "$1")"; }
 # mark <field=value>...: this pane's record, its target refreshed.
 mark() { record_write "$(pane_key)" "target=$(pane_target)" "$@"; }
 
-in_workbench_session() {
-  case "$(tmux display -p -t "$TMUX_PANE" '#{session_name}' 2>/dev/null || true)" in
-    wb-*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 # The flag belongs to the claude process: tmux-attention drops it on its own
 # once the pane's foreground command is something else, which is what a
 # crash, an OOM kill or a closed terminal look like when no SessionEnd fires.
 flag() {
-  local quiet=()
-  ! in_workbench_session || quiet=(--quiet)
-  tmux-attention set "$@" --pane "$TMUX_PANE" --owner claude "${quiet[@]}"
+  tmux-attention set "$@" --pane "$TMUX_PANE" --owner claude
 }
 
 # --- window title ------------------------------------------------------------
@@ -219,7 +208,6 @@ PY
 # names it automatically. Records the name so `end` can tell it apart from
 # one the user set later.
 title_window() {
-  ! in_workbench_session || return 0
   [ "$(tmux display -p -t "$TMUX_PANE" '#{automatic-rename}' 2>/dev/null || true)" = 1 ] || return 0
   local key transcript title
   key=$(pane_key)
@@ -424,7 +412,6 @@ cmd_restore() {
       rm -f "$f"
       continue
     fi
-    case "$target" in wb-*) continue ;; esac
     grep -qxF "$target" <<< "$saved" || continue
     IFS=$'\t' read -r id cmd path < <(tmux display -p -t "$target" $'#{pane_id}\t#{pane_current_command}\t#{pane_current_path}' 2>/dev/null || true)
     case "$cmd" in zsh|bash|fish|sh) ;; *) continue ;; esac
