@@ -49,7 +49,7 @@ window#waybar {
 #custom-calendar,
 #custom-timer,
 #language,
-#network,
+#custom-network,
 #pulseaudio,
 #battery,
 #custom-bluetooth,
@@ -99,7 +99,7 @@ window#waybar {
   font-weight: bold;
 }
 
-#network {
+#custom-network {
   color: @@TEAL@@;
 }
 
@@ -111,8 +111,25 @@ window#waybar {
   color: @@SUBTEXT0@@;
 }
 
-#network.disconnected {
+#custom-network.disconnected,
+#custom-network.disabled {
   color: @@SUBTEXT0@@;
+}
+
+/* A connectivity problem outranks the VPN highlight: it comes later. */
+#custom-network.vpn {
+  color: @@GREEN@@;
+  background-color: @@SURFACE0@@;
+}
+
+#custom-network.portal,
+#custom-network.limited {
+  color: @@YELLOW@@;
+}
+
+#custom-network.none,
+#custom-network.error {
+  color: @@RED@@;
 }
 
 #custom-stale-kernel.active {

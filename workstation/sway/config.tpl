@@ -192,7 +192,7 @@ exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 exec wl-paste --watch cliphist store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
-exec nm-applet --indicator
+exec network-agent
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus dropbox
 # Screenshots live for one session: clear the previous session's on start.
 # exec, not exec_always -- a config reload must not wipe them mid-session.
