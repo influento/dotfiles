@@ -1,6 +1,6 @@
 ---
 name: densify
-description: Losslessly restructure a markdown document so every fact becomes findable — prose into tables, obligations onto their own lines, conditions into "cond → outcome". Nothing recoverable is dropped, so use it when the document must survive intact: specs, RFCs, ADRs, runbooks, audit and handoff material, contracts, meeting notes. Triggers on "make this tighter", "denser", "more scannable", "restructure", "tabulate", or a request to make a document usable under time pressure. This is a readability transform, not a compression one — measured size change on already-dense material is 4–11%. If the goal is fitting a context budget by deleting over-explanation, use debloat instead.
+description: Losslessly restructure a markdown document so every fact becomes findable — prose into tables, obligations onto their own lines, conditions into "cond → outcome". Nothing recoverable is dropped, so use it when the document must survive intact: specs, RFCs, ADRs, runbooks, audit and handoff material, contracts, meeting notes. Triggers on "make this tighter", "denser", "more scannable", "restructure", "tabulate", or a request to make a document usable under time pressure. This is a readability transform, not a compression one — measured size change on already-dense material is 4–11%. If the goal is fitting a context budget by deleting over-explanation, this is the wrong tool.
 ---
 
 # densify
@@ -27,7 +27,7 @@ These three are one consistent version. The threshold rule and Gate 4 were added
 
 Read the first row before the second. Forty to fifty per cent of these documents is protected mass — inline code, identifiers, numerals with units, obligation keywords — which a lossless rewrite may not touch. A 4.9% cut on a document that is half untouchable is 9.3% of everything that could have gone.
 
-So the deliverable is a document where an operator under a page deadline finds the threshold in one scan instead of four paragraphs, and where every obligation sits on its own line. The size change is a footnote. A user who needs a document to fit a context budget is asking for `debloat`, and should be told so.
+So the deliverable is a document where an operator under a page deadline finds the threshold in one scan instead of four paragraphs, and where every obligation sits on its own line. The size change is a footnote. A user who needs a document to fit a context budget is asking for a cut, not this transform, and should be told so.
 
 **Report the protected share alongside any size figure.** Without it the number is uninterpretable and reads as failure. Five successive versions of this skill were measured on these documents and the spread was 1.9% to 17.5% of glue — the differences came almost entirely from whether the telegraphic pass was applied exhaustively and whether splits were paired with hoists, not from anything the reader would call effort.
 
@@ -359,7 +359,7 @@ Say so plainly rather than damaging the document:
 | Persuasive or narrative documents                            | Rhetoric is the payload                                 |
 | Legal, contractual, safety, or compliance text               | Redundancy there is deliberate and load-bearing         |
 | Already fully tabular (a doc that is 60%+ table rows)        | Steps 3 and 4 have nothing to convert; say so           |
-| The user's stated goal is a context budget                   | Wrong tool — route to `debloat` and say why          |
+| The user's stated goal is a context budget                   | Wrong tool — a plain cut does it; see Report format     |
 
 Note what is **not** on this list: "already-dense reference (API docs, specs)". Those are this skill's primary target, not a refusal. A spec is exactly the document where obligations need to be individually findable and where nothing may be deleted.
 
@@ -383,4 +383,4 @@ flags     §3.1 and §5.1 contradict on the sh01 pool ceiling (60 vs 40) —
           present in the original, both preserved verbatim, not reconciled
 ```
 
-If the size figure is small, state it without apology and without hunting for more. If the user wanted a budget saving, tell them this transform does not produce one and name `debloat`.
+If the size figure is small, state it without apology and without hunting for more. If the user wanted a budget saving, tell them this transform does not produce one, and that a plain request does: cut the over-explanation and keep every must/should/may/never with its strength word unchanged.
