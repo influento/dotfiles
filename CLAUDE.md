@@ -217,7 +217,7 @@ Skills are split into two trees under `common/claude-code/`:
 
 | Tree               | Deployed                                  | Contents                                                                                                                                                                                                                          |
 | ------------------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `skills/`          | symlinked to `~/.claude/skills/` (global) | `bugfix`, `caveman`, `codebase-design`, `debloat`, `deepen`, `densify`, `docx`, `frontend-design`, `grilling`, `human-like-text`, `indexer`, `pdf`, `private-remote`, `prototype`, `resolving-merge-conflicts`, `show-me`, `simple-english`, `skill-creator`, `wat`, `write-a-skill`, `writing-for-agents` |
+| `skills/`          | symlinked to `~/.claude/skills/` (global) | `bugfix`, `codebase-design`, `debloat`, `deepen`, `densify`, `docx`, `frontend-design`, `grilling`, `human-like-text`, `indexer`, `pdf`, `private-remote`, `prototype`, `resolving-merge-conflicts`, `show-me`, `skill-creator`, `wat`, `write-a-skill`, `writing-for-agents` |
 | `workshop/`         | only `workbench/bin/workbench` and `stack/bin/stack` → `~/.local/bin/` | The tools installed into a project, whole: `workbench/` (CLI, its two skills, agents, commands, tests; rendered in by `workbench init`), `stack/` (the CLI for the libraries, toolkits and tools a project chooses one at a time with `stack add`: a rule, skills from the registry or skills.sh, a dependency, a read-only subtree under `repos/` when the source is worth reading, a CLAUDE.md line), and the registry by language: `typescript/` (`gate/`, the TypeScript Stop-hook gate copied in by its `install.sh`, with the `packages/` written against it) and `general/packages/` (no language). Never linked — see `common/claude-code/workshop/CLAUDE.md` |
 | `skills-optional/` | never deployed — opted into per project   | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
 
@@ -229,7 +229,7 @@ is having many descriptions compete as classifiers, so a language- or project-sp
 skill misfires in an unrelated repo.
 
 Rule of thumb: a skill is **global** if it modifies how Claude writes or responds
-anywhere (registers like `caveman`, `indexer`, `human-like-text`) or handles a file
+anywhere (registers like `indexer`, `human-like-text`) or handles a file
 format with no natural home repo (`docx`, `pdf`). It is **optional** if it only makes
 sense inside one kind of project (`go/` in Go repos, `manim` in animation projects,
 `excalidraw` in the Obsidian vault, `build-cv` when writing a CV).
