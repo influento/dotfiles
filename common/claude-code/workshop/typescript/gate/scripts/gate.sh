@@ -67,7 +67,7 @@ npx knip --config ts-gate/knip.json || FAIL=1
 # 4. Structure: cycles, barrel chains, layers. Repo-wide, zero tolerance.
 npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 
-# 5. Tests: vitest only; jest projects get the eslint plugin alone.
+# 5. Tests, when the project has vitest.
 if grep -q '"vitest"' package.json; then
   VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude 'workbench/**' --exclude '**/*.live.test.*')
   case "$MODE" in

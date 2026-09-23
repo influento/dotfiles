@@ -90,13 +90,13 @@ const noDoubleAssertion = selectorRule("no double assertion through unknown", [
   ['TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]', "Double assertion through unknown. Fix the type instead."],
 ]);
 
-// `vi.mock` / `jest.mock` replaces a module wholesale: the test then proves
+// `vi.mock` / `vi.doMock` replaces a module wholesale: the test then proves
 // the mock, and the seam the code should have (a Layer, an injected
 // interface) never gets written. Spies and `vi.fn` stay: they fake at a
 // boundary the caller chose.
 const noModuleMock = selectorRule("no module mocking", [
   [
-    'CallExpression[callee.object.name=/^(vi|jest)$/][callee.property.name=/^(mock|doMock|unstable_mockModule)$/]',
+    'CallExpression[callee.object.name="vi"][callee.property.name=/^(mock|doMock)$/]',
     "Module mocking. Reach the dependency through a seam the code has: a Layer, an injected interface, or a fake at a boundary not ours (an external service, time, randomness).",
   ],
 ]);

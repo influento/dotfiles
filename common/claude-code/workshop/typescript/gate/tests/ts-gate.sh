@@ -114,7 +114,7 @@ check "the gate script is in the project" test -f ts-gate/scripts/gate.sh
 check "the manifest records no runner" [ "$(json ts-gate/.install.json 'j.runner')" = "" ]
 check "the manifest lists the deps install added" [ "$(json ts-gate/.install.json 'j.deps.includes("knip")')" = true ]
 check "knip ignores repos/** and .worktrees/**" bash -c "grep -q 'repos/\*\*' ts-gate/knip.json && grep -q '\.worktrees/\*\*' ts-gate/knip.json"
-check "no runner: knip.json has no runner key" [ "$(json ts-gate/knip.json '"vitest" in j || "jest" in j')" = false ]
+check "no runner: knip.json has no vitest key" [ "$(json ts-gate/knip.json '"vitest" in j')" = false ]
 check "allow rules name the gate scripts a worker may run" bash -c "grep -q 'Bash(npm run gate:local)' .claude/settings.json && grep -q 'Bash(npm run gate:fix)' .claude/settings.json"
 check "allow rules do not cover gate:verify, which runs a model" bash -c "! grep -q 'npm run gate:\*' .claude/settings.json"
 check "premerge is written to .claude/workshop.conf" grep -qx 'premerge=npm run gate' .claude/workshop.conf
@@ -124,7 +124,7 @@ check "guards name the gate and tsc" bash -c "git config workbench.guards | grep
 git add -A && git commit -qm "ts-gate: install"
 
 echo "== the installer, the rules and the tests stay in the source; a copy left by an older install refuses to run"
-for f in install.sh uninstall.sh biome.template.json knip.runners.json rules tests CLAUDE.md; do check "ts-gate/$f is not copied into the project" test ! -e "ts-gate/$f"; done
+for f in install.sh uninstall.sh biome.template.json knip.vitest.json rules tests CLAUDE.md; do check "ts-gate/$f is not copied into the project" test ! -e "ts-gate/$f"; done
 check "the rules landed in .claude/rules" test -f .claude/rules/ts-lean-code.md
 cp "$SRC/install.sh" ts-gate/install.sh
 run "the project copy refuses to run" 1 "dotfiles source" bash ts-gate/install.sh .
@@ -198,10 +198,9 @@ check "the vitest block comes before the gate's spread" bash -c "[ \"\$(grep -n 
 check "the manifest lists the plugin the re-install added" [ "$(json ts-gate/.install.json 'j.deps.includes("@vitest/eslint-plugin")')" = true ]
 check "vitest.config.mjs is written and owned" bash -c "test -f vitest.config.mjs && [ \"$(json ts-gate/.install.json 'j.vitest.file')\" = vitest.config.mjs ]"
 check "and ignores workbench/**" grep -q '"workbench/\*\*"' vitest.config.mjs
-# runner_key <runner>: the entry install writes for it into ts-gate/knip.json.
-runner_key() { node -p "JSON.stringify({entry:[...require('$SRC/knip.runners.json').$1,'!workbench/**']})"; }
-check "knip's vitest entry is its defaults plus !workbench/**" [ "$(json ts-gate/knip.json 'JSON.stringify(j.vitest)')" = "$(runner_key vitest)" ]
-check "and no jest key, which would switch jest's plugin on" [ "$(json ts-gate/knip.json '"jest" in j')" = false ]
+# vitest_key: the entry install writes for vitest into ts-gate/knip.json.
+vitest_key() { node -p "JSON.stringify({entry:[...require('$SRC/knip.vitest.json').entry,'!workbench/**']})"; }
+check "knip's vitest entry is its defaults plus !workbench/**" [ "$(json ts-gate/knip.json 'JSON.stringify(j.vitest)')" = "$(vitest_key)" ]
 check "the runner's allow rule is added" grep -q 'Bash(npx vitest:\*)' .claude/settings.json
 check "test:live is set" grep -q '"test:live"' package.json
 git add -A && git commit -qm "vitest"
@@ -212,7 +211,7 @@ run "re-install" 0 "" bash "$SRC/install.sh" .
 check "entry survives the re-install" [ "$(json ts-gate/knip.json 'j.entry[0]')" = src/main.ts ]
 check "ignore survives" [ "$(json ts-gate/knip.json 'j.ignore.includes("src/legacy/**")')" = true ]
 check "ignoreDependencies survives" [ "$(json ts-gate/knip.json 'j.ignoreDependencies.includes("effect")')" = true ]
-check "the vitest key is written again, once" [ "$(json ts-gate/knip.json 'JSON.stringify(j.vitest)')" = "$(runner_key vitest)" ]
+check "the vitest key is written again, once" [ "$(json ts-gate/knip.json 'JSON.stringify(j.vitest)')" = "$(vitest_key)" ]
 git add -A && git commit -qm "knip entry"
 
 echo "== re-install warns when a config it wrote was edited to take workbench/** back in"
@@ -379,20 +378,11 @@ rm eslint.config.js
 sed -i 's|"\^workbench/"|"^elsewhere/"|' ts-gate/.dependency-cruiser.cjs
 run "a kept architecture record without no-workbench is warned" 0 "WARNING: ts-gate/.dependency-cruiser.cjs has no no-workbench rule" bash "$SRC/install.sh" .
 
-echo "== jest: knip's jest entry, the lines for jest's own config, and an app's vite.config left alone"
-mkproj "$TMP/p5" '{"jest":"^30.0.0"}'
+echo "== no runner: an app's vite.config left alone"
+mkproj "$TMP/p5"
 echo 'export default {};' > vite.config.ts && git add -A && git commit -qm vite
 out=$(bash "$SRC/install.sh" . 2>&1)
-check "install sees jest" grep -q 'runner: jest' <<< "$out"
-check "knip's jest entry is its defaults plus !workbench/**" [ "$(json ts-gate/knip.json 'JSON.stringify(j.jest)')" = "$(runner_key jest)" ]
-check "and no vitest key" [ "$(json ts-gate/knip.json '"vitest" in j')" = false ]
-check "jest is told to leave workbench/, .worktrees/ and repos/ out" grep -qF 'testPathIgnorePatterns: ["/node_modules/", "<rootDir>/workbench/", "<rootDir>/.worktrees/", "<rootDir>/repos/"]' <<< "$out"
 check "a vite.config.ts that is not a test config is not warned about" lacks "$out" "vite.config"
-echo 'module.exports = { testPathIgnorePatterns: ["/node_modules/", "<rootDir>/workbench/"] };' > jest.config.js
-check "a jest config that leaves workbench/ out gets no lines" bash -c "! bash '$SRC/install.sh' . 2>&1 | grep -q testPathIgnorePatterns"
-rm jest.config.js
-node -e 'const fs=require("fs"),p=JSON.parse(fs.readFileSync("package.json"));p.jest={testPathIgnorePatterns:["/node_modules/","<rootDir>/workbench/"]};fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
-check "nor does package.json's jest key that does" bash -c "! bash '$SRC/install.sh' . 2>&1 | grep -q testPathIgnorePatterns"
 
 echo "== vitest with the project's own vite.config: the lines to add, once"
 mkproj "$TMP/p6" '{"vitest":"^5.0.0"}'
@@ -439,11 +429,9 @@ else
   check "lint.complexity=3: complexity 3 passes" bash -c "$(declare -f reports); ESL='$ESL'; ! reports three cognitive-complexity"
   check "and 4 is reported" reports four "from 4 to the 3 allowed"
 
-  # knip.runners.json repeats knip's own entry defaults; a knip that moves
+  # knip.vitest.json repeats knip's own entry defaults; a knip that moves
   # them fails here (knip@6 floats).
-  for r in vitest jest; do
-    check "knip.runners.json's $r list is the installed knip's" [ "$(node --input-type=module -e "const m = await import('$TSGATE_REAL_PROJECT/node_modules/knip/dist/plugins/$r/index.js'); console.log(JSON.stringify(m.default.entry))")" = "$(node -p "JSON.stringify(require('$SRC/knip.runners.json').$r)")" ]
-  done
+  check "knip.vitest.json's list is the installed knip's" [ "$(node --input-type=module -e "const m = await import('$TSGATE_REAL_PROJECT/node_modules/knip/dist/plugins/vitest/index.js'); console.log(JSON.stringify(m.default.entry))")" = "$(node -p "JSON.stringify(require('$SRC/knip.vitest.json').entry)")" ]
   # A spike's test is no use of the project's code.
   printf 'export const used = 1;\nexport const onlySpikeUses = 2;\n' > src/lib.ts
   printf 'import { used } from "./lib.ts";\nexport const x = used;\n' > src/index.ts

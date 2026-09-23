@@ -24,12 +24,12 @@ and for wb-reviewer.
 
 Install refuses outside git. Then:
 
-- `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json`, `knip.runners.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry` and writing its runner key again (Touchpoints), and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
-- Dependencies by lockfile (`typescript` included); the test plugin by runner (vitest also gets the test step in the gate; jest the plugin only).
+- `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json`, `knip.vitest.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry` and writing its `vitest` key again (Touchpoints), and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
+- Dependencies by lockfile (`typescript` included); `@vitest/eslint-plugin` when `vitest` is in `package.json`, which also gives the gate its test step.
 - The npm scripts above.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone; for a project's own, install prints what to merge (Install output).
 - `rules/ts-*.md` → `.claude/rules/`.
-- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` or `npx jest` by runner. A re-run replaces the hook entry and keeps its `timeout` (600 for a new entry).
+- One `Stop` hook and the `permissions.allow` rules in `.claude/settings.json`: `npm ci`, `npm run gate`, `gate:local`, `gate:full`, `gate:fix` (not `gate:verify`, which runs a model), `npm test`, and `npx vitest` with vitest. A re-run replaces the hook entry and keeps its `timeout` (600 for a new entry).
 - `premerge=npm run gate` in `.claude/workshop.conf` (Touchpoints); `git config workbench.guards`, the regex naming `npm run gate|lint|build|typecheck` and `tsc`.
 - The manifest, `ts-gate/.install.json`: what uninstall reads.
 
@@ -63,8 +63,8 @@ blocks in file-name order. Anything else fails the config load, naming the
 file. Only a function follows `gate({ severity })`. A package file registers
 its own inline plugin and never sets a core rule that takes options
 (`no-restricted-syntax`): a later block replaces a rule's options, so two
-files setting one would erase each other. Install writes the runner's block
-before the spread, so a package's options for a runner rule (`effect`'s
+files setting one would erase each other. Install writes vitest's block
+before the spread, so a package's options for a vitest rule (`effect`'s
 test-block list) come after the recommended ones. A project overrides a
 package rule after the spread, like a gate rule. `.claude/eslint/**` is in
 knip's `ignore`, and a change there alone still runs the repo-wide tools at
@@ -127,16 +127,15 @@ Workbench, all on this side:
   under `workbench/items/spikes/`, on its branch and on main after its merge,
   and are never the project's code. knip's `ignore` hides issues, yet a test
   file under it still counts as a use: a spike's test would keep alive a src
-  export only it imports. So `knip.json` also gets the runner's key, its
+  export only it imports. So `knip.json` also gets the `vitest` key, its
   entry list with `!workbench/**`; the list replaces knip's defaults, so it
-  repeats them from `knip.runners.json`, which the real leg of
-  `tests/ts-gate.sh` compares with the installed knip. Only the runner's key,
-  and none without a runner: any plugin key switches that plugin on. The
-  tsconfig must keep `tsc` out; install asks `tsc --listFilesOnly` about a
-  made-up spike and warns when it would compile it. jest's config is the
-  project's own: install prints the `testPathIgnorePatterns` to add. The
-  `no-workbench` rule in `.dependency-cruiser.cjs` refuses code that imports
-  a spike's folder, which archive deletes.
+  repeats them from `knip.vitest.json`, which the real leg of
+  `tests/ts-gate.sh` compares with the installed knip. No key without
+  vitest: any plugin key switches that plugin on. The tsconfig must keep
+  `tsc` out; install asks `tsc --listFilesOnly` about a made-up spike and
+  warns when it would compile it. The `no-workbench` rule in
+  `.dependency-cruiser.cjs` refuses code that imports a spike's folder,
+  which archive deletes.
 - The glossary: `eslint.gate.mjs` reads the `Never` column of
   `workbench/GLOSSARY.md` when the file exists and feeds it to `id-match`
   over what the code declares, as a substring: a worker writes `accountId`,
@@ -195,7 +194,7 @@ Every line install prints is acted on before anything else goes in:
 | the eslint block, for a project with its own config | merge it; until then knip flags `ts-gate/eslint.gate.mjs` and two plugins unused |
 | the vitest `setupFiles` and live-tier `exclude` lines, for a project's own vitest config | add them; without them tests may reach the network and `npm test` runs the live tier |
 | `NOTE: premerge is '<x>' in .claude/workshop.conf` | make sure `<x>` runs `npm run gate` (a wrapper script, Touchpoints); never replace it with the bare gate |
-| `WARNING` (tsconfig flags or `include`, tsc reaching `workbench/`, `engines.node`, biome includes, a kept config or architecture record without `workbench/`, jest's ignore patterns, knip entry, no runner) | fix first |
+| `WARNING` (tsconfig flags or `include`, tsc reaching `workbench/`, `engines.node`, biome includes, a kept config or architecture record without `workbench/`, knip entry, no runner) | fix first |
 
 A project's own biome config is what the gate formats with. Then `npm run
 gate:full`. Greenfield: green. Brownfield: the first run is the baseline, per

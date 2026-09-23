@@ -45,11 +45,11 @@ PM="npm i -D"
 [ -f yarn.lock ] && PM="yarn add -D"
 { [ -f bun.lockb ] || [ -f bun.lock ]; } && PM="bun add -d"
 DEPS="typescript@5 eslint@10 typescript-eslint@8 eslint-plugin-sonarjs@4 knip@6 dependency-cruiser @biomejs/biome@2"
+# RUNNER: vitest, the one runner the gate drives, or empty.
 RUNNER=""
 grep -q '"vitest"' package.json && RUNNER=vitest && DEPS="$DEPS @vitest/eslint-plugin"
-grep -q '"jest"' package.json && [ -z "$RUNNER" ] && RUNNER=jest && DEPS="$DEPS eslint-plugin-jest"
 # package.json only: a peer-installed vitest (@effect/vitest's) does not count.
-[ -n "$RUNNER" ] || echo "WARNING: no test runner in package.json (\"vitest\" or \"jest\" as a devDependency) — the gate will run no tests and write no vitest config; npm i -D vitest@5, then re-run install"
+[ -n "$RUNNER" ] || echo "WARNING: no test runner in package.json (\"vitest\" as a devDependency) — the gate will run no tests and write no vitest config; npm i -D vitest@5, then re-run install"
 # Only what the project lacks: a re-run must not move pins the project owns.
 NEW=$(node -e '
 const p=require("./package.json"),have={...p.dependencies,...p.devDependencies};
@@ -58,14 +58,14 @@ console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have))
 
 # 2b. knip counts what a test file imports as used, and a plugin's test files
 #     are entries whatever 'ignore' says: a spike's test under workbench/ would
-#     keep alive a src export only it imports. A negation in the runner's own
+#     keep alive a src export only it imports. A negation in vitest's own
 #     entry list is what leaves them out, and that list replaces knip's
-#     defaults, so it repeats them (knip.runners.json). Only the runner's key:
-#     any plugin key switches that plugin on. Written each run, after the copy.
+#     defaults, so it repeats them (knip.vitest.json). No key without vitest:
+#     a plugin key switches that plugin on. Written each run, after the copy.
 [ -z "$RUNNER" ] || node -e '
-const fs=require("fs"),p="ts-gate/knip.json",[r,src]=process.argv.slice(1),j=JSON.parse(fs.readFileSync(p,"utf8"));
-j[r]={entry:[...JSON.parse(fs.readFileSync(src,"utf8"))[r],"!workbench/**"]};
-fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$RUNNER" "$SRC/knip.runners.json"
+const fs=require("fs"),p="ts-gate/knip.json",j=JSON.parse(fs.readFileSync(p,"utf8"));
+j.vitest={entry:[...JSON.parse(fs.readFileSync(process.argv[1],"utf8")).entry,"!workbench/**"]};
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$SRC/knip.vitest.json"
 
 # 2c. tsc runs repo-wide in the gate, and a workbench spike's prototypes are
 #     never the project's code; the include/exclude check above cannot tell. A
@@ -90,8 +90,10 @@ FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.j
 # repos/**, .worktrees/** and workbench/** are excluded by vitest.config.mjs (or the lines
 # install prints for a foreign one); the live tier's exclude stays here because
 # a foreign config that lacks it would run real network from gate:full.
-[ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude '**/*.live.test.*'"
-[ "$RUNNER" != vitest ] || npm pkg set scripts.test:live="vitest run --config ts-gate/vitest.live.mjs"
+if [ -n "$RUNNER" ]; then
+  FULL="$FULL && vitest run --passWithNoTests --exclude '**/*.live.test.*'"
+  npm pkg set scripts.test:live="vitest run --config ts-gate/vitest.live.mjs"
+fi
 npm pkg set \
   scripts.gate="bash ts-gate/scripts/gate.sh" \
   scripts.gate:local="bash ts-gate/scripts/gate.sh --local" \
@@ -117,17 +119,14 @@ const m=require("./ts-gate/.install.json"),k=process.argv[1];console.log(m[k]?m[
 }
 
 # 4. ESLint config
-TESTS='"**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"'
-case "$RUNNER" in
-  # Written before the gate's spread: a test-block list a library needs
-  # (@effect/vitest's it.effect) comes from its stack package's .claude/eslint
-  # file, which gate() appends, and a later block's options win.
-  vitest) IMP='import vitest from "@vitest/eslint-plugin";'
-          CFG="{ files: [$TESTS], ...vitest.configs.recommended }," ;;
-  jest)   IMP='import jest from "eslint-plugin-jest";'
-          CFG="{ files: [$TESTS], ...jest.configs[\"flat/recommended\"], rules: { ...jest.configs[\"flat/recommended\"].rules, \"jest/expect-expect\": \"error\" } }," ;;
-  *)      IMP=""; CFG="" ;;
-esac
+# vitest's block is written before the gate's spread: a test-block list a
+# library needs (@effect/vitest's it.effect) comes from its stack package's
+# .claude/eslint file, which gate() appends, and a later block's options win.
+IMP="" CFG=""
+if [ -n "$RUNNER" ]; then
+  IMP='import vitest from "@vitest/eslint-plugin";'
+  CFG='{ files: ["**/*.{test,spec}.{ts,tsx}", "**/__tests__/**/*.{ts,tsx}"], ...vitest.configs.recommended },'
+fi
 CONFIG="import gate from \"./ts-gate/eslint.gate.mjs\";
 $IMP
 
@@ -165,7 +164,7 @@ fi
 
 # 4c. vitest config.
 VITEST_WROTE=""
-if [ "$RUNNER" = vitest ]; then
+if [ -n "$RUNNER" ]; then
   VCONFIG='import { configDefaults, defineConfig } from "vitest/config";
 
 // ts-gate: no test reaches the network (ts-gate/no-network.mjs); *.live.test.ts
@@ -185,14 +184,7 @@ export default defineConfig({
   fi
 fi
 
-# 4d. jest's default testMatch finds a spike's tests too, and those under
-#     .worktrees/ and repos/. Its config is the project's own, so advised only.
-if [ "$RUNNER" = jest ] && ! grep -qs 'workbench/' jest.config.* \
-   && ! node -e 'process.exit(JSON.stringify(require("./package.json").jest??"").includes("workbench/")?0:1)'; then
-  echo "WARNING: jest runs the tests under workbench/, .worktrees/ and repos/ too; add to its config: testPathIgnorePatterns: [\"/node_modules/\", \"<rootDir>/workbench/\", \"<rootDir>/.worktrees/\", \"<rootDir>/repos/\"]"
-fi
-
-# 4e. An eslint config kept from an earlier install or the project's own: it
+# 4d. An eslint config kept from an earlier install or the project's own: it
 #     predates workbench/** being left out, and nothing above rewrites it.
 for g in eslint.config.mjs eslint.config.js eslint.config.ts; do
   [ -f "$g" ] || continue
@@ -218,7 +210,7 @@ s.hooks.Stop.push({hooks:[{type:"command",command,timeout}]});
 s.permissions??={}; s.permissions.allow??=[];
 // Not gate:* — that would cover gate:verify, which starts a model session.
 const rules=["Bash(npm ci)","Bash(npm run gate)","Bash(npm run gate:local)","Bash(npm run gate:full)","Bash(npm run gate:fix)","Bash(npm test:*)"];
-if(process.argv[1]) rules.push("Bash(npx "+process.argv[1]+":*)");
+if(process.argv[1]) rules.push("Bash(npx vitest:*)");
 for(const r of rules) s.permissions.allow.includes(r)||s.permissions.allow.push(r);
 fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n");' "$RUNNER"
 

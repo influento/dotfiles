@@ -1,5 +1,0 @@
-{
-  "//": "knip 6's own entry patterns per test runner (dist/plugins/<runner>/index.js). install.sh writes the project's runner's list, plus \"!workbench/**\", into ts-gate/knip.json; the real leg of tests/ts-gate.sh compares these with the installed knip.",
-  "vitest": ["**/*.{bench,test,test-d,spec,spec-d}.?(c|m)[jt]s?(x)", "**/__mocks__/**/*.?(c|m)[jt]s?(x)"],
-  "jest": ["**/__tests__/**/*.?(c|m)[jt]s?(x)", "**/?(*.)+(spec|test).?(c|m)[jt]s?(x)", "**/__mocks__/**/*.[jt]s?(x)"]
-}

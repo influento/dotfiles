@@ -1,0 +1,4 @@
+{
+  "//": "knip 6's own entry patterns for vitest (dist/plugins/vitest/index.js). install.sh writes this list, plus \"!workbench/**\", into ts-gate/knip.json as the vitest key; the real leg of tests/ts-gate.sh compares it with the installed knip.",
+  "entry": ["**/*.{bench,test,test-d,spec,spec-d}.?(c|m)[jt]s?(x)", "**/__mocks__/**/*.?(c|m)[jt]s?(x)"]
+}
