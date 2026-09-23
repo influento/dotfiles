@@ -27,8 +27,10 @@ add` (its subtrees need a clean tree), then `workbench init` (its CLAUDE.md
 block goes after the stack's). Workbench knows nothing of the other two,
 beyond listing ts-gate's keys in `.claude/workshop.conf` where ts-gate is
 installed. What ts-gate knows of workbench: the `premerge` key, `workbench.guards`,
-the `permissions.allow` rules, `.worktrees/**` in its ignores, the `Never`
-column of `workbench/GLOSSARY.md`, and `ts-lean-code.md`, the checklist
+the `permissions.allow` rules, `.worktrees/**` in its ignores, `workbench/**`
+left out of every tool and the `no-workbench` import rule (a spike's
+folder), the `Never` column of `workbench/GLOSSARY.md`, and
+`ts-lean-code.md`, the checklist
 `wb-reviewer` applies (`typescript/gate/CLAUDE.md`, Touchpoints). How stack
 and ts-gate depend on each other, and why the gate goes in first:
 `typescript/CLAUDE.md`.

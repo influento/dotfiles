@@ -13,7 +13,8 @@ than none.
    — a check, a constant, a comment at the one call site that depends on it
    — or it is not written. It appears in an item only where a root-cause or
    criterion line needs it, never as a line of its own: an item is out of
-   context the next time the fact matters.
+   context the next time the fact matters. A spike's Findings are the
+   exception: finding such facts is what a spike is for.
 4. **Only what is left** may be a document, and only if it passes the test
    below.
 

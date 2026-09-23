@@ -80,6 +80,15 @@ crit() { sed -i -e '/^## How to confirm/a\
 agreed with the user' -e '/^## Side effects/a\
 \
 none' "$1"; }
+# questions <path> — fill a spike's questions, one answered by inspection,
+# which start refuses in a criterion and takes here.
+questions() { sed -i '/^## Questions/a\
+\
+- does the cache survive a restart? by inspection of the store' "$1"; }
+# findings <path> — one prose finding, no fenced block.
+findings() { sed -i '/^## Findings/a\
+\
+The cache does not survive a restart: the store is in memory only.' "$1"; }
 # effects <path> <text> — replace what Side effects says.
 effects() { sed -i '/^## Side effects/,/^## /{ /^## /!d }' "$1"; sed -i "/^## Side effects/a\\
 \\
@@ -142,7 +151,7 @@ run "init on a repo with no commit completes" 0 "UNRESOLVED" "$WB" init
 new_repo loop
 run "init" 0 "workbench ready" "$WB" init
 run "init outside ~ says to set the memory path by hand" 0 "not under ~" "$WB" init
-for c in workbench bug feature idea wb; do
+for c in workbench bug feature spike idea wb; do
   check "init renders /$c as a copy" bash -c "[ -f '.claude/skills/$c/SKILL.md' ] && [ ! -L '.claude/skills/$c' ] && [ -f '.claude/skills/$c/GENERATED' ]"
 done
 check "init does not ignore the copies" bash -c "! grep -q '.claude/skills' .gitignore"
@@ -566,6 +575,8 @@ run "merge takes it once unlocked" 0 "merged $idk" "$WB" merge "$idk" "locked"
 git branch "$idk-locked" main
 run "a re-run names what cleanup left behind" 1 "cleanup after that commit did not finish" "$WB" merge "$idk" "locked"
 run "and gives the command that finishes it" 1 "branch -D $idk-locked" "$WB" merge "$idk" "locked"
+run "archive names it too, rather than calling the branch unmerged" 1 "cleanup after that commit did not finish" "$WB" archive "$idk"
+run "with the same command" 1 "branch -D $idk-locked" "$WB" archive "$idk"
 git branch -D "$idk-locked" >/dev/null
 run "with nothing left behind it is the plain refusal" 1 "already carries 'Item: $idk'" "$WB" merge "$idk" "locked"
 
@@ -629,6 +640,20 @@ check "nothing landed on main" [ -z "$(git log --grep="^Item: $idh" --format=%h)
 ( cd ".worktrees/$idh-host" && git rm -q "workbench/items/features/$idg-guest.md" && git commit -qm 'guest off' )
 run "merge goes through once the file is off the branch" 0 "merged $idh" "$WB" merge "$idh" "host"
 check "the squash carries only the host's item" bash -c "! git show --stat --format= HEAD | grep -q guest"
+# one the branch changed is put back as it stood at the cut: 'git rm' would
+# delete it from main at the squash
+ide=$(newc bug "editor"); "$WB" start "$ide" >/dev/null 2>&1
+ready ".worktrees/$ide-editor"
+echo 'edited on the wrong branch' >> ".worktrees/$ide-editor/workbench/items/features/$idg-guest.md"
+( cd ".worktrees/$ide-editor" && git commit -qam 'guest edited' )
+rc=0; out=$("$WB" merge "$ide" "editor" 2>&1) || rc=$?
+check "merge refuses a branch that changed another item's file" [ "$rc" -eq 1 ]
+cmd=$(sed -n "s|^  \(git checkout [0-9a-f]* -- workbench/items/features/$idg-guest\.md\)\$|\1|p" <<< "$out")
+check "and prints the command that puts it back" [ -n "$cmd" ]
+check "not 'git rm', which would delete it" [ "$(grep -c 'git rm' <<< "$out")" -eq 0 ]
+check "which runs, putting it back" bash -c "[ -n '$cmd' ] && cd '.worktrees/$ide-editor' && $cmd && git commit -qm 'guest put back'"
+run "merge goes through once it is put back" 0 "merged $ide" "$WB" merge "$ide" "editor"
+check "and main's copy of the guest never saw the edit" bash -c "! grep -q 'edited on the wrong branch' workbench/items/features/$idg-guest.md"
 
 # --- lookups over every worktree --------------------------------------------
 # A detached worktree with no workbench/, an item created in a sibling, a
@@ -866,6 +891,256 @@ touch main && git add main && git commit -qm "a file named for the branch"
 run "and refuses it with a file named 'main' in the tree" 1 "shipped work is not abandoned" "$WB" archive "$ids"
 git rm -q main && git commit -qm "drop the file named for the branch"
 
+# --- spikes: questions in, findings out, code in the spike's own folder ------
+
+new_repo spike
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+check "init creates items/spikes" [ -f workbench/items/spikes/.gitkeep ]
+newc feature "before" >/dev/null
+run "new spike allocates an s- id on the shared counter" 0 "^s-002$" "$WB" new spike "cache restart"
+sp=s-002; fs=workbench/items/spikes/$sp-cache-restart.md
+check "the spike carries its own template" bash -c "[ \"\$(sed -n 's/^## //p' $fs | paste -sd'|')\" = 'Why|Questions|Findings|Suggestions|Decisions' ]"
+check "the next feature takes the next number" [ "$(newc feature "after")" = f-003 ]
+run "status lists an open spike" 0 "$sp-cache-restart +open" "$WB" status
+
+run "start refuses a spike with no questions" 1 "$sp's 'Questions' is empty" "$WB" start "$sp"
+questions "$fs"
+run "start takes questions answered by inspection, with no Side effects" 0 "started $sp-cache-restart" "$WB" start "$sp"
+wt=.worktrees/$sp-cache-restart; ws=$wt/$fs
+git worktree remove "$wt"
+rc=0; out=$("$WB" start "$sp" 2>&1) || rc=$?
+check "a resumed spike starts" [ "$rc" -eq 0 ]
+check "and says so" grep -q "resumed $sp-cache-restart" <<< "$out"
+check "with no note about Side effects" [ -z "$(grep 'Side effects' <<< "$out")" ]
+
+run "round refuses a spike" 1 "the review dialog does not run for spikes" bash -c "cd '$TMP' && '$WB' round $sp 3 1"
+check "and writes no rounds: line" bash -c "! grep -q '^rounds:' '$ws'"
+
+run "merge refuses an open spike" 1 "$sp is open on $sp-cache-restart; a spike merges as 'answered'" "$WB" merge "$sp" "cache restart"
+run "archive refuses an open spike" 1 "$sp is open; a spike archives as 'answered'" "$WB" archive "$sp"
+set_status "$ws" answered
+( cd "$wt" && git commit -qam answered )
+run "merge refuses an answered spike with no findings" 1 "answered with nothing under '## Findings' on $sp-cache-restart" "$WB" merge "$sp" "cache restart"
+run "archive refuses an answered spike with no findings" 1 "answered with nothing under '## Findings'" "$WB" archive "$sp"
+findings "$ws"
+printf '\n## Evidence\n' >> "$ws"; fill_evidence "$ws" probe x
+rc=0; out=$("$WB" archive "$sp" 2>&1) || rc=$?
+check "archive refuses a heading the spike template lacks" [ "$rc" -eq 1 ]
+check "and names it" grep -qx '  ## Evidence' <<< "$out"
+check "and only it" [ "$(grep -c '^  ## ' <<< "$out")" -eq 1 ]
+sed -i '/^## Evidence/,$d' "$ws"
+
+# The spike's code in its folder, and one file outside it. A file in the
+# folder named like an item is not an item.
+dir=workbench/items/spikes/$sp-cache-restart
+( cd "$wt" && mkdir -p "$dir/capture" src && echo proto > "$dir/proto.ts" && echo run1 > "$dir/capture/run1.txt" \
+  && echo notes > "$dir/f-999-notes.md" && echo notes > "$dir/$sp-notes.md" && echo café > "$dir/café.txt" \
+  && echo outside > src/cache.ts && git add -A && git commit -qm prototype )
+rc=0; out=$("$WB" merge "$sp" "cache restart" 2>&1) || rc=$?
+check "merge refuses a spike that changes files outside its folder" [ "$rc" -eq 1 ]
+check "and names the file" grep -qx '  src/cache.ts' <<< "$out"
+check "and not the folder's" [ -z "$(grep "^  $dir/" <<< "$out")" ]
+( cd "$wt" && git rm -q src/cache.ts && git commit -qm 'folder only' )
+# A move lists only where the file went; the squash would delete where it was.
+( cd "$wt" && git mv README "$dir/README" && git commit -qm 'moved in' )
+rc=0; out=$("$WB" merge "$sp" "cache restart" 2>&1) || rc=$?
+check "merge refuses a file moved into the folder" [ "$rc" -eq 1 ]
+check "naming where it came from" grep -qx '  README' <<< "$out"
+( cd "$wt" && git reset -q --hard HEAD~1 && git mv workbench/items/features/f-001-before.md "$dir/" && git commit -qm 'item moved in' )
+rc=0; out=$("$WB" merge "$sp" "cache restart" 2>&1) || rc=$?
+check "merge refuses another item's file moved into the folder" [ "$rc" -eq 1 ]
+cmd=$(sed -n 's|^  \(git checkout [0-9a-f]* -- workbench/items/features/f-001-before\.md\)$|\1|p' <<< "$out")
+check "and prints the command that puts it back where it was" bash -c "[ -n '$cmd' ] && cd '$wt' && $cmd && git diff --quiet HEAD~1 -- workbench/items/features/f-001-before.md"
+( cd "$wt" && git reset -q --hard HEAD~1 && git rm -q "$fs" && git commit -qm 'item gone' )
+run "merge takes no file inside the folder for the item" 1 "$sp has no item file on $sp-cache-restart" "$WB" merge "$sp" "cache restart"
+( cd "$wt" && git reset -q --hard HEAD~1 )
+# A submodule bump is a change outside the folder, whatever diff.ignoreSubmodules hides.
+git config diff.ignoreSubmodules all
+( cd "$wt" && git update-index --add --cacheinfo "160000,$(git rev-parse HEAD),vendor/lib" && git commit -qm 'vendor bump' )
+rc=0; out=$("$WB" merge "$sp" "cache restart" 2>&1) || rc=$?
+check "merge refuses a spike that bumps a submodule git is told to hide" [ "$rc" -eq 1 ]
+check "and names it" grep -qx '  vendor/lib' <<< "$out"
+check "before anything landed" [ -z "$(git log --grep="^Item: $sp\$" --format=%h)" ]
+git config --unset diff.ignoreSubmodules
+( cd "$wt" && git reset -q --hard HEAD~1 )
+rc=0; out=$("$WB" merge "$sp" "cache restart findings" 2>&1) || rc=$?
+check "merge lands an answered spike" [ "$rc" -eq 0 ]
+check "and says it stays as a reference" grep -q "$sp stays on main as a reference" <<< "$out"
+check "the folder and the item are on main" bash -c "[ \"\$(cat $dir/proto.ts)\" = proto ] && grep -q 'in memory only' $fs"
+check "a non-ASCII name in the folder counts as inside it" [ -f "$dir/café.txt" ]
+check "under the spike's trailer" [ "$(git log -1 --format=%b)" = "Item: $sp" ]
+check "the branch and the worktree are gone" bash -c "[ ! -e '$wt' ] && [ -z \"\$(git branch --list '$sp-*')\" ]"
+run "status lists the merged spike as a reference" 0 "$sp-cache-restart +merged as" bash -c "'$WB' status | sed -n '/kept as references/,\$p'"
+run "and not as merged and still open" 0 "" bash -c "! '$WB' status | sed -n '/merged, still open/,/^---/p' | grep -q '$sp-'"
+check "an item-named file in the folder is not listed" [ -z "$("$WB" status 2>&1 | grep f-999)" ]
+check "nor counted" [ "$(newc feature "counted")" = f-004 ]
+
+set_status "$fs" 'abandoned — changed my mind'
+run "a merged spike is not abandoned, and is told 'answered'" 1 "a merged spike is not abandoned — archive it as 'answered'" "$WB" archive "$sp"
+git checkout -q -- "$fs"
+
+# Archive removes the folder: committed files only, exactly that folder.
+mkdir -p "$dir-v2" && echo keep > "$dir-v2/keep.txt" && git add "$dir-v2" && git commit -qm 'a neighbour sharing the prefix'
+echo edited >> "$dir/proto.ts"
+run "archive refuses a folder with uncommitted edits" 1 "$dir has changes not committed on main" "$WB" archive "$sp"
+check "and moves nothing" bash -c "[ -f $fs ] && [ \"\$(head -1 $dir/proto.ts)\" = proto ] && grep -q edited $dir/proto.ts"
+git checkout -q -- "$dir/proto.ts"
+echo loose > "$dir/loose.txt"
+run "archive refuses a folder with untracked files" 1 "$dir/loose.txt" "$WB" archive "$sp"
+check "and leaves them" [ -f "$dir/loose.txt" ]
+rm "$dir/loose.txt"
+mkdir -p lib && printf 'import { x } from "../%s/proto";\n' "$dir" > lib/uses.ts && git add lib && git commit -qm 'code grown from the spike'
+run "archive refuses while code outside workbench/ names the folder" 1 "files outside workbench/ name $dir; archive deletes it" "$WB" archive "$sp"
+check "and names the file" bash -c "'$WB' archive $sp 2>&1 | grep -qx '  lib/uses.ts'"
+git rm -rq lib && git commit -qm 'copied into the project'
+# A branch still to merge may name it too.
+git branch -q refs-it && git worktree add -q "$TMP/refs-it" refs-it
+( cd "$TMP/refs-it" && mkdir -p lib && printf 'import { x } from "../%s/proto";\n' "$dir" > lib/uses.ts && git add lib && git commit -qm uses )
+run "archive refuses while a branch names the folder" 1 "  refs-it:lib/uses.ts" "$WB" archive "$sp"
+run "and says a branch that is done with can go instead" 1 "or delete the branch where one listed as <branch>:<file> is done with" "$WB" archive "$sp"
+git worktree remove --force "$TMP/refs-it" && git branch -q -D refs-it
+rm -rf "$dir"
+run "archive refuses a folder deleted by hand, naming the deletions" 1 " D $dir/proto.ts" "$WB" archive "$sp"
+git checkout -q -- "$dir"
+git rm -rq "$dir"
+run "archive refuses a removal staged by hand, naming it" 1 "D  $dir/proto.ts" "$WB" archive "$sp"
+git reset -q -- "$dir" && git checkout -q -- "$dir"
+printf '*.log\n' >> .gitignore && git commit -qm 'ignore logs' -- .gitignore
+echo run > "$dir/run.log"
+echo staged >> README && git add README
+rc=0; out=$("$WB" archive "$sp" 2>&1) || rc=$?
+msha=$(git log --grep="^Item: $sp\$" --format=%h -1)
+check "archive takes a merged spike" [ "$rc" -eq 0 ]
+check "at its merge commit" grep -qx "commit: $msha" "workbench/items/archive/$sp-cache-restart.md"
+check "and says where the folder's last version is" grep -q "removed $dir; its last version: git show [0-9a-f]*^:$dir/" <<< "$out"
+check "the folder's files are gone from the tree and the index" bash -c "[ ! -e $dir/proto.ts ] && [ ! -e $dir/capture ] && [ -z \"\$(git ls-files $dir)\" ]"
+check "their last version is one commit back" [ "$(git show "HEAD^:$dir/proto.ts")" = proto ]
+check "an ignored file is left" [ -f "$dir/run.log" ]
+check "and said" grep -q 'still holds files git ignores' <<< "$out"
+check "the neighbour sharing the prefix is untouched" bash -c "[ \"\$(cat $dir-v2/keep.txt)\" = keep ] && [ -z \"\$(git status --porcelain -- $dir-v2)\" ]"
+check "the archive commit is the item and the folder only" [ -z "$(git -c core.quotePath=false show --name-only --format= HEAD | awk -v a="workbench/items/archive/$sp-cache-restart.md" -v f="$fs" -v d="$dir/" '$0 != a && $0 != f && index($0, d) != 1')" ]
+check "a staged change on main stays staged" bash -c "git diff --cached --name-only | grep -qx README"
+git reset -q README && git checkout -q README && rm -rf "$dir"
+
+# A merged spike whose folder holds nothing git tracks: nothing to remove.
+spi=$("$WB" new spike "item only" 2>/dev/null); fi_=workbench/items/spikes/$spi-item-only.md
+questions "$fi_"; "$WB" start "$spi" >/dev/null 2>&1
+set_status ".worktrees/$spi-item-only/$fi_" answered; findings ".worktrees/$spi-item-only/$fi_"
+( cd ".worktrees/$spi-item-only" && git commit -qam answered )
+"$WB" merge "$spi" "item only" >/dev/null 2>&1
+mkdir -p "${fi_%.md}" && echo staged > "${fi_%.md}/new.ts" && git add "${fi_%.md}/new.ts"
+run "archive refuses a file only staged in the folder" 1 "A  ${fi_%.md}/new.ts" "$WB" archive "$spi"
+git rm -q --cached "${fi_%.md}/new.ts" && rm "${fi_%.md}/new.ts"
+echo run > "${fi_%.md}/run.log"
+run "archive takes a merged spike whose folder holds only ignored files" 0 "archived $spi at [0-9a-f]" "$WB" archive "$spi"
+check "and leaves them" [ -f "${fi_%.md}/run.log" ]
+rm -rf "${fi_%.md}"
+
+# Merged spike, a feature cut before it and one cut after, then the folder
+# archived away.
+spm=$("$WB" new spike "mini" 2>/dev/null); fm=workbench/items/spikes/$spm-mini.md; dm=${fm%.md}
+questions "$fm"; "$WB" start "$spm" >/dev/null 2>&1
+idb=$(newc feature "cut before"); "$WB" start "$idb" >/dev/null 2>&1
+( cd ".worktrees/$spm-mini" && mkdir -p "$dm" && echo proto > "$dm/proto.ts" )
+set_status ".worktrees/$spm-mini/$fm" answered; findings ".worktrees/$spm-mini/$fm"
+( cd ".worktrees/$spm-mini" && git add -A && git commit -qm answered )
+"$WB" merge "$spm" "mini" >/dev/null 2>&1
+# The spike's folder is new on main since the cut: no code on the branch can reach it.
+conf premerge true
+ready ".worktrees/$idb-cut-before"
+run "merge takes a branch cut before a spike landed, with no rebase" 0 "merged $idb" "$WB" merge "$idb" "cut before"
+unconf premerge
+idk=$(newc feature "cut after"); "$WB" start "$idk" >/dev/null 2>&1
+rm "$fm"
+run "archive refuses a merged item whose copy on main is missing" 1 "its copy on main is missing" "$WB" archive "$spm"
+check "and commits on no other branch" [ "$(git log -1 --format=%s "$idk-cut-after")" != "archive $spm" ]
+git checkout -q -- "$fm"
+printf '#!/bin/sh\nexit 1\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+rc=0; out=$("$WB" archive "$spm" 2>&1) || rc=$?
+rm .git/hooks/pre-commit
+check "a refused archive commit says the folder's removal is staged" grep -q "and the removal of $dm are staged" <<< "$out"
+cmd=$(sed -n 's/^  \(git -C .* commit -m .archive .*\)$/\1/p' <<< "$out")
+check "and the command it prints commits the archive" bash -c "$cmd >/dev/null && [ -z \"\$(git ls-files $dm)\" ] && [ \"\$(git log -1 --format=%s)\" = 'archive $spm' ]"
+conf premerge true
+ready ".worktrees/$idk-cut-after"
+run "merge wants a rebase once main archived a spike folder" 1 "$idk-cut-after is behind main" "$WB" merge "$idk" "cut after"
+unconf premerge
+
+# A spike filed under another class: its folder sits beside the item, where
+# merge let its code land, and archive removes it from there.
+spf=$("$WB" new spike "misfiled" 2>/dev/null)
+git mv "workbench/items/spikes/$spf-misfiled.md" workbench/items/features/ && git commit -qm 'filed under features'
+ff=workbench/items/features/$spf-misfiled.md; df=${ff%.md}
+questions "$ff"; "$WB" start "$spf" >/dev/null 2>&1
+( cd ".worktrees/$spf-misfiled" && mkdir -p "$df" && echo proto > "$df/proto.ts" )
+set_status ".worktrees/$spf-misfiled/$ff" answered; findings ".worktrees/$spf-misfiled/$ff"
+( cd ".worktrees/$spf-misfiled" && git add -A && git commit -qm answered )
+run "merge lands a spike filed under features, its folder beside it" 0 "merged $spf" "$WB" merge "$spf" "misfiled"
+run "archive removes that folder" 0 "removed $df" "$WB" archive "$spf"
+check "and it is gone from the tree and the index" bash -c "[ ! -e $df ] && [ -z \"\$(git ls-files $df)\" ]"
+
+# Never merged: the branch is retired under a tag with whatever it holds.
+spu=$("$WB" new spike "unmerged" 2>/dev/null); fu=workbench/items/spikes/$spu-unmerged.md
+questions "$fu"; "$WB" start "$spu" >/dev/null 2>&1
+wu=.worktrees/$spu-unmerged; du=workbench/items/spikes/$spu-unmerged
+( cd "$wu" && mkdir -p "$du" && echo proto > "$du/proto.ts" && git add -A && git commit -qm prototype )
+set_status "$wu/$fu" answered; findings "$wu/$fu"
+( cd "$wu" && echo loose > scratch.txt )
+run "archive refuses uncommitted work beyond the item, with the spike hint" 1 "commit it on the branch, then archive" "$WB" archive "$spu"
+( cd "$wu" && rm scratch.txt )
+sed -i '/^## Questions/a\
+\
+- asked on main' "$fu" && git commit -qm 'main moved' -- "$fu"
+run "archive refuses when main's copy of the questions moved" 1 "main's copy of $spu changed since $spu-unmerged was cut" "$WB" archive "$spu"
+git checkout -q HEAD~1 -- "$fu" && git commit -qm 'main back' -- "$fu"
+tip=$(git rev-parse "$spu-unmerged")
+rc=0; out=$("$WB" archive "$spu" 2>&1) || rc=$?
+check "archive retires an unmerged answered spike" [ "$rc" -eq 0 ]
+check "and says its material is under the tag" grep -q "retired $spu-unmerged as tag $spu; its material is reachable there" <<< "$out"
+check "recorded as commit: none" grep -qx 'commit: none' "workbench/items/archive/$spu-unmerged.md"
+check "the tag stands at the branch's old tip" [ "$(git rev-parse "$spu^{commit}")" = "$tip" ]
+check "the folder is under the tag and not on main" bash -c "[ \"\$(git show $spu:$du/proto.ts)\" = proto ] && [ ! -e $du ]"
+
+# Abandoned: committed work is kept under the tag, never dropped.
+spa=$("$WB" new spike "vendor api" 2>/dev/null); fa=workbench/items/spikes/$spa-vendor-api.md
+questions "$fa"; "$WB" start "$spa" >/dev/null 2>&1
+wa=.worktrees/$spa-vendor-api
+( cd "$wa" && mkdir -p src && echo client > src/client.ts && git add src && git commit -qm client )
+set_status "$wa/$fa" 'abandoned — the vendor dropped the API'
+( cd "$wa" && git commit -qam abandon )
+run "merge tells an abandoned spike its work is kept under the tag" 1 "retires the branch under tag $spa, committed work kept" "$WB" merge "$spa" "vendor"
+rc=0; out=$("$WB" archive "$spa" 2>&1) || rc=$?
+check "an abandoned spike retires without --discard" [ "$rc" -eq 0 ]
+check "and keeps its material" grep -q 'its material is reachable there' <<< "$out"
+check "its committed work is under the tag" [ "$(git show "$spa:src/client.ts")" = client ]
+
+# Statuses, on a spike never started; archive is the gate that reads them.
+# First, so the spike below holds the highest number.
+idb=$(newc bug "not a spike"); set_status "workbench/items/bugs/$idb-not-a-spike.md" answered
+run "a bug refuses 'status: answered'" 1 "not a status; the archive takes 'open'" "$WB" archive "$idb"
+spn=$("$WB" new spike "statuses" 2>/dev/null); fn=workbench/items/spikes/$spn-statuses.md
+for st in 'awaiting — a deploy' 'unverified — a deploy' unreproduced 'answered (agent)'; do
+  set_status "$fn" "$st"
+  run "a spike refuses 'status: $st'" 1 "not a status; the archive takes 'answered'" "$WB" archive "$spn"
+done
+set_status "$fn" answered; findings "$fn"
+run "an answered spike never started archives at none" 0 "archived $spn at none" "$WB" archive "$spn"
+# The counter is a cache; rebuilt, it must not reissue an archived spike's number.
+rm "$(git rev-parse --git-common-dir)/item-seq"
+check "a rebuilt counter skips an archived spike's number" [ "$("$WB" new feature "rebuilt" 2>/dev/null)" = "f-$(printf '%03d' $((10#${spn#s-} + 1)))" ]
+
+# --- a refused archive commit, in a checkout whose path has a space ---------
+
+new_repo "with space"
+"$WB" init >/dev/null && git add -A && git commit -qm 'workbench init'
+idu=$(newc bug "never seen"); set_status "workbench/items/bugs/$idu-never-seen.md" unreproduced
+printf '#!/bin/sh\nexit 1\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+rc=0; out=$("$WB" archive "$idu" 2>&1) || rc=$?
+rm .git/hooks/pre-commit
+check "a refused archive commit says the move is staged" grep -q "; the move is staged in $TMP/with space\." <<< "$out"
+cmd=$(sed -n 's/^  \(git -C .* commit -m .archive .*\)$/\1/p' <<< "$out")
+check "and the command it prints commits it, the space and all" bash -c "cd / && $cmd >/dev/null && [ \"\$(git -C '$TMP/with space' log -1 --format=%s)\" = 'archive $idu' ]"
+
 # --- ideas land on the main checkout --------------------------------------
 
 new_repo idea
@@ -1037,7 +1312,7 @@ conf review.round_cap 3
 conf cap.claude 7
 out=$("$WB" config render 2>&1)
 check "config render re-renders the agents and the workbench skill" bash -c "grep -q 'rendered .claude/agents/wb-worker.md' <<< '$out' && grep -q 'rendered .claude/agents/wb-reviewer.md' <<< '$out' && grep -q 'rendered .claude/skills/workbench$' <<< '$out'"
-check "and not the commands, which carry no setting" bash -c "! grep -qE 'skills/(bug|feature|idea|wb)$' <<< '$out'"
+check "and not the commands, which carry no setting" bash -c "! grep -qE 'skills/(bug|feature|spike|idea|wb)$' <<< '$out'"
 check "the worker's frontmatter ends model:, effort:" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-worker.md | tail -3 | paste -sd'|' | grep -qx 'model: sonnet|effort: high|---'"
 check "the reviewer's too" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-reviewer.md | tail -3 | paste -sd'|' | grep -qx 'model: claude-haiku-4-5|effort: low|---'"
 check "every other line of an agent passes through" bash -c "diff <(grep -vE '^(model|effort):' .claude/agents/wb-reviewer.md) <(sed 's/@@REVIEW_EXCHANGE_CAP@@/4/g' '$src_root/agents/wb-reviewer.md')"

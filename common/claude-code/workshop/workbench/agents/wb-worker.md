@@ -40,4 +40,17 @@ session following these steps without the agent invokes it first.
    with the options>` or `unreproduced — <what you ran>`; the last round's
    result, or `none`. Then stop.
 
+A spike (`s-<n>`) answers questions instead of meeting a criterion:
+
+- Step 1 runs no criterion: `## Questions` is none, and fails on no tree.
+- Step 2 fills `## Findings`, one entry per question: the answer, or why
+  it could not be determined. `## Questions` is not frozen: the user may
+  edit it in the worktree; you never do. Everything you build goes in the
+  folder beside the item, named as it is without `.md`, and nowhere else —
+  `merge` refuses a change outside it. No `workbench idea`, no glossary,
+  backlog or document edit on main: each is a line under `## Suggestions`.
+- Step 3 is skipped: no reviewer, no `round`.
+- Step 4 reports `answered`, with `status: answered` committed on the
+  branch, or `blocked — <question>`.
+
 `workbench merge` and `workbench archive` are the user's, never yours.

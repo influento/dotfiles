@@ -4,6 +4,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["**/*.live.test.{ts,tsx}"],
-    exclude: ["**/node_modules/**", "repos/**", ".worktrees/**"],
+    exclude: ["**/node_modules/**", "repos/**", ".worktrees/**", "workbench/**"],
   },
 });

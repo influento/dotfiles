@@ -36,6 +36,8 @@ for(const key of ["ignore","ignoreDependencies"]) j[key]=[...new Set([...(j[key]
 if(k.entry) j.entry=k.entry;
 fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$KNIP_KEEP"
 [ -z "$DC_KEEP" ] || { command mv "$DC_KEEP" ts-gate/.dependency-cruiser.cjs; echo "ts-gate/.dependency-cruiser.cjs kept (the architecture record); the shipped default is in $SRC"; }
+grep -q '"\^workbench/"' ts-gate/.dependency-cruiser.cjs \
+  || echo "WARNING: ts-gate/.dependency-cruiser.cjs has no no-workbench rule; copy it from $SRC/.dependency-cruiser.cjs: code importing a workbench spike's folder breaks when the spike is archived"
 
 # 2. Dependencies.
 PM="npm i -D"
@@ -54,9 +56,38 @@ const p=require("./package.json"),have={...p.dependencies,...p.devDependencies};
 console.log(process.argv.slice(1).filter(d=>!(d.replace(/(.)@.*/,"$1") in have)).join(" "))' $DEPS)
 [ -z "$NEW" ] || $PM $NEW
 
+# 2b. knip counts what a test file imports as used, and a plugin's test files
+#     are entries whatever 'ignore' says: a spike's test under workbench/ would
+#     keep alive a src export only it imports. A negation in the runner's own
+#     entry list is what leaves them out, and that list replaces knip's
+#     defaults, so it repeats them (knip.runners.json). Only the runner's key:
+#     any plugin key switches that plugin on. Written each run, after the copy.
+[ -z "$RUNNER" ] || node -e '
+const fs=require("fs"),p="ts-gate/knip.json",[r,src]=process.argv.slice(1),j=JSON.parse(fs.readFileSync(p,"utf8"));
+j[r]={entry:[...JSON.parse(fs.readFileSync(src,"utf8"))[r],"!workbench/**"]};
+fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");' "$RUNNER" "$SRC/knip.runners.json"
+
+# 2c. tsc runs repo-wide in the gate, and a workbench spike's prototypes are
+#     never the project's code; the include/exclude check above cannot tell. A
+#     first install has no spike to show it, so tsc is asked about a made-up
+#     one, in a directory created for it and removed after. Not a dot-path:
+#     tsc's default include skips those.
+PROBE=workbench/items/spikes/s-000-ts-gate-probe
+if [ ! -e "$PROBE" ]; then
+  PROBE_TOP=$PROBE
+  while [ ! -e "$(dirname "$PROBE_TOP")" ]; do PROBE_TOP=$(dirname "$PROBE_TOP"); done
+  command mkdir -p "$PROBE"
+  trap 'rm -rf "$PROBE_TOP"' EXIT
+  echo 'export {};' > "$PROBE/probe.ts"
+  LISTED=$(npx tsc --listFilesOnly -p . 2>/dev/null || true)
+  rm -rf "$PROBE_TOP"; trap - EXIT
+  ! grep -qF "/$PROBE/probe.ts" <<< "$LISTED" \
+    || echo "WARNING: tsc would compile files under workbench/, where a spike's prototypes live; narrow tsconfig.json to the project's code, e.g. \"include\": [\"src\"]"
+fi
+
 # 3. Scripts
 FULL="tsc --noEmit && eslint . && biome format . && knip --config ts-gate/knip.json && depcruise --config ts-gate/.dependency-cruiser.cjs src"
-# repos/** and .worktrees/** are excluded by vitest.config.mjs (or the lines
+# repos/**, .worktrees/** and workbench/** are excluded by vitest.config.mjs (or the lines
 # install prints for a foreign one); the live tier's exclude stays here because
 # a foreign config that lacks it would run real network from gate:full.
 [ "$RUNNER" = vitest ] && FULL="$FULL && vitest run --passWithNoTests --exclude '**/*.live.test.*'"
@@ -70,15 +101,15 @@ npm pkg set \
 
 # A config the manifest names is replaced on re-run unless edited since (then
 # kept, and not offered for merging again); a foreign one is never touched.
-# Sets OWN to the file to write (empty: keep); returns 1 when a foreign config
-# exists.
+# Sets OWN to the file to write (empty: keep) and KEPT to the edited one kept;
+# returns 1 when a foreign config exists.
 owned_target() { # key default-file foreign-file...
   local key=$1 def=$2 f="" sha="" g; shift 2
-  OWN=""
+  OWN="" KEPT=""
   [ -f ts-gate/.install.json ] && read -r f sha < <(node -e '
 const m=require("./ts-gate/.install.json"),k=process.argv[1];console.log(m[k]?m[k].file+" "+m[k].sha256:"")' "$key")
   if [ -n "$f" ] && [ -f "$f" ]; then
-    if [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sha" ]; then OWN=$f; else echo "$f edited since install, kept"; fi
+    if [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sha" ]; then OWN=$f; else KEPT=$f; echo "$f edited since install, kept"; fi
     return 0
   fi
   for g in "$@"; do [ -e "$g" ] && return 1; done
@@ -101,7 +132,7 @@ CONFIG="import gate from \"./ts-gate/eslint.gate.mjs\";
 $IMP
 
 export default [
-  { ignores: [\"dist/**\", \"coverage/**\", \"repos/**\", \".worktrees/**\", \"**/*.generated.ts\"] },
+  { ignores: [\"dist/**\", \"coverage/**\", \"repos/**\", \".worktrees/**\", \"workbench/**\", \"**/*.generated.ts\"] },
   $CFG
   ...gate({ tsconfigRootDir: import.meta.dirname }),
 ];"
@@ -118,6 +149,8 @@ fi
 BIOME_WROTE=""
 if owned_target biome biome.json biome.json biome.jsonc; then
   [ -z "$OWN" ] || { command cp "$SRC/biome.template.json" "$OWN"; BIOME_WROTE=$OWN; }
+  [ -z "$KEPT" ] || grep -q 'workbench/' "$KEPT" \
+    || echo "WARNING: $KEPT does not leave workbench/** alone; add \"!workbench/**\" to its files.includes"
 else
   echo "biome config exists, not touched; the gate formats with it"
   # gate:full and gate:fix format the whole tree: a config that does not leave
@@ -125,8 +158,8 @@ else
   # files at the first run, and the next install puts ts-gate/ back.
   for g in biome.json biome.jsonc; do
     [ -f "$g" ] || continue
-    grep -q 'repos/' "$g" && grep -q 'ts-gate/' "$g" \
-      || echo "WARNING: $g does not leave repos/** and ts-gate/** alone; add to it: \"files\": { \"includes\": [\"**\", \"!repos/**\", \"!ts-gate/**\", \"!.worktrees/**\"] }"
+    grep -q 'repos/' "$g" && grep -q 'ts-gate/' "$g" && grep -q 'workbench/' "$g" \
+      || echo "WARNING: $g does not leave repos/**, ts-gate/** and workbench/** alone; add to it: \"files\": { \"includes\": [\"**\", \"!repos/**\", \"!ts-gate/**\", \"!.worktrees/**\", \"!workbench/**\"] }"
   done
 fi
 
@@ -140,15 +173,31 @@ if [ "$RUNNER" = vitest ]; then
 export default defineConfig({
   test: {
     setupFiles: ["./ts-gate/no-network.mjs"],
-    exclude: [...configDefaults.exclude, "**/*.live.test.{ts,tsx}", "repos/**", ".worktrees/**"],
+    exclude: [...configDefaults.exclude, "**/*.live.test.{ts,tsx}", "repos/**", ".worktrees/**", "workbench/**"],
   },
 });'
   if owned_target vitest vitest.config.mjs vitest.config.* vite.config.* vitest.workspace.*; then
     [ -z "$OWN" ] || { printf '%s\n' "$VCONFIG" > "$OWN"; VITEST_WROTE=$OWN; }
+    [ -z "$KEPT" ] || grep -q 'workbench/' "$KEPT" \
+      || echo "WARNING: $KEPT does not leave workbench/** out; add \"workbench/**\" to its test.exclude"
   else
-    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\", \"repos/**\", \".worktrees/**\"] }"
+    echo "vitest config exists, not touched. Add to it: test: { setupFiles: [\"./ts-gate/no-network.mjs\"], exclude: [...configDefaults.exclude, \"**/*.live.test.{ts,tsx}\", \"repos/**\", \".worktrees/**\", \"workbench/**\"] }"
   fi
 fi
+
+# 4d. jest's default testMatch finds a spike's tests too, and those under
+#     .worktrees/ and repos/. Its config is the project's own, so advised only.
+if [ "$RUNNER" = jest ] && ! grep -qs 'workbench/' jest.config.* \
+   && ! node -e 'process.exit(JSON.stringify(require("./package.json").jest??"").includes("workbench/")?0:1)'; then
+  echo "WARNING: jest runs the tests under workbench/, .worktrees/ and repos/ too; add to its config: testPathIgnorePatterns: [\"/node_modules/\", \"<rootDir>/workbench/\", \"<rootDir>/.worktrees/\", \"<rootDir>/repos/\"]"
+fi
+
+# 4e. An eslint config kept from an earlier install or the project's own: it
+#     predates workbench/** being left out, and nothing above rewrites it.
+for g in eslint.config.mjs eslint.config.js eslint.config.ts; do
+  [ -f "$g" ] || continue
+  grep -q 'workbench/' "$g" || echo "WARNING: $g does not leave workbench/** out; add \"workbench/**\" to its ignores"
+done
 
 # 5. Rule files
 command mkdir -p .claude/rules

@@ -19,15 +19,18 @@ default_branch() {
   echo HEAD
 }
 
+# Declarations, and workbench/: a spike's prototypes live in its folder there
+# and are never the project's code.
+NOT_CODE='\.d\.ts$|^workbench/'
 untracked() { [ -z "$LOCAL" ] || git ls-files --others --exclude-standard; }
 if [ -n "$LOCAL" ]; then
   # Merge base, not HEAD: a worker that commits as it goes has a clean tree at stop.
   RANGE=$(git merge-base HEAD "$(default_branch)" 2>/dev/null || echo HEAD)
   mapfile -t CHANGED < <({ git diff --name-only --diff-filter=ACMR "$RANGE"; untracked; } | sort -u)
-  mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE '\.d\.ts$' || true)
+  mapfile -t FILES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '\.tsx?$' | grep -vE "$NOT_CODE" || true)
 else
   RANGE="$(default_branch)...HEAD"
-  mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.ts' '*.tsx' | grep -vE '\.d\.ts$')
+  mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.ts' '*.tsx' | grep -vE "$NOT_CODE")
 fi
 list_added() { { git diff --name-only --diff-filter=A "$RANGE"; untracked; } | sort -u; }
 
@@ -66,7 +69,7 @@ npx depcruise --config ts-gate/.dependency-cruiser.cjs src || FAIL=1
 
 # 5. Tests: vitest only; jest projects get the eslint plugin alone.
 if grep -q '"vitest"' package.json; then
-  VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude '**/*.live.test.*')
+  VITEST=(--passWithNoTests --exclude 'repos/**' --exclude '.worktrees/**' --exclude 'workbench/**' --exclude '**/*.live.test.*')
   case "$MODE" in
     --local) npx vitest run --changed "$RANGE" --reporter=dot --no-color "${VITEST[@]}" || FAIL=1 ;;
     *)       npx vitest run "${VITEST[@]}" || FAIL=1 ;;

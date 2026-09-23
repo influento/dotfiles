@@ -13,7 +13,7 @@ changing anything here.
 | `bin/`      | the CLI                                                                    |
 | `skills/`   | `workbench` — the dir is named exactly as the skill it renders to          |
 | `agents/`   | `wb-worker`, `wb-reviewer` — listed in `WB_AGENTS`, not globbed            |
-| `commands/` | `/bug /feature /idea /wb` — thin skills too, one per typed command         |
+| `commands/` | `/bug /feature /spike /idea /wb` — thin skills too, one per typed command  |
 | `tests/`    | end-to-end loop plus failure paths, in a temp repo                         |
 
 A command holds no rules, only the sizing check, the command and the fields,
@@ -25,7 +25,7 @@ tracker.
 
 ## What `init` puts in a project
 
-The `workbench` skill and the `/bug /feature /idea /wb` commands, as
+The `workbench` skill and the `/bug /feature /spike /idea /wb` commands, as
 committed copies under `.claude/skills/`. Copies, not links: a symlink is
 one machine's path and exists only in the checkout it was made in, so a
 worktree or a fresh clone would have no commands and no hook. The price is
@@ -114,7 +114,7 @@ names the launch mode it was probed in; a fact probed in one mode says
 nothing about another (`skills:` below was the lesson). Modes workbench
 uses: `claude --agent wb-worker` interactive and `-p`, always in a
 `.worktrees/<branch>` worktree; `wb-reviewer` as an Agent-tool spawn from
-that session; a plain main session for `/bug /feature /idea /wb`.
+that session; a plain main session for `/bug /feature /spike /idea /wb`.
 
 - An `--agent` definition's `tools:` restricts the session. An Agent-tool
   spawn's `tools:` restricts the spawn: `pa-reviewer`-shaped agent, no

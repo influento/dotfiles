@@ -9,6 +9,13 @@ module.exports = {
       from: { path: "(^|/)index\\.tsx?$" },
       to: { path: "(^|/)index\\.tsx?$" },
     },
+    {
+      name: "no-workbench",
+      severity: "error",
+      comment: "workbench/ holds a spike's prototypes, deleted when the spike is archived; what the code keeps is copied into it",
+      from: {},
+      to: { path: "^workbench/" },
+    },
     // Layers. One rule per forbidden direction. Example for src/{domain,app,ui}:
     // { name: "domain-is-leaf", severity: "error",
     //   from: { path: "^src/domain" }, to: { path: "^src/(app|ui)" } },

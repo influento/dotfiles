@@ -57,6 +57,9 @@ Item: f-037
 
 The subject describes the change, not the item's title.
 
+A spike merges only as `answered`, and only its item and its folder,
+`workbench/items/spikes/<id>-<slug>/`: a change anywhere else is refused.
+
 When `premerge=` is set in the main checkout's `.claude/workshop.conf` — a
 test run, a lint gate — the command runs it in the branch's worktree after
 every other check and before the squash, and refuses the merge on a
@@ -93,22 +96,34 @@ it. **What triggers it is the criterion being satisfied, not the merge.**
 `archive` resolves the SHA from the trailer on main.
 
 The command refuses while the item's branch still exists — archived first,
-the item would record `commit: none` for good. Two branches never merge,
+the item would record `commit: none` for good. Some branches never merge,
 and `archive` retires those itself: the branch's copy of the item replaces
 main's, the worktree and branch go, and a tag named by the id is left at
 the tip so its commits stay reachable. An `unreproduced` bug's branch holds
 nothing but the item file; anything else on it is work, which merges or is
 discarded by hand. An `abandoned` item's branch holds whatever was built;
 `archive --discard` drops that, naming each file, and without the flag the
-command refuses.
+command refuses. An unmerged spike's branch, `answered` or `abandoned`, is
+retired with everything committed on it, which stays under the tag:
+`git worktree add <dir> <id>` reads it. Uncommitted work beyond the item
+file is refused; commit it first. `--discard` on an abandoned spike drops
+only those uncommitted changes: what is committed stays under the tag.
+
+A merged spike has no branch left. Its archive commit moves the item and
+deletes its folder, the files git tracks there and nothing else; `git show
+<archive commit>^:<folder>/` reads the last version. It refuses while the
+folder holds uncommitted or untracked files, or while a tracked file
+outside `workbench/`, on main or on any local branch, names the folder.
+With `premerge` set, work whose branch was cut before the archive must be
+rebased before it merges.
 
 The move is committed on main as `archive <id>`.
 
 ## IDs
 
 Format `<letter>-<number>-<slug>`, e.g. `f-037-mob-positions`,
-`b-038-frozen-coords`. The letter is `f` for feature, `b` for bug, kept
-because `workbench/items/archive/` is flat. The ID seeds the file name, the
+`b-038-frozen-coords`. The letter is `f` for feature, `b` for bug, `s` for
+spike, kept because `workbench/items/archive/` is flat. The ID seeds the file name, the
 branch and the trailer:
 
 ```

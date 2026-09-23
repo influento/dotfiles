@@ -18,6 +18,7 @@ now.
    started with the worktree gone, it cuts the worktree again; already
    started, it refuses and names the worktree; archived, it refuses — an
    archived item is read, never reopened. Enter the worktree it names.
-2. Read the item: the criterion and whatever Root cause or Evidence holds.
+2. Read the item: the criterion and whatever Root cause or Evidence holds;
+   for a spike, its Questions and Findings.
 3. State where the work stands and what you will do next, and wait for the
    user. Change nothing before that.

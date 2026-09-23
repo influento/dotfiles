@@ -24,7 +24,7 @@ and for wb-reviewer.
 
 Install refuses outside git. Then:
 
-- `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry`, and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
+- `ts-gate/`: `.dependency-cruiser.cjs`, `eslint.gate.mjs`, `eslint-line.mjs`, `knip.json`, `no-network.mjs`, `vitest.live.mjs`, `scripts/`. Not this file, the installers, `rules/`, `biome.template.json`, `knip.runners.json` or `tests/`. A re-run replaces all of it except the manifest, merging back `knip.json`'s `ignore`, `ignoreDependencies` and `entry` and writing its runner key again (Touchpoints), and keeping `.dependency-cruiser.cjs` once it exists (diff it against the source by hand when the default rules move).
 - Dependencies by lockfile (`typescript` included); the test plugin by runner (vitest also gets the test step in the gate; jest the plugin only).
 - The npm scripts above.
 - `eslint.config.mjs`, `biome.json`, `vitest.config.mjs` (vitest only), one ownership rule: written when absent, replaced on re-run unless edited since, a project's own left alone; for a project's own, install prints what to merge (Install output).
@@ -122,6 +122,21 @@ Workbench, all on this side:
   listed.
 - `.worktrees/**` in the eslint ignores: `eslint .` in the main checkout
   would lint every item worktree.
+- `workbench/**` left out of every tool — the changed-file lists, the eslint,
+  biome, knip and vitest configs: a spike's prototypes live in its folder
+  under `workbench/items/spikes/`, on its branch and on main after its merge,
+  and are never the project's code. knip's `ignore` hides issues, yet a test
+  file under it still counts as a use: a spike's test would keep alive a src
+  export only it imports. So `knip.json` also gets the runner's key, its
+  entry list with `!workbench/**`; the list replaces knip's defaults, so it
+  repeats them from `knip.runners.json`, which the real leg of
+  `tests/ts-gate.sh` compares with the installed knip. Only the runner's key,
+  and none without a runner: any plugin key switches that plugin on. The
+  tsconfig must keep `tsc` out; install asks `tsc --listFilesOnly` about a
+  made-up spike and warns when it would compile it. jest's config is the
+  project's own: install prints the `testPathIgnorePatterns` to add. The
+  `no-workbench` rule in `.dependency-cruiser.cjs` refuses code that imports
+  a spike's folder, which archive deletes.
 - The glossary: `eslint.gate.mjs` reads the `Never` column of
   `workbench/GLOSSARY.md` when the file exists and feeds it to `id-match`
   over what the code declares, as a substring: a worker writes `accountId`,
@@ -147,7 +162,9 @@ A project with nothing yet is scaffolded before install and committed as
 needs is there first:
 
 ```
-git init -b main && npm init -y && npm i -D vitest@5
+git init -b main && npm init -y \
+  && npm pkg set engines.node=">=<major>" scripts.start="node src/index.ts" \
+  && npm i -D vitest@5
 ```
 
 - `vitest` in `package.json` before install: the runner is detected from
@@ -162,9 +179,10 @@ git init -b main && npm init -y && npm i -D vitest@5
   sources as they are, so relative imports are written with `.ts`
   (`from "./health.ts"`); nodenext otherwise demands `.js`, which node cannot
   resolve to a `.ts` file.
-- `package.json`: `"engines": { "node": ">=<major>" }`, the node this runs
-  on; `"scripts": { "start": "node src/index.ts" }`, the run model, decided
-  here.
+- `package.json`: `engines.node`, the node this runs on, and
+  `scripts.start`, the run model, decided here. Set before `npm i`, which
+  copies `engines` into `package-lock.json`; set after, install's own `npm i`
+  writes it in, and an uninstall no longer returns the tree to `scaffold`.
 - `src/index.ts` with one export (knip's entry).
 - `.gitignore`: `node_modules`.
 
@@ -177,7 +195,7 @@ Every line install prints is acted on before anything else goes in:
 | the eslint block, for a project with its own config | merge it; until then knip flags `ts-gate/eslint.gate.mjs` and two plugins unused |
 | the vitest `setupFiles` and live-tier `exclude` lines, for a project's own vitest config | add them; without them tests may reach the network and `npm test` runs the live tier |
 | `NOTE: premerge is '<x>' in .claude/workshop.conf` | make sure `<x>` runs `npm run gate` (a wrapper script, Touchpoints); never replace it with the bare gate |
-| `WARNING` (tsconfig flags or `include`, `engines.node`, biome includes, knip entry, no runner) | fix first |
+| `WARNING` (tsconfig flags or `include`, tsc reaching `workbench/`, `engines.node`, biome includes, a kept config or architecture record without `workbench/`, jest's ignore patterns, knip entry, no runner) | fix first |
 
 A project's own biome config is what the gate formats with. Then `npm run
 gate:full`. Greenfield: green. Brownfield: the first run is the baseline, per

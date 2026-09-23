@@ -5,7 +5,7 @@
 | State | Where | Notes |
 |---|---|---|
 | idea | one line in `workbench/BACKLOG.md`, `workbench idea "<sentence>"` — written to the main checkout wherever it runs | no ID, no file |
-| open | `workbench/items/bugs/` or `features/`, committed on main by `workbench new` | editable on main until started |
+| open | `workbench/items/bugs/`, `features/` or `spikes/`, committed on main by `workbench new` | editable on main until started |
 | started | the same file, on its own branch `<id>-<slug>` in `.worktrees/` — `workbench status` marks it `started` | edited on the branch only |
 | archived | `workbench/items/archive/` (flat) | locked; records the commit SHA |
 
@@ -57,7 +57,9 @@ the user to approve; the agent may propose one.
 Until `workbench start`, every field is editable, on main's copy. `start`
 freezes the criterion — the reviewer holds a step reworded after the code —
 and **Side effects** with it, `none` included. What changes on the branch
-after that is root cause, evidence and status. Archived items are locked.
+after that is root cause, evidence and status. A spike's **Questions** stay
+editable by the user after `start`, in the worktree, never on main's copy.
+Archived items are locked.
 
 ## Statuses
 
@@ -72,11 +74,19 @@ after that is root cause, evidence and status. Archived items are locked.
 | `abandoned — <why>` | never | yes | the user dropped it after it was opened — started or not; the why is the record |
 
 The trigger or the why goes in the status line, not in prose, so grep finds
-it. Those five are the whole set — `archive` refuses any other word, `done`
-included; an archived item keeps `open`, which under `archive/` means
-verified and shipped. `unreproduced` and `unverified` are the only archive
-bypasses for a claim about code, and each archives a statement of what was
-*not* proved; `abandoned` makes no claim at all.
+it. Those five are the whole set for bugs and features — `archive` refuses
+any other word, `done` included; an archived item keeps `open`, which under
+`archive/` means verified and shipped. `unreproduced` and `unverified` are
+the only archive bypasses for a claim about code, and each archives a
+statement of what was *not* proved; `abandoned` makes no claim at all.
+
+A spike takes its own three, and only them:
+
+| Status | Means |
+|---|---|
+| `open` | in flight; `archive` refuses it |
+| `answered` | the worker has filled Findings; the user reads them, then merges it as a reference or archives it. Exactly the word, nothing after it |
+| `abandoned — <why>` | as for any item |
 
 **Merged and still `open`, with no branch, is not a state.** It is an item
 that merged with its criterion unrun and did not say so. `workbench status`
@@ -97,4 +107,6 @@ trailer on main the item merged, and `archive` refuses the status.
 | Gate | Asks | Passes with |
 |---|---|---|
 | merge (`workbench merge`) | has everything that *can* be verified now been verified? — the review dialog's question; the command checks that the item is `open` with a fenced block under Evidence or carries `awaiting` / `unverified` with a trigger | `open` with evidence, or `awaiting` / `unverified` chosen before merge — by the user, whose command `merge` is |
+| merge, a spike | is it worth keeping as a reference? — the user's call; the command checks that the item is `answered` with Findings filled and that the branch changes nothing outside the item and its folder | `answered`; the item and its folder land on main |
+| archive, a spike | were the questions answered? — the command checks that Findings is filled and that no heading outside the template is present | `answered` or `abandoned — <why>`. Merged: the item records the merge commit and its folder is deleted in the same commit — refused while the folder holds uncommitted files, or while a tracked file outside `workbench/`, on main or on any local branch, names it. Unmerged: the branch is retired under tag `<id>` with whatever it holds, and the item records `commit: none` |
 | archive (`workbench archive`) | has the criterion been satisfied? — the command checks that a fenced block sits under Evidence, that the status is one of the five, and that no heading outside the template is present; not what the evidence shows | `open` with evidence recorded; `unreproduced`, `unverified` and `abandoned` without |

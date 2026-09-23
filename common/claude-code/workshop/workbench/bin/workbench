@@ -11,7 +11,7 @@ WB=workbench
 # of what the data says — intermittently, since it is a race. Capture into a
 # variable and read a herestring, or use a reader that consumes all of its input.
 # The project-scoped commands, one thin skill each under commands/.
-WB_COMMANDS="bug feature idea wb"
+WB_COMMANDS="bug feature spike idea wb"
 # The agent definitions under agents/, listed rather than globbed (agent_sources).
 WB_AGENTS="wb-worker wb-reviewer"
 MARK_START='<!-- workbench:start -->'
@@ -61,7 +61,8 @@ usage:
   workbench init [--force]             scaffold workbench/, render the skills as committed copies
                                        (--force overwrites a copy edited by hand)
   workbench adopt                      init, then survey an existing project
-  workbench new <bug|feature> "<title>" allocate an id, write the file, commit it on the default branch
+  workbench new <bug|feature|spike> "<title>"
+                                       allocate an id, write the file, commit it on the default branch
   workbench idea "<sentence>"          one backlog line, on the main checkout wherever it runs
   workbench call <id|-> "<question>"   one line under the item's '## Decisions' (DECISIONS.md for -):
                                        a call that is the user's, parked
@@ -136,13 +137,21 @@ wb_dirs() {
   return 0
 }
 
-# find over wb_dirs; no checkout has the directory → nothing, rc 0.
+# find over wb_dirs; no checkout has the directory → nothing, rc 0. Two
+# levels, <class>/<file>, where item files live: a spike's folder beside its
+# item holds files of any name, and none of them is an item.
 wb_find() {
   local sub="$1" dirs=()
   shift
   mapfile -t dirs < <(wb_dirs "$sub")
   [ "${#dirs[@]}" -gt 0 ] || return 0
-  find "${dirs[@]}" "$@" 2>/dev/null || true
+  find "${dirs[@]}" -maxdepth 2 "$@" 2>/dev/null || true
+}
+
+# An item's path in a branch listing: <class>/<id>-<slug>.md, never a file
+# inside a spike's folder. Takes stdin.
+item_paths() {
+  grep -E "^$WB/items/[^/]+/$1-[^/]*\\.md\$" | grep -v "^$WB/items/archive/" || true
 }
 
 # The source tree this script sits in, or WORKBENCH_ROOT.
@@ -165,7 +174,7 @@ slugify() {
 # <letter>-<number>, printed back three digits wide so 'b-1' names b-001;
 # everything downstream globs on "$id-*".
 require_id() {
-  [[ "$1" =~ ^([bf])-([0-9]+)$ ]] || die "'$1' is not an item id; ids look like b-038"
+  [[ "$1" =~ ^([bfs])-([0-9]+)$ ]] || die "'$1' is not an item id; ids look like b-038"
   printf '%s-%03d\n' "${BASH_REMATCH[1]}" "$((10#${BASH_REMATCH[2]}))"
 }
 
@@ -182,11 +191,11 @@ require_init() {
 highest_existing() {
   local max=0 n
   while IFS= read -r f; do
-    n=$(basename "$f" | sed -n 's/^[bf]-\([0-9]\{1,\}\)-.*/\1/p')
+    n=$(basename "$f" | sed -n 's/^[bfs]-\([0-9]\{1,\}\)-.*/\1/p')
     [ -n "$n" ] || continue
     n=$((10#$n))
     [ "$n" -gt "$max" ] && max=$n
-  done < <(wb_find items -name '[bf]-*.md' < <(all_roots))
+  done < <(wb_find items -name '[bfs]-*.md' < <(all_roots))
   echo "$max"
 }
 
@@ -805,7 +814,9 @@ $MARK_START
 Domain work in this repo is tracked with **workbench**. Before writing code for
 any feature or bug fix, create an item (\`workbench new\`) and agree its
 verification criterion. An area not yet understood well enough to write an
-item for is a spike: a feature item whose criterion is the question it answers.
+item for is a spike (\`workbench new spike\`), a class of its own: questions
+instead of a criterion, findings as the result, its code in its own folder
+under \`$WB/items/spikes/\`, a reference for the features that follow.
 Housekeeping — configs, tooling, agent settings — is exempt and goes straight
 to the main branch.
 
@@ -993,9 +1004,9 @@ cmd_init() {
   local mainr
   mainr=$(main_root)
   [ "$root" = "$mainr" ] \
-    || die "init writes tracked files that are committed on the default branch; run it in the main checkout: cd $mainr && workbench init"
+    || die "init writes tracked files that are committed on the default branch; run it in the main checkout: cd $(printf %q "$mainr") && workbench init"
 
-  for d in items/bugs items/features items/archive; do
+  for d in items/bugs items/features items/spikes items/archive; do
     mkdir -p "$root/$WB/$d"
     [ -e "$root/$WB/$d/.gitkeep" ] || touch "$root/$WB/$d/.gitkeep"
   done
@@ -1205,6 +1216,51 @@ status: open
 EOF
 }
 
+write_spike() {
+  cat > "$1" <<EOF
+# $2 — $3
+
+status: open
+
+## Why
+
+<!-- What is not understood well enough to write a bug or feature item for.
+     Delete this comment. -->
+
+## Questions
+
+<!-- The stopping condition: one line per named unknown. Agreed before start;
+     after it the user may edit them, in the worktree only, never main's copy.
+     Everything the spike builds — prototypes, scripts, captures — goes in the
+     folder beside this file, named as it is without .md, and nowhere else:
+     merge lands the two together, archive removes the folder. Output is
+     findings, not assertions. Delete this comment. -->
+
+## Findings
+
+<!-- One entry per question, in prose: the answer, or a blocker saying why it
+     could not be determined, which is a result too. A reframed question is a
+     finding. Measured output goes here; there is no Evidence section.
+     Self-contained: it outlives the folder, which archive removes. Delete
+     this comment. -->
+
+## Suggestions
+
+<!-- Free-format proposals for later work: glossary wording, things worth
+     building, constraints a future feature should respect. A spike never
+     edits GLOSSARY.md, CLAUDE.md, BACKLOG.md or any project doc; nothing here
+     binds until the user copies it into an item or a backlog line. Delete
+     this comment. -->
+
+## Decisions
+
+<!-- Open questions only, one line each, written by 'workbench call <id>':
+     a call that is the user's, parked. Answered
+     by editing the field it changes and deleting the line; archive refuses
+     an item with one open. Delete this comment. -->
+EOF
+}
+
 cmd_new() {
   local class="${1:-}" title="${2:-}" letter dir slug num id path root
   [ $# -eq 2 ] && [ -n "$class" ] && [ -n "$title" ] || usage
@@ -1212,7 +1268,8 @@ cmd_new() {
   case "$class" in
     bug) letter=b; dir=bugs ;;
     feature) letter=f; dir=features ;;
-    *) die "class must be 'bug' or 'feature', got '$class'" ;;
+    spike) letter=s; dir=spikes ;;
+    *) die "class must be 'bug', 'feature' or 'spike', got '$class'" ;;
   esac
 
   # Lands on the default branch wherever this runs, so the main checkout must
@@ -1232,6 +1289,7 @@ cmd_new() {
   case "$class" in
     bug) write_bug "$path" "$id" "$title" ;;
     feature) write_feature "$path" "$id" "$title" ;;
+    spike) write_spike "$path" "$id" "$title" ;;
   esac
 
   land_item "$path" "new $id: $title"
@@ -1319,6 +1377,21 @@ merged_sha() {
     || die "git log failed looking for 'Item: $3' on $2"
 }
 
+# The squash landed but the cleanup after it did not finish: dies naming what
+# was left and the commands that finish it; returns when nothing was.
+# $1 root, $2 id, $3 the squash commit.
+unfinished_merge() {
+  local root="$1" id="$2" sha="$3" left_branch left_wt
+  left_branch=$(local_branches "$root" "$id" | head -1)
+  [ -n "$left_branch" ] || return 0
+  left_wt=$(worktree_of "$left_branch")
+  die "$id is already merged as $sha, but the cleanup after that commit did not finish. Left behind:
+$([ -z "$left_wt" ] || printf '  worktree  %s\n' "$left_wt")  branch    $left_branch
+
+Finish it with:
+$([ -z "$left_wt" ] || printf '  git -C %q worktree remove %q\n' "$root" "$left_wt")  git -C $(printf %q "$root") branch -D $left_branch"
+}
+
 cmd_start() {
   local id="${1:-}" path='' branch root='' wt ref
   [ $# -eq 1 ] && [ -n "$id" ] || usage
@@ -1361,11 +1434,11 @@ cmd_start() {
     echo "resumed $branch in $wt" >&2
     # The branch exists already, so an empty section is a note.
     local f
-    f=$(find "$wt/$WB/items" -name "$id-*.md" -print -quit 2>/dev/null || true)
+    f=$(find "$wt/$WB/items" -maxdepth 2 -name "$id-*.md" -print -quit 2>/dev/null || true)
     if [ -n "$f" ] && ! section_filled "$f" "$(criterion_heading "$id")"; then
       echo "note: $id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code" >&2
     fi
-    if [ -n "$f" ] && ! section_filled "$f" "$EFFECTS"; then
+    if [ -n "$f" ] && ! is_spike "$id" && ! section_filled "$f" "$EFFECTS"; then
       echo "note: $id's '$EFFECTS' is empty; name what works today and changes, or 'none'" >&2
     fi
   else
@@ -1379,13 +1452,17 @@ cmd_start() {
     require_closed_fences "$id" "$path"
     section_filled "$path" "$(criterion_heading "$id")" \
       || die "$id's '$(criterion_heading "$id")' is empty; it is written and agreed before any code — fill it, then start"
-    # A guard step proves the tools ran, not that the behaviour is there.
-    local guard
-    guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")" "$root")
-    [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— name a command whose result differs when the feature is missing, then start"
-    # 'none' is an answer; an empty section is the question never asked.
-    section_filled "$path" "$EFFECTS" \
-      || die "$id's '$EFFECTS' is empty; name what works today and changes — a route, an export, an output — or 'none', then start"
+    # A spike's questions are no criterion: inspection is its method, and its
+    # template has no side effects to name.
+    if ! is_spike "$id"; then
+      # A guard step proves the tools ran, not that the behaviour is there.
+      local guard
+      guard=$(criterion_guard_steps "$path" "$(criterion_heading "$id")" "$root")
+      [ -z "$guard" ] || die "$id's criterion has a step that is a guard, not a check: $guard— name a command whose result differs when the feature is missing, then start"
+      # 'none' is an answer; an empty section is the question never asked.
+      section_filled "$path" "$EFFECTS" \
+        || die "$id's '$EFFECTS' is empty; name what works today and changes — a route, an export, an output — or 'none', then start"
+    fi
     # A hand-written item is brought to the main checkout to land; one committed
     # on another checkout's branch would reach the default branch twice.
     if [ "$root" != "$mainr" ]; then
@@ -1471,18 +1548,7 @@ cmd_merge() {
   local prior
   prior=$(merged_sha "$root" "$main" "$id")
   if [ -n "$prior" ]; then
-    # The squash landed but the cleanup did not finish: name the leftovers and the commands.
-    local left_branch left_wt
-    left_branch=$(local_branches "$root" "$id" | head -1)
-    left_wt=''
-    [ -z "$left_branch" ] || left_wt=$(worktree_of "$left_branch")
-    if [ -n "$left_branch" ]; then
-      die "$id is already merged as $prior, but the cleanup after that commit did not finish. Left behind:
-$([ -z "$left_wt" ] || printf '  worktree  %s\n' "$left_wt")  branch    $left_branch
-
-Finish it with:
-$([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_wt")  git -C $root branch -D $left_branch"
-    fi
+    unfinished_merge "$root" "$id" "$prior"
     die "$main already carries 'Item: $id' at $prior"
   fi
   branch=$(local_branches "$root" "$id")
@@ -1492,8 +1558,8 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
   # Read from the branch, not the checkout: the file may sit edited and
   # uncommitted in the worktree, refused further down.
   local item_on_branch tmp st
-  item_on_branch=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
-    | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+  item_on_branch=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" | item_paths "$id")
+  item_on_branch=${item_on_branch%%$'\n'*}
   # No copy on the branch is the witness missing, not nothing to check.
   [ -n "$item_on_branch" ] \
     || die "$id has no item file on $branch; merge reads the branch's copy — restore it there, then retry"
@@ -1504,13 +1570,19 @@ $([ -z "$left_wt" ] || printf "  git -C %s worktree remove %s\n" "$root" "$left_
   git -C "$root" show "$branch:$item_on_branch" > "$tmp"
   closed_fences "$tmp" || die "$id has an unclosed \`\`\` fence on $branch; close it, then retry"
   st=$(item_status "$tmp")
-  known_status "$st" || die "$id has 'status: $st' on $branch, which is not a status"
+  known_status "$st" "$id" || die "$id has 'status: $st' on $branch, which is not a status"
   case "$st" in
     awaiting*|unverified*)
       names_trigger "$st" || die "$id: '$st' must name its trigger, e.g. 'status: awaiting — the next deploy'" ;;
     unreproduced*) die "$id is unreproduced and never merges; 'workbench archive $id' retires the branch" ;;
-    abandoned*) die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
+    abandoned*)
+      is_spike "$id" && die "$id is abandoned and never merges; 'workbench archive $id' retires the branch under tag $id, committed work kept"
+      die "$id is abandoned and never merges; 'workbench archive $id' retires the branch, '--discard' with the work on it" ;;
+    answered)
+      section_filled "$tmp" Findings \
+        || die "$id is answered with nothing under '## Findings' on $branch; one entry per question, then retry" ;;
     *)
+      ! is_spike "$id" || die "$id is open on $branch; a spike merges as 'answered', its findings filled"
       has_evidence "$tmp" || die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet" ;;
   esac
 
@@ -1539,10 +1611,8 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
       local only
       only=$(printf '%s\n' "$dirt" | sed 's/^...//')
       if [ "$(printf '%s\n' "$only" | wc -l)" -eq 1 ]; then
-        case "$only" in
-          "$WB/items/"*"/$id-"*.md)
-            die "$only is edited and not committed on the branch; commit it, then retry" ;;
-        esac
+        [[ "$only" =~ ^$WB/items/[^/]+/$id-[^/]*\.md$ ]] \
+          && die "$only is edited and not committed on the branch; commit it, then retry"
         # A symlink is not a directory to git, so an ignore line with a
         # trailing slash ('node_modules/', 'target/') does not cover one.
         [ -L "$wt/$only" ] \
@@ -1560,13 +1630,38 @@ $(printf '%s\n' "$gone" | sed 's/^/  /')"
 
   # Another item's file on this branch would land under this trailer and
   # collide at that item's own merge. Three-dot, so items landed since the cut
-  # are not in it.
-  local foreign
-  foreign=$(git -C "$root" diff --name-only "$main...$branch" \
-    | grep -E "^$WB/items/[^/]+/[bf]-[0-9]+-[^/]*\.md\$" \
-    | grep -v -e "^$WB/items/archive/" -e "/$id-" || true)
-  [ -z "$foreign" ] || die "$branch carries another item's file; 'git rm' it here — after 'workbench start <id>' for that item if it is not started — then retry:
-$(printf '%s\n' "$foreign" | sed 's/^/  /')"
+  # are not in it. No rename detection, here and below: a file moved lists
+  # only where it went, and the squash deletes where it was. Unquoted, so a
+  # path is compared as git holds it. Submodules shown whatever .gitmodules or
+  # diff.ignoreSubmodules says: the squash carries them either way.
+  local statuses changed foreign
+  statuses=$(git -C "$root" -c core.quotePath=false diff --no-renames --ignore-submodules=none --name-status "$main...$branch")
+  changed=$(cut -f2- <<< "$statuses")
+  foreign=$(grep -E $'^[A-Z]\t'"$WB/items/[^/]+/[bfs]-[0-9]+-[^/]*\.md\$" <<< "$statuses" \
+    | grep -v -e $'\t'"$WB/items/archive/" -e "/$id-" || true)
+  if [ -n "$foreign" ]; then
+    # One the branch added comes off it; one it changed or deleted goes back
+    # to how it stood at the cut, which 'git rm' cannot do.
+    local added restore base msg
+    added=$(awk -F'\t' '$1 == "A" { print "  " $2 }' <<< "$foreign")
+    base=$(git -C "$root" rev-parse --short "$(git -C "$root" merge-base "$main" "$branch")")
+    restore=$(awk -F'\t' '$1 != "A" { print $2 }' <<< "$foreign" \
+      | while IFS= read -r f; do printf '  git checkout %s -- %q\n' "$base" "$f"; done)
+    msg="$branch carries another item's file; in ${wt:-its worktree}, fix it and commit, then retry:"
+    [ -z "$added" ] || msg+=$'\n'"'git rm' each one it added — after 'workbench start <id>' for that item if it is not started:"$'\n'"$added"
+    [ -z "$restore" ] || msg+=$'\n'"put back each one it changed or deleted, as it stood when the branch was cut:"$'\n'"$restore"
+    die "$msg"
+  fi
+
+  # A spike lands its item and its folder, nothing else: the folder is what
+  # archive removes, so code outside it would outlive the spike.
+  if is_spike "$id"; then
+    local outside
+    outside=$(printf '%s\n' "$changed" \
+      | awk -v f="$item_on_branch" -v d="${item_on_branch%.md}/" 'NF && $0 != f && index($0, d) != 1')
+    [ -z "$outside" ] || die "$branch changes files outside ${item_on_branch%.md}/; a spike adds its code there and changes nothing else — restore these on the branch, then retry:
+$(printf '%s\n' "$outside" | sed 's/^/  /')"
+  fi
 
   # Main's copy must stand as it started: the squash is a three-way merge, so a
   # main-side edit in a hunk the branch never touched would merge in silently.
@@ -1585,14 +1680,18 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
 
   # premerge runs on the branch tip: a branch behind main would be tested
   # without what landed since. Except what the worker lands on main from its
-  # worktree — a call, a new item — which touches only workbench/.
+  # worktree — a call, a new item — which touches only workbench/. A spike's
+  # folder deleted on main is the exception: code on the branch may still
+  # reach it, and the squash lands without it. One added there cannot matter;
+  # the branch was cut before it existed.
   # The main checkout's setting: the branch a merge lands on decides its gate,
   # not the branch being merged.
-  local premerge
+  local premerge landed
   premerge=$(conf_get premerge "$root")
+  landed=$(git -C "$root" -c core.quotePath=false diff --no-renames --ignore-submodules=none --name-status "$branch...$main")
   if [ -n "$premerge" ] \
      && ! git -C "$root" merge-base --is-ancestor "$main" "$branch" \
-     && git -C "$root" diff --name-only "$branch...$main" | grep -qv "^$WB/"; then
+     && awk -F'\t' -v w="$WB/" -v s="^$WB/items/[^/]+/[^/]+/" 'NF && (index($2, w) != 1 || ($1 == "D" && $2 ~ s)) { f = 1 } END { exit !f }' <<< "$landed"; then
     die "$branch is behind $main, and premerge would test it without what landed since; in ${wt:-its worktree} run 'git rebase $main', then retry"
   fi
 
@@ -1644,10 +1743,10 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   # Past this point the commit exists; a failing cleanup reports the half-state,
   # and the guard at the top repeats it on a re-run.
   if [ -n "$wt" ] && ! git -C "$root" worktree remove "$wt"; then
-    die "merged $id as $sha on $main, but removing the worktree failed. $wt and the branch $branch are still here; finish with 'git -C $root worktree remove $wt' and 'git -C $root branch -D $branch'"
+    die "merged $id as $sha on $main, but removing the worktree failed. $wt and the branch $branch are still here; finish with 'git -C $(printf %q "$root") worktree remove $(printf %q "$wt")' and 'git -C $(printf %q "$root") branch -D $branch'"
   fi
   git -C "$root" branch -D --quiet "$branch" \
-    || die "merged $id as $sha on $main, but the branch $branch could not be deleted; finish with 'git -C $root branch -D $branch'"
+    || die "merged $id as $sha on $main, but the branch $branch could not be deleted; finish with 'git -C $(printf %q "$root") branch -D $branch'"
 
   echo "merged $id as $sha on $main"
   # The branch's copy overwrote main's in the squash; read the status from there.
@@ -1656,14 +1755,15 @@ $(printf '%s\n' "$foreign" | sed 's/^/  /')"
   case "$item" in
     */archive/*) echo "$id is already archived" >&2 ;;
     *)
-      case "$(item_status "${item:-/dev/null}")" in
-        awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
+      case "$id:$(item_status "${item:-/dev/null}")" in
+        s-*) echo "$id stays on $main as a reference; 'workbench archive $id' removes its folder once you are done with it" >&2 ;;
+        *:awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
         *) echo "next: workbench archive $id" >&2 ;;
       esac ;;
   esac
   if [ -n "$wt" ]; then
     case "$PWD" in
-      "$wt"|"$wt"/*) echo "this shell's directory is gone; cd $root" >&2 ;;
+      "$wt"|"$wt"/*) echo "this shell's directory is gone; cd $(printf %q "$root")" >&2 ;;
     esac
   fi
 }
@@ -1689,7 +1789,7 @@ shown_status() {
 }
 
 item_id() {
-  basename "$1" | sed -n 's/^\([bf]-[0-9]\{1,\}\)-.*/\1/p'
+  basename "$1" | sed -n 's/^\([bfs]-[0-9]\{1,\}\)-.*/\1/p'
 }
 
 # Undo a squash that did not reach its commit; --merge keeps the unstaged
@@ -1772,6 +1872,7 @@ template_headings() {
   case "$1" in
     b-*) printf '%s\n' 'What was seen' 'How to reproduce' 'Root cause' 'The fix' 'Side effects' 'How to confirm it is fixed' 'Decisions' 'Evidence' ;;
     f-*) printf '%s\n' 'Why' 'What changes' 'What it touches' 'Side effects' 'How to confirm it works' 'Decisions' 'Evidence' ;;
+    s-*) printf '%s\n' 'Why' 'Questions' 'Findings' 'Suggestions' 'Decisions' ;;
   esac
 }
 
@@ -1787,17 +1888,32 @@ repeated_headings() {
   without_fences "$1" | sed -n 's/^## //p' | sort | uniq -d
 }
 
-# The statuses items.md defines, and nothing else.
+# The statuses items.md defines for the class, and nothing else. $1 status, $2 id.
 known_status() {
-  case "$1" in
-    open|awaiting*|unverified*|unreproduced*|abandoned*) return 0 ;;
-    *) return 1 ;;
+  case "$2" in
+    s-*) case "$1" in open|answered|abandoned*) return 0 ;; esac ;;
+    *) case "$1" in open|awaiting*|unverified*|unreproduced*|abandoned*) return 0 ;; esac ;;
   esac
+  return 1
+}
+
+# The statuses archive takes, as its refusal names them.
+status_set() {
+  case "$1" in
+    s-*) echo "'answered' (with findings) or 'abandoned — <why>'" ;;
+    *) echo "'open' (with evidence), 'unreproduced', 'unverified — <trigger>' or 'abandoned — <why>'" ;;
+  esac
+}
+
+is_spike() {
+  case "$1" in s-*) return 0 ;; esac
+  return 1
 }
 
 # Retire a branch that never merges: an unreproduced bug's holds only its
 # item file, an abandoned item's whatever was built, dropped only with
-# discard=1 and named as it goes. The item file is always the dirty one and
+# discard=1 and named as it goes; an unmerged spike's whatever it holds,
+# kept whole. The item file is always the dirty one and
 # alone is exempt. Prints the path of the copy now in the main checkout.
 retire_branch() {
   local id="$1" branch="$2" path="$3" discard="${4:-0}" main root wt other item_re hint dropped=0
@@ -1806,6 +1922,7 @@ retire_branch() {
   wt=$(live_worktree_of "$branch")
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
   case "$id:$(item_status "$path")" in
+    s-*:*) hint="commit it on the branch, then archive; an abandoned spike may 'workbench archive $id --discard' instead" ;;
     *:abandoned*) hint="an abandoned item never merges: 'workbench archive $id --discard' drops the work, naming each file" ;;
     *) hint="merge $id, or remove the worktree and branch yourself, then archive" ;;
   esac
@@ -1821,7 +1938,9 @@ $hint"
       dropped=1
     fi
   fi
-  other=$(git -C "$root" diff --name-only "$main...$branch" | grep -vE "^$item_re" || true)
+  # A spike's branch is its material, kept whole under the tag.
+  other=''
+  is_spike "$id" || other=$(git -C "$root" diff --name-only "$main...$branch" | grep -vE "^$item_re" || true)
   if [ -n "$other" ]; then
     [ "$discard" -eq 1 ] || die "$branch carries work beyond the item file:
 $other
@@ -1837,8 +1956,8 @@ $hint"
   if [ -n "$wt" ]; then
     rel="${path#"$(item_root "$path")"/}"
   else
-    rel=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" \
-      | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+    rel=$(git -C "$root" ls-tree -r --name-only "$branch" -- "$WB/items" | item_paths "$id")
+    rel=${rel%%$'\n'*}
     [ -n "$rel" ] || die "$branch carries no item file for $id; nothing to archive from it"
   fi
   # Overwritten, not merged — so a main-side edit since the cut would be
@@ -1859,7 +1978,9 @@ $hint"
   # was verified clean above.
   [ -z "$wt" ] || git -C "$root" worktree remove --force "$wt"
   git -C "$root" branch -D --quiet "$branch"
-  if [ "$dropped" -eq 1 ]; then
+  if is_spike "$id"; then
+    echo "retired $branch as tag $id; its material is reachable there" >&2
+  elif [ "$dropped" -eq 1 ]; then
     echo "retired $branch as tag $id; its prototypes are gone from the tree" >&2
   else
     echo "retired $branch as tag $id; nothing but the item was on it" >&2
@@ -1881,9 +2002,13 @@ criterion_guard_steps() {
     | head -3 | sed 's/^[[:space:]]*//; s/$/ /' | tr -d '\n' || true
 }
 
-# The criterion heading's common prefix, both classes.
+# The criterion heading, or the prefix bugs and features share; a spike's
+# stopping condition stands in its place.
 criterion_heading() {
-  echo "How to confirm"
+  case "$1" in
+    s-*) echo "Questions" ;;
+    *) echo "How to confirm" ;;
+  esac
 }
 
 EFFECTS='Side effects'
@@ -1913,13 +2038,20 @@ cmd_archive() {
   main=$(default_branch)
   branch=$(local_branches "$(main_root)" "$id")
   require_one_branch "$id" "$branch"
+  # A merge whose cleanup stopped leaves the branch standing, which below
+  # would read as work never merged.
+  if [ -n "$branch" ]; then
+    local merged
+    merged=$(merged_sha "$(main_root)" "$main" "$id")
+    [ -z "$merged" ] || unfinished_merge "$(main_root)" "$id" "$merged"
+  fi
   # Started with the worktree gone: the checks read the branch's copy.
   local tmp='' wt on_branch
   if [ -n "$branch" ]; then
     wt=$(worktree_of "$branch")
     if [ -z "$wt" ] || [ ! -d "$wt" ]; then
-      on_branch=$(git ls-tree -r --name-only "$branch" -- "$WB/items" \
-        | grep -E "/$id-[^/]*\.md\$" | grep -v '/archive/' | head -1 || true)
+      on_branch=$(git ls-tree -r --name-only "$branch" -- "$WB/items" | item_paths "$id")
+      on_branch=${on_branch%%$'\n'*}
       if [ -n "$on_branch" ]; then
         tmp=$(mktemp)
         # Every refusal below would otherwise leave it behind.
@@ -1936,8 +2068,8 @@ cmd_archive() {
   require_closed_fences "$id" "$path"
   local status
   status=$(item_status "$path")
-  known_status "$status" \
-    || die "$id has 'status: $status', which is not a status; the archive takes 'open' (with evidence), 'unreproduced', 'unverified — <trigger>' or 'abandoned — <why>'"
+  known_status "$status" "$id" \
+    || die "$id has 'status: $status', which is not a status; the archive takes $(status_set "$id")"
   if [ "$discard" -eq 1 ]; then
     case "$status" in
       abandoned*) ;;
@@ -1964,13 +2096,20 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
       names_trigger "$status" \
         || die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
     unreproduced*) ;;
+    answered)
+      section_filled "$path" Findings \
+        || die "$id is answered with nothing under '## Findings'; one entry per question, the answer or why it could not be determined, then archive" ;;
     abandoned*)
       names_trigger "$status" \
         || die "$id: 'abandoned' must say why, e.g. status: abandoned — the realm yield turned out to be fixed upstream"
       local shipped
       shipped=$(merged_sha "$(main_root)" "$main" "$id")
-      [ -z "$shipped" ] || die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'" ;;
+      if [ -n "$shipped" ]; then
+        is_spike "$id" && die "$id merged as $shipped; a merged spike is not abandoned — archive it as 'answered'"
+        die "$id merged as $shipped; shipped work is not abandoned — archive it as 'open' with evidence, or 'unverified — <trigger>'"
+      fi ;;
     *)
+      ! is_spike "$id" || die "$id is open; a spike archives as 'answered' or 'abandoned — <why>'"
       has_evidence "$path" \
         || die "$id has no evidence recorded; archive requires it (or status: unreproduced / unverified — <trigger> / abandoned — <why>)" ;;
   esac
@@ -1981,6 +2120,7 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
     case "$id:$status" in
       *:abandoned*) path=$(retire_branch "$id" "$branch" "$path" "$discard") ;;
       *:unreproduced*) path=$(retire_branch "$id" "$branch" "$path") ;;
+      *:answered) path=$(retire_branch "$id" "$branch" "$path") ;;
       *) die "$id still has branch $branch; merge it first — archive records the squash commit" ;;
     esac
   fi
@@ -2000,6 +2140,51 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   root=$(item_root "$path")
   local dest
   dest="$root/$WB/items/archive/$(basename "$path")"
+
+  # A merged spike's folder goes with it: exactly the item's path without
+  # '.md', where merge let its code land, and only what git tracks there, all
+  # of it committed. Anything else under it is someone's work, and is refused
+  # rather than deleted.
+  # Merged work archives on the default branch: a copy found in another
+  # checkout would put the archive commit on that item's branch.
+  if [ "$sha" != none ] && [ "$root" != "$(main_root)" ]; then
+    die "$id merged as $sha, but its copy on $main is missing — found only in $root; restore it in $(main_root) ('git checkout -- ${path#"$root"/}'), then archive"
+  fi
+
+  local spike_dir='' spike_rel=''
+  if is_spike "$id" && [ "$sha" != none ]; then
+    spike_rel=${path#"$root"/}
+    spike_rel=${spike_rel%.md}
+    spike_dir="$root/$spike_rel"
+    if [ -L "$spike_dir" ] || { [ -e "$spike_dir" ] && [ ! -d "$spike_dir" ]; }; then
+      die "$spike_rel is not a directory; archive removes a spike's folder and nothing else — move it aside, then archive"
+    fi
+    # What git tracks there decides, not what is on disk: a folder deleted by
+    # hand still has files in the index, reported below as deletions. HEAD or
+    # the index: a removal staged by hand and a file only staged there are
+    # both refused below, not committed along.
+    if [ -n "$(git -C "$root" ls-tree -r --name-only HEAD -- "$spike_rel")$(git -C "$root" ls-files -- "$spike_rel")" ]; then
+      local dirt
+      dirt=$(git -C "$root" status --porcelain --untracked-files=all -- "$spike_rel")
+      [ -z "$dirt" ] || die "$spike_rel has changes not committed on $main; archive deletes only committed files — commit or remove these, then archive:
+$(printf '%s\n' "$dirt" | sed 's/^/  /')"
+      # A spike is self-contained: nothing outside $WB/ names its folder, on
+      # main or on any branch still to merge. A file that does breaks when the
+      # folder goes, so it is refused, not deleted under. '<class>/<name>'
+      # matches a path to it in any form.
+      local users refs=() ref=${spike_rel#"$WB"/items/}
+      mapfile -t refs < <(git -C "$root" for-each-ref --format='%(refname:short)' refs/heads)
+      users=$({
+        git -C "$root" grep -l -F "$ref" -- . ":(exclude)$WB" 2>/dev/null
+        [ "${#refs[@]}" -eq 0 ] || git -C "$root" grep -l -F "$ref" "${refs[@]}" -- . ":(exclude)$WB" 2>/dev/null
+      } | sort -u || true)
+      [ -z "$users" ] || die "a spike is self-contained, yet files outside $WB/ name $spike_rel; archive deletes it — remove the reference, copying what is kept into the project, or delete the branch where one listed as <branch>:<file> is done with; then archive:
+$(printf '%s\n' "$users" | sed 's/^/  /')"
+    else
+      spike_rel=''
+    fi
+  fi
+
   mkdir -p "$(dirname "$dest")"
 
   # An untracked item cannot be 'git mv'ed. The commit line goes on after the
@@ -2014,10 +2199,22 @@ $(printf '%s\n' "$extra" | sed 's/^/  /')"
   fi
   printf '\ncommit: %s\n' "$sha" >> "$dest"
   git -C "$root" add -- "$dest"
+  if [ -n "$spike_rel" ]; then
+    git -C "$root" rm -r -q -- "$spike_rel"
+    moved+=("$root/$spike_rel")
+  fi
+  local staged="the move is"
+  [ -z "$spike_rel" ] || staged="the move and the removal of $spike_rel are"
   git -C "$root" commit --quiet -m "archive $id" -- "${moved[@]}" \
-    || die "archived $id at $sha, but the commit was refused — a hook, or a merge in progress; the move is staged in $root"
+    || die "archived $id at $sha, but the commit was refused — a hook, or a merge in progress; $staged staged in $root. Once the cause is fixed, commit exactly those paths:
+  git -C $(printf %q "$root") commit -m 'archive $id' --$(printf ' %q' "${moved[@]#"$root"/}")"
 
   echo "archived $id at $sha"
+  if [ -n "$spike_rel" ]; then
+    echo "removed $spike_rel; its last version: git show $(git -C "$root" rev-parse --short HEAD)^:$spike_rel/" >&2
+    # Ignored files are no one's commit; git leaves them, and so does archive.
+    [ ! -d "$spike_dir" ] || echo "note: $spike_rel still holds files git ignores; remove them by hand" >&2
+  fi
 }
 
 # One line per document over its cap; 'cap.<name>=' in the main checkout's
@@ -2113,6 +2310,7 @@ cmd_round() {
   case "$fixed" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
   case "$stands" in *[!0-9]*|'') die "fixed and stands are counts: workbench round $id <fixed> <stands>" ;; esac
   id=$(require_id "$id")
+  ! is_spike "$id" || die "the review dialog does not run for spikes"
   local path
   path=$(find_item "$id")
   [ -n "$path" ] || die "no item matching '$id'"
@@ -2255,12 +2453,12 @@ status_lines() {
   mainr=$(main_root)
   own=$(worktree_of "${name%.md}")
   if [ -n "$own" ] && [ -d "$own" ]; then
-    f=$(find "$own/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+    f=$(find "$own/$WB/items" -maxdepth 2 -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
     started='   started'
   fi
   if [ -z "$f" ]; then
-    [ -z "$(find "$mainr/$WB/items/archive" -name "$name" -print -quit 2>/dev/null)" ] || return 0
-    f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
+    [ -z "$(find "$mainr/$WB/items/archive" -maxdepth 1 -name "$name" -print -quit 2>/dev/null)" ] || return 0
+    f=$(find "$mainr/$WB/items" -maxdepth 2 -name "$name" -print -quit 2>/dev/null || true)
     # A branch with no worktree is started too. Not local_branches: that globs
     # '<id>-*', and b-1-foo would answer for b-1-foobar.
     [ -z "$(git -C "$mainr" for-each-ref --format='%(refname:short)' "refs/heads/${name%.md}")" ] || started='   started'
@@ -2270,7 +2468,7 @@ status_lines() {
   fi
   if [ -z "$f" ]; then
     for d in "$@"; do
-      f=$(find "$d" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+      f=$(find "$d" -maxdepth 2 -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
       [ -z "$f" ] || break
     done
     if [ -n "$f" ]; then
@@ -2279,7 +2477,8 @@ status_lines() {
       # On its branch alone: read from there, and say so.
       local on_branch
       on_branch=$(git -C "$mainr" ls-tree -r --name-only "${name%.md}" -- "$WB/items" 2>/dev/null \
-        | grep -F "/$name" | grep -v '/archive/' | head -1 || true)
+        | item_paths "$(item_id "$name")" | grep -F "/$name" || true)
+      on_branch=${on_branch%%$'\n'*}
       [ -n "$on_branch" ] || return 0
       tmp=$(mktemp)
       git -C "$mainr" show "${name%.md}:$on_branch" > "$tmp"
@@ -2341,7 +2540,7 @@ cmd_status() {
   # The in-flight sections, each printed only with lines under it.
   local open_body='' branch_body='' await_body='' limbo_body='' f
   open_body=$(for name in "${names[@]}"; do status_lines "$name" "${dirs[@]}"; done)
-  branch_body=$(git branch --format='  %(refname:short)' | grep -E '^  [bf]-[0-9]+-' || true)
+  branch_body=$(git branch --format='  %(refname:short)' | grep -E '^  [bfs]-[0-9]+-' || true)
 
   # Merged and open: invisible to 'git branch'. Merged means on the default
   # branch, so main's copies are read. 'awaiting' is chosen before merge, so
@@ -2365,7 +2564,7 @@ cmd_status() {
       mid=$(item_id "$name")
       [ -n "$mid" ] || continue
       [ -z "$(local_branches "$mainr" "$mid")" ] || continue
-      f=$(find "$mainr/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+      f=$(find "$mainr/$WB/items" -maxdepth 2 -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
       [ -n "$f" ] || continue
       local st sha
       st=$(item_status "$f")
@@ -2373,20 +2572,27 @@ cmd_status() {
       sha=$(merged_sha "$mainr" "$mainb" "$mid")
       [ -n "$sha" ] || continue
       # Shipped work carrying a status that never merges: archive refuses it.
-      case "$st" in
-        unreproduced*|abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
+      # A merged spike is a reference, listed apart ('s' prefix, split below).
+      case "$mid:$st" in
+        s-*) printf 's  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
+        *:unreproduced*|*:abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
         *) printf '  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
       esac
     done
   )
 
-  if [ -z "$open_body$branch_body$await_body$limbo_body" ]; then
+  local ref_body
+  ref_body=$(sed -n 's/^s  /  /p' <<< "$limbo_body")
+  limbo_body=$(grep -v '^s  ' <<< "$limbo_body" || true)
+
+  if [ -z "$open_body$branch_body$await_body$limbo_body$ref_body" ]; then
     sep; echo "nothing in flight"
   fi
   [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body"; }
   [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body"; }
   [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger"; printf '%s\n' "$await_body"; }
   [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body"; }
+  [ -z "$ref_body" ] || { sep; echo "spikes on $mainb, kept as references — 'workbench archive <id>' removes the folder when done"; printf '%s\n' "$ref_body"; }
 
   # Decisions parked in the items themselves, from the copy that is the item.
   local dec=() dl pf
@@ -2416,9 +2622,9 @@ cmd_status() {
   # Same ID under two slugs, archive included; names deduplicated first.
   # Repair: references/git.md.
   local dupes
-  dupes=$(wb_find items -name '[bf]-*-*.md' -print < <(all_roots) \
+  dupes=$(wb_find items -name '[bfs]-*-*.md' -print < <(all_roots) \
     | sed 's|.*/||' | sort -u \
-    | sed -n 's|^\([bf]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
+    | sed -n 's|^\([bfs]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
   if [ -n "$dupes" ]; then
     sep
     echo "DUPLICATE IDS — see references/git.md for repair"
@@ -2473,10 +2679,10 @@ cmd_status() {
 # on main; a branch named like an item whose file is in no checkout counts too.
 open_names() {
   local archived
-  archived=$(find "$(main_root)/$WB/items/archive" -name '[bf]-*.md' 2>/dev/null | sed 's|.*/||')
+  archived=$(find "$(main_root)/$WB/items/archive" -maxdepth 1 -name '[bfs]-*.md' 2>/dev/null | sed 's|.*/||')
   {
-    wb_find items -path '*/archive/*' -prune -o -name '[bf]-*.md' -print < <(all_roots 2>/dev/null) | sed 's|.*/||'
-    git for-each-ref --format='%(refname:short).md' 'refs/heads/[bf]-*' | grep -E '^[bf]-[0-9]+-'
+    wb_find items -path '*/archive/*' -prune -o -name '[bfs]-*.md' -print < <(all_roots 2>/dev/null) | sed 's|.*/||'
+    git for-each-ref --format='%(refname:short).md' 'refs/heads/[bfs]-*' | grep -E '^[bfs]-[0-9]+-'
   } | sort -u \
     | { if [ -n "$archived" ]; then grep -vxF -f <(printf '%s\n' "$archived") || true; else cat; fi; }
 }
@@ -2489,11 +2695,11 @@ item_copy() {
   mainr=$(main_root)
   own=$(worktree_of "${name%.md}")
   if [ -n "$own" ] && [ -d "$own" ]; then
-    f=$(find "$own/$WB/items" -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
+    f=$(find "$own/$WB/items" -maxdepth 2 -path '*/archive/*' -prune -o -name "$name" -print -quit 2>/dev/null || true)
   fi
   if [ -z "$f" ]; then
-    [ -z "$(find "$mainr/$WB/items/archive" -name "$name" -print -quit 2>/dev/null)" ] || return 0
-    f=$(find "$mainr/$WB/items" -name "$name" -print -quit 2>/dev/null || true)
+    [ -z "$(find "$mainr/$WB/items/archive" -maxdepth 1 -name "$name" -print -quit 2>/dev/null)" ] || return 0
+    f=$(find "$mainr/$WB/items" -maxdepth 2 -name "$name" -print -quit 2>/dev/null || true)
   fi
   [ -z "$f" ] || printf '%s\n' "$f"
 }
@@ -2504,7 +2710,8 @@ awaiting_on_main() {
   local mainr h
   mainr=$(main_root)
   [ -d "$mainr/$WB/items" ] || return 0
-  grep -rl '^status: awaiting' "$mainr/$WB/items" --exclude-dir=archive 2>/dev/null | sort \
+  find "$mainr/$WB/items" -maxdepth 2 -path '*/archive/*' -prune -o -name '*.md' -print0 2>/dev/null \
+    | xargs -0 -r grep -l '^status: awaiting' 2>/dev/null | sort \
     | while IFS= read -r h; do
         [ -n "$(local_branches "$mainr" "$(item_id "$h")")" ] || printf '%s\n' "$h"
       done

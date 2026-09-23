@@ -23,7 +23,9 @@ word the user uses in a sense the glossary does not give — or one that
 could mean two things ("account": the Customer or the User?) — goes to the
 user with the sizing answer, and the item is written in the word that
 comes back. A new term's entry lands in the same commit as the item that
-first uses it, never batched.
+first uses it, never batched. A spike is no such item: it suggests an entry
+under `## Suggestions`, and the entry lands with the first bug or feature
+item that uses the word.
 
 ## Starting out
 

@@ -16,7 +16,7 @@ worked, written before the code exists. The reader may not read code at all
 
 ```
 idea (workbench/BACKLOG.md line)
-  -> item      workbench/items/{bugs,features}/<id>-<slug>.md,
+  -> item      workbench/items/{bugs,features,spikes}/<id>-<slug>.md,
                committed on main as it is created
   -> branch    <id>-<slug>, in its own worktree under .worktrees/; the item
                is edited there from now on
@@ -45,27 +45,32 @@ idea (workbench/BACKLOG.md line)
    it, or `none`. `start` refuses it empty. One found after `start` is
    `workbench call <id> "side effect: …"`, never your edit of the
    section: whether the change is acceptable is the user's, and so is the
-   edit.
+   edit. A spike has neither: its `## Questions` stand in their place
+   ([verification.md](references/verification.md), "Spikes").
 
 3. **Nothing is archived without verified evidence.** Merge asks only
    whether everything verifiable was verified, so an item may ship while
    still open. `unreproduced` and `unverified — <trigger>` archive a
    statement of what was not proved; `abandoned — <why>` archives a
    decision: work the user dropped, never deleted
-   ([items.md](references/items.md)).
+   ([items.md](references/items.md)). A spike archives as `answered`: its
+   Findings are the record.
 
 4. **State the root cause before writing a fix.**
 
 5. **A test may satisfy only what the criterion describes.** No script
    whose only purpose is to satisfy a criterion; no test of config, wiring
-   or glue unless a criterion demanded it.
+   or glue unless a criterion demanded it. A spike has no criterion: what it
+   builds, a test included, stays in its folder, which no gate runs; its
+   output is Findings, not assertions.
 
 6. **Do not write documentation by default.** Write only what cannot be
    read from the code. A discovered fact becomes code or a comment at its
    call site, never a document and never an item line of its own
    ([docs.md](references/docs.md)). The standing exception is
    `workbench/GLOSSARY.md`, the project's domain language, which binds
-   every item ([glossary.md](references/glossary.md)).
+   every item ([glossary.md](references/glossary.md)). The other is a
+   spike's `## Findings`: what a spike discovers is its output.
 
 7. **Deleting means deleting.** No "formerly", no "removed in favour of",
    no strikethrough, no inline changelog. The one exception is a pointer the
@@ -73,7 +78,7 @@ idea (workbench/BACKLOG.md line)
 
 8. **An item has the template's sections and no others.** `archive`
    refuses any other heading. What was not proved is one line under
-   Evidence. A question that is the user's is one line under the item's
+   Evidence — a spike's, under Findings. A question that is the user's is one line under the item's
    `## Decisions`, written by `workbench call`; the answer goes into the
    field it changes and the line is deleted. The fields hold what the
    reader needs to judge the claim — root cause, criterion, output — not
@@ -92,7 +97,9 @@ idea (workbench/BACKLOG.md line)
 10. **The project has no scratch folder.** A file that exists only for this
     session — a probe, a capture, a rendered page — goes to the scratchpad
     directory the environment names. What it showed is Evidence when it
-    settles a criterion step; any other fact follows rule 6.
+    settles a criterion step; any other fact follows rule 6. A spike's
+    prototypes and captures are its output, not scratch: they go in its
+    folder.
 
 ## Setting up
 
@@ -104,8 +111,8 @@ words, never yours.
 
 ## Commands
 
-`/bug`, `/feature`, `/idea` and `/wb` are thin — the sizing check, the
-command, the fields — so the rules stay here. Skills, agents and settings
+`/bug`, `/feature`, `/spike`, `/idea` and `/wb` are thin — the sizing
+check, the command, the fields — so the rules stay here. Skills, agents and settings
 are committed copies, in every worktree and clone. `workbench status` says
 when a copy is behind its source; `workbench init` refreshes it; never edit
 the copy.
@@ -137,7 +144,7 @@ user confirms. Not the size of the work, not tidiness.
 | It can be described as | It is | Lives as |
 |---|---|---|
 | what changes and how to confirm it | an item | `workbench new bug\|feature` |
-| an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | a feature item whose criterion is the question it answers and whose evidence is the answer; what it decides becomes items or `BACKLOG.md` lines, and the spike's branch merges only what is describable by then |
+| an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | `workbench new spike`: the questions in scope, each answered under Findings or given a blocker — "could not determine" is a result; its code in its own folder beside the item, self-contained. Merged, it stays on main as a reference for later features until archive removes the folder; unmerged, archive retires its branch under a tag. Which spikes merge is the user's call |
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 Whatever fits the item row is an item. The idea row is never the agent's
@@ -169,13 +176,14 @@ which fed which.
 ## What is in flight
 
 `workbench status`: open items, merged and still `awaiting`, merged and
-still `open` (a fault), decisions waiting in items and in `DECISIONS.md`,
-documents over their line cap, duplicate IDs. `git branch` cannot see the
-merged ones.
+still `open` (a fault), merged spikes kept as references, decisions
+waiting in items and in `DECISIONS.md`, documents over their line cap,
+duplicate IDs. `git branch` cannot see the merged ones.
 
 ## The review dialog
 
-Every item — the work is done, then:
+Every bug and feature item — the work is done, then (a spike has none; the
+user reads its Findings):
 
 ```
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
@@ -199,7 +207,8 @@ is dropped silently.
 
 | Class | Reference |
 |---|---|
-| feature, bug — fields, states, statuses, archiving, what merge and archive ask | [items.md](references/items.md) |
+| feature, bug, spike — fields, states, statuses, archiving, what merge and archive ask | [items.md](references/items.md) |
+| spike — why the criterion rules do not apply, when it is done | [verification.md](references/verification.md), "Spikes" |
 | domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
 | criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
 | what to document and where | [docs.md](references/docs.md) |

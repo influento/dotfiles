@@ -44,7 +44,10 @@ or an old word after a rename, in the item, the diff or the commit subject
 (`grep -riw` each one); something left `awaiting` or `unverified` that
 could be verified now by synthesising the event — report it, the status is
 the user's; a rule applied to N files filed as N items, or a bug fixed
-inside a feature branch without its own item.
+inside a feature branch without its own item; code outside `workbench/`
+that imports, reads or runs anything under `workbench/items/spikes/` — a
+spike is self-contained, and archiving it deletes its folder; what a
+feature keeps from a spike is copied into the project.
 
 A finding is a defect, a missed case or a wrong reading of the criterion,
 shown: the command you ran on the branch and the output that is wrong,

@@ -10,8 +10,8 @@ disable-model-invocation: true
 The `workbench` skill's rules apply; load it if it is not in context.
 
 1. **Sizing first.** A bug is something that behaves wrongly today. If this
-   is a feature, several items, or a spike, say which "Sizing" row and why,
-   and stop for the user's answer.
+   is a feature, several items, or a spike (`/spike`), say which "Sizing"
+   row and why, and stop for the user's answer.
 2. `workbench new bug "<title>"` — the description in a few words.
 3. Fill **What was seen** and **How to reproduce** as far as known, in
    glossary words — a word that conflicts with an entry, or could mean two

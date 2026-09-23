@@ -12,9 +12,9 @@ The `workbench` skill's rules apply; load it if it is not in context.
 1. **Sizing first.** Draft the criteria this needs, then the
    one-item-or-several test: could any entry go green and merge while the
    others are red? If so, several items, one per slice; if the area is not
-   understood well enough to write criteria, a spike. Say which row and
-   why, and stop for the user's answer. A description with more than one
-   plausible shape gets `/grilling` first; the criteria are drafted after
+   understood well enough to write criteria, a spike (`/spike`). Say which
+   row and why, and stop for the user's answer. A description with more than
+   one plausible shape gets `/grilling` first; the criteria are drafted after
    the design is settled.
 2. `workbench new feature "<title>"` — the description in a few words.
 3. Fill **Why** and **What changes** from the description, in glossary

@@ -127,3 +127,17 @@ End-to-end and manual checks run once and their output is recorded.
 Tests are not referenced from the item: they live in the code, reachable
 through the commit trailer, and naming them in the item is a second place
 to drift.
+
+## Spikes
+
+A spike has no criterion, so three rules above do not apply to it: it has
+nothing to fail on the unchanged tree, inspection is its method rather than
+a guard, and a question may be reframed — the reframing is itself a
+finding. Its stopping condition is `## Questions`: done when each has an
+entry under `## Findings`, the answer or a blocker saying why it could not
+be determined. The user judges it by reading, not by a run.
+
+Findings is the sanctioned home for what a spike discovers, measured output
+included; rule 6 still forbids any other document. What should outlive the
+spike — a glossary entry, a feature, a constraint — goes under
+`## Suggestions` until the user copies it into an item.
