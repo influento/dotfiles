@@ -122,13 +122,21 @@ window#waybar {
   background-color: @@SURFACE0@@;
 }
 
+/* Per-app routing, not a VPN: same pill, own colour. Wins over .vpn when both. */
+#custom-network.proxy {
+  color: @@MAUVE@@;
+  background-color: @@SURFACE0@@;
+}
+
 #custom-network.portal,
 #custom-network.limited {
   color: @@YELLOW@@;
 }
 
+/* proxy-down: sing-box died; with the kill switch on, nothing gets out. */
 #custom-network.none,
-#custom-network.error {
+#custom-network.error,
+#custom-network.proxy-down {
   color: @@RED@@;
 }
 
