@@ -79,7 +79,7 @@
     "format-muted": "  mute",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "tooltip": false,
-    "on-click-right": "bash -c \"$HOME/.local/bin/pavucontrol-toggle\"",
+    "on-click-right": "bash -c \"$HOME/.local/bin/widget-toggle audio\"",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
