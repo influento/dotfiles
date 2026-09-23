@@ -59,20 +59,18 @@
       "sway/language",
       "pulseaudio",
       "custom/bluetooth",
-      "network",
+      "custom/network",
       "battery"
     ]
   },
   "sway/mode": {
     "format": "{}"
   },
-  "network": {
-    "format-wifi": "  {signalStrength}%",
-    "format-ethernet": "  {bandwidthTotalBytes}",
-    "format-disconnected": "  off",
-    "interval": 5,
-    "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/nmgui-toggle\""
+  "custom/network": {
+    "exec": "network-status",
+    "return-type": "json",
+    "restart-interval": 5,
+    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle network\""
   },
   "pulseaudio": {
     "format": "  {volume}%",
