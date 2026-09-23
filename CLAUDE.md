@@ -243,7 +243,6 @@ sense inside one kind of project (`go/` in Go repos, `manim` in animation projec
 - Indent with 2 spaces, no tabs
 - Functions use `snake_case`
 - Quote all variable expansions
-- Never add `Co-Authored-By` trailers to git commits
 - Before every commit/push, audit the staged diff for sensitive information leaks:
   usernames, passwords, API keys, tokens, private IPs, email addresses, or any
   data that should not appear in a public repository. Flag any findings to the user
