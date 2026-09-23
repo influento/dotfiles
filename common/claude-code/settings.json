@@ -2,6 +2,10 @@
   "respectGitignore": true,
   "cleanupPeriodDays": 30,
   "includeGitInstructions": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Read",
