@@ -261,8 +261,9 @@ run "merge" 0 "merged b-001" "$WB" merge b-001 "fix crash"
 check "squash carries the trailer" grep -qx 'Item: b-001' <(git log -1 --format=%B)
 check "the branch's copy overwrote main's" grep -q '^\$ make test' "$item"
 check "worktree removed" [ ! -e "$wt" ]
-run "status no longer marks it started" 0 "b-001-crash-on-save +open$" "$WB" status
+run "status no longer marks it started" 0 "" bash -c "! '$WB' status | grep -q 'b-001-crash-on-save.*started'"
 run "status lists a merged item still open as a fault" 0 "b-001-crash-on-save +merged as [0-9a-f]+" bash -c "'$WB' status | sed -n '/merged, still open/,\$p'"
+run "and not under open items, once is enough" 0 "" bash -c "! '$WB' status | sed -n '/^open items/,/^\$/p' | grep -q b-001-crash-on-save"
 
 run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "archived b-001" "$WB" archive b-01
 
@@ -818,6 +819,7 @@ set_status "$wt/workbench/items/bugs/$uid-awaiting.md" 'awaiting — the next de
 ( cd "$wt" && git commit -qam awaiting )
 run "merge accepts an awaiting status" 0 "merged $uid" "$WB" merge "$uid" "awaiting"
 run "status lists it merged and still awaiting" 0 "$uid-awaiting  *awaiting — the next deploy" "$WB" status
+run "and not under open items" 0 "" bash -c "! '$WB' status | sed -n '/^open items/,/^\$/p' | grep -q '$uid-awaiting'"
 set_status "workbench/items/bugs/$uid-awaiting.md" 'unverified — the next deploy'
 run "archive takes it" 0 "archived $uid" "$WB" archive "$uid"
 
@@ -971,6 +973,7 @@ check "a non-ASCII name in the folder counts as inside it" [ -f "$dir/café.txt"
 check "under the spike's trailer" [ "$(git log -1 --format=%b)" = "Item: $sp" ]
 check "the branch and the worktree are gone" bash -c "[ ! -e '$wt' ] && [ -z \"\$(git branch --list '$sp-*')\" ]"
 run "status lists the merged spike as a reference" 0 "$sp-cache-restart +merged as" bash -c "'$WB' status | sed -n '/kept as references/,\$p'"
+run "and not under open items" 0 "" bash -c "! '$WB' status | sed -n '/^open items/,/^\$/p' | grep -q '$sp-'"
 run "and not as merged and still open" 0 "" bash -c "! '$WB' status | sed -n '/merged, still open/,/^---/p' | grep -q '$sp-'"
 check "an item-named file in the folder is not listed" [ -z "$("$WB" status 2>&1 | grep f-999)" ]
 check "nor counted" [ "$(newc feature "counted")" = f-004 ]
@@ -993,6 +996,11 @@ mkdir -p lib && printf 'import { x } from "../%s/proto";\n' "$dir" > lib/uses.ts
 run "archive refuses while code outside workbench/ names the folder" 1 "files outside workbench/ name $dir; archive deletes it" "$WB" archive "$sp"
 check "and names the file" bash -c "'$WB' archive $sp 2>&1 | grep -qx '  lib/uses.ts'"
 git rm -rq lib && git commit -qm 'copied into the project'
+mkdir -p docs && printf 'the proto is in %s\n' "$dir" > docs/notes.md && git add docs && git commit -qm 'names the folder bare'
+run "archive refuses a bare mention of the folder" 1 "  docs/notes.md" "$WB" archive "$sp"
+printf 'findings: %s\nkept: %s/keep.txt\n' "$fs" "$dir-v2" > docs/notes.md && git commit -qam 'names the item and the neighbour'
+# Archived, not deleted: the item file and a neighbour sharing the prefix
+# outlive the archive, so naming them refuses nothing (checked at the archive below).
 # A branch still to merge may name it too.
 git branch -q refs-it && git worktree add -q "$TMP/refs-it" refs-it
 ( cd "$TMP/refs-it" && mkdir -p lib && printf 'import { x } from "../%s/proto";\n' "$dir" > lib/uses.ts && git add lib && git commit -qm uses )
@@ -1040,11 +1048,17 @@ rm -rf "${fi_%.md}"
 # archived away.
 spm=$("$WB" new spike "mini" 2>/dev/null); fm=workbench/items/spikes/$spm-mini.md; dm=${fm%.md}
 questions "$fm"; "$WB" start "$spm" >/dev/null 2>&1
+# Main moves outside workbench/ after the spike's cut, before the feature's.
+echo moved >> README && git commit -qm 'main moves' -- README
 idb=$(newc feature "cut before"); "$WB" start "$idb" >/dev/null 2>&1
 ( cd ".worktrees/$spm-mini" && mkdir -p "$dm" && echo proto > "$dm/proto.ts" )
 set_status ".worktrees/$spm-mini/$fm" answered; findings ".worktrees/$spm-mini/$fm"
 ( cd ".worktrees/$spm-mini" && git add -A && git commit -qm answered )
-"$WB" merge "$spm" "mini" >/dev/null 2>&1
+# premerge tests what a branch changes outside workbench/, and a spike changes
+# nothing there: neither run nor a rebase, whatever main did since the cut.
+conf premerge false
+run "merge runs no premerge for a spike, behind main or not" 0 "merged $spm" "$WB" merge "$spm" "mini"
+unconf premerge
 # The spike's folder is new on main since the cut: no code on the branch can reach it.
 conf premerge true
 ready ".worktrees/$idb-cut-before"

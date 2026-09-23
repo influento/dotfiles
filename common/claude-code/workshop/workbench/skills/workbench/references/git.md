@@ -59,6 +59,8 @@ The subject describes the change, not the item's title.
 
 A spike merges only as `answered`, and only its item and its folder,
 `workbench/items/spikes/<id>-<slug>/`: a change anywhere else is refused.
+It runs no `premerge`: the gate leaves `workbench/` out, so it would test
+nothing the spike changed.
 
 When `premerge=` is set in the main checkout's `.claude/workshop.conf` — a
 test run, a lint gate — the command runs it in the branch's worktree after

@@ -1685,9 +1685,10 @@ $(printf '%s\n' "$outside" | sed 's/^/  /')"
   # reach it, and the squash lands without it. One added there cannot matter;
   # the branch was cut before it existed.
   # The main checkout's setting: the branch a merge lands on decides its gate,
-  # not the branch being merged.
-  local premerge landed
-  premerge=$(conf_get premerge "$root")
+  # not the branch being merged. None for a spike: it changes only workbench/,
+  # which the gate leaves out, so the run would test main as it stood at the cut.
+  local premerge='' landed
+  is_spike "$id" || premerge=$(conf_get premerge "$root")
   landed=$(git -C "$root" -c core.quotePath=false diff --no-renames --ignore-submodules=none --name-status "$branch...$main")
   if [ -n "$premerge" ] \
      && ! git -C "$root" merge-base --is-ancestor "$main" "$branch" \
@@ -2171,12 +2172,14 @@ $(printf '%s\n' "$dirt" | sed 's/^/  /')"
       # A spike is self-contained: nothing outside $WB/ names its folder, on
       # main or on any branch still to merge. A file that does breaks when the
       # folder goes, so it is refused, not deleted under. '<class>/<name>'
-      # matches a path to it in any form.
+      # matches a path to it in any form; a name running on past it — the item
+      # file's '.md', a neighbour's '-v2' — is some other path.
       local users refs=() ref=${spike_rel#"$WB"/items/}
+      ref="$ref(/|\$|[^.[:alnum:]_-])"
       mapfile -t refs < <(git -C "$root" for-each-ref --format='%(refname:short)' refs/heads)
       users=$({
-        git -C "$root" grep -l -F "$ref" -- . ":(exclude)$WB" 2>/dev/null
-        [ "${#refs[@]}" -eq 0 ] || git -C "$root" grep -l -F "$ref" "${refs[@]}" -- . ":(exclude)$WB" 2>/dev/null
+        git -C "$root" grep -l -E "$ref" -- . ":(exclude)$WB" 2>/dev/null
+        [ "${#refs[@]}" -eq 0 ] || git -C "$root" grep -l -E "$ref" "${refs[@]}" -- . ":(exclude)$WB" 2>/dev/null
       } | sort -u || true)
       [ -z "$users" ] || die "a spike is self-contained, yet files outside $WB/ name $spike_rel; archive deletes it — remove the reference, copying what is kept into the project, or delete the branch where one listed as <branch>:<file> is done with; then archive:
 $(printf '%s\n' "$users" | sed 's/^/  /')"
@@ -2539,7 +2542,6 @@ cmd_status() {
 
   # The in-flight sections, each printed only with lines under it.
   local open_body='' branch_body='' await_body='' limbo_body='' f
-  open_body=$(for name in "${names[@]}"; do status_lines "$name" "${dirs[@]}"; done)
   branch_body=$(git branch --format='  %(refname:short)' | grep -E '^  [bfs]-[0-9]+-' || true)
 
   # Merged and open: invisible to 'git branch'. Merged means on the default
@@ -2584,6 +2586,13 @@ cmd_status() {
   local ref_body
   ref_body=$(sed -n 's/^s  /  /p' <<< "$limbo_body")
   limbo_body=$(grep -v '^s  ' <<< "$limbo_body" || true)
+
+  # Each item once: one listed under a merged section is not in flight.
+  local merged_names
+  merged_names=$(printf '%s\n' "$await_body" "$limbo_body" "$ref_body" | awk 'NF { print $1 ".md" }')
+  open_body=$(for name in "${names[@]}"; do
+    grep -qxF -- "$name" <<< "$merged_names" || status_lines "$name" "${dirs[@]}"
+  done)
 
   if [ -z "$open_body$branch_body$await_body$limbo_body$ref_body" ]; then
     sep; echo "nothing in flight"
