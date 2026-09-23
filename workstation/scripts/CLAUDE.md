@@ -74,7 +74,18 @@ were waiting on: `common/scripts/CLAUDE.md`.
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and
 `.desktop` launcher, so they appear separately in wofi. `create`/`list`/`remove`,
-and it auto-runs `update-desktop-database`.
+and it auto-runs `update-desktop-database`. The launcher calls `tg-run <slug>`,
+which starts the instance with private `XDG_CONFIG_HOME`/`XDG_DATA_HOME` under
+`<workdir>/xdg/`: symlinks to every real entry, except `mimeapps.list` (a
+private copy) and `applications/` (a private dir). Telegram re-registers itself
+as the `tg://` handler on the first launch after every update, with its
+`-workdir` command line; without the shadow that rewrites the real
+`mimeapps.list` (the dotfiles symlink, so the repo goes dirty) and litters
+`userapp-*.desktop` files. The env var the script once set for this
+(`TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME`) no longer exists in Telegram; the
+only in-app switch is an experimental toggle stored in the workdir's encrypted
+settings, which cannot be pre-set. Instances made before this need `tg "<name>"`
+run again to rewrite their launcher.
 
 ## nosleep
 

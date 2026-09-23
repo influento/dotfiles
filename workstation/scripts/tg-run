@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tg-run — launch one isolated Telegram Desktop instance made by `tg`.
+#
+# Telegram registers itself as the tg:// and tonsite:// handler on its first
+# launch after every version change, with its own command line (the -workdir
+# one), which matches no desktop entry: GLib then writes userapp-*.desktop
+# files under $XDG_DATA_HOME/applications and points both schemes at them in
+# $XDG_CONFIG_HOME/mimeapps.list. That file is the dotfiles symlink, so the
+# repo goes dirty and tg links open in the wrong account. The only switch
+# Telegram offers is an in-app toggle stored in the workdir's encrypted
+# settings, which nothing outside the app can pre-set.
+#
+# So the instance gets private XDG homes instead: every entry of ~/.config
+# and ~/.local/share is symlinked into them, except mimeapps.list, which is a
+# private copy, and applications/, which is a private directory. Telegram
+# registers into those and the real files never change. Rebuilt on every
+# launch, so entries added to the real dirs later are seen; entries the app
+# creates itself land in the shadow.
+#
+# Usage: tg-run <slug>     (the .desktop entries written by `tg` call this)
+
+slug="${1:-}"
+[[ -n "$slug" ]] || { echo "usage: tg-run <slug>" >&2; exit 2; }
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+workdir="$data_home/telegram-$slug"
+shadow="$workdir/xdg"
+
+[[ -d "$workdir" ]] || { echo "tg-run: no instance '$slug' ($workdir); create it with: tg \"<name>\"" >&2; exit 1; }
+
+# Mirror one real dir into its shadow: a symlink per entry, dead links pruned,
+# the named exceptions left as real files or dirs owned by the shadow.
+mirror() {
+  local real="$1" shade="$2" copy="${3:-}" dir="${4:-}" e name
+  mkdir -p "$shade"
+  for e in "$shade"/* "$shade"/.[!.]*; do
+    [[ -L "$e" && ! -e "$e" ]] && rm -f "$e"
+  done
+  for e in "$real"/* "$real"/.[!.]*; do
+    [[ -e "$e" || -L "$e" ]] || continue
+    name="$(basename "$e")"
+    [[ "$name" == "$copy" || "$name" == "$dir" ]] && continue
+    [[ -L "$shade/$name" && "$(readlink "$shade/$name")" == "$e" ]] && continue
+    [[ -L "$shade/$name" || ! -e "$shade/$name" ]] || continue  # the app made a real one; keep it
+    ln -sfn "$e" "$shade/$name"
+  done
+  [[ -z "$copy" || -e "$shade/$copy" ]] || { [[ -f "$real/$copy" ]] && cp "$real/$copy" "$shade/$copy" || :; }
+  [[ -z "$dir" ]] || mkdir -p "$shade/$dir"
+}
+
+mirror "$config_home" "$shadow/config" mimeapps.list
+mirror "$data_home" "$shadow/data" "" applications
+
+for bin in telegram-desktop Telegram; do
+  if command -v "$bin" &>/dev/null; then
+    [[ "${TG_RUN_NOEXEC:-}" == 1 ]] && { echo "$shadow"; exit 0; }
+    exec env XDG_CONFIG_HOME="$shadow/config" XDG_DATA_HOME="$shadow/data" "$bin" -workdir "$workdir"
+  fi
+done
+echo "tg-run: Telegram Desktop not found (looked for: telegram-desktop, Telegram)" >&2
+exit 1
