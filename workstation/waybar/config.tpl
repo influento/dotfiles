@@ -70,6 +70,7 @@
     "exec": "network-status",
     "return-type": "json",
     "restart-interval": 5,
+    "tooltip": false,
     "on-click": "bash -c \"$HOME/.local/bin/widget-toggle network\""
   },
   "pulseaudio": {
