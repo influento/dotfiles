@@ -116,7 +116,8 @@ window#waybar {
   color: @@SUBTEXT0@@;
 }
 
-/* A connectivity problem outranks the VPN highlight: it comes later. */
+/* A connectivity problem or a weak Wi-Fi signal outranks the VPN highlight:
+   it comes later. weak is 6-30%, very-weak 0-5%. */
 #custom-network.vpn {
   color: @@GREEN@@;
   background-color: @@SURFACE0@@;
@@ -128,12 +129,14 @@ window#waybar {
   background-color: @@SURFACE0@@;
 }
 
+#custom-network.weak,
 #custom-network.portal,
 #custom-network.limited {
   color: @@YELLOW@@;
 }
 
 /* proxy-down: sing-box died; with the kill switch on, nothing gets out. */
+#custom-network.very-weak,
 #custom-network.none,
 #custom-network.error,
 #custom-network.proxy-down {
