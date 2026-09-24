@@ -59,9 +59,9 @@ can show is nothing to fix. A flaky one is shown by raising its rate —
 loop it, stress it. Number the findings. One that deletes or replaces code
 names the replacement and ends `net: -N lines`. Probe logging left from
 the investigation (`grep -rn 'DEBUG-'` on the diff) is a finding. No style
-notes without a consequence, no "consider", no restating the diff. Nothing
-is trivial: say what you found and why it matters; the worker decides what
-to do about it.
+notes without a consequence, no "consider", no restating the diff. Raise
+only what you would block the merge for, and say why it blocks; the worker
+decides what to do about each.
 
 When the worker answers, reply per finding, by number: the fix is right
 (fixed), or it is not and why — new ground, not the finding again; the

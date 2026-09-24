@@ -20,5 +20,6 @@ now.
    archived item is read, never reopened. Enter the worktree it names.
 2. Read the item: the criterion and whatever Root cause or Evidence holds;
    for a spike, its Questions and Findings.
-3. State where the work stands and what you will do next, and wait for the
-   user. Change nothing before that.
+3. State where the work stands in one line. A line under `## Decisions`
+   waits on the user: stop there. Otherwise carry on from that point with
+   the `wb-worker` steps, in this session.
