@@ -235,3 +235,16 @@ window#waybar {
   -gtk-icon-effect: highlight;
   background-color: @@RED@@;
 }
+
+/* Tooltips (stale-kernel, headless, …): match the gtk-widgets popups
+   instead of the default GTK3 theme */
+tooltip {
+  background-color: @@MANTLE@@;
+  border: 1px solid @@SURFACE1@@;
+  border-radius: 6px;
+}
+
+tooltip label {
+  color: @@TEXT@@;
+  font-size: 13px;
+}
