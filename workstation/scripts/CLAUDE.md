@@ -73,7 +73,7 @@ were waiting on: `common/scripts/CLAUDE.md`.
 ## tg
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and
-`.desktop` launcher, so they appear separately in wofi. `create`/`list`/`remove`,
+`.desktop` launcher, so they appear separately in the app launcher. `create`/`list`/`remove`,
 and it auto-runs `update-desktop-database`. The launcher calls `tg-run <slug>`,
 which starts the instance with private `XDG_CONFIG_HOME`/`XDG_DATA_HOME` under
 `<workdir>/xdg/`: symlinks to every real entry, except `mimeapps.list` (a

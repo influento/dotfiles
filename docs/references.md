@@ -33,7 +33,7 @@ Check these when upgrading tools or debugging config issues.
 | **swaybg** | `workstation/swaybg/wallpaper.sh.tpl` | [swaybg man](https://man.archlinux.org/man/swaybg.1) | Themed template |
 | **wlsunset** | `workstation/wlsunset/wlsunset.sh` | [wlsunset man](https://man.archlinux.org/man/wlsunset.1) | — |
 | **SwayOSD** | `workstation/swayosd/style.css.tpl` | [SwayOSD GitHub](https://github.com/ErikReider/SwayOSD) | Themed CSS |
-| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | [cliphist GitHub](https://github.com/sentriz/cliphist) | wofi integration script |
+| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | [cliphist GitHub](https://github.com/sentriz/cliphist) | `launcher --dmenu` picker script |
 | **GTK 3/4** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` | [GTK settings](https://docs.gtk.org/gtk3/class.Settings.html) | `settings.ini` + `gtk.css` |
 | **Qt6ct** | `workstation/theming/qt6ct/qt6ct.conf` | [qt6ct GitHub](https://github.com/trialuser02/qt6ct) | Qt icon theme + fonts (Fusion style); requires `QT_QPA_PLATFORMTHEME=qt6ct` env var |
 | **XDG portal** | `workstation/xdg-desktop-portal/portals.conf` | [xdg-desktop-portal](https://flatpak.github.io/xdg-desktop-portal/) | Routes portals to wlr backend |
