@@ -10,7 +10,9 @@ follows is what a reader cannot get from the code quickly enough.
 ## auto-update
 
 Background system update on sway start: `yay -Syu` (repos + AUR) + npm updates,
-12h cooldown (`--force` to bypass), mako notifications.
+12h cooldown (`--force` to bypass), mako notifications. Orphaned packages
+(`pacman -Qtdq`) are reported when the list changes, never removed: a package
+installed as a dependency can still be used directly.
 
 ## startup-reminders
 

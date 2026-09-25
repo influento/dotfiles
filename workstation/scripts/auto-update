@@ -249,6 +249,23 @@ else
   done
 fi
 
+# Report orphans (dependencies nothing requires any more), never remove them:
+# a package pulled in as a dependency can still be used directly, as chromium
+# was while only mermaid-cli required it. Notify only when the list changes,
+# so the same orphans do not nag every run.
+ORPHANS_FILE="${STATE_DIR}/auto-update-orphans"
+# pacman -Qtdq exits 1 when there are none
+orphans="$(pacman -Qtdq 2>/dev/null | paste -sd' ' || true)"
+previous="$(cat "$ORPHANS_FILE" 2>/dev/null || true)"
+if [[ "$orphans" != "$previous" ]]; then
+  if [[ -n "$orphans" ]]; then
+    echo "[$(date)] Orphaned packages: ${orphans}" >> "$LOG_FILE"
+    notify-send -u low "Orphaned Packages" \
+      "${orphans}"$'\n'"Nothing requires them. Remove the unused ones: sudo pacman -Rns <pkg>"
+  fi
+  echo "$orphans" > "$ORPHANS_FILE"
+fi
+
 # Update global npm packages from common + workstation packages.conf
 DOTFILES_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
 NPM_PACKAGE_FILES=(
