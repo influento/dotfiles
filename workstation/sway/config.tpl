@@ -48,10 +48,10 @@ bindsym $mod+Escape exec ~/.local/bin/lock
 # Headless mode: disable the monitor and serve the session over VNC instead
 bindsym $mod+Shift+o exec ~/.local/bin/headless toggle
 
-# Screenshots. Kept for the whole session; wiped at the next sway start
-# (see the screenshots line in Autostart below).
-bindsym $mod+p exec bash -c 'mkdir -p ~/pictures/screenshots && f=~/pictures/screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && wl-copy -t text/uri-list "file://$f"'
-bindsym $mod+Shift+p exec bash -c 'mkdir -p ~/pictures/screenshots && f=~/pictures/screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png && grim -g "$(slurp)" "$f" && drawdesk --image "$f"'
+# Screenshots via `capture` (gtk-widgets). Kept for the whole session; wiped
+# at the next sway start (see the screenshots line in Autostart below).
+bindsym $mod+p exec capture region --dir ~/pictures/screenshots --copy
+bindsym $mod+Shift+p exec bash -c 'f=$(capture region --dir ~/pictures/screenshots) && drawdesk --image "$f"'
 
 # --- Keybindings: Focus (vim-style) ---
 bindsym $mod+h focus left
