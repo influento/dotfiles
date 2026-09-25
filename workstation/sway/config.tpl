@@ -5,7 +5,7 @@
 # --- Variables ---
 set $mod Mod1
 set $term ghostty
-set $menu wofi --show drun
+set $menu launcher
 
 # --- Input ---
 input type:keyboard {
@@ -189,10 +189,11 @@ exec ~/.config/swaybg/wallpaper.sh
 exec swayidle -w
 exec mako
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-exec wl-paste --watch cliphist store
+exec wl-paste --watch cliphist -max-items 100 store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
 exec network-agent
+exec launcher --daemon
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus dropbox
 # Screenshots live for one session: clear the previous session's on start.
 # exec, not exec_always -- a config reload must not wipe them mid-session.

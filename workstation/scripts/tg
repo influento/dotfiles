@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# tg — Create isolated Telegram Desktop instances that show up in wofi.
+# tg — Create isolated Telegram Desktop instances that show up in the app launcher.
 #
 # Each instance gets its own --workdir (separate account/data) and its own
 # .desktop launcher under ~/.local/share/applications, so it appears alongside
-# the default "Telegram" entry in wofi (wofi --show drun). The launcher runs
+# the default "Telegram" entry in the app launcher ($mod+d). The .desktop entry runs
 # tg-run, which keeps the instance's tg:// registration out of the real
 # mimeapps.list (see tg-run for why).
 #
@@ -59,7 +59,7 @@ slugify() {
 
 usage() {
   cat <<'EOF'
-tg — Create isolated Telegram Desktop instances for wofi
+tg — Create isolated Telegram Desktop instances for the app launcher
 
 Usage:
   tg <name>                     Create/refresh an instance
@@ -69,22 +69,22 @@ Usage:
   tg --help
 
 Examples:
-  tg "Work"          → "Telegram (Work)" in wofi, workdir telegram-work
+  tg "Work"          → "Telegram (Work)" in the app launcher, workdir telegram-work
   tg "Side Project"  → "Telegram (Side Project)", workdir telegram-side-project
 
 Notes:
   • The default (main) Telegram entry is never touched.
   • Each instance has a fully separate account/data directory.
-  • wofi's app list is refreshed automatically (update-desktop-database).
+  • the app launcher's list is refreshed automatically (update-desktop-database).
 EOF
 }
 
 refresh_desktop_db() {
   if command -v update-desktop-database &>/dev/null; then
     update-desktop-database "$APP_DIR" 2>/dev/null || true
-    info "Refreshed application database (wofi will pick up the change)"
+    info "Refreshed application database (the app launcher picks up the change)"
   else
-    warn "update-desktop-database not found — wofi may need a restart to show the new entry"
+    warn "update-desktop-database not found — the app launcher may not show the new entry"
   fi
 }
 
@@ -199,7 +199,7 @@ EOF
   refresh_desktop_db
 
   echo ""
-  echo -e "${GREEN}${BOLD}Done.${RESET} Search 'Telegram ($name)' in wofi (${BOLD}\$mod+d${RESET}) to launch it."
+  echo -e "${GREEN}${BOLD}Done.${RESET} Search 'Telegram ($name)' in the app launcher (${BOLD}\$mod+d${RESET}) to launch it."
 }
 
 # --- Argument parsing ---
