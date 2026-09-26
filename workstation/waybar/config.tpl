@@ -71,14 +71,14 @@
     "return-type": "json",
     "restart-interval": 5,
     "tooltip": false,
-    "on-click": "bash -c \"$HOME/.local/bin/widget-toggle network\""
+    "on-click": "~/.local/bin/widget-toggle network"
   },
   "pulseaudio": {
     "format": "  {volume}%",
     "format-muted": "  mute",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "tooltip": false,
-    "on-click-right": "bash -c \"$HOME/.local/bin/widget-toggle audio\"",
+    "on-click-right": "~/.local/bin/widget-toggle audio",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
