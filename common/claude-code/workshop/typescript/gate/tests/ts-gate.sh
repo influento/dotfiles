@@ -459,7 +459,7 @@ check "the project's vitest config is left in place" test -f vitest.config.mjs
 check "an unedited default record is deleted with the tree, not kept" test ! -e dependency-cruiser.kept.cjs
 
 echo "== uninstall puts back what the project had before install"
-mkproj "$TMP/p5" '{"vitest":"^5.0.0"}'
+mkproj "$TMP/p7" '{"vitest":"^5.0.0"}'
 npm pkg set scripts.gate="echo project-gate" scripts.test:live="echo project-live"
 mkdir -p .claude
 node -e 'require("fs").writeFileSync(".claude/settings.json",JSON.stringify({permissions:{allow:["Bash(npm ci)","Bash(npx vitest:*)","Bash(ls:*)"]}},null,2)+"\n")'
