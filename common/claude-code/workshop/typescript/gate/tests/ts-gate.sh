@@ -478,10 +478,22 @@ check "install's other scripts are gone" [ "$(json package.json 'j.scripts["gate
 check "the project's own allow rules stay" [ "$(json .claude/settings.json 'j.permissions.allow.join(" ")')" = "Bash(npm ci) Bash(npx vitest:*) Bash(ls:*)" ]
 check "package.json holds what it held before install" same_json package.json HEAD~1
 check "settings.json holds what it held before install" same_json .claude/settings.json HEAD~1
-check "a manifest from before the entries still strips every rule install writes" bash -c "
-  echo '{\"runner\":\"vitest\",\"deps\":[],\"config\":null,\"biome\":null,\"vitest\":null}' > x.json
-  node -e 'const m=require(\"./x.json\");if(m.allow||m.scripts||m.rules)process.exit(1)'"
-rm -f x.json
+
+echo "== a manifest from before scripts, allow and rules were recorded"
+mkproj "$TMP/p8" '{"vitest":"^5.0.0"}'
+run "install" 0 "installed" bash "$SRC/install.sh" .
+# What an install of that time left: the runner rule in settings, none of the three entries.
+node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("ts-gate/.install.json"));delete m.scripts;delete m.allow;delete m.rules;fs.writeFileSync("ts-gate/.install.json",JSON.stringify(m,null,2)+"\n");const s=JSON.parse(fs.readFileSync(".claude/settings.json"));s.permissions.allow.push("Bash(npx vitest:*)");fs.writeFileSync(".claude/settings.json",JSON.stringify(s,null,2)+"\n")'
+git add -A && git commit -qm "old install" >/dev/null
+run "uninstall" 0 "uninstalled" bash "$SRC/uninstall.sh" .
+check "every script install sets is gone" [ "$(json package.json 'Object.keys(j.scripts??{}).filter(k=>/^gate|^test:live$/.test(k)).join()')" = "" ]
+check "every allow rule install writes is gone, the old runner rule too" [ ! -e .claude/settings.json ]
+check "the source's rule files are gone" [ ! -e .claude/rules/ts-gate.md ]
+git reset -q --hard
+run "re-install over it" 0 "installed" bash "$SRC/install.sh" .
+check "drops the old runner rule from settings" bash -c "! grep -q 'npx vitest' .claude/settings.json"
+check "and records every rule it writes as its own" [ "$(json ts-gate/.install.json 'j.allow.join(" ")')" = "Bash(npm ci) Bash(npm run gate) Bash(npm run gate:local) Bash(npm run gate:full) Bash(npm run gate:fix) Bash(npm test:*)" ]
+check "and every script as set over nothing" [ "$(json ts-gate/.install.json 'Object.values(j.scripts).every(v=>v===null)')" = true ]
 
 echo "== real eslint reports at the configured threshold and not below it"
 # Borrows the node_modules of a project where install ran for real (npm, the
