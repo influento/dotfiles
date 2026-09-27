@@ -1,6 +1,6 @@
 ---
 name: tmux-peers
-description: Work out which Claude session the user means when they refer to it by its tmux window. TRIGGER when the user refers to another Claude session by a window name, window number or tmux session ("the network session", "window 3", "the one in osxhelper"), or asks to message, check on, or hand work to another session. SKIP when the user gives the session's Claude name (`dotfiles-ce`) exactly as ListAgents prints it.
+description: Resolve which Claude session the user means before messaging one. TRIGGER on any request to send, message, tell, ask, ping, check on, or hand work to another session or agent ("send X to Y agent", "tell the dotfiles session ...", "window 3"), whatever name the user uses: a tmux window name wins over a Claude session name that looks like it. SKIP only when the user types a full Claude name with its suffix (`dotfiles-e8`).
 ---
 
 # tmux peers
@@ -21,7 +21,12 @@ plus part of its id, so several sessions in one folder look alike
    name, the window number and the tmux session name. Window names are often
    the first words of a prompt, so accept a partial or loose match: "the
    waybar one" fits `fix waybar tip`.
-3. Address the session by the name its ListAgents row prints. Add ` [ref]` if
+3. Match in this order and stop at the first level that matches: window
+   name (exact, then loose), window number, tmux session name, Claude name.
+   A folder word such as "dotfiles" often fits both a window and several
+   Claude names (`dotfiles-e8`, `dotfiles-d1`): the window wins, and the
+   sessions outside it are not candidates. One match: send, don't ask.
+4. Address the session by the name its ListAgents row prints. Add ` [ref]` if
    two rows share that name.
 
 A message goes to exactly one session. Send to more than one only when the
