@@ -48,10 +48,12 @@ bindsym $mod+Escape exec ~/.local/bin/lock
 # Headless mode: disable the monitor and serve the session over VNC instead
 bindsym $mod+Shift+o exec ~/.local/bin/headless toggle
 
-# Screenshots via `capture` (gtk-widgets). Kept for the whole session; wiped
-# at the next sway start (see the screenshots line in Autostart below).
+# Screenshots and GIF clips via `capture` (gtk-widgets). Kept for the whole
+# session; wiped at the next sway start (see the capture lines in Autostart below).
 bindsym $mod+p exec capture region --dir ~/pictures/screenshots --copy
 bindsym $mod+Shift+p exec bash -c 'f=$(capture region --dir ~/pictures/screenshots) && drawdesk --image "$f"'
+# $mod+g starts a recording, pressing it again stops and saves it.
+bindsym $mod+g exec capture gif --dir ~/pictures/recordings --copy
 
 # --- Keybindings: Focus (vim-style) ---
 bindsym $mod+h focus left
@@ -195,9 +197,10 @@ exec swayosd-server
 exec network-agent
 exec launcher --daemon
 exec env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus dropbox
-# Screenshots live for one session: clear the previous session's on start.
-# exec, not exec_always -- a config reload must not wipe them mid-session.
+# Screenshots and recordings live for one session: clear the previous session's
+# on start. exec, not exec_always -- a config reload must not wipe them mid-session.
 exec bash -c 'mkdir -p ~/pictures/screenshots && find ~/pictures/screenshots -maxdepth 1 -name "screenshot-*.png" -delete'
+exec bash -c 'mkdir -p ~/pictures/recordings && find ~/pictures/recordings -mindepth 1 -maxdepth 1 -type d -name "recording-*" -exec rm -rf {} +'
 exec ~/.local/bin/startup-reminders
 exec ~/.local/bin/auto-update
 
