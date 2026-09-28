@@ -39,76 +39,76 @@ client.unfocused        @@BASE@@ @@BASE@@ @@TEXT@@ @@BASE@@   @@BASE@@
 client.urgent           @@RED@@ @@RED@@ @@BASE@@ @@RED@@   @@RED@@
 
 # --- Keybindings: Applications ---
-bindsym $mod+Return exec $term
-bindsym $mod+d exec $menu
-bindsym $mod+Shift+q kill
-bindsym Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
-bindsym $mod+Escape exec ~/.local/bin/lock
+bindsym --to-code $mod+Return exec $term
+bindsym --to-code $mod+d exec $menu
+bindsym --to-code $mod+Shift+q kill
+bindsym --to-code Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
+bindsym --to-code $mod+Escape exec ~/.local/bin/lock
 
 # Headless mode: disable the monitor and serve the session over VNC instead
-bindsym $mod+Shift+o exec ~/.local/bin/headless toggle
+bindsym --to-code $mod+Shift+o exec ~/.local/bin/headless toggle
 
 # Screenshots and GIF clips via `capture` (gtk-widgets). Kept for the whole
 # session; wiped at the next sway start (see the capture lines in Autostart below).
-bindsym $mod+p exec capture region --dir ~/pictures/screenshots --copy
-bindsym $mod+Shift+p exec bash -c 'f=$(capture region --dir ~/pictures/screenshots) && drawdesk --image "$f"'
+bindsym --to-code $mod+p exec capture region --dir ~/pictures/screenshots --copy
+bindsym --to-code $mod+Shift+p exec bash -c 'f=$(capture region --dir ~/pictures/screenshots) && drawdesk --image "$f"'
 # $mod+g starts a recording, pressing it again stops and saves it.
-bindsym $mod+g exec capture gif --dir ~/pictures/recordings --copy
+bindsym --to-code $mod+g exec capture gif --dir ~/pictures/recordings --copy
 
 # --- Keybindings: Focus (vim-style) ---
-bindsym $mod+h focus left
-bindsym $mod+j focus down
-bindsym $mod+k focus up
-bindsym $mod+l focus right
+bindsym --to-code $mod+h focus left
+bindsym --to-code $mod+j focus down
+bindsym --to-code $mod+k focus up
+bindsym --to-code $mod+l focus right
 
 # Arrow key alternatives
-bindsym $mod+Left focus left
-bindsym $mod+Down focus down
-bindsym $mod+Up focus up
-bindsym $mod+Right focus right
+bindsym --to-code $mod+Left focus left
+bindsym --to-code $mod+Down focus down
+bindsym --to-code $mod+Up focus up
+bindsym --to-code $mod+Right focus right
 
 # --- Keybindings: Move windows ---
-bindsym $mod+Shift+h move left
-bindsym $mod+Shift+j move down
-bindsym $mod+Shift+k move up
-bindsym $mod+Shift+l move right
+bindsym --to-code $mod+Shift+h move left
+bindsym --to-code $mod+Shift+j move down
+bindsym --to-code $mod+Shift+k move up
+bindsym --to-code $mod+Shift+l move right
 
-bindsym $mod+Shift+Left move left
-bindsym $mod+Shift+Down move down
-bindsym $mod+Shift+Up move up
-bindsym $mod+Shift+Right move right
+bindsym --to-code $mod+Shift+Left move left
+bindsym --to-code $mod+Shift+Down move down
+bindsym --to-code $mod+Shift+Up move up
+bindsym --to-code $mod+Shift+Right move right
 
 # --- Keybindings: Layout ---
-bindsym $mod+b splith
-bindsym $mod+n splitv
-bindsym $mod+s layout stacking
-bindsym $mod+w layout tabbed
-bindsym $mod+e layout toggle split
-bindsym $mod+f fullscreen
-bindsym $mod+Shift+space floating toggle
-bindsym $mod+space focus mode_toggle
-bindsym $mod+a focus parent
+bindsym --to-code $mod+b splith
+bindsym --to-code $mod+n splitv
+bindsym --to-code $mod+s layout stacking
+bindsym --to-code $mod+w layout tabbed
+bindsym --to-code $mod+e layout toggle split
+bindsym --to-code $mod+f fullscreen
+bindsym --to-code $mod+Shift+space floating toggle
+bindsym --to-code $mod+space focus mode_toggle
+bindsym --to-code $mod+a focus parent
 
 # --- Keybindings: Workspaces ---
-bindsym $mod+1 workspace number 1
-bindsym $mod+2 workspace number 2
-bindsym $mod+3 workspace number 3
-bindsym $mod+4 workspace number 4
-bindsym $mod+5 workspace number 5
-bindsym $mod+6 workspace number 6
-bindsym $mod+7 workspace number 7
-bindsym $mod+8 workspace number 8
-bindsym $mod+9 workspace number 9
+bindsym --to-code $mod+1 workspace number 1
+bindsym --to-code $mod+2 workspace number 2
+bindsym --to-code $mod+3 workspace number 3
+bindsym --to-code $mod+4 workspace number 4
+bindsym --to-code $mod+5 workspace number 5
+bindsym --to-code $mod+6 workspace number 6
+bindsym --to-code $mod+7 workspace number 7
+bindsym --to-code $mod+8 workspace number 8
+bindsym --to-code $mod+9 workspace number 9
 
-bindsym $mod+Shift+1 move container to workspace number 1
-bindsym $mod+Shift+2 move container to workspace number 2
-bindsym $mod+Shift+3 move container to workspace number 3
-bindsym $mod+Shift+4 move container to workspace number 4
-bindsym $mod+Shift+5 move container to workspace number 5
-bindsym $mod+Shift+6 move container to workspace number 6
-bindsym $mod+Shift+7 move container to workspace number 7
-bindsym $mod+Shift+8 move container to workspace number 8
-bindsym $mod+Shift+9 move container to workspace number 9
+bindsym --to-code $mod+Shift+1 move container to workspace number 1
+bindsym --to-code $mod+Shift+2 move container to workspace number 2
+bindsym --to-code $mod+Shift+3 move container to workspace number 3
+bindsym --to-code $mod+Shift+4 move container to workspace number 4
+bindsym --to-code $mod+Shift+5 move container to workspace number 5
+bindsym --to-code $mod+Shift+6 move container to workspace number 6
+bindsym --to-code $mod+Shift+7 move container to workspace number 7
+bindsym --to-code $mod+Shift+8 move container to workspace number 8
+bindsym --to-code $mod+Shift+9 move container to workspace number 9
 
 # --- Keybindings: Local escape while a remote session holds the keyboard ---
 # Remote desktop clients ask for the Wayland keyboard-shortcuts-inhibit
@@ -117,64 +117,64 @@ bindsym $mod+Shift+9 move container to workspace number 9
 # is wanted — it is how the remote gets driven — but it leaves no way back.
 # --inhibited marks bindings that fire regardless, so these stay local.
 # $mod+N still goes to the remote; $mod+Ctrl+N always stays here.
-bindsym --inhibited $mod+Ctrl+1 workspace number 1
-bindsym --inhibited $mod+Ctrl+2 workspace number 2
-bindsym --inhibited $mod+Ctrl+3 workspace number 3
-bindsym --inhibited $mod+Ctrl+4 workspace number 4
-bindsym --inhibited $mod+Ctrl+5 workspace number 5
-bindsym --inhibited $mod+Ctrl+6 workspace number 6
-bindsym --inhibited $mod+Ctrl+7 workspace number 7
-bindsym --inhibited $mod+Ctrl+8 workspace number 8
-bindsym --inhibited $mod+Ctrl+9 workspace number 9
+bindsym --to-code --inhibited $mod+Ctrl+1 workspace number 1
+bindsym --to-code --inhibited $mod+Ctrl+2 workspace number 2
+bindsym --to-code --inhibited $mod+Ctrl+3 workspace number 3
+bindsym --to-code --inhibited $mod+Ctrl+4 workspace number 4
+bindsym --to-code --inhibited $mod+Ctrl+5 workspace number 5
+bindsym --to-code --inhibited $mod+Ctrl+6 workspace number 6
+bindsym --to-code --inhibited $mod+Ctrl+7 workspace number 7
+bindsym --to-code --inhibited $mod+Ctrl+8 workspace number 8
+bindsym --to-code --inhibited $mod+Ctrl+9 workspace number 9
 
 # Move the focused window — typically the remote viewer itself — between local
 # workspaces while it still holds the keyboard. Mirrors $mod+Shift+N, which is
 # swallowed by the remote session.
-bindsym --inhibited $mod+Ctrl+Shift+1 move container to workspace number 1
-bindsym --inhibited $mod+Ctrl+Shift+2 move container to workspace number 2
-bindsym --inhibited $mod+Ctrl+Shift+3 move container to workspace number 3
-bindsym --inhibited $mod+Ctrl+Shift+4 move container to workspace number 4
-bindsym --inhibited $mod+Ctrl+Shift+5 move container to workspace number 5
-bindsym --inhibited $mod+Ctrl+Shift+6 move container to workspace number 6
-bindsym --inhibited $mod+Ctrl+Shift+7 move container to workspace number 7
-bindsym --inhibited $mod+Ctrl+Shift+8 move container to workspace number 8
-bindsym --inhibited $mod+Ctrl+Shift+9 move container to workspace number 9
+bindsym --to-code --inhibited $mod+Ctrl+Shift+1 move container to workspace number 1
+bindsym --to-code --inhibited $mod+Ctrl+Shift+2 move container to workspace number 2
+bindsym --to-code --inhibited $mod+Ctrl+Shift+3 move container to workspace number 3
+bindsym --to-code --inhibited $mod+Ctrl+Shift+4 move container to workspace number 4
+bindsym --to-code --inhibited $mod+Ctrl+Shift+5 move container to workspace number 5
+bindsym --to-code --inhibited $mod+Ctrl+Shift+6 move container to workspace number 6
+bindsym --to-code --inhibited $mod+Ctrl+Shift+7 move container to workspace number 7
+bindsym --to-code --inhibited $mod+Ctrl+Shift+8 move container to workspace number 8
+bindsym --to-code --inhibited $mod+Ctrl+Shift+9 move container to workspace number 9
 
 # Close the focused window even when it is holding the keyboard, so a
 # misbehaving or unresponsive remote viewer can always be dismissed.
-bindsym --inhibited $mod+Ctrl+q kill
+bindsym --to-code --inhibited $mod+Ctrl+q kill
 
 # --- Keybindings: Brightness ---
 # Fn brightness keys (XF86MonBrightness*), plus $mod+F5/F6 as a fallback for
 # keyboards without them. Backend (laptop backlight / DDC) is picked by
 # display-brightness from gtk-widgets. --locked: works on the lock screen.
-bindsym --locked XF86MonBrightnessDown exec ~/.local/bin/display-brightness down
-bindsym --locked XF86MonBrightnessUp exec ~/.local/bin/display-brightness up
-bindsym --locked $mod+F5 exec ~/.local/bin/display-brightness down
-bindsym --locked $mod+F6 exec ~/.local/bin/display-brightness up
+bindsym --to-code --locked XF86MonBrightnessDown exec ~/.local/bin/display-brightness down
+bindsym --to-code --locked XF86MonBrightnessUp exec ~/.local/bin/display-brightness up
+bindsym --to-code --locked $mod+F5 exec ~/.local/bin/display-brightness down
+bindsym --to-code --locked $mod+F6 exec ~/.local/bin/display-brightness up
 
 # --- Keybindings: Resize mode ---
 mode "resize" {
-  bindsym h resize shrink width 10px
-  bindsym j resize grow height 10px
-  bindsym k resize shrink height 10px
-  bindsym l resize grow width 10px
+  bindsym --to-code h resize shrink width 10px
+  bindsym --to-code j resize grow height 10px
+  bindsym --to-code k resize shrink height 10px
+  bindsym --to-code l resize grow width 10px
 
-  bindsym Left resize shrink width 10px
-  bindsym Down resize grow height 10px
-  bindsym Up resize shrink height 10px
-  bindsym Right resize grow width 10px
+  bindsym --to-code Left resize shrink width 10px
+  bindsym --to-code Down resize grow height 10px
+  bindsym --to-code Up resize shrink height 10px
+  bindsym --to-code Right resize grow width 10px
 
-  bindsym Return mode "default"
-  bindsym Escape mode "default"
+  bindsym --to-code Return mode "default"
+  bindsym --to-code Escape mode "default"
 }
 
-bindsym $mod+r mode "resize"
+bindsym --to-code $mod+r mode "resize"
 
 # Language switching handled by xkb_options grp:caps_toggle
 
 # --- Keybindings: Session ---
-bindsym $mod+Shift+c reload
+bindsym --to-code $mod+Shift+c reload
 
 # --- Bar ---
 bar {
