@@ -133,9 +133,10 @@ review dialog: its template's comments are its steps.
    the review dialog, hold every function the diff changes against its
    callers for a difference `## Side effects` does not name (rule 1).
 3. The review dialog, below.
-4. Report to the user: `ready` with the last round, `blocked — <one
-   question, with the options>`, or `unreproduced — <what you ran>`. Then
-   stop.
+4. Delete every template comment still in the item, the Decisions one
+   too when nothing is parked under it. Then report to the user: `ready`
+   with the last round, `blocked — <one question, with the options>`, or
+   `unreproduced — <what you ran>`. Then stop.
 
 ## Sizing — the same call every time
 

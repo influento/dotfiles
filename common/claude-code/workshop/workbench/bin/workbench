@@ -1315,9 +1315,10 @@ $(criterion_comment)
 ## Decisions
 
 <!-- Open questions only, one line each, written by 'workbench call <id>':
-     a call that is the user's, parked. Answered
-     by editing the field it changes and deleting the line; archive refuses
-     an item with one open. Delete this comment. -->
+     a call that is the user's, parked. Answered by editing the field it
+     changes and deleting the line; archive refuses an item with one open.
+     The session that works the item deletes this comment before its
+     report, once nothing is parked under it. -->
 
 ## Evidence
 
@@ -1361,9 +1362,10 @@ $(criterion_comment)
 ## Decisions
 
 <!-- Open questions only, one line each, written by 'workbench call <id>':
-     a call that is the user's, parked. Answered
-     by editing the field it changes and deleting the line; archive refuses
-     an item with one open. Delete this comment. -->
+     a call that is the user's, parked. Answered by editing the field it
+     changes and deleting the line; archive refuses an item with one open.
+     The session that works the item deletes this comment before its
+     report, once nothing is parked under it. -->
 
 ## Evidence
 
@@ -1415,9 +1417,10 @@ status: open
 ## Decisions
 
 <!-- Open questions only, one line each, written by 'workbench call <id>':
-     a call that is the user's, parked. Answered
-     by editing the field it changes and deleting the line; archive refuses
-     an item with one open. Delete this comment. -->
+     a call that is the user's, parked. Answered by editing the field it
+     changes and deleting the line; archive refuses an item with one open.
+     The session that works the item deletes this comment before its
+     report, once nothing is parked under it. -->
 EOF
 }
 
