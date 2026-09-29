@@ -7,7 +7,7 @@ installed in this order by the `workshop-setup` skill:
 | ------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `typescript/gate/` | `bash "$TS_GATE/install.sh" <project>` (the dotfiles source; the project copy refuses) | `ts-gate/` copied in, `eslint.config.mjs`, `biome.json` and `vitest.config.mjs` when absent, a `Stop` hook, `.claude/rules/ts-*.md`, allow rules for the gate and `npm test`, `premerge` in `.claude/workshop.conf` when the file has none, `git config workbench.guards` |
 | `stack/`     | `stack add <name>...` (the CLI is on PATH; packages from `<language>/packages/`) | per package, each only when its conf asks: a `--squash` subtree at `repos/<name>`, a dependency, `.claude/rules/<name>.md`, `.claude/eslint/<name>.mjs`, `.claude/skills/` copies (from the registry, the subtree, or `npx skills add`), a line in the CLAUDE.md block; recorded in `.claude/stack.conf` |
-| `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies rendered from `.claude/workshop.conf`, two `SessionStart` hooks and a `FileChanged` hook, `workbench/` state |
+| `workbench/` | `workbench init` (the CLI is on PATH) | `.claude/skills/` and `.claude/agents/` copies rendered from `.claude/workshop.conf`, `.claude/rules/workbench.md`, two `SessionStart` hooks and a `FileChanged` hook, `workbench/` state |
 
 The registry sits beside them, by language: `typescript/` holds the
 TypeScript gate together with the packages written against it
@@ -23,8 +23,8 @@ there, so worktrees and clones carry it.
 ## How the three fit
 
 Separate tools, installed in the order above: ts-gate, commit, then `stack
-add` (its subtrees need a clean tree), then `workbench init` (its CLAUDE.md
-block goes after the stack's). Workbench knows nothing of the other two,
+add` (its subtrees need a clean tree), then `workbench init` (which writes
+`.claude/rules/workbench.md`). Workbench knows nothing of the other two,
 beyond listing ts-gate's keys in `.claude/workshop.conf` where ts-gate is
 installed. What ts-gate knows of workbench: the `premerge` key, `workbench.guards`,
 the `permissions.allow` rules, `.worktrees/**` in its ignores, `workbench/**`
@@ -70,11 +70,9 @@ line. This table is the reference; the tools' docs link here.
 
 | key | default | valid | consumer |
 |---|---|---|---|
-| `worker.model` | `inherit` | `inherit` or a token without spaces | `wb-worker.md` frontmatter `model:`; `inherit` omits the line, and the session's `--model`, `ANTHROPIC_MODEL`, `model` setting or default decides |
-| `worker.effort` | `inherit` | `inherit` `low` `medium` `high` `xhigh` `max` | `wb-worker.md` frontmatter `effort:`; `inherit` omits it (`--effort`, `effortLevel`) |
-| `reviewer.model` | `inherit` | as `worker.model` | `wb-reviewer.md` `model:`; `inherit`: the Agent tool's `model` argument, `CLAUDE_CODE_SUBAGENT_MODEL`, then the spawning session's model |
-| `reviewer.effort` | `inherit` | as `worker.effort` | `wb-reviewer.md` `effort:`; `inherit`: the spawning session's effort |
-| `review.exchange_cap` | `6` | positive integer | the exchange count in both agent bodies; text only, nothing enforces it |
+| `reviewer.model` | `inherit` | `inherit` or a token without spaces | `wb-reviewer.md` frontmatter `model:`, left out at `inherit`: then the Agent tool's `model` argument, `CLAUDE_CODE_SUBAGENT_MODEL`, then the spawning session's model |
+| `reviewer.effort` | `inherit` | `inherit` `low` `medium` `high` `xhigh` `max` | `wb-reviewer.md` `effort:`, left out at `inherit`: then the spawning session's effort |
+| `review.exchange_cap` | `6` | positive integer | the exchange count in the reviewer's body and the skill; text only, nothing enforces it |
 | `review.round_cap` | `5` | positive integer | `workbench round` parks the dialog at this round (the item's checkout); the skill states it |
 | `cap.claude` `cap.glossary` `cap.backlog` `cap.decisions` | `150` `300` `400` `200` | positive integer | the `cap:` lines of `workbench status` |
 | `premerge` | unset: no gate | a command; an empty value is unset, and `status` says so | `workbench merge` runs it in the branch worktree before the squash; read from the main checkout. ts-gate's install writes `npm run gate` when the key is absent |

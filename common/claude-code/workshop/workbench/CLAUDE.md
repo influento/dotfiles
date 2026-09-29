@@ -12,7 +12,7 @@ changing anything here.
 | ----------- | -------------------------------------------------------------------------- |
 | `bin/`      | the CLI                                                                    |
 | `skills/`   | `workbench` — the dir is named exactly as the skill it renders to          |
-| `agents/`   | `wb-worker`, `wb-reviewer` — listed in `WB_AGENTS`, not globbed            |
+| `agents/`   | `wb-reviewer` — listed in `WB_AGENTS`, not globbed                        |
 | `commands/` | `/bug /feature /spike /idea /wb` — thin skills too, one per typed command  |
 | `tests/`    | end-to-end loop plus failure paths, in a temp repo                         |
 
@@ -43,7 +43,7 @@ agent in the same directory is never touched.
 Copies are renders, not plain copies: sources carry `@@TOKENS@@` for the
 count keys of `.claude/workshop.conf` (`review.exchange_cap` is
 `@@REVIEW_EXCHANGE_CAP@@`), and an agent gets `model:` and `effort:` last in
-its frontmatter from `worker.*` / `reviewer.*`, left out at `inherit`, every
+its frontmatter from `reviewer.*`, left out at `inherit`, every
 other line passing through. The keys and what each changes:
 `../CLAUDE.md`, ".claude/workshop.conf". Rendered, not looked up at run
 time: a skill `!` block goes through permission checks and aborts the skill
@@ -62,13 +62,17 @@ status's plain text), a `FileChanged` hook on `workshop.conf` running
 `config render`, the `Bash(workbench:*)` allow rule,
 and `autoMemoryDirectory` (memory tracked in the tree). The signal and gate
 hooks and the status line an older init wired are removed on the next
-`init`. And a block in the root `CLAUDE.md` (`claude_md_block`): the rule
-that all domain work gets an item lives there, always in context, because
-a skill description fires only when a request looks like a match and the
-requests that most need the rule look like small favours. The block's
-"Documentation" section is there for the same reason: whether to write a
-document comes up in any session, housekeeping included, and none of them
-loads the skill for it.
+`init`. And `.claude/rules/workbench.md` (`rules_content`), overwritten
+whenever it differs, and named by `status` then: the rule that all domain
+work gets an item lives there, always in context, because a skill
+description fires only when a request looks like a match and the requests
+that most need the rule look like small favours. Its "Documentation"
+section is there for the same reason: whether to write a document comes up
+in any session, housekeeping included, and none of them loads the skill
+for it. A rule without `paths:` rather than the root `CLAUDE.md`: it
+reaches the same sessions, is read from disk again after a compact (probed
+below), counts against no line cap, and leaves the project's own file
+alone; `init` removes the block an older one wrote there.
 
 `status` prints a `cap:` line per document over its line cap (`cap.<name>`
 in `.claude/workshop.conf`), telling the agent to cut and leaving a larger
@@ -90,10 +94,10 @@ Each rule sits where the role that needs it is sure to see it:
 | Content | Home | Seen by |
 |---|---|---|
 | the concept: the loop, the hard rules, sizing, whose decisions are whose | `skills/workbench/SKILL.md` | the main session through a command, the worker through `initialPrompt` |
-| documentation, and the rule that domain work is an item | `claude_md_block` | every session and spawn |
+| documentation, and the rule that domain work is an item | `.claude/rules/workbench.md` (`rules_content`) | every session and spawn, again after a compact |
 | how a field is written — the criterion, root cause, evidence, spike questions and findings | the template comment on that field (`write_bug`, `write_feature`, `write_spike`, `criterion_comment`, `evidence_comment`) | whoever fills the field, until it is filled |
 | what a glossary entry is, coining, aliases, homographs | the `GLOSSARY.md` header (`write_glossary`) | whoever edits the glossary |
-| the worker's procedure: measuring, tests, events, the review dialog | `agents/wb-worker.md` | the worker; `start` prints it for a session that works the item itself |
+| working an item: measuring, tests, events, the review dialog | SKILL.md, "Working an item" and "The review dialog" | whichever session the user opens for the item |
 | the review method and its checklist | `agents/wb-reviewer.md` | the reviewer, which loads no skill |
 | what a situation needs — duplicate IDs, caps, awaiting items | the CLI's output where it detects it | whoever runs the command |
 
@@ -138,9 +142,11 @@ Sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
 [CLI reference](https://code.claude.com/docs/en/cli-reference). Each line
 names the launch mode it was probed in; a fact probed in one mode says
 nothing about another (`skills:` below was the lesson). Modes workbench
-uses: `claude --agent wb-worker` interactive and `-p`, always in a
-`.worktrees/<branch>` worktree; `wb-reviewer` as an Agent-tool spawn from
-that session; a plain main session for `/bug /feature /spike /idea /wb`.
+uses: a plain session the user opens, for `/bug /feature /spike /idea /wb`
+and for working an item in its `.worktrees/<branch>` worktree; `wb-reviewer`
+as an Agent-tool spawn from that session. A `wb-worker` agent run with
+`claude --agent` was retired: it cost 1.8× a session plus reviewer for the
+same regressions found ("Measured"); the facts probed through it stay.
 
 - An `--agent` definition's `tools:` restricts the session. An Agent-tool
   spawn's `tools:` restricts the spawn: `pa-reviewer`-shaped agent, no
@@ -158,13 +164,12 @@ that session; a plain main session for `/bug /feature /spike /idea /wb`.
   on the agent is what loads a skill under `--agent`: interactive, it is
   the session's first turn, one model reply before the user types; with
   `-p`, the prompt becomes the command's `$ARGUMENTS` (`/<skill> <prompt>`,
-  one turn). An Agent-tool spawn ignores `initialPrompt` (docs). This is
-  why `wb-worker` carries both.
+  one turn). An Agent-tool spawn ignores `initialPrompt` (docs). The
+  retired `wb-worker` carried both.
 - `effort:` on an agent is honoured when the agent is spawned by the Agent
   tool and when a `context: fork` skill names it in `agent:` (probed
-  2.1.263). Neither agent carries one in source any more: `reviewer.effort`
-  and `worker.effort` render it, and the default `inherit` leaves it to the
-  session. In 2.1.270 a spawn's effort is not in the subagent transcript,
+  2.1.263). The agent carries none in source: `reviewer.effort` renders
+  it, and the default `inherit` leaves it to the session. In 2.1.270 a spawn's effort is not in the subagent transcript,
   `--debug`, `ANTHROPIC_LOG=debug` or `stream-json --verbose`; the
   observable is `$CLAUDE_EFFORT` in the spawn's own Bash (below).
 - Claude Code reads agent definitions at session start, before
@@ -249,10 +254,17 @@ that session; a plain main session for `/bug /feature /spike /idea /wb`.
   `SessionStart` fires again with `source: compact` (probed 2.1.270,
   interactive). 2.1.270 also re-attaches invoked skills after the boundary
   (`invoked_skills` attachment in the transcript, "Skills restored" in the
-  UI) and the files that were read; whether `paths:` rules return was not
-  settled — a quoting probe proves nothing, the summary itself carried
-  every sentinel verbatim. `status` still says the skill body is gone when
-  its `source` is `compact`; over-cautious now, not wrong.
+  UI) and the files that were read. `status` still says the skill body is
+  gone when its `source` is `compact`; over-cautious now, not wrong.
+- A `.claude/rules/*.md` without `paths:` is read from disk again after a
+  compact, re-attached as an `instructions` attachment on the first turn
+  after `compact_boundary`, as `CLAUDE.md` is; one with `paths:` is not —
+  its `nested_memory` attachment does not return, and only what the summary
+  kept remains (probed 2.1.284, `-p`, sonnet, `/compact`, 3 runs per arm).
+  The summary quotes a codeword verbatim, so a plain before/after probe
+  proves nothing: the codeword was swapped on disk before the compact, and
+  the no-`paths:` rule answered with the new word 3/3, the `paths:` rule
+  with the old 3/3.
 
 ## Measured
 

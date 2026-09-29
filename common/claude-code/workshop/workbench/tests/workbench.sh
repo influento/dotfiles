@@ -164,7 +164,9 @@ check "init renders no copy of the CLI" [ ! -e .claude/skills/bin ]
 # The source directory is named exactly as the skill it renders to: what is
 # under .claude/skills/ is what Claude Code loads by name.
 check "the skill renders under its own name" [ -f .claude/skills/workbench/SKILL.md ]
-for a in wb-worker wb-reviewer; do check "init renders the $a agent" [ -f ".claude/agents/$a.md" ]; done
+check "init renders the wb-reviewer agent" [ -f .claude/agents/wb-reviewer.md ]
+check "init writes the workbench rule, documentation included" bash -c "grep -q '^## Workflow' .claude/rules/workbench.md && grep -q '^## Documentation' .claude/rules/workbench.md"
+check "init writes no CLAUDE.md" [ ! -e CLAUDE.md ]
 check "the stamp carries source and copy hashes" bash -c "sed -n 1,2p .claude/skills/wb/GENERATED | grep -cE '^[0-9a-f]{12}\$' | grep -qx 2"
 check "init ignores .worktrees/" grep -qx '.worktrees/' .gitignore
 check "init allows Bash(workbench:*)" grep -q 'Bash(workbench:\*)' .claude/settings.json
@@ -270,6 +272,7 @@ run "archive takes a short id, with a '## ' line inside the evidence fence" 0 "a
 
 # Line caps on the four documents: a 'cap:' line per file over, none under.
 # Padding is appended to copies of the real files and undone after.
+printf '# loop\n' > CLAUDE.md
 cp workbench/BACKLOG.md "$TMP/backlog.orig"; cp CLAUDE.md "$TMP/claude.orig"
 check "status says nothing about caps while every file is under" bash -c "! '$WB' status | grep -q '^cap:'"
 pad() { local i n; n=$(wc -l < "$1"); for ((i = n; i < $2; i++)); do printf '%s\n' "$3"; done >> "$1"; }  # 'yes | head' takes SIGPIPE under pipefail
@@ -286,6 +289,7 @@ check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^c
 check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE '^(cap:|open items)' | grep -q 'cap:'"
 cp "$TMP/backlog.orig" workbench/BACKLOG.md; cp "$TMP/claude.orig" CLAUDE.md
 check "status is silent again once the files are back under" bash -c "! '$WB' status | grep -q '^cap:'"
+rm CLAUDE.md
 
 # The note on 'check' is advisory and this shape has already shipped twice in
 # code neither review wrote, so the suite asserts it about itself: a check whose
@@ -477,19 +481,25 @@ check "the retired copy is gone" [ ! -e .claude/agents/wb-spare.md ]
 # The assertion that matters: the reap is guarded by the marker, so a project's
 # own agent in the same directory is not collateral.
 check "a project's own agent survives the reap" [ -f .claude/agents/my-own.md ]
-check "the shipped agents survive the reap" bash -c '[ -f .claude/agents/wb-worker.md ] && [ -f .claude/agents/wb-reviewer.md ]'
+check "the shipped agent survives the reap" [ -f .claude/agents/wb-reviewer.md ]
 rm .claude/agents/my-own.md
 
-# adopt on a symlinked CLAUDE.md edits the target, not the link
+# The block an older init wrote into CLAUDE.md goes, through a symlink
+# rather than replacing it; the rule holds it now.
 new_repo adopt
-mkdir -p docs && echo '# adopt' > docs/CLAUDE.md && ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude
-run "adopt" 0 "Now survey" "$WB" adopt
+mkdir -p docs && printf '# adopt\n\nours\n\n<!-- workbench:start -->\n## Workflow\nold\n<!-- workbench:end -->\n\nafter\n' > docs/CLAUDE.md
+ln -s docs/CLAUDE.md CLAUDE.md && git add -A && git commit -qm claude
+run "adopt removes the old block" 0 "removed the workbench block from CLAUDE.md" "$WB" adopt
 check "adopt keeps CLAUDE.md a symlink" [ -L CLAUDE.md ]
-check "adopt writes the block through the link" grep -q 'workbench:start' docs/CLAUDE.md
+check "and leaves the rest of it as it was" bash -c "[ \"\$(cat docs/CLAUDE.md)\" = \"\$(printf '# adopt\n\nours\n\nafter')\" ]"
 run "adopt refuses with the first adopt uncommitted" 1 "commit them as the last pre-adoption commit" "$WB" adopt
 git add -A && git commit -qm adopt
-run "adopt is idempotent" 0 "refreshed the workbench block" "$WB" adopt
-check "the block is not duplicated" [ "$(grep -c 'workbench:start' docs/CLAUDE.md)" -eq 1 ]
+run "adopt is idempotent" 0 "" bash -c "! '$WB' adopt | grep -qE 'removed the workbench block|wrote .claude/rules'"
+check "the rule is in place" grep -q '^## Workflow' .claude/rules/workbench.md
+printf 'edited\n' >> .claude/rules/workbench.md
+run "status names a rule that differs from its source" 0 "^.claude/rules/workbench.md differs from its source" "$WB" status
+"$WB" init >/dev/null
+run "init puts it back" 0 "" bash -c "! '$WB' status | grep -q 'rules/workbench.md differs'"
 
 # --- failure paths ----------------------------------------------------------
 
@@ -917,7 +927,6 @@ rc=0; out=$("$WB" start "$sp" 2>&1) || rc=$?
 check "a resumed spike starts" [ "$rc" -eq 0 ]
 check "and says so" grep -q "resumed $sp-cache-restart" <<< "$out"
 check "with no note about Side effects" [ -z "$(grep '^note:.*Side effects' <<< "$out")" ]
-check "and prints the worker's steps, frontmatter left out" bash -c "grep -q \"^the worker's steps — \" <<< \"\$1\" && grep -q '^Your item is the one' <<< \"\$1\" && ! grep -q '^initialPrompt:' <<< \"\$1\"" _ "$out"
 
 run "round refuses a spike" 1 "the review dialog does not run for spikes" bash -c "cd '$TMP' && '$WB' round $sp 3 1"
 check "and writes no rounds: line" bash -c "! grep -q '^rounds:' '$ws'"
@@ -1284,7 +1293,7 @@ run "start refuses an item with no Side effects section" 1 "'Side effects' is em
 new_repo conf
 src_root=$(readlink -f "$(dirname "$WB")/..")
 run "init with no settings file" 0 "workbench ready" "$WB" init
-check "init writes every workbench key at its default, premerge and main commented out" bash -c "[ \"\$(grep -Ec '^(# )?[a-z_.]+=' .claude/workshop.conf)\" -eq 12 ] && grep -qx 'review.round_cap=5' .claude/workshop.conf && grep -qx '# premerge=<command>' .claude/workshop.conf && grep -qx '# main=main' .claude/workshop.conf"
+check "init writes every workbench key at its default, premerge and main commented out" bash -c "[ \"\$(grep -Ec '^(# )?[a-z_.]+=' .claude/workshop.conf)\" -eq 10 ] && grep -qx 'review.round_cap=5' .claude/workshop.conf && grep -qx '# premerge=<command>' .claude/workshop.conf && grep -qx '# main=main' .claude/workshop.conf"
 check "and no ts-gate key without ts-gate" bash -c "! grep -qE '^(gate|lint)\.' .claude/workshop.conf"
 run "at the defaults status has nothing to say about the file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
 cp .claude/workshop.conf "$TMP/conf.fresh"
@@ -1292,15 +1301,15 @@ cp .claude/workshop.conf "$TMP/conf.fresh"
 check "a second init leaves the file as it was" cmp -s .claude/workshop.conf "$TMP/conf.fresh"
 run "config list shows a workbench key from the file" 0 "^review.round_cap +file +5$" "$WB" config list
 check "config with no subcommand lists" bash -c "[ \"\$('$WB' config)\" = \"\$('$WB' config list)\" ]"
-check "config list names the twelve workbench keys and no ts-gate key without ts-gate" bash -c "[ \"\$('$WB' config list | wc -l)\" -eq 12 ] && ! '$WB' config list | grep -qE '^(gate|lint)\.'"
+check "config list names the ten workbench keys and no ts-gate key without ts-gate" bash -c "[ \"\$('$WB' config list | wc -l)\" -eq 10 ] && ! '$WB' config list | grep -qE '^(gate|lint)\.'"
 run "config list shows premerge unset" 0 "^premerge +default +\(none\)$" "$WB" config list
 run "config list shows main auto-detected" 0 "^main +default +main \(auto-detect\)$" "$WB" config list
 run "config get prints the default" 0 "^6$" "$WB" config get review.exchange_cap
 run "config get main resolves the branch" 0 "^main$" "$WB" config get main
 run "config get refuses an unknown key" 1 "no key 'nope'" "$WB" config get nope
 check "no rendered copy carries a token" bash -c "! grep -rqE '@@[A-Z_]+@@' .claude/agents .claude/skills"
-check "at the defaults neither agent carries model: or effort:" bash -c "! grep -qE '^(effort|model):' .claude/agents/wb-reviewer.md .claude/agents/wb-worker.md"
-check "at the defaults an agent copy is its source with the token filled" bash -c "diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-reviewer.md') .claude/agents/wb-reviewer.md && diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-worker.md') .claude/agents/wb-worker.md"
+check "at the defaults the agent carries no model: or effort:" bash -c "! grep -qE '^(effort|model):' .claude/agents/wb-reviewer.md"
+check "at the defaults an agent copy is its source with the token filled" bash -c "diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-reviewer.md') .claude/agents/wb-reviewer.md"
 check "the skill copy states the default round cap" grep -q 'at round 5 parks it' .claude/skills/workbench/SKILL.md
 run "status says nothing about config with no file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
 
@@ -1324,33 +1333,32 @@ done
 git add -A && git commit -qm 'workbench init'
 
 # Each workbench key reaches its consumer.
-conf worker.model sonnet
-conf worker.effort high
 conf reviewer.model claude-haiku-4-5
 conf reviewer.effort low
 conf review.exchange_cap 4
 conf review.round_cap 3
 conf cap.claude 7
 out=$("$WB" config render 2>&1)
-check "config render re-renders the agents and the workbench skill" bash -c "grep -q 'rendered .claude/agents/wb-worker.md' <<< '$out' && grep -q 'rendered .claude/agents/wb-reviewer.md' <<< '$out' && grep -q 'rendered .claude/skills/workbench$' <<< '$out'"
+check "config render re-renders the agents and the workbench skill" bash -c "grep -q 'rendered .claude/agents/wb-reviewer.md' <<< '$out' && grep -q 'rendered .claude/skills/workbench$' <<< '$out'"
 check "and not the commands, which carry no setting" bash -c "! grep -qE 'skills/(bug|feature|spike|idea|wb)$' <<< '$out'"
-check "the worker's frontmatter ends model:, effort:" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-worker.md | tail -3 | paste -sd'|' | grep -qx 'model: sonnet|effort: high|---'"
 check "the reviewer's too" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-reviewer.md | tail -3 | paste -sd'|' | grep -qx 'model: claude-haiku-4-5|effort: low|---'"
 check "every other line of an agent passes through" bash -c "diff <(grep -vE '^(model|effort):' .claude/agents/wb-reviewer.md) <(sed 's/@@REVIEW_EXCHANGE_CAP@@/4/g' '$src_root/agents/wb-reviewer.md')"
-check "both bodies state the exchange cap" bash -c "grep -q 'After 4 exchanges' .claude/agents/wb-reviewer.md && grep -q '4 exchanges on one finding' .claude/agents/wb-worker.md"
+check "the reviewer and the skill state the exchange cap" bash -c "grep -q 'After 4 exchanges' .claude/agents/wb-reviewer.md && grep -q '^4 exchanges on one finding' .claude/skills/workbench/SKILL.md"
 check "the skill states the round cap, and the line cap is read" bash -c "grep -q 'at round 3 parks it' .claude/skills/workbench/SKILL.md && [ \"\$('$WB' config get cap.claude)\" = 7 ]"
 run "the skill stamp is coherent after the render" 0 "" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source|out of date|agents differ'"
 snap() { find .claude -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; }
 before=$(snap)
 run "a second config render changes nothing" 0 "^copies match .claude/workshop.conf$" "$WB" config render
 check "not a byte" [ "$(snap)" = "$before" ]
-conf worker.effort inherit
+conf reviewer.effort inherit
 "$WB" config render >/dev/null
-check "inherit takes the line out again" bash -c "! grep -q '^effort:' .claude/agents/wb-worker.md && grep -q '^model: sonnet' .claude/agents/wb-worker.md"
+check "inherit takes the line out again" bash -c "! grep -q '^effort:' .claude/agents/wb-reviewer.md && grep -q '^model: claude-haiku-4-5' .claude/agents/wb-reviewer.md"
 rc3=$(newc bug "round cap")
 "$WB" round "$rc3" 5 1 >/dev/null; "$WB" round "$rc3" 3 0 >/dev/null
 run "round parks at review.round_cap" 0 "next: call — 3 rounds" "$WB" round "$rc3" 3 0
-run "cap.claude is the cap status reports" 0 "^cap: CLAUDE.md [0-9]+/7 — cut it" "$WB" status
+printf 'line\n%.0s' 1 2 3 4 5 6 7 8 > CLAUDE.md
+run "cap.claude is the cap status reports" 0 "^cap: CLAUDE.md 8/7 — cut it" "$WB" status
+rm CLAUDE.md
 git add -A && git commit -qm settings
 
 # A settings edit with no render: out of date, never stale, never a hand edit.
@@ -1380,7 +1388,7 @@ mkdir -p .claude/skills/hand && echo mine > .claude/skills/hand/SKILL.md
 printf -- '---\nname: wb-retired\nx-workbench: true\n---\n' > .claude/agents/wb-retired.md
 conf review.exchange_cap 9
 "$WB" config render >/dev/null
-check "config render touches only the shipped copies" bash -c "[ \"\$(git status --porcelain | sed 's/^...//' | LC_ALL=C sort | paste -sd' ')\" = '.claude/agents/wb-retired.md .claude/agents/wb-reviewer.md .claude/agents/wb-worker.md .claude/skills/hand/ .claude/workshop.conf' ]"
+check "config render touches only the shipped copies" bash -c "[ \"\$(git status --porcelain | sed 's/^...//' | LC_ALL=C sort | paste -sd' ')\" = '.claude/agents/wb-retired.md .claude/agents/wb-reviewer.md .claude/skills/hand/ .claude/skills/workbench/GENERATED .claude/skills/workbench/SKILL.md .claude/workshop.conf' ]"
 rm -rf .claude/skills/hand .claude/agents/wb-retired.md
 
 # main=
@@ -1396,24 +1404,25 @@ run "and the branch is auto-detected" 0 "^main$" "$WB" config get main
 unconf main
 
 # Invalid and unknown: the default, a warning, no crash.
-printf 'no equals sign here\nfoo.bar=1\nworker.effort=huge\n# worker.model=commented\n\n   review.exchange_cap  =  5  \n' >> .claude/workshop.conf
+printf 'no equals sign here\nfoo.bar=1\nreviewer.effort=huge\n# reviewer.model=commented\nworker.model=sonnet\n\n   review.exchange_cap  =  5  \n' >> .claude/workshop.conf
 run "status warns about a line that is not key=value" 0 "^config: .claude/workshop.conf line [0-9]+: no equals sign here is not key=value$" "$WB" status
 printf '=no key here\n' >> .claude/workshop.conf
 run "status warns about a line with no key, and completes" 0 "^config: .claude/workshop.conf line [0-9]+: =no key here is not key=value$" "$WB" status
 run "config get survives it" 0 "^5$" "$WB" config get review.exchange_cap
 sed -i '/^=no key here$/d' .claude/workshop.conf
 run "status warns about an unknown key" 0 "^config: .claude/workshop.conf: unknown key 'foo.bar', ignored$" "$WB" status
-run "status warns about an invalid effort" 0 "worker.effort='huge' is not inherit, low, medium, high, xhigh or max; the default applies" "$WB" status
-run "config get gives the default for it" 0 "^inherit$" "$WB" config get worker.effort
-run "config list marks it invalid" 0 "^worker.effort +invalid +inherit$" "$WB" config list
-run "a comment line is not read" 0 "^sonnet$" "$WB" config get worker.model
+run "status names a retired key for deletion" 0 "^config: .claude/workshop.conf: 'worker.model' is retired, its agent gone; delete the line$" "$WB" status
+run "status warns about an invalid effort" 0 "reviewer.effort='huge' is not inherit, low, medium, high, xhigh or max; the default applies" "$WB" status
+run "config get gives the default for it" 0 "^inherit$" "$WB" config get reviewer.effort
+run "config list marks it invalid" 0 "^reviewer.effort +invalid +inherit$" "$WB" config list
+run "a comment line is not read" 0 "^claude-haiku-4-5$" "$WB" config get reviewer.model
 run "spaces around key and value are trimmed, the last occurrence wins" 0 "^5$" "$WB" config get review.exchange_cap
 conf review.round_cap 0
 run "zero is not a count" 0 "^5$" "$WB" config get review.round_cap
-conf worker.model "two words"
-run "a model with a space is the default" 0 "^inherit$" "$WB" config get worker.model
+conf reviewer.model "two words"
+run "a model with a space is the default" 0 "^inherit$" "$WB" config get reviewer.model
 run "and the render still runs" 0 "" "$WB" config render
-check "rendering no model: line for it" bash -c "! grep -q '^model:' .claude/agents/wb-worker.md"
+check "rendering no model: line for it" bash -c "! grep -q '^model:' .claude/agents/wb-reviewer.md"
 
 # ts-gate's keys: listed and checked only where ts-gate is installed.
 mkdir ts-gate
@@ -1423,8 +1432,8 @@ run "and status checks them" 0 "lint.max_lines='lots' is not a positive integer"
 "$WB" config list | sed -E 's/ +(file|default|invalid) +/ /' > "$TMP/values.before"
 run "init with ts-gate adds its keys" 0 "added: gate.repeat_cap gate.output_lines lint.complexity" "$WB" init
 check "at their defaults" bash -c "grep -qx 'gate.repeat_cap=3' .claude/workshop.conf && grep -qx 'lint.max_depth=4' .claude/workshop.conf"
-check "the values the file had stay, one line per key" bash -c "[ \"\$(grep -c '^lint.max_lines=' .claude/workshop.conf)\" -eq 1 ] && grep -qx 'lint.max_lines=lots' .claude/workshop.conf && grep -qx 'review.exchange_cap=5' .claude/workshop.conf && grep -qx 'worker.model=two words' .claude/workshop.conf"
-check "lines that are not its keys move to the end" bash -c "sed -n '/^# Kept from the file as it was:\$/,\$p' .claude/workshop.conf | grep -qx 'no equals sign here' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx 'foo.bar=1' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx '# worker.model=commented'"
+check "the values the file had stay, one line per key" bash -c "[ \"\$(grep -c '^lint.max_lines=' .claude/workshop.conf)\" -eq 1 ] && grep -qx 'lint.max_lines=lots' .claude/workshop.conf && grep -qx 'review.exchange_cap=5' .claude/workshop.conf && grep -qx 'reviewer.model=two words' .claude/workshop.conf"
+check "lines that are not its keys move to the end" bash -c "sed -n '/^# Kept from the file as it was:\$/,\$p' .claude/workshop.conf | grep -qx 'no equals sign here' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx 'foo.bar=1' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx '# reviewer.model=commented' && sed -n '/^# Kept/,\$p' .claude/workshop.conf | grep -qx 'worker.model=sonnet'"
 check "every effective value is unchanged" bash -c "'$WB' config list | sed -E 's/ +(file|default|invalid) +/ /' | cmp -s - '$TMP/values.before'"
 cp .claude/workshop.conf "$TMP/conf.filled"
 "$WB" init >/dev/null

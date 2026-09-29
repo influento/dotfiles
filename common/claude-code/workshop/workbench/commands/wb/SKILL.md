@@ -22,4 +22,4 @@ now.
    for a spike, its Questions and Findings.
 3. State where the work stands in one line. A line under `## Decisions`
    waits on the user: stop there. Otherwise carry on from that point with
-   the `wb-worker` steps, in this session.
+   "Working an item" in the skill.

@@ -156,7 +156,7 @@ The gate first: `stack add` writes into the gate's config when one exists
 (ts-gate's knip ignores), which must exist by then, and the review block and
 `workbench init` write tracked files. `stack add` between them: its subtrees
 need HEAD and a clean tree, and its CLAUDE.md block should exist before the
-review block and workbench's own are appended. Commit between each so every
+review block is appended. Commit between each so every
 tool lands under its own subject.
 
 ## Removing

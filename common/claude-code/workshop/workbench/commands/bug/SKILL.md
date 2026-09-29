@@ -22,4 +22,5 @@ The `workbench` skill's rules apply; load it if it is not in context.
 4. Draft **How to confirm it is fixed**, run it on the unchanged tree so it
    is seen failing, and bring it to the user. Nothing else happens until
    the criterion is agreed.
-5. `workbench start <id>`, then work in the worktree it prints.
+5. `workbench start <id>`, then "Working an item" in the skill, in the
+   worktree it prints — unless the user opens a session for it there.

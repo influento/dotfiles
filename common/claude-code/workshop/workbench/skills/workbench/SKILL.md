@@ -45,9 +45,10 @@ archive   the user's: to workbench/items/archive/, records the SHA
 4. **Do not write documentation by default.** Write only what cannot be
    read from the code. A discovered fact becomes code or a comment at its
    call site, never a document and never an item line of its own; what
-   may be written, and where, is the root `CLAUDE.md`, "Documentation".
-   The exception is `workbench/GLOSSARY.md`, the project's domain
-   language, which binds items, commit subjects and code identifiers. A
+   may be written, and where, is `.claude/rules/workbench.md`,
+   "Documentation". The exception is `workbench/GLOSSARY.md`, the
+   project's domain language, which binds items, commit subjects and code
+   identifiers. A
    word it lacks, or one that could mean two things, goes to the user
    before the item is written in it; a new entry lands in the same commit
    as the item that first uses it. Its header says what an entry is.
@@ -89,8 +90,8 @@ words, never yours.
 ## Commands
 
 `/bug`, `/feature`, `/spike`, `/idea` and `/wb` walk the steps. How each
-field is written is the comment on it in the item's template, and
-`workbench start` prints the worker's steps. Skills, agents and settings
+field is written is the comment on it in the item's template. Skills,
+agents and settings
 are committed copies, in every worktree and clone. `workbench status` says
 when a copy is behind its source; `workbench init` refreshes it; never edit
 the copy.
@@ -99,20 +100,73 @@ the copy.
 
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
-workbench start b-038                  # commits the criterion, then branch + worktree, and prints the worker's steps; refuses while the criterion or Side effects is empty
+workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
 workbench merge b-038 "<subject>"      # the user's command, never yours: squash, trailer, cleanup
 ```
 
 **Neither merge nor archive is yours to start.** Both land work the user
 has not seen. When the review dialog ends and `round` says ready, report
 the item with its last round and stop — say what the merge would be, its
-subject the change rather than the item's title, and do not run it. The same for `archive`. Asked for either in so many words, run
-it: what is refused is taking the step yourself, not the command. Being
-told to work the item is not being told to merge it.
+subject the change rather than the item's title, and do not run it. The
+same for `archive`. Asked for either in so many words, run it: what is
+refused is taking the step yourself, not the command. Being told to work
+the item is not being told to merge it.
 
 IDs come from a counter shared by every worktree; never hand-pick one.
 The file lands in the main checkout wherever `new` runs. Between `new` and
 `start` the item is edited on main; after `start`, only in its worktree.
+
+## Working an item
+
+After `start`, in this session or in one the user opens for it with
+`/wb <id>`. Work only inside the item's worktree.
+
+1. `cd` into the worktree and install the project's dependencies the way
+   its rules say. Read the item and run its criterion on the unchanged
+   tree. One that does not fail there is not a criterion: settle the
+   rewrite with the user. A bug whose steps you followed and whose failure
+   you cannot make happen: report `unreproduced` with what you ran, and
+   stop.
+2. Do the work. Run everything you can; the user gets only what needs
+   eyes — visual, subjective, in-world. Commit on the branch as you go;
+   the item file commits with the code. Evidence is pasted output under
+   `## Evidence`, one block per criterion step; a step the output does not
+   meet is recorded as missed, with the number it reached, never reworded.
+   - A number: base and branch run alternately in one session, the base
+     from a scratch worktree — sessions in other worktrees share the
+     machine, so a figure from another session is no baseline. What the
+     number costs elsewhere, memory for time, is a side effect.
+   - A flake is GREEN at `0 of M` with M ≥ 3·N/k; fewer, and an unchanged
+     tree passes by luck. An exploit is GREEN when it and two or more
+     variants of its input class fail.
+   - A test you write and can re-run cheaply: its kind follows the
+     criterion. Record RED — the command, the failing output, why that
+     failure was the expected one — and GREEN; one only ever seen green
+     proves nothing. Never name it in the item: the commit trailer reaches
+     it.
+   - A step that turns on an event you cannot cause: synthesise the event
+     and record our code's reaction; only the real event's shape waits,
+     as `awaiting — <trigger>` when a time can be named, else
+     `unverified — <trigger>` — the user picks.
+
+   A finding that argues with the frozen criterion is `workbench call <id>
+   "<what the criterion should say>"`; something that works today and now
+   behaves differently which `## Side effects` does not name is `workbench
+   call <id> "side effect: <what, for whom> — accept?"` — never an edit of
+   the item. Before the review dialog, hold every function the diff
+   changes against its callers for such a difference.
+3. The review dialog, below.
+4. Report, in three lines: the item id; `ready`, `blocked — <one question,
+   with the options>` or `unreproduced — <what you ran>`; the last round's
+   result, or `none`. Then stop.
+
+A spike (`s-<n>`) answers questions instead of meeting a criterion. Step 1
+runs nothing. Step 2 fills `## Findings`, one entry per question;
+`## Questions` is the user's to edit, never yours; everything built goes
+in the folder beside the item, and nothing goes on main — no `workbench
+idea`, no glossary, backlog or document edit; each is a line under
+`## Suggestions`. Step 3 is skipped. Step 4 reports `answered`, with
+`status: answered` committed on the branch, or `blocked — <question>`.
 
 ## Sizing — the same call every time
 
@@ -178,6 +232,15 @@ review dialog                         a wb-reviewer spawned with the Agent tool,
   findings → answered by number → each ends fixed / stands / withdrawn
   workbench round <id> <fixed> <stands>   again → a new reviewer · ready → report it, the merge is the user's · call → park it
 ```
+
+Spawn it naming the branch and the item file, and answer by number
+through `SendMessage` to the id the spawn returned. After
+@@REVIEW_EXCHANGE_CAP@@ exchanges on one finding without agreement, ask the
+user. When every
+finding has its state, `workbench round <id> <fixed> <stands>` and do what
+it prints. A reviewer that returns partial, its turn cap reached, ends the
+dialog: `workbench call <id> "<the standing finding>"`, never spawn it
+again to finish.
 
 The reviewer keeps its context across the exchange; a finding that stands
 gets one line under Evidence saying why. A finding is shown, not read — the
