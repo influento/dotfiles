@@ -318,7 +318,7 @@ run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "!
 ( cd ".worktrees/$idl-later" && git add -A && git commit -qm later )
 "$WB" merge "$idl" "later" >/dev/null 2>&1
 run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"
-run "and says what to do when it fires" 0 "awaiting a trigger — when it fires: status 'open', its evidence, then archive" "$WB" status
+run "and says what to do when it fires" 0 "awaiting a trigger — when it fires: status 'open', its evidence, then the user archives" "$WB" status
 run "status after a compact says the rule is back and the skill may not be" 0 "^context was compacted; .claude/rules/workbench.md is back, the workbench skill may not be" bash -c "printf '{\"hook_event_name\":\"SessionStart\",\"source\":\"compact\"}' | '$WB' status"
 
 # new from inside another item's worktree lands on main, and start cuts the
@@ -1176,7 +1176,7 @@ wu=.worktrees/$spu-unmerged; du=workbench/items/spikes/$spu-unmerged
 ( cd "$wu" && mkdir -p "$du" && echo proto > "$du/proto.ts" && git add -A && git commit -qm prototype )
 set_status "$wu/$fu" answered; findings "$wu/$fu"
 ( cd "$wu" && echo loose > scratch.txt )
-run "archive refuses uncommitted work beyond the item, with the spike hint" 1 "commit it on the branch, then archive" "$WB" archive "$spu"
+run "archive refuses uncommitted work beyond the item, with the spike hint" 1 "commit it on the branch, then archive again" "$WB" archive "$spu"
 ( cd "$wu" && rm scratch.txt )
 sed -i '/^## Questions/a\
 \

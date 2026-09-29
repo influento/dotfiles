@@ -1783,7 +1783,7 @@ cmd_merge() {
         || die "$id is answered with nothing under '## Findings' on $branch; one entry per question, then retry" ;;
     *)
       ! is_spike "$id" || die "$id is open on $branch; a spike merges as 'answered', its findings filled"
-      has_evidence "$tmp" || die "$id is open with no evidence under '## Evidence' on $branch; record it, or set 'status: awaiting — <trigger>' / 'unverified — <trigger>' when the criterion cannot run yet" ;;
+      has_evidence "$tmp" || die "$id is open with no evidence under '## Evidence' on $branch; record it, or, when the criterion cannot run yet, the user picks 'status: awaiting — <trigger>' or 'unverified — <trigger>'" ;;
   esac
 
   require_main_checked_out "$root"
@@ -1959,7 +1959,7 @@ $(printf '%s\n' "$outside" | sed 's/^/  /')"
       case "$id:$(item_status "${item:-/dev/null}")" in
         s-*) echo "$id stays on $main as a reference; 'workbench archive $id' removes its folder once you are done with it" >&2 ;;
         *:awaiting*) echo "$id stays open until its trigger fires" >&2 ;;
-        *) echo "next: workbench archive $id" >&2 ;;
+        *) echo "next, the user's call: workbench archive $id" >&2 ;;
       esac ;;
   esac
   if [ -n "$wt" ]; then
@@ -2123,9 +2123,9 @@ retire_branch() {
   wt=$(live_worktree_of "$branch")
   item_re="$WB/items/[^/]+/$id-[^/]*\\.md\$"
   case "$id:$(item_status "$path")" in
-    s-*:*) hint="commit it on the branch, then archive; an abandoned spike may 'workbench archive $id --discard' instead" ;;
+    s-*:*) hint="commit it on the branch, then archive again; an abandoned spike may take 'workbench archive $id --discard' instead" ;;
     *:abandoned*) hint="an abandoned item never merges: 'workbench archive $id --discard' drops the work, naming each file" ;;
-    *) hint="merge $id, or remove the worktree and branch yourself, then archive" ;;
+    *) hint="the user merges $id, or removes the worktree and branch, then archives again" ;;
   esac
 
   if [ -n "$wt" ]; then
@@ -2287,12 +2287,12 @@ $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   [ -z "$extra" ] || die "$id carries these sections twice; the gates read only as far as the first, so fold each pair into one:
 $(printf '%s\n' "$extra" | sed 's/^/  ## /')"
   extra=$(open_decisions_of "$path")
-  [ -z "$extra" ] || die "$id has a decision waiting under '## Decisions'; answer it in the field it changes and delete the line, then archive:
+  [ -z "$extra" ] || die "$id has a decision waiting under '## Decisions'; the user answers it in the field it changes and the line goes, then archive again:
 $(printf '%s\n' "$extra" | sed 's/^/  /')"
 
   case "$status" in
     awaiting*)
-      die "$id is awaiting a trigger and does not archive as-is; when it fires set 'status: open', record the evidence, then archive, or re-state it as 'unverified — <trigger>' if no bound can be named" ;;
+      die "$id is awaiting a trigger and does not archive as-is; when it fires set 'status: open' and record the evidence, then archive again; the user may re-state it as 'unverified — <trigger>' if no bound can be named" ;;
     unverified*)
       names_trigger "$status" \
         || die "$id: 'unverified' must name its trigger, e.g. status: unverified — resolves when the server next pushes an announcement" ;;
@@ -2844,7 +2844,7 @@ cmd_status() {
       # A merged spike is a reference, listed apart ('s' prefix, split below).
       case "$mid:$st" in
         s-*) printf 's  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
-        *:unreproduced*|*:abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; set open with evidence, or unverified — <trigger>\n' "${name%.md}" "$sha" "$st" ;;
+        *:unreproduced*|*:abandoned*) printf '  %-34s merged as %s, yet \x27%s\x27 — archive will refuse; evidence and \x27open\x27, or the user picks \x27unverified — <trigger>\x27\n' "${name%.md}" "$sha" "$st" ;;
         *) printf '  %-34s merged as %s\n' "${name%.md}" "$sha" ;;
       esac
     done
@@ -2866,8 +2866,8 @@ cmd_status() {
   fi
   [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body" | capped; }
   [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body" | capped; }
-  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger — when it fires: status 'open', its evidence, then archive"; printf '%s\n' "$await_body" | capped; }
-  [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body" | capped; }
+  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger — when it fires: status 'open', its evidence, then the user archives"; printf '%s\n' "$await_body" | capped; }
+  [ -z "$limbo_body" ] || { sep; echo "merged, still open — the user archives it, or picks 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body" | capped; }
   [ -z "$ref_body" ] || { sep; echo "spikes on $mainb, kept as references — 'workbench archive <id>' removes the folder when done"; printf '%s\n' "$ref_body" | capped; }
 
   # Listed, not fixed: init refreshes them, and that is the user's commit.
