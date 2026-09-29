@@ -8,7 +8,15 @@
 #   bindsym $mod+v exec ~/.config/cliphist/cliphist-pick.sh
 set -euo pipefail
 
-# Esc makes launcher exit non-zero with no output; stop there, or wl-copy
-# would run on empty input and clear the clipboard
-sel=$(cliphist list | launcher --dmenu --prompt Clipboard --after-tab) || exit 0
-printf '%s\n' "$sel" | cliphist decode | wl-copy
+# Esc makes launcher exit 1 with no output; stop there, or wl-copy would run
+# on empty input and clear the clipboard. The Clear button exits 10: empty
+# the history and the current clipboard
+status=0
+sel=$(cliphist list | launcher --dmenu --prompt Clipboard --after-tab --action Clear) || status=$?
+case "$status" in
+  0) printf '%s\n' "$sel" | cliphist decode | wl-copy ;;
+  10)
+    wl-copy --clear
+    cliphist wipe
+    ;;
+esac
