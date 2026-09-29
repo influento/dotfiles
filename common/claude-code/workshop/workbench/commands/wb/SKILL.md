@@ -23,6 +23,6 @@ now.
    it names.
 2. Read the item: the criterion and whatever Root cause or Evidence holds;
    for a spike, its Questions and Findings.
-3. State where the work stands in one line. A line under `## Decisions`
-   waits on the user: stop there. Otherwise carry on from that point with
-   "Working an item" in the skill.
+3. State where the work stands in one line. A `- ` line under
+   `## Decisions` waits on the user: stop there. Otherwise carry on from
+   that point with "Working an item" in the skill.
