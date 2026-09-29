@@ -1495,6 +1495,21 @@ check "a decision line is cut at 140 characters" bash -c "sed -n '/^decisions wa
 check "--all prints every decision whole and counts nothing" bash -c "[ \$(sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.all' | grep -c '^  b-.*keep empty rows\$') -eq 10 ] && ! grep -q '…and' '$TMP/status.all'"
 run "status refuses an unknown argument" 2 "usage:" "$WB" status --bogus
 
+# --- an item renamed before start lands as a rename --------------------------
+# The old path's deletion went uncommitted: main and the branch each held
+# both copies, and main was left with the deletion staged.
+new_repo rename
+"$WB" init >/dev/null 2>&1
+idg=$(newc feature "old name")
+git mv "$(find workbench/items -name "$idg-*.md")" "workbench/items/features/$idg-new-name.md"
+idp=$(newc feature "plain old")
+mv "$(find workbench/items -name "$idp-*.md")" "workbench/items/features/$idp-plain-new.md"
+"$WB" start "$idg" >/dev/null 2>&1
+"$WB" start "$idp" >/dev/null 2>&1
+check "a git mv before start leaves one copy on main and on the branch" bash -c "[ \$(git ls-tree -r --name-only HEAD -- workbench/items | grep -c '/$idg-') -eq 1 ] && [ \$(git ls-tree -r --name-only '$idg-new-name' -- workbench/items | grep -c '/$idg-') -eq 1 ]"
+check "so does a plain mv" bash -c "[ \$(git ls-tree -r --name-only HEAD -- workbench/items | grep -c '/$idp-') -eq 1 ] && [ \$(git ls-tree -r --name-only '$idp-plain-new' -- workbench/items | grep -c '/$idp-') -eq 1 ]"
+check "and nothing is left staged or deleted on main" [ -z "$(git status --porcelain -- workbench/items | grep -v '^??')" ]
+
 # --- git config keys move into the file --------------------------------------
 new_repo migrate
 git config workbench.cap.claude 90

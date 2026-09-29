@@ -1473,15 +1473,27 @@ require_main_checked_out() {
   [ "$on" = "$main" ] || die "$1 has '${on:-a detached HEAD}' checked out, not $main; commits land there"
 }
 
-# 'new' lands the template, 'start' the criterion. Only this path goes into
-# the commit, so a session's other pending edits on main stay where they were.
+# 'new' lands the template, 'start' the criterion. Only this item goes into
+# the commit, so a session's other pending edits on main stay where they were;
+# its own tracked copies gone from the tree go too, so a rename lands whole
+# rather than leaving the old copy on main and on every branch cut from it.
 land_item() {
-  local path="$1" msg="$2" root
+  local path="$1" msg="$2" root id paths=() gone
   root=$(main_root)
   require_main_checked_out "$root"
+  id=$(item_id "$(basename "$path")")
   git -C "$root" add -- "$path"
-  git -C "$root" diff --cached --quiet -- "$path" && return 0
-  git -C "$root" commit --quiet -m "$msg" -- "$path" \
+  paths=("$path")
+  # From HEAD, not the index: a 'git mv' has already dropped the old path
+  # there, and 'git add' refuses a path in neither the index nor the tree.
+  while IFS= read -r gone; do
+    [ -n "$gone" ] && [ ! -e "$root/$gone" ] || continue
+    git -C "$root" rm --cached --quiet --ignore-unmatch -- "$gone"
+    paths+=("$root/$gone")
+  done < <(git -C "$root" ls-tree -r --name-only HEAD -- "$WB/items" 2>/dev/null \
+    | grep -v '/archive/' | grep "/$id-[^/]*\.md\$" || true)
+  git -C "$root" diff --cached --quiet -- "${paths[@]}" && return 0
+  git -C "$root" commit --quiet -m "$msg" -- "${paths[@]}" \
     || die "the commit for ${path#"$root"/} was refused — a hook, or a merge in progress on $(default_branch); the file is staged in $root"
   echo "committed ${path#"$root"/} on $(default_branch)" >&2
 }
