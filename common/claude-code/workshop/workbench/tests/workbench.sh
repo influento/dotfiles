@@ -1510,6 +1510,20 @@ check "a git mv before start leaves one copy on main and on the branch" bash -c 
 check "so does a plain mv" bash -c "[ \$(git ls-tree -r --name-only HEAD -- workbench/items | grep -c '/$idp-') -eq 1 ] && [ \$(git ls-tree -r --name-only '$idp-plain-new' -- workbench/items | grep -c '/$idp-') -eq 1 ]"
 check "and nothing is left staged or deleted on main" [ -z "$(git status --porcelain -- workbench/items | grep -v '^??')" ]
 
+# --- the rule file committed on main, or said not to be ---------------------
+# An upgrade committed with 'git commit -a' took the CLAUDE.md block's removal
+# and left the new rule file untracked: every worktree start cut lacked both.
+new_repo rulefile
+"$WB" init >/dev/null 2>&1
+git add -A && git reset -q -- .claude/rules && git commit -qm "init, the rule file left out"
+run "status names a rule file main does not hold" 0 "^.claude/rules/workbench.md is not committed on main as init wrote it" "$WB" status
+idr=$(newc feature "rule check")
+run "start says the item's session starts without the rule" 0 "^note: .claude/rules/workbench.md is missing or out of date on main" "$WB" start "$idr"
+git add .claude/rules && git commit -qm "the rule file"
+run "status is quiet once main holds it" 0 "" bash -c "! '$WB' status | grep -q 'rules/workbench.md'"
+idr2=$(newc feature "rule check two")
+run "and start says nothing about it" 0 "" bash -c "! '$WB' start '$idr2' 2>&1 | grep -q 'rules/workbench.md'"
+
 # --- git config keys move into the file --------------------------------------
 new_repo migrate
 git config workbench.cap.claude 90

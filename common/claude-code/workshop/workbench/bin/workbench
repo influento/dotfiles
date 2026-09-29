@@ -1671,6 +1671,8 @@ cmd_start() {
   # An uncommitted .claude/ is not in the new checkout.
   [ -d "$wt/.claude/skills/workbench" ] \
     || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
+  cmp -s <(rules_content) "$wt/$RULES_FILE" 2>/dev/null \
+    || echo "note: $RULES_FILE is missing or out of date on $(default_branch), so a session inside $wt starts without the workflow rule; commit it there, then rebase the branch" >&2
 
   # One session per item, opened by the user: the one that ran start stops.
   echo "next: stop here; the user opens a session in $wt and runs '/wb $id' there" >&2
@@ -2872,9 +2874,14 @@ cmd_status() {
     echo "agents differ from their source — run 'workbench init', then commit .claude/"
     echo "  $agents"
   fi
+  # A worktree 'start' cuts holds main's committed copy, not the one on disk:
+  # an upgrade committed with 'git commit -a' leaves the new file untracked.
   if ! cmp -s <(rules_content) "$mainr/$RULES_FILE" 2>/dev/null; then
     sep
     echo "$RULES_FILE differs from its source or is missing — run 'workbench init', then commit .claude/"
+  elif [ -n "$mainb" ] && ! cmp -s <(rules_content) <(git -C "$mainr" show "$mainb:$RULES_FILE" 2>/dev/null); then
+    sep
+    echo "$RULES_FILE is not committed on $mainb as init wrote it — commit it; a worktree 'start' cuts gets only what $mainb holds"
   fi
   # The memory setting is a committed path; a clone laid out differently
   # points elsewhere.
