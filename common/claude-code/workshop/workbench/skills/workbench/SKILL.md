@@ -1,82 +1,58 @@
 ---
 name: workbench
-description: Run project work as tracked items — every feature and bug fix gets a written item with a verification criterion agreed before code, evidence recorded after, and a git-native link between the item and the commits that implemented it. Use when implementing a feature, fixing a bug, deciding whether work is one item or several, running the review dialog, deciding whether something needs documentation, or preparing work for merge.
+description: Track work as items: a verification criterion agreed before code, evidence after, and links to the implementing commits. Use when implementing a feature, fixing a bug, sizing work into items, running the review dialog, deciding whether something needs documentation, or preparing a merge.
 ---
 
 # Workbench
 
-Work is tracked as **items**: what will change and how anyone will know it
-worked, written before the code exists. The reader may not read code at all
-— items and command output are their only channel.
-
-**Main** is the default branch: `main=` in `.claude/workshop.conf`, then
-`origin/HEAD`, then `main` or `master`. The commands resolve the real name.
-
 ## The loop
 
 ```
-idea (workbench/BACKLOG.md line)
-  -> item      workbench/items/{bugs,features,spikes}/<id>-<slug>.md,
-               committed on main as it is created
-  -> branch    <id>-<slug>, in its own worktree under .worktrees/; the item
-               is edited there from now on
-  -> work      root cause / implementation
-  -> evidence  criterion filled in with real output
-  -> merge     workbench merge: squash, commit trailer "Item: <id>"
-  -> archive   workbench/items/archive/, records the commit SHA
+idea      optional: a workbench/BACKLOG.md line
+item      workbench new: the file, committed on main; its criterion agreed with the user
+start     workbench start: the criterion committed, branch <id>-<slug> in .worktrees/;
+          the item is edited only there from now on
+work      the change
+evidence  the criterion filled in with real output
+review    bug and feature: wb-reviewer dialog, workbench round until ready; report, stop
+merge     the user's: squash onto main, trailer "Item: <id>"
+archive   the user's: to workbench/items/archive/, records the SHA
 ```
 
 ## Hard rules
 
-1. **Domain work is an item.** Every feature and bug fix, however small,
-   once someone opens it; until then `/idea` is the user's deferral
-   ("Sizing"). Housekeeping — configs, agent settings, tooling — gets none
-   and may go straight to main.
+1. **The criterion is the contract, agreed before the code.** It holds
+   commands and expected results only — no guard (a typecheck, a build,
+   "still does what it did"), no "by inspection" — and fails on the
+   unchanged tree: run it first. Evidence is matched against it, never
+   against a test; evidence that falls short is recorded as **missed**,
+   never reworded ([verification.md](references/verification.md)).
+   `## Side effects` is part of the contract: agreed with it, and frozen
+   with it at `start`; one found later is
+   `workbench call <id> "side effect: …"`, never your edit.
 
-2. **The criterion is written before the code, and it is the contract.**
-   Evidence is matched against it, never against a test. A criterion that
-   passes on the unchanged tree is not a criterion: run it first. The field
-   holds commands and expected results only — no rationale, no guard
-   ("still does what it did"), no typecheck or build, no "by inspection". A
-   criterion the evidence cannot meet is recorded as **missed**, never
-   reworded ([verification.md](references/verification.md)).
-   `## Side effects` is agreed with it: every route, export, output or
-   stored format that behaves differently once the item lands, and who sees
-   it, or `none`. `start` refuses it empty. One found after `start` is
-   `workbench call <id> "side effect: …"`, never your edit of the
-   section: whether the change is acceptable is the user's, and so is the
-   edit. A spike has neither: its `## Questions` stand in their place
-   ([verification.md](references/verification.md), "Spikes").
+2. **What was not proved is a status, never a gap.** A criterion waiting
+   on an event you cannot cause now: verify the rest, then the user picks
+   `awaiting — <trigger>` (a time can be named) or `unverified — <trigger>`.
+   A bug you cannot reproduce is `unreproduced`; work the user drops is
+   `abandoned — <why>`, archived, never deleted
+   ([items.md](references/items.md), "Statuses").
 
-3. **Nothing is archived without verified evidence.** Merge asks only
-   whether everything verifiable was verified, so an item may ship while
-   still open. `unreproduced` and `unverified — <trigger>` archive a
-   statement of what was not proved; `abandoned — <why>` archives a
-   decision: work the user dropped, never deleted
-   ([items.md](references/items.md)). A spike archives as `answered`: its
-   Findings are the record.
-
-4. **State the root cause before writing a fix.**
-
-5. **A test may satisfy only what the criterion describes.** No script
+3. **A test may satisfy only what the criterion describes.** No script
    whose only purpose is to satisfy a criterion; no test of config, wiring
-   or glue unless a criterion demanded it. A spike has no criterion: what it
-   builds, a test included, stays in its folder, which no gate runs; its
-   output is Findings, not assertions.
+   or glue unless a criterion demanded it.
 
-6. **Do not write documentation by default.** Write only what cannot be
+4. **Do not write documentation by default.** Write only what cannot be
    read from the code. A discovered fact becomes code or a comment at its
    call site, never a document and never an item line of its own
-   ([docs.md](references/docs.md)). The standing exception is
+   ([docs.md](references/docs.md)). The exception is
    `workbench/GLOSSARY.md`, the project's domain language, which binds
-   every item ([glossary.md](references/glossary.md)). The other is a
-   spike's `## Findings`: what a spike discovers is its output.
+   every item ([glossary.md](references/glossary.md)).
 
-7. **Deleting means deleting.** No "formerly", no "removed in favour of",
-   no strikethrough, no inline changelog. The one exception is a pointer the
-   reader must act on, such as where a moved file went.
+5. **Deleting means deleting.** No "formerly", no "removed in favour of",
+   no strikethrough, no inline changelog.
 
-8. **An item has the template's sections and no others.** `archive`
+6. **An item has the template's sections and no others.** `archive`
    refuses any other heading. What was not proved is one line under
    Evidence — a spike's, under Findings. A question that is the user's is one line under the item's
    `## Decisions`, written by `workbench call`; the answer goes into the
@@ -84,7 +60,7 @@ idea (workbench/BACKLOG.md line)
    reader needs to judge the claim — root cause, criterion, output — not
    the reasoning behind the code; that is in the code or the commit.
 
-9. **Some decisions are the user's.** How an item is sized, the criterion,
+7. **Some decisions are the user's.** How an item is sized, the criterion,
    accepting a side effect, abandoning the work, a standing finding at the
    round cap, and the merge. Ask. A question you cannot get answered is
    `workbench call <id> "<the question, with options>"`, or `workbench call
@@ -94,12 +70,12 @@ idea (workbench/BACKLOG.md line)
    items made it look moot. A permission not on the allow-list is Claude
    Code's refusal rather than a decision: park it, never work around it.
 
-10. **The project has no scratch folder.** A file that exists only for this
-    session — a probe, a capture, a rendered page — goes to the scratchpad
-    directory the environment names. What it showed is Evidence when it
-    settles a criterion step; any other fact follows rule 6. A spike's
-    prototypes and captures are its output, not scratch: they go in its
-    folder.
+8. **The project has no scratch folder.** A file that exists only for this
+   session — a probe, a capture, a rendered page — goes to the scratchpad
+   directory the environment names. What it showed is Evidence when it
+   settles a criterion step; any other fact follows rule 4. A spike's
+   prototypes and captures are its output, not scratch: they go in its
+   folder.
 
 ## Setting up
 

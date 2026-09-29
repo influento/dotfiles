@@ -1234,10 +1234,10 @@ status: open
 
 <!-- The stopping condition: one line per named unknown. Agreed before start;
      after it the user may edit them, in the worktree only, never main's copy.
-     Everything the spike builds — prototypes, scripts, captures — goes in the
-     folder beside this file, named as it is without .md, and nowhere else:
-     merge lands the two together, archive removes the folder. Output is
-     findings, not assertions. Delete this comment. -->
+     Everything the spike builds — prototypes, scripts, tests, captures —
+     goes in the folder beside this file, named as it is without .md, and
+     nowhere else: merge lands the two together, archive removes the folder.
+     Output is findings, not assertions. Delete this comment. -->
 
 ## Findings
 

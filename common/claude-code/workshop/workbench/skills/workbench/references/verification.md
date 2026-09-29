@@ -138,6 +138,6 @@ entry under `## Findings`, the answer or a blocker saying why it could not
 be determined. The user judges it by reading, not by a run.
 
 Findings is the sanctioned home for what a spike discovers, measured output
-included; rule 6 still forbids any other document. What should outlive the
+included; rule 4 still forbids any other document. What should outlive the
 spike — a glossary entry, a feature, a constraint — goes under
 `## Suggestions` until the user copies it into an item.
