@@ -28,8 +28,9 @@ mutable default, a nil map, float equality.
 The item is reviewed with the code. A finding, each:
 a criterion step without two blocks of pasted command output under
 Evidence — RED, the step run on the unchanged tree, then GREEN after the
-change; the value typed beside a step is not RED, and a table typed is not
-evidence; a token, key or personal data pasted rather than `<REDACTED>`; a
+change, or for a step only the user can check, their report in their
+words with its date; the value typed beside a step is not RED, and a table
+typed is not evidence; a token, key or personal data pasted rather than `<REDACTED>`; a
 number's GREEN not over the same command and N, with the spread under the
 target; a miss recorded without the number it reached; a criterion step
 that is a guard ("behaviour unchanged", a typecheck or build, "by

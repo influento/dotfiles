@@ -1248,6 +1248,9 @@ evidence_comment() {
          unchanged tree; the value typed beside it in the criterion is
          not RED
        GREEN — the same command after the change
+     A step only the user can check — visual, subjective, in-world — has
+     no blocks: record what the user reported, in their words, with the
+     date.
      A table typed by hand (`RED 31 → GREEN 0`, `clean`) is a summary
      whatever fence is around it. At most one line of prose per block,
      naming the step and whether it is RED or GREEN. Archive refuses an
