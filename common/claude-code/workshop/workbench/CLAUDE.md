@@ -103,7 +103,10 @@ Each rule sits where the role that needs it is sure to see it:
 
 A template comment is deleted once its field is filled, so it can carry
 only what writing that field needs; what a later phase needs goes in
-SKILL.md, "Working an item". The reviewer's checklist repeats rules by
+SKILL.md, "Working an item". The exception is a spike, whose steps are
+its Findings and Suggestions comments: intake leaves those two fields and
+their comments for the item's session (`/spike`), and the Questions rule
+that applies after `start` is repeated in the Findings comment. The reviewer's checklist repeats rules by
 design, for the same reason. One session per item, opened by the user in
 its worktree: `start` tells the session that ran it to stop there.
 
