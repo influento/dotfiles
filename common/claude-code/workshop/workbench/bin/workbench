@@ -1241,7 +1241,10 @@ status: open
 
 ## What was seen
 
-<!-- The observed behaviour. Delete this comment. -->
+<!-- The observed behaviour, in the words of whoever saw it, the title
+     too: no file, function or type name unless it is what was seen — an
+     error message, a log line; the code's names go under Root cause.
+     Delete this comment. -->
 
 ## How to reproduce
 
@@ -1322,8 +1325,9 @@ status: open
 
 ## What changes
 
-<!-- Observable behaviour of the project, not implementation. Delete this
-     comment. -->
+<!-- Observable behaviour of the project, not implementation — in the
+     user's words, the title too: no file, function or type name. Delete
+     this comment. -->
 
 ## What it touches
 
