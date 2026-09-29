@@ -544,6 +544,16 @@ out=$("$WB" init 2>&1)
 check "a glossary whose header never closes keeps every entry" cmp -s workbench/GLOSSARY.md "$TMP/glossary.before"
 check "and init names the missing '-->' instead of a refresh" bash -c "grep -q \"left GLOSSARY.md as it is: its header comment has no closing '-->'\" <<< \"\$1\" && ! grep -q 'refreshed the header comment' <<< \"\$1\"" _ "$out"
 
+# So does an old CLAUDE.md block whose end marker was lost: removing it took
+# the project's own sections after it.
+new_repo unclosedblock
+printf '# noend\n\nintro\n\n<!-- workbench:start -->\n## Workflow\nold block text\n\n## Deploy\n\nOur own deploy notes.\n' > CLAUDE.md
+git add -A && git commit -qm unclosed
+cp CLAUDE.md "$TMP/claude.before"
+out=$("$WB" init 2>&1)
+check "a CLAUDE.md block with no end marker leaves the file whole" cmp -s CLAUDE.md "$TMP/claude.before"
+check "and init names the missing marker instead of a removal" bash -c "grep -q \"left CLAUDE.md as it is: '<!-- workbench:start -->' has no '<!-- workbench:end -->' after it\" <<< \"\$1\" && ! grep -q 'removed the workbench block' <<< \"\$1\"" _ "$out"
+
 # --- failure paths ----------------------------------------------------------
 
 new_repo fail

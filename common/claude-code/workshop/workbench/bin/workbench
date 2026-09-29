@@ -928,6 +928,12 @@ remove_claude_md_block() {
   root=$(repo_root)
   target=$(readlink -f "$root/CLAUDE.md" 2>/dev/null || printf '%s' "$root/CLAUDE.md")
   [ -f "$target" ] && grep -qxF "$MARK_START" "$target" || return 0
+  # Without its end marker the block runs to the end of the file, the
+  # project's own sections with it.
+  if ! awk -v start="$MARK_START" -v end="$MARK_END" '$0 == start { o = 1 } $0 == end { o = 0 } END { exit o }' "$target"; then
+    echo "  left $(basename "$target") as it is: '$MARK_START' has no '$MARK_END' after it; take the old block out by hand" >&2
+    return 0
+  fi
   tmp=$(mktemp)
   awk -v start="$MARK_START" -v end="$MARK_END" '
     $0 == start { held = ""; skip = 1; next }
