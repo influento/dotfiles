@@ -14,8 +14,8 @@ now.
 
 **An id** — pick that item up:
 
-1. Already in the item's worktree — `git branch --show-current` names
-   the item's branch, `<id>-…` — go on to 2; `start` would refuse.
+1. Already in the item's worktree — the working directory is
+   `.worktrees/<id>-…` — go on to 2; `start` would refuse.
    Otherwise `workbench start <id>`: unstarted, it cuts the branch and
    worktree; started with the worktree gone, it cuts the worktree again;
    already started, it refuses and names the worktree; archived, it
