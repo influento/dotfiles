@@ -551,7 +551,11 @@ refresh_glossary_header() {
   header() { awk '!c && /^<!--/ { c = 1 } c { print } c && /-->/ { exit } !c && NF && !/^# / { exit }' "$1"; }
   header "$tmp/stock" > "$tmp/new"
   header "$f" > "$tmp/old"
-  if [ -s "$tmp/old" ] && ! cmp -s "$tmp/old" "$tmp/new"; then
+  # A comment never closed runs to the end of the file: replacing it would
+  # take every entry with it.
+  if [ -s "$tmp/old" ] && ! tail -n 1 "$tmp/old" | grep -qF -- '-->'; then
+    echo "  left ${f##*/} as it is: its header comment has no closing '-->'; close it, then run init again" >&2
+  elif [ -s "$tmp/old" ] && ! cmp -s "$tmp/old" "$tmp/new"; then
     awk -v newf="$tmp/new" '
       state == 0 && /^<!--/ { while ((getline l < newf) > 0) print l; state = /-->/ ? 2 : 1; next }
       state == 1 { if (/-->/) state = 2; next }

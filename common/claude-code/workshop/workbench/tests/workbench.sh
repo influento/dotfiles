@@ -534,6 +534,16 @@ run "a second init touches neither" 0 "" bash -c "! '$WB' init 2>&1 | grep -qE '
 check "not a byte" bash -c "cmp -s CLAUDE.md '$TMP/claude.after' && cmp -s workbench/GLOSSARY.md '$TMP/glossary.after'"
 check "a markdown file without the block is never touched" [ "$(cat NOTES.md)" = "$(printf '# docs\n\nno block here')" ]
 
+# A header comment whose closing line was lost runs to the end of the file:
+# replacing it took every entry, and init called that a refresh.
+new_repo unclosedglossary
+mkdir -p workbench && printf '# Glossary\n\n<!-- our header, its closing line lost\n\n**drift** — the offset a mob accumulates.\n**tick** — one server step.\n' > workbench/GLOSSARY.md
+git add -A && git commit -qm unclosed
+cp workbench/GLOSSARY.md "$TMP/glossary.before"
+out=$("$WB" init 2>&1)
+check "a glossary whose header never closes keeps every entry" cmp -s workbench/GLOSSARY.md "$TMP/glossary.before"
+check "and init names the missing '-->' instead of a refresh" bash -c "grep -q \"left GLOSSARY.md as it is: its header comment has no closing '-->'\" <<< \"\$1\" && ! grep -q 'refreshed the header comment' <<< \"\$1\"" _ "$out"
+
 # --- failure paths ----------------------------------------------------------
 
 new_repo fail
