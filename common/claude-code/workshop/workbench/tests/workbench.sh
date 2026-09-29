@@ -1476,6 +1476,25 @@ check "a second init keeps the file, kept lines not repeated" cmp -s .claude/wor
 rmdir ts-gate
 run "without ts-gate they are neither listed nor warned about" 0 "" bash -c "! '$WB' config list | grep -q '^lint' && ! '$WB' status | grep -qE 'lint.max_lines|unknown key .lint'"
 
+# --- status stays under the hook's output limit -----------------------------
+# Over about 10KB a SessionStart hook's output reaches the model as a 2KB
+# preview: what waits on the user comes first, and each list is capped.
+new_repo statuscap
+"$WB" init >/dev/null 2>&1
+long=$(printf 'should the export keep empty rows%.0s' {1..8})
+for i in $(seq 1 10); do
+  id=$("$WB" new bug "cap probe $i" 2>/dev/null)
+  "$WB" call "$id" "question $i: $long" >/dev/null 2>&1
+done
+"$WB" status > "$TMP/status.capped"
+"$WB" status --all > "$TMP/status.all"
+check "decisions print before the in-flight lists" bash -c "grep -m1 -nE '^(decisions waiting|open items)' '$TMP/status.capped' | grep -q decisions"
+check "a list stops at 8 lines and counts the rest" bash -c "[ \$(sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.capped' | grep -c '^  b-') -eq 8 ] && sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.capped' | grep -qxF '  …and 2 more; \`workbench status --all\`'"
+check "so does the open-items list" bash -c "sed -n '/^open items/,/^\$/p' '$TMP/status.capped' | grep -qxF '  …and 2 more; \`workbench status --all\`'"
+check "a decision line is cut at 140 characters" bash -c "sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.capped' | grep -m1 '^  b-' | awk '{ exit !(length(\$0) == 140 && /…\$/) }'"
+check "--all prints every decision whole and counts nothing" bash -c "[ \$(sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.all' | grep -c '^  b-.*keep empty rows\$') -eq 10 ] && ! grep -q '…and' '$TMP/status.all'"
+run "status refuses an unknown argument" 2 "usage:" "$WB" status --bogus
+
 # --- git config keys move into the file --------------------------------------
 new_repo migrate
 git config workbench.cap.claude 90
