@@ -19,14 +19,33 @@ session following these steps without the agent invokes it first.
    rewrite with the user. A bug whose steps you followed and whose failure
    you cannot make happen: report `unreproduced` in step 4 with what you
    ran, and stop.
-2. Do the work. Evidence is pasted output under `## Evidence`, one block
-   per criterion step. Commit on the branch as you go; the item file
-   commits with the code. The criterion and `## Side effects` are frozen
-   from `start`: a finding that argues with the criterion is `workbench
-   call <id> "<what the criterion should say>"`, and something that works
-   today and now behaves differently which the section does not name is
-   `workbench call <id> "side effect: <what, for whom> — accept?"` — never
-   an edit of the item. Before the review dialog, hold every function the
+2. Do the work. Run everything you can; the user gets only what needs
+   eyes — visual, subjective, in-world. Commit on the branch as you go;
+   the item file commits with the code. Evidence is pasted output under
+   `## Evidence`, one block per criterion step; a step the output does not
+   meet is recorded as missed, with the number it reached, never reworded.
+   - A number: base and branch run alternately in one session, the base
+     from a scratch worktree — workers in other worktrees share the
+     machine, so a figure from another session is no baseline. What the
+     number costs elsewhere, memory for time, is a side effect.
+   - A flake is GREEN at `0 of M` with M ≥ 3·N/k; fewer, and an unchanged
+     tree passes by luck. An exploit is GREEN when it and two or more
+     variants of its input class fail.
+   - A test you write and can re-run cheaply: its kind follows the
+     criterion. Record RED — the command, the failing output, why that
+     failure was the expected one — and GREEN; one only ever seen green
+     proves nothing. Never name it in the item: the commit trailer reaches
+     it.
+   - A step that turns on an event you cannot cause: synthesise the event
+     and record our code's reaction; only the real event's shape waits,
+     as `awaiting — <trigger>` when a time can be named, else
+     `unverified — <trigger>` — the user picks.
+
+   The criterion and `## Side effects` are frozen from `start`: a finding
+   that argues with the criterion is `workbench call <id> "<what the
+   criterion should say>"`, and something that works today and now behaves
+   differently which the section does not name is `workbench call <id>
+   "side effect: <what, for whom> — accept?"` — never an edit of the item. Before the review dialog, hold every function the
    diff changes against its callers for such a difference.
 3. The review dialog — "The review dialog" in the skill. Spawn a
    `wb-reviewer` with the `Agent` tool, never a fork, naming the branch and

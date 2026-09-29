@@ -282,7 +282,7 @@ run "a cap that is not a number falls back to the default" 0 '^cap: workbench/BA
 run "and status names the invalid value" 0 "^config: .claude/workshop.conf: cap.backlog='many' is not a positive integer; the default applies" "$WB" status
 unconf cap.backlog
 pad CLAUDE.md 151 pad
-check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — cut it; docs.md, Line caps\|cap: workbench/BACKLOG.md 401/400 — cut it; docs.md, Line caps$'"
+check "one line per file over, CLAUDE.md first" bash -c "'$WB' status | grep '^cap:' | paste -sd'|' - | grep -qE '^cap: CLAUDE.md 151/150 — cut it; only the user raises the cap\|cap: workbench/BACKLOG.md 401/400 — cut it; only the user raises the cap$'"
 check "the cap lines come before the items" bash -c "'$WB' status | grep -m1 -nE '^(cap:|open items)' | grep -q 'cap:'"
 cp "$TMP/backlog.orig" workbench/BACKLOG.md; cp "$TMP/claude.orig" CLAUDE.md
 check "status is silent again once the files are back under" bash -c "! '$WB' status | grep -q '^cap:'"
@@ -916,7 +916,8 @@ git worktree remove "$wt"
 rc=0; out=$("$WB" start "$sp" 2>&1) || rc=$?
 check "a resumed spike starts" [ "$rc" -eq 0 ]
 check "and says so" grep -q "resumed $sp-cache-restart" <<< "$out"
-check "with no note about Side effects" [ -z "$(grep 'Side effects' <<< "$out")" ]
+check "with no note about Side effects" [ -z "$(grep '^note:.*Side effects' <<< "$out")" ]
+check "and prints the worker's steps, frontmatter left out" bash -c "grep -q \"^the worker's steps — \" <<< \"\$1\" && grep -q '^Your item is the one' <<< \"\$1\" && ! grep -q '^initialPrompt:' <<< \"\$1\"" _ "$out"
 
 run "round refuses a spike" 1 "the review dialog does not run for spikes" bash -c "cd '$TMP' && '$WB' round $sp 3 1"
 check "and writes no rounds: line" bash -c "! grep -q '^rounds:' '$ws'"
@@ -1300,7 +1301,7 @@ run "config get refuses an unknown key" 1 "no key 'nope'" "$WB" config get nope
 check "no rendered copy carries a token" bash -c "! grep -rqE '@@[A-Z_]+@@' .claude/agents .claude/skills"
 check "at the defaults neither agent carries model: or effort:" bash -c "! grep -qE '^(effort|model):' .claude/agents/wb-reviewer.md .claude/agents/wb-worker.md"
 check "at the defaults an agent copy is its source with the token filled" bash -c "diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-reviewer.md') .claude/agents/wb-reviewer.md && diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-worker.md') .claude/agents/wb-worker.md"
-check "the skill copy states the default caps" bash -c "grep -q 'at round 5 parks it' .claude/skills/workbench/SKILL.md && grep -qF '| root \`CLAUDE.md\` | 150 |' .claude/skills/workbench/references/docs.md"
+check "the skill copy states the default round cap" grep -q 'at round 5 parks it' .claude/skills/workbench/SKILL.md
 run "status says nothing about config with no file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
 
 # The hooks that apply a settings change: watch at session start, render on change.
@@ -1337,7 +1338,7 @@ check "the worker's frontmatter ends model:, effort:" bash -c "sed -n '2,/^---\$
 check "the reviewer's too" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-reviewer.md | tail -3 | paste -sd'|' | grep -qx 'model: claude-haiku-4-5|effort: low|---'"
 check "every other line of an agent passes through" bash -c "diff <(grep -vE '^(model|effort):' .claude/agents/wb-reviewer.md) <(sed 's/@@REVIEW_EXCHANGE_CAP@@/4/g' '$src_root/agents/wb-reviewer.md')"
 check "both bodies state the exchange cap" bash -c "grep -q 'After 4 exchanges' .claude/agents/wb-reviewer.md && grep -q '4 exchanges on one finding' .claude/agents/wb-worker.md"
-check "the skill states the round cap and the line cap" bash -c "grep -q 'at round 3 parks it' .claude/skills/workbench/SKILL.md && grep -qF '| root \`CLAUDE.md\` | 7 |' .claude/skills/workbench/references/docs.md"
+check "the skill states the round cap, and the line cap is read" bash -c "grep -q 'at round 3 parks it' .claude/skills/workbench/SKILL.md && [ \"\$('$WB' config get cap.claude)\" = 7 ]"
 run "the skill stamp is coherent after the render" 0 "" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source|out of date|agents differ'"
 snap() { find .claude -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; }
 before=$(snap)
@@ -1441,8 +1442,7 @@ run "init moves the git config keys into the file" 0 "moved git config workbench
 check "the file holds all three" bash -c "grep -qx 'cap.claude=90' .claude/workshop.conf && grep -qx 'main=main' .claude/workshop.conf && grep -qx 'premerge=npm run gate' .claude/workshop.conf"
 check "git config holds none of them" bash -c "! git config --get-regexp '^workbench\.(cap|main|premerge)'"
 check "guards stay in git config" [ "$(git config workbench.guards)" = 'npm run gate' ]
-# shellcheck disable=SC2016  # the backticks are the markdown being matched
-check "the rendered copy took the moved cap" grep -qF '| root `CLAUDE.md` | 90 |' .claude/skills/workbench/references/docs.md
+check "the moved cap is the one read" [ "$("$WB" config get cap.claude)" = 90 ]
 cp .claude/workshop.conf "$TMP/conf.before"
 run "a second init moves nothing" 0 "" bash -c "! '$WB' init 2>&1 | grep -q 'git config workbench'"
 check "and leaves the file as it was" cmp -s .claude/workshop.conf "$TMP/conf.before"

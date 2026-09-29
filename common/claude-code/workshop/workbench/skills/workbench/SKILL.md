@@ -26,7 +26,8 @@ archive   the user's: to workbench/items/archive/, records the SHA
    "still does what it did"), no "by inspection" — and fails on the
    unchanged tree: run it first. Evidence is matched against it, never
    against a test; evidence that falls short is recorded as **missed**,
-   never reworded ([verification.md](references/verification.md)).
+   never reworded. How a criterion is written is the template's comment
+   on its field.
    `## Side effects` is part of the contract: agreed with it, and frozen
    with it at `start`; one found later is
    `workbench call <id> "side effect: …"`, never your edit.
@@ -35,8 +36,7 @@ archive   the user's: to workbench/items/archive/, records the SHA
    on an event you cannot cause now: verify the rest, then the user picks
    `awaiting — <trigger>` (a time can be named) or `unverified — <trigger>`.
    A bug you cannot reproduce is `unreproduced`; work the user drops is
-   `abandoned — <why>`, archived, never deleted
-   ([items.md](references/items.md), "Statuses").
+   `abandoned — <why>`, archived, never deleted.
 
 3. **A test may satisfy only what the criterion describes.** No script
    whose only purpose is to satisfy a criterion; no test of config, wiring
@@ -44,17 +44,20 @@ archive   the user's: to workbench/items/archive/, records the SHA
 
 4. **Do not write documentation by default.** Write only what cannot be
    read from the code. A discovered fact becomes code or a comment at its
-   call site, never a document and never an item line of its own
-   ([docs.md](references/docs.md)). The exception is
-   `workbench/GLOSSARY.md`, the project's domain language, which binds
-   every item ([glossary.md](references/glossary.md)).
+   call site, never a document and never an item line of its own; what
+   may be written, and where, is the root `CLAUDE.md`, "Documentation".
+   The exception is `workbench/GLOSSARY.md`, the project's domain
+   language, which binds items, commit subjects and code identifiers. A
+   word it lacks, or one that could mean two things, goes to the user
+   before the item is written in it; a new entry lands in the same commit
+   as the item that first uses it. Its header says what an entry is.
 
 5. **Deleting means deleting.** No "formerly", no "removed in favour of",
    no strikethrough, no inline changelog.
 
 6. **An item has the template's sections and no others.** `archive`
    refuses any other heading. What was not proved is one line under
-   Evidence — a spike's, under Findings. A question that is the user's is one line under the item's
+   Evidence. A question that is the user's is one line under the item's
    `## Decisions`, written by `workbench call`; the answer goes into the
    field it changes and the line is deleted. The fields hold what the
    reader needs to judge the claim — root cause, criterion, output — not
@@ -73,9 +76,7 @@ archive   the user's: to workbench/items/archive/, records the SHA
 8. **The project has no scratch folder.** A file that exists only for this
    session — a probe, a capture, a rendered page — goes to the scratchpad
    directory the environment names. What it showed is Evidence when it
-   settles a criterion step; any other fact follows rule 4. A spike's
-   prototypes and captures are its output, not scratch: they go in its
-   folder.
+   settles a criterion step; any other fact follows rule 4.
 
 ## Setting up
 
@@ -87,8 +88,9 @@ words, never yours.
 
 ## Commands
 
-`/bug`, `/feature`, `/spike`, `/idea` and `/wb` are thin — the sizing
-check, the command, the fields — so the rules stay here. Skills, agents and settings
+`/bug`, `/feature`, `/spike`, `/idea` and `/wb` walk the steps. How each
+field is written is the comment on it in the item's template, and
+`workbench start` prints the worker's steps. Skills, agents and settings
 are committed copies, in every worktree and clone. `workbench status` says
 when a copy is behind its source; `workbench init` refreshes it; never edit
 the copy.
@@ -97,14 +99,14 @@ the copy.
 
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
-workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
+workbench start b-038                  # commits the criterion, then branch + worktree, and prints the worker's steps; refuses while the criterion or Side effects is empty
 workbench merge b-038 "<subject>"      # the user's command, never yours: squash, trailer, cleanup
 ```
 
 **Neither merge nor archive is yours to start.** Both land work the user
 has not seen. When the review dialog ends and `round` says ready, report
-the item with its last round and stop — say what the merge would be, do
-not run it. The same for `archive`. Asked for either in so many words, run
+the item with its last round and stop — say what the merge would be, its
+subject the change rather than the item's title, and do not run it. The same for `archive`. Asked for either in so many words, run
 it: what is refused is taking the step yourself, not the command. Being
 told to work the item is not being told to merge it.
 
@@ -120,7 +122,7 @@ user confirms. Not the size of the work, not tidiness.
 | It can be described as | It is | Lives as |
 |---|---|---|
 | what changes and how to confirm it | an item | `workbench new bug\|feature` |
-| an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | `workbench new spike`: the questions in scope, each answered under Findings or given a blocker — "could not determine" is a result; its code in its own folder beside the item, self-contained. Merged, it stays on main as a reference for later features until archive removes the folder; unmerged, archive retires its branch under a tag. Which spikes merge is the user's call |
+| an area — cannot yet say what will be true when it is done, or how it fits, or both | a spike | `workbench new spike`: questions instead of a criterion, findings as the result |
 | one sentence, obvious what it means, and nobody is opening it now | an idea | a `BACKLOG.md` line, `workbench idea` |
 
 Whatever fits the item row is an item. The idea row is never the agent's
@@ -144,10 +146,21 @@ with one criterion over the set, not N items and not one item now and its
 twin later. The exception is a mechanical change that cannot land green on
 one branch: an expand item (the new form beside the old), one migrate item
 per batch, and a contract item that deletes the old form — except a
-vocabulary rename, which stays one commit
-([glossary.md](references/glossary.md)). Backlog lines are raw material:
+vocabulary rename, which stays one commit. Backlog lines are raw material:
 any number may fold into one item, one may split, and nothing records
 which fed which.
+
+**Renames and refactors.** A rename is a feature of its own: the glossary
+entry and every occurrence change in one commit, the criterion the
+occurrence count going to 0 — scoped to the paths holding the domain sense
+when the word has another sense in this codebase. It is never absorbed into
+the item that exposed it; wanting one is a backlog line until someone does
+it, and a count that makes it real work sends it there. A refactor is not
+its own item: one a bug or feature needs is inside that item; one standing
+alone is a feature only with a measurement that means something to someone
+who does not read code — p99 latency, build time, dependency count, not
+"LOC −12%" — and that measurement is the criterion; without one it is a
+backlog line.
 
 ## What is in flight
 
@@ -158,8 +171,7 @@ duplicate IDs. `git branch` cannot see the merged ones.
 
 ## The review dialog
 
-Every bug and feature item — the work is done, then (a spike has none; the
-user reads its Findings):
+Every bug and feature item, once the work is done:
 
 ```
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
@@ -178,14 +190,3 @@ finding outside the item's criterion and the mechanism it changed is
 `workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix
 on this branch; a shared function is fixed once, not per caller. No finding
 is dropped silently.
-
-## By class
-
-| Class | Reference |
-|---|---|
-| feature, bug, spike — fields, states, statuses, archiving, what merge and archive ask | [items.md](references/items.md) |
-| spike — why the criterion rules do not apply, when it is done | [verification.md](references/verification.md), "Spikes" |
-| domain language, renaming a term, aliases | [glossary.md](references/glossary.md) |
-| criteria, evidence, test kinds, RED/GREEN | [verification.md](references/verification.md) |
-| what to document and where | [docs.md](references/docs.md) |
-| branches, squash, trailers, worktrees, IDs | [git.md](references/git.md) |

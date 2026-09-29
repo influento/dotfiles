@@ -499,7 +499,16 @@ write_glossary() {
 # Glossary
 
 <!-- Domain language only: words this project uses in a narrower or different
-     sense than they are used generally. Never well-known concepts.
+     sense than they are used generally. Never well-known concepts. The
+     entries worth most are ordinary words the project has narrowed: nobody
+     misuses MobPositionResolver, everybody misuses drift.
+
+     A word the user uses in a sense not given here, or one that could mean
+     two things ("account": the Customer or the User?), goes to the user
+     before the item is written; the item uses the word that comes back, and
+     the entry lands in the same commit as the item that first uses it. A
+     spike suggests an entry under its Suggestions; it lands with the first
+     bug or feature that uses the word.
 
      One entry per concept, never the same concept twice. Brief — a definition,
      not an explanation. Nothing that would have to change when the
@@ -508,6 +517,12 @@ write_glossary() {
      A term is renamed in one commit, glossary entry and code together; that
      commit is its own item. Aliases are written as (was: old-term), and only
      once the old word survives in an archived item or a merged commit.
+
+     A term that collides with a word the project's stack already uses is
+     rejected at coinage. Where the domain genuinely uses such a word, a
+     rename is scoped to the paths holding the domain sense, and its
+     criterion is two counts: 0 in those paths, and the rest named as the
+     other sense.
 
      A word rejected at coinage gets a row under a "Use, never" table
      (| Use | Never | Because |), in the same commit as the item that first
@@ -824,6 +839,38 @@ Housekeeping — configs, tooling, agent settings — is exempt and goes straigh
 to the main branch.
 
 Rules: invoke the \`workbench\` skill. State: \`$WB/\`.
+
+## Documentation
+
+The default is to write nothing: every document can later contradict the
+code. In this order:
+
+1. Reading the code answers it cheaply, or our own code derives it: write
+   nothing.
+2. A fact about a system we do not control becomes code — a check, a
+   constant, a comment at the one call site that depends on it — or is not
+   written. It appears in an item only where a root-cause or criterion line
+   needs it.
+3. What is left may be a document only if learning it takes more than one
+   file: a flow across files, a contract between parts, an ordering
+   constraint, why the design is this shape when a simpler one looks
+   possible. Never what one function does, a signature, or what a good name
+   already says.
+
+| Kind | Where |
+|---|---|
+| rules — how work is done here; intent — what the project is for | root \`CLAUDE.md\` |
+| wiring — how parts fit together | \`CLAUDE.md\` in the deepest directory it covers |
+| rules only some files need | \`.claude/rules/<name>.md\` with a \`paths:\` glob |
+
+A nested \`CLAUDE.md\` or path rule loads when a file under it is opened with
+the Read tool, not on \`cat\` or \`grep\`: open it deliberately to understand an
+area. A changed file can invalidate only the documents on its own path. A
+document ships in the same change as the code. A fact a commit could make
+wrong belongs in the repository; one about the user, their machine or
+preferences, in agent memory; nothing credentials-adjacent in either.
+Where agent memory is \`.claude/memory/\` (\`autoMemoryDirectory\`), it is
+tracked: commit its changes as housekeeping.
 $MARK_END
 EOF
 }
@@ -1104,6 +1151,56 @@ EOF
 
 # --- items ------------------------------------------------------------------
 
+# The criterion field's comment, bug and feature alike: whoever writes the
+# criterion reads it here, and it goes with the comment once the field is filled.
+criterion_comment() {
+  cat <<'EOF'
+<!-- The criterion: the contract, written before the code and agreed with
+     the user. Specific enough that someone who reads nothing else can tell
+     whether the work succeeded — "mobcheck.ts reports drift under 0.05
+     tiles for mobs on a boundary row", not "the positions are correct".
+     Steps and their expected results, the RED value measured now beside
+     each — `grep -c … (31 today) → 0` — and nothing else: no rationale,
+     no design. A real tool's command where one covers it.
+
+     It fails on the unchanged tree: run it now. None of these is a step:
+       "behaviour is unchanged", "still does what it did" — a no-op passes
+       "cleaner", "more consistent" — nothing runs, nothing can fail
+       the typecheck, build or lint gate is clean — green before the work;
+         start refuses a step matching `git config workbench.guards`
+       "by inspection", "verified by reading" — nothing ran
+       a script written for this item, run once and deleted
+       a count over the wrong scope, or a bound chosen after the diff
+     What must still hold afterwards and holds already — the suite green, a
+     fixture byte-identical — is a guard: it goes under Evidence, not here.
+
+     One run does not make these RED:
+       a number — the metric over N runs with its spread:
+         `p50 over 10 runs (340ms ±25 today) → under 200ms`
+       a flake — `fails k of N`, the rate raised first (loop it, stress it)
+         until k ≥ 5; GREEN is `0 of M`, M ≥ 3·N/k
+       a boundary crossed — a working exploit, in a controlled environment;
+         GREEN is it and two or more variants of its input class failing
+     A step that turns on an event you cannot cause now is two claims: our
+     code's reaction, verified by synthesising the event, and the real
+     event's shape, which only a status can wait on. Delete this comment. -->
+EOF
+}
+
+evidence_comment() {
+  cat <<'EOF'
+<!-- Filled in after implementation, one fenced block per criterion step:
+     the command and what it printed, not a summary of it — a table typed
+     by hand (`RED 31 → GREEN 0`, `clean`) is a summary whatever fence is
+     around it. At most one line of prose per block, naming the step it
+     settles. Archive refuses an Evidence section without a fenced block.
+     The block is committed: replace any token, key or personal data with
+     `<REDACTED>`. A step the output does not meet is recorded as missed,
+     with the number it reached, never reworded. Guards — the suite still
+     green — go here beside the steps. Delete this comment. -->
+EOF
+}
+
 write_bug() {
   cat > "$1" <<EOF
 # $2 — $3
@@ -1134,7 +1231,22 @@ status: open
      before testing any, each with the change that would make the bug vanish,
      and test them one variable at a time; only the survivor is written here.
      Every probe log carries one tag, e.g. [DEBUG-a4f2], so removing them is
-     one grep. Delete this comment. -->
+     one grep.
+     First look in workbench/items/archive/ for an unreproduced or
+     unverified item, or a 'none found — mitigation' root cause, that
+     matches: then this is a recurrence, both sightings are evidence, and
+     the old item names the assumption that was wrong.
+     git log --grep='^Item: ' -- <path> lists the items that shaped a path.
+     With a known-good commit, 'git bisect run' the criterion from a script
+     in the scratchpad — older commits lack what the branch adds; 'git
+     bisect reset' before the next commit — and name the commit it lands on
+     and what in its diff does it.
+     A flake whose mechanism is an ordering or a clock gets a test that
+     injects it and fails every run without the fix. A bounded search that
+     names no mechanism: 'none found — mitigation' here, and 'workbench call
+     <id> "ship as a mitigation, or keep looking?"'; a retry or a longer
+     timeout that turns the count green is that mitigation. Delete this
+     comment. -->
 
 ## The fix
 
@@ -1151,9 +1263,7 @@ status: open
 
 ## How to confirm it is fixed
 
-<!-- REQUIRED, never omitted. Written before the code and specific enough to
-     stand alone: name the command and the expected result. This is the
-     contract. Delete this comment. -->
+$(criterion_comment)
 
 ## Decisions
 
@@ -1164,9 +1274,7 @@ status: open
 
 ## Evidence
 
-<!-- Filled in after implementation: the actual output, not a summary of it,
-     pasted in a fenced block — archive refuses an Evidence section without
-     one. Delete this comment. -->
+$(evidence_comment)
 EOF
 }
 
@@ -1200,9 +1308,7 @@ status: open
 
 ## How to confirm it works
 
-<!-- The criterion. Written before the code and specific enough to stand alone:
-     name the command and the expected result. This is the contract. Delete
-     this comment. -->
+$(criterion_comment)
 
 ## Decisions
 
@@ -1213,9 +1319,7 @@ status: open
 
 ## Evidence
 
-<!-- Filled in after implementation: the actual output, not a summary of it,
-     pasted in a fenced block — archive refuses an Evidence section without
-     one. Delete this comment. -->
+$(evidence_comment)
 EOF
 }
 
@@ -1500,6 +1604,14 @@ cmd_start() {
 
   # stdout stays the path, which the skills read.
   echo "dispatch: wb-worker $id in $wt" >&2
+  # Whoever ran start may work the item in this session: the worker's steps
+  # reach it here, single-sourced in the agent's rendered copy.
+  local steps="$wt/.claude/agents/wb-worker.md"
+  [ -f "$steps" ] || steps="$(main_root)/.claude/agents/wb-worker.md"
+  if [ -f "$steps" ]; then
+    echo "the worker's steps — follow them in this session, or run 'claude --agent wb-worker' in $wt:" >&2
+    awk 'NR == 1 && $0 == "---" { fm = 1; next } fm && $0 == "---" { fm = 0; next } !fm' "$steps" >&2
+  fi
   echo "$wt"
 }
 
@@ -2234,7 +2346,7 @@ cap_alert() {
     [ -f "$mainr/$name" ] || continue
     cap=$(conf_get "cap.$key" "$mainr")
     n=$(wc -l < "$mainr/$name")
-    [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — cut it; docs.md, Line caps\n' "$name" "$n" "$cap"
+    [ "$n" -le "$cap" ] || printf 'cap: %s %s/%s — cut it; only the user raises the cap\n' "$name" "$n" "$cap"
   done
 }
 
@@ -2606,7 +2718,7 @@ cmd_status() {
   fi
   [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body"; }
   [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body"; }
-  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger"; printf '%s\n' "$await_body"; }
+  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger — when it fires: status 'open', its evidence, then archive"; printf '%s\n' "$await_body"; }
   [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body"; }
   [ -z "$ref_body" ] || { sep; echo "spikes on $mainb, kept as references — 'workbench archive <id>' removes the folder when done"; printf '%s\n' "$ref_body"; }
 
@@ -2636,14 +2748,16 @@ cmd_status() {
   fi
 
   # Same ID under two slugs, archive included; names deduplicated first.
-  # Repair: references/git.md.
+  # Allocated on two machines before either pushed: the slugs differ, so git
+  # merged both files silently. The SHA recorded at archive is the
+  # authoritative link, so renaming a merged item's file loses nothing.
   local dupes
   dupes=$(wb_find items -name '[bfs]-*-*.md' -print < <(all_roots) \
     | sed 's|.*/||' | sort -u \
     | sed -n 's|^\([bfs]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
   if [ -n "$dupes" ]; then
     sep
-    echo "DUPLICATE IDS — see references/git.md for repair"
+    echo "DUPLICATE IDS — renumber one: neither merged, the later one (its file and branch); one merged, the other; both merged, one file only, never history"
     printf '%s\n' "$dupes" | sed 's/^/  /'
   fi
 

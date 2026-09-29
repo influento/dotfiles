@@ -76,7 +76,7 @@ line. This table is the reference; the tools' docs link here.
 | `reviewer.effort` | `inherit` | as `worker.effort` | `wb-reviewer.md` `effort:`; `inherit`: the spawning session's effort |
 | `review.exchange_cap` | `6` | positive integer | the exchange count in both agent bodies; text only, nothing enforces it |
 | `review.round_cap` | `5` | positive integer | `workbench round` parks the dialog at this round (the item's checkout); the skill states it |
-| `cap.claude` `cap.glossary` `cap.backlog` `cap.decisions` | `150` `300` `400` `200` | positive integer | the `cap:` lines of `workbench status`; the table in the skill's `references/docs.md` |
+| `cap.claude` `cap.glossary` `cap.backlog` `cap.decisions` | `150` `300` `400` `200` | positive integer | the `cap:` lines of `workbench status` |
 | `premerge` | unset: no gate | a command; an empty value is unset, and `status` says so | `workbench merge` runs it in the branch worktree before the squash; read from the main checkout. ts-gate's install writes `npm run gate` when the key is absent |
 | `main` | auto-detect: `origin/HEAD`, then `main`, `master` | a branch name; `status` warns when no such branch exists | the default branch every workbench command lands on |
 | `gate.repeat_cap` | `3` | positive integer | identical Stop-hook failures before the hook lets the session stop |

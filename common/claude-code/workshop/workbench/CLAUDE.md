@@ -65,11 +65,14 @@ hooks and the status line an older init wired are removed on the next
 `init`. And a block in the root `CLAUDE.md` (`claude_md_block`): the rule
 that all domain work gets an item lives there, always in context, because
 a skill description fires only when a request looks like a match and the
-requests that most need the rule look like small favours.
+requests that most need the rule look like small favours. The block's
+"Documentation" section is there for the same reason: whether to write a
+document comes up in any session, housekeeping included, and none of them
+loads the skill for it.
 
 `status` prints a `cap:` line per document over its line cap (`cap.<name>`
-in `.claude/workshop.conf`); `references/docs.md`, "Line caps", says what to
-cut. `init` moves `git config workbench.cap.*`, `workbench.main` and
+in `.claude/workshop.conf`), telling the agent to cut and leaving a larger
+cap to the user. `init` moves `git config workbench.cap.*`, `workbench.main` and
 `workbench.premerge`, which older versions read, into the file and unsets
 them, then writes every key out (`conf_fill`, `conf_layout`; which lines
 survive a rewrite: `workshop/CLAUDE.md`).
@@ -78,6 +81,26 @@ The settings, like the copies, are committed per branch: a worktree started
 before a settings commit keeps its branch's values until it is rebased.
 `round` reads the item's checkout, `merge`'s `premerge` and `status` the main
 checkout, everything else the checkout it runs in.
+
+## Where each rule lives
+
+The skill ships no `references/`: nothing guarantees a reference is read.
+Each rule sits where the role that needs it is sure to see it:
+
+| Content | Home | Seen by |
+|---|---|---|
+| the concept: the loop, the hard rules, sizing, whose decisions are whose | `skills/workbench/SKILL.md` | the main session through a command, the worker through `initialPrompt` |
+| documentation, and the rule that domain work is an item | `claude_md_block` | every session and spawn |
+| how a field is written — the criterion, root cause, evidence, spike questions and findings | the template comment on that field (`write_bug`, `write_feature`, `write_spike`, `criterion_comment`, `evidence_comment`) | whoever fills the field, until it is filled |
+| what a glossary entry is, coining, aliases, homographs | the `GLOSSARY.md` header (`write_glossary`) | whoever edits the glossary |
+| the worker's procedure: measuring, tests, events, the review dialog | `agents/wb-worker.md` | the worker; `start` prints it for a session that works the item itself |
+| the review method and its checklist | `agents/wb-reviewer.md` | the reviewer, which loads no skill |
+| what a situation needs — duplicate IDs, caps, awaiting items | the CLI's output where it detects it | whoever runs the command |
+
+A template comment is deleted once its field is filled, so it can carry
+only what writing that field needs; what a later phase needs goes in the
+worker body. The reviewer's checklist repeats rules by design, for the same
+reason.
 
 ## Extension points
 
@@ -105,6 +128,9 @@ Run from this directory (`common/claude-code/workshop/workbench/`):
 - Lint: `shellcheck -x bin/workbench tests/*.sh`
 - Test: `bash tests/workbench.sh` — end-to-end loop plus failure paths for
   `workbench`, in a temp repo
+- Needs git 2.38 or later (`merge-tree --write-tree`) and GNU coreutils,
+  findutils and sed (`date -r`, `find -printf`, `chmod --reference`, `sed
+  -i`): Linux, or macOS with the GNU tools first on `PATH`
 
 ## Platform facts the design rests on
 
