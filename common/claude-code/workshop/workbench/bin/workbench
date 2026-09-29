@@ -546,6 +546,9 @@ EOF
 refresh_glossary_header() {
   local f=$1 tmp
   [ -f "$f" ] || return 0
+  # Through the link, as for CLAUDE.md: a symlinked glossary is edited in
+  # place, not replaced by a regular file.
+  f=$(readlink -f "$f")
   tmp=$(mktemp -d)
   write_glossary "$tmp/stock"
   header() { awk '!c && /^<!--/ { c = 1 } c { print } c && /-->/ { exit } !c && NF && !/^# / { exit }' "$1"; }

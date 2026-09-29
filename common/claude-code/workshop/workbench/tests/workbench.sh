@@ -544,6 +544,14 @@ out=$("$WB" init 2>&1)
 check "a glossary whose header never closes keeps every entry" cmp -s workbench/GLOSSARY.md "$TMP/glossary.before"
 check "and init names the missing '-->' instead of a refresh" bash -c "grep -q \"left GLOSSARY.md as it is: its header comment has no closing '-->'\" <<< \"\$1\" && ! grep -q 'refreshed the header comment' <<< \"\$1\"" _ "$out"
 
+# A symlinked glossary is refreshed through the link, which stays a link.
+new_repo linkedglossary
+mkdir -p shared workbench && printf '# Glossary\n\n<!-- an older header -->\n\n**tick** — one server step.\n' > shared/GLOSSARY.md
+ln -s ../shared/GLOSSARY.md workbench/GLOSSARY.md
+git add -A && git commit -qm linked
+"$WB" init >/dev/null 2>&1
+check "init refreshes a symlinked glossary through the link" bash -c "[ -L workbench/GLOSSARY.md ] && grep -q 'entries worth most are ordinary words the project has narrowed' shared/GLOSSARY.md && grep -qx '\*\*tick\*\* — one server step.' shared/GLOSSARY.md"
+
 # So does an old CLAUDE.md block whose end marker was lost: removing it took
 # the project's own sections after it.
 new_repo unclosedblock
