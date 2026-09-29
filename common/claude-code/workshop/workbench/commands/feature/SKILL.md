@@ -18,12 +18,9 @@ The `workbench` skill's rules apply; load it if it is not in context.
    the design is settled.
 2. `workbench new feature "<title>"` — the description in a few words.
 3. Fill **Why** and **What changes** from the description, in glossary
-   words — a word that conflicts with an entry, or could mean two things,
-   goes to the user with step 1. **Side effects**: what works today and
-   behaves differently after — a route, an export, an output — each with
-   who sees it, or `none`; the user agrees it with the criterion.
+   words, and **Side effects**; the user agrees it with the criterion.
 4. Draft **How to confirm it works** — the list from step 1 — run it on
    the unchanged tree so it is seen failing, and bring it to the user.
    Nothing else happens until the criterion is agreed.
-5. `workbench start <id>`, then "Working an item" in the skill, in the
-   worktree it prints — unless the user opens a session for it there.
+5. `workbench start <id>`, then stop: the user opens a session in the
+   worktree it prints and runs `/wb <id>` there.

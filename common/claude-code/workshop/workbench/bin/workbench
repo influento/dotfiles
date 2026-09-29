@@ -535,6 +535,29 @@ write_glossary() {
 EOF
 }
 
+# The leading comment is the tool's, the entries the project's: init swaps a
+# header that differs for the current one and touches nothing else. Only a
+# comment before the first entry counts as the header.
+refresh_glossary_header() {
+  local f=$1 tmp
+  [ -f "$f" ] || return 0
+  tmp=$(mktemp -d)
+  write_glossary "$tmp/stock"
+  header() { awk '!c && /^<!--/ { c = 1 } c { print } c && /-->/ { exit } !c && NF && !/^# / { exit }' "$1"; }
+  header "$tmp/stock" > "$tmp/new"
+  header "$f" > "$tmp/old"
+  if [ -s "$tmp/old" ] && ! cmp -s "$tmp/old" "$tmp/new"; then
+    awk -v newf="$tmp/new" '
+      state == 0 && /^<!--/ { while ((getline l < newf) > 0) print l; state = /-->/ ? 2 : 1; next }
+      state == 1 { if (/-->/) state = 2; next }
+      { print }' "$f" > "$tmp/out"
+    chmod --reference="$f" "$tmp/out"
+    mv "$tmp/out" "$f"
+    echo "  refreshed the header comment of ${f##*/}"
+  fi
+  rm -rf "$tmp"
+}
+
 write_backlog() {
   cat > "$1" <<'EOF'
 # Backlog
@@ -838,13 +861,11 @@ rules_content() {
 Domain work in this repo is tracked with **workbench**. Before writing code for
 any feature or bug fix, create an item (\`workbench new\`) and agree its
 verification criterion. An area not yet understood well enough to write an
-item for is a spike (\`workbench new spike\`), a class of its own: questions
-instead of a criterion, findings as the result, its code in its own folder
-under \`$WB/items/spikes/\`, a reference for the features that follow.
-Housekeeping — configs, tooling, agent settings — is exempt and goes straight
+item for is a spike (\`workbench new spike\`). Housekeeping — configs, tooling, agent settings — is exempt and goes straight
 to the main branch.
 
-Rules: invoke the \`workbench\` skill. State: \`$WB/\`.
+Before running a workbench command or working an item, invoke the
+\`workbench\` skill. State: \`$WB/\`.
 
 ## Documentation
 
@@ -1067,6 +1088,7 @@ cmd_init() {
   done
 
   [ -f "$root/$WB/GLOSSARY.md" ] || { write_glossary "$root/$WB/GLOSSARY.md"; echo "  wrote $WB/GLOSSARY.md"; }
+  refresh_glossary_header "$root/$WB/GLOSSARY.md"
   [ -f "$root/$WB/BACKLOG.md" ] || { write_backlog "$root/$WB/BACKLOG.md"; echo "  wrote $WB/BACKLOG.md"; }
   [ -f "$root/$WB/DECISIONS.md" ] || { write_decisions "$root/$WB/DECISIONS.md"; echo "  wrote $WB/DECISIONS.md"; }
 
@@ -1343,26 +1365,31 @@ status: open
 ## Questions
 
 <!-- The stopping condition: one line per named unknown. Agreed before start;
-     after it the user may edit them, in the worktree only, never main's copy.
-     Everything the spike builds — prototypes, scripts, tests, captures —
-     goes in the folder beside this file, named as it is without .md, and
-     nowhere else: merge lands the two together, archive removes the folder.
-     Output is findings, not assertions. Delete this comment. -->
+     after it the user may edit them, in the worktree only, never main's copy;
+     you never do. Delete this comment. -->
 
 ## Findings
 
 <!-- One entry per question, in prose: the answer, or a blocker saying why it
      could not be determined, which is a result too. A reframed question is a
-     finding. Measured output goes here; there is no Evidence section.
-     Self-contained: it outlives the folder, which archive removes. Delete
-     this comment. -->
+     finding. Output is findings, not assertions: no criterion runs, inspection
+     is the method, and there is no Evidence section and no review dialog;
+     measured output goes here. Self-contained: it outlives the folder, which
+     archive removes.
+     Everything the spike builds — prototypes, scripts, tests, captures —
+     goes in the folder beside this file, named as it is without .md, and
+     nowhere else: merge lands the two together, archive removes the folder.
+     Done when every question has an entry: set 'status: answered', commit it
+     on the branch, and report it to the user; whether it merges is theirs.
+     Delete this comment. -->
 
 ## Suggestions
 
 <!-- Free-format proposals for later work: glossary wording, things worth
      building, constraints a future feature should respect. A spike never
-     edits GLOSSARY.md, CLAUDE.md, BACKLOG.md or any project doc; nothing here
-     binds until the user copies it into an item or a backlog line. Delete
+     edits GLOSSARY.md, CLAUDE.md, BACKLOG.md or any project doc, and runs no
+     'workbench idea'; nothing here binds until the user copies it into an
+     item or a backlog line. Delete
      this comment. -->
 
 ## Decisions
@@ -1410,7 +1437,9 @@ cmd_new() {
 
   echo "$id"
   echo "$path" >&2
-  echo "committed on $(default_branch); fill it, then 'workbench start $id'" >&2
+  local agreed="criterion and Side effects"
+  ! is_spike "$id" || agreed=Questions
+  echo "committed on $(default_branch); fill it, agree its $agreed with the user, then 'workbench start $id'" >&2
 }
 
 # The main checkout holds the default branch, or a commit meant for it lands elsewhere.
@@ -1608,6 +1637,8 @@ cmd_start() {
   [ -d "$wt/.claude/skills/workbench" ] \
     || echo "note: .claude/ is not committed on $(default_branch), so a session inside $wt lacks the workbench commands until it is" >&2
 
+  # One session per item, opened by the user: the one that ran start stops.
+  echo "next: stop here; the user opens a session in $wt and runs '/wb $id' there" >&2
   # stdout stays the path, which the skills read.
   echo "$wt"
 }
@@ -2619,15 +2650,15 @@ cmd_status() {
   # the output as it comes.
   sep() { [ "$said" -eq 0 ] || echo; said=1; }
   require_init
-  # The SessionStart hook also fires on compaction. Claude Code 2.1.270
-  # re-attaches invoked skills after the boundary; whether path rules return
-  # is unsettled, so the line asks rather than asserts. Stdin is read only
+  # The SessionStart hook also fires on compaction. A rule without paths:
+  # is read from disk again (probed 2.1.284); an invoked skill is
+  # re-attached from 2.1.270, which the line does not rely on. Stdin is read only
   # when something is there: by hand it is a tty.
   if [ ! -t 0 ] && read -t 0 -r _ 2>/dev/null; then
     read_hook_input
     if [ "$h_source" = compact ]; then
       sep
-      echo "context was compacted; if the workbench skill body or a .claude/rules file you had read is no longer in context, invoke the workbench skill before the next step"
+      echo "context was compacted; $RULES_FILE is back, the workbench skill may not be — invoke it before the next step if its body is not in context"
     fi
   fi
   # Every checkout: an item on a sibling worktree's branch is in flight too.

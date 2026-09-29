@@ -21,5 +21,5 @@ The `workbench` skill's rules apply; load it if it is not in context.
 4. Fill **Why** and **Questions**, one line per named unknown, in glossary
    words, and bring them to the user. Nothing else happens until the
    questions are agreed.
-5. `workbench start <id>`, then "Working an item" in the skill, in the
-   worktree it prints — unless the user opens a session for it there.
+5. `workbench start <id>`, then stop: the user opens a session in the
+   worktree it prints and runs `/wb <id>` there.

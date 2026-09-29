@@ -1,15 +1,15 @@
 ---
 name: workshop-setup
-description: Install the gate the project's language has (ts-gate for TypeScript), the stack packages the user names, the wb-reviewer agent with its criterion habit, and workbench when the project wants tracked items, into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup.
+description: Install the gate the project's language has (ts-gate for TypeScript), the stack packages the user names, and workbench when the project wants tracked items, into the current project, greenfield or brownfield, in the order that works, and walk the setup checklist with the user. TRIGGER when the user says "set up this project", "install workbench and the gate", "project setup", "add packages to the stack", or invokes /workshop-setup.
 ---
 
 # Project setup
 
-Three separate tools and a review step, one order. None of the installers
-knows the others; the order is what makes them fit. This skill owns the
-order and the checklist, nothing language-specific: what a scaffold holds,
-what an installer's output means, what a package needs, each tool says in
-its own contract, and this skill points there. Run each step, show its
+Three separate tools, one order. None of the installers knows the others;
+the order is what makes them fit. This skill owns the order and the
+checklist, nothing language-specific: what a scaffold holds, what an
+installer's output means, what a package needs, each tool says in its own
+contract, and this skill points there. Run each step, show its
 output, stop where it says.
 
 Paths: `workbench` and `stack` are on PATH. The gates live under `workshop/`
@@ -26,7 +26,6 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
 |---|---|---|
 | Tree | empty or scaffold only | history, code, maybe its own tooling |
 | Gate | default install | the gate's own brownfield procedure, in its contract |
-| Review | `wb-reviewer.md` + the CLAUDE.md block (step 5) | the same |
 | Workbench, if wanted | `workbench init` | `workbench adopt`, then the survey it prints |
 
 ## Steps
@@ -92,41 +91,14 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    its language has a directory with a gate and packages; the rest of the
    step is skipped, not improvised.
 
-5. **Review.** The default for every project: the reviewer agent and the
-   habit that feeds it, without the item loop.
+5. **workbench, when the user wants it.** Tracked items, a criterion frozen
+   at `start`, the `wb-reviewer` dialog, parked calls, an archive:
+   `workbench init` (greenfield) or `workbench adopt` (brownfield; refuses a
+   dirty tree, then prints the survey command). Commit: `workbench: init`
+   or `workbench: adopt`. Ask; never assume — it earns its cost only where
+   someone reads the items.
 
-   ```
-   mkdir -p .claude/agents && sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' "$WORKSHOP/workbench/agents/wb-reviewer.md" > .claude/agents/wb-reviewer.md
-   ```
-
-   The source carries a setting as a token; this fills its default. Once
-   workbench is in, it renders the file from `.claude/workshop.conf`.
-
-   then append to CLAUDE.md, after the stack block:
-
-   ```
-   ## Review
-
-   Before code for a feature or a bug fix, write how anyone will know it
-   worked: a command and its expected output. Run it and see it fail. After
-   the code: commit, then spawn the `wb-reviewer` agent (Agent tool) with
-   that criterion and the diff range; answer its findings by number over
-   SendMessage until each is fixed or stands, a fix being a new commit; stop
-   at `open: none`.
-   ```
-
-   Commit: `review: wb-reviewer`. Measured 2026-09-13 on three seeded items,
-   three runs each (`workshop/workbench/CLAUDE.md`, "Measured"): this finds
-   what the full loop finds at 2.1× a bare session against the loop's 3.8×.
-
-6. **workbench, when the user wants it.** Tracked items, a criterion frozen
-   at `start`, parked calls, an archive: `workbench init` (greenfield) or
-   `workbench adopt` (brownfield; refuses a dirty tree, then prints the
-   survey command). It renders the same `wb-reviewer.md` over the copy from
-   step 5. Commit: `workbench: init` or `workbench: adopt`. Ask; never
-   assume — it earns its cost only where someone reads the items.
-
-7. **Checklist.** Init printed "setup — decide these with the user". Take
+6. **Checklist.** Init printed "setup — decide these with the user". Take
    each line to the user. `premerge` should already read the gate's command
    (`npm run gate` for ts-gate, in `.claude/workshop.conf`). Settings the
    project wants off their defaults (models, efforts, caps, lint thresholds)
@@ -139,25 +111,24 @@ WORKSHOP=$(readlink -f ~/.claude/skills/workshop-setup/../../workshop)
    Brownfield: do the survey `workbench adopt` printed, with the user;
    nothing converts without approval.
 
-8. **Trust the directory.** Open the project in Claude Code interactively
+7. **Trust the directory.** Open the project in Claude Code interactively
    once and accept the trust dialog. Until then every `permissions.allow`
    rule the gate and workbench wrote is ignored (hooks still run), and a
    non-interactive session started with `--permission-mode` is denied every
    `workbench` and gate call. A worktree under a trusted checkout inherits
    the trust.
 
-9. **Prove it.** The gate's own proof (ts-gate: `npm run gate:verify`, one
+8. **Prove it.** The gate's own proof (ts-gate: `npm run gate:verify`, one
    model call; its contract says what the four checks are), `workbench
    status`, `stack status`.
 
 ## Order, and why
 
 The gate first: `stack add` writes into the gate's config when one exists
-(ts-gate's knip ignores), which must exist by then, and the review block and
-`workbench init` write tracked files. `stack add` between them: its subtrees
-need HEAD and a clean tree, and its CLAUDE.md block should exist before the
-review block is appended. Commit between each so every
-tool lands under its own subject.
+(ts-gate's knip ignores), which must exist by then, and `workbench init`
+writes tracked files. `stack add` between them: its subtrees need HEAD and
+a clean tree. Commit between each so every tool lands under its own
+subject.
 
 ## Removing
 
@@ -166,5 +137,4 @@ removes exactly what its manifest lists, including the premerge key if it is
 still the gate's command. `stack rm <name>` removes one package's subtree,
 rule and skills and leaves its dependency; it refuses while another added
 package needs it. Workbench has no uninstall; its files are the committed
-`.claude/` copies and `workbench/`. The review step is
-`.claude/agents/wb-reviewer.md` and the CLAUDE.md block.
+`.claude/` copies, `.claude/rules/workbench.md` and `workbench/`.

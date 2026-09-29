@@ -12,7 +12,7 @@ idea      optional: a workbench/BACKLOG.md line
 item      workbench new: the file, committed on main; its criterion agreed with the user
 start     workbench start: the criterion committed, branch <id>-<slug> in .worktrees/;
           the item is edited only there from now on
-work      the change
+work      the change, in the session the user opens in the worktree
 evidence  the criterion filled in with real output
 review    bug and feature: wb-reviewer dialog, workbench round until ready; report, stop
 merge     the user's: squash onto main, trailer "Item: <id>"
@@ -27,10 +27,9 @@ archive   the user's: to workbench/items/archive/, records the SHA
    unchanged tree: run it first. Evidence is matched against it, never
    against a test; evidence that falls short is recorded as **missed**,
    never reworded. How a criterion is written is the template's comment
-   on its field.
-   `## Side effects` is part of the contract: agreed with it, and frozen
-   with it at `start`; one found later is
-   `workbench call <id> "side effect: …"`, never your edit.
+   on its field. `## Side effects` is part of the contract: agreed with
+   it, and frozen with it at `start`; one found later is `workbench call
+   <id> "side effect: …"`, never your edit.
 
 2. **What was not proved is a status, never a gap.** A criterion waiting
    on an event you cannot cause now: verify the rest, then the user picks
@@ -48,10 +47,10 @@ archive   the user's: to workbench/items/archive/, records the SHA
    may be written, and where, is `.claude/rules/workbench.md`,
    "Documentation". The exception is `workbench/GLOSSARY.md`, the
    project's domain language, which binds items, commit subjects and code
-   identifiers. A
-   word it lacks, or one that could mean two things, goes to the user
-   before the item is written in it; a new entry lands in the same commit
-   as the item that first uses it. Its header says what an entry is.
+   identifiers. A word it lacks, or one that could mean two things, goes
+   to the user before the item is written in it; a new entry lands in the
+   same commit as the item that first uses it. Its header says what an
+   entry is.
 
 5. **Deleting means deleting.** No "formerly", no "removed in favour of",
    no strikethrough, no inline changelog.
@@ -91,17 +90,16 @@ words, never yours.
 
 `/bug`, `/feature`, `/spike`, `/idea` and `/wb` walk the steps. How each
 field is written is the comment on it in the item's template. Skills,
-agents and settings
-are committed copies, in every worktree and clone. `workbench status` says
-when a copy is behind its source; `workbench init` refreshes it; never edit
-the copy.
+agents, rules and settings are committed copies, in every worktree and
+clone. `workbench status` says when a copy is behind its source;
+`workbench init` refreshes it; never edit the copy.
 
 ## Starting work
 
 ```bash
 workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
 workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
-workbench merge b-038 "<subject>"      # the user's command, never yours: squash, trailer, cleanup
+workbench merge b-038 "<subject>"      # the user's: squash, trailer, cleanup
 ```
 
 **Neither merge nor archive is yours to start.** Both land work the user
@@ -118,8 +116,8 @@ The file lands in the main checkout wherever `new` runs. Between `new` and
 
 ## Working an item
 
-After `start`, in this session or in one the user opens for it with
-`/wb <id>`. Work only inside the item's worktree.
+`start` ends the session that ran it: the user opens a session in the
+item's worktree and runs `/wb <id>` there. Work only inside that worktree.
 
 1. `cd` into the worktree and install the project's dependencies the way
    its rules say. Read the item and run its criterion on the unchanged
@@ -130,8 +128,7 @@ After `start`, in this session or in one the user opens for it with
 2. Do the work. Run everything you can; the user gets only what needs
    eyes — visual, subjective, in-world. Commit on the branch as you go;
    the item file commits with the code. Evidence is pasted output under
-   `## Evidence`, one block per criterion step; a step the output does not
-   meet is recorded as missed, with the number it reached, never reworded.
+   `## Evidence`, one block per criterion step.
    - A number: base and branch run alternately in one session, the base
      from a scratch worktree — sessions in other worktrees share the
      machine, so a figure from another session is no baseline. What the
@@ -145,28 +142,19 @@ After `start`, in this session or in one the user opens for it with
      proves nothing. Never name it in the item: the commit trailer reaches
      it.
    - A step that turns on an event you cannot cause: synthesise the event
-     and record our code's reaction; only the real event's shape waits,
-     as `awaiting — <trigger>` when a time can be named, else
-     `unverified — <trigger>` — the user picks.
+     and record our code's reaction; the rest waits as a status (rule 2).
 
    A finding that argues with the frozen criterion is `workbench call <id>
-   "<what the criterion should say>"`; something that works today and now
-   behaves differently which `## Side effects` does not name is `workbench
-   call <id> "side effect: <what, for whom> — accept?"` — never an edit of
-   the item. Before the review dialog, hold every function the diff
-   changes against its callers for such a difference.
+   "<what the criterion should say>"`, never an edit of the item. Before
+   the review dialog, hold every function the diff changes against its
+   callers for a difference `## Side effects` does not name (rule 1).
 3. The review dialog, below.
-4. Report, in three lines: the item id; `ready`, `blocked — <one question,
-   with the options>` or `unreproduced — <what you ran>`; the last round's
-   result, or `none`. Then stop.
+4. Report to the user: `ready` with the last round, `blocked — <one
+   question, with the options>`, or `unreproduced — <what you ran>`. Then
+   stop.
 
-A spike (`s-<n>`) answers questions instead of meeting a criterion. Step 1
-runs nothing. Step 2 fills `## Findings`, one entry per question;
-`## Questions` is the user's to edit, never yours; everything built goes
-in the folder beside the item, and nothing goes on main — no `workbench
-idea`, no glossary, backlog or document edit; each is a line under
-`## Suggestions`. Step 3 is skipped. Step 4 reports `answered`, with
-`status: answered` committed on the branch, or `blocked — <question>`.
+A spike runs no criterion and has no review dialog: its template's
+comments are its steps.
 
 ## Sizing — the same call every time
 
@@ -230,25 +218,24 @@ Every bug and feature item, once the work is done:
 ```
 review dialog                         a wb-reviewer spawned with the Agent tool, never forked
   findings → answered by number → each ends fixed / stands / withdrawn
-  workbench round <id> <fixed> <stands>   again → a new reviewer · ready → report it, the merge is the user's · call → park it
+  workbench round <id> <fixed> <stands>   again → a new reviewer · ready → report it · call → park it
 ```
 
 Spawn it naming the branch and the item file, and answer by number
 through `SendMessage` to the id the spawn returned. After
 @@REVIEW_EXCHANGE_CAP@@ exchanges on one finding without agreement, ask the
-user. When every
-finding has its state, `workbench round <id> <fixed> <stands>` and do what
-it prints. A reviewer that returns partial, its turn cap reached, ends the
+user. When every finding has its state, `workbench round <id> <fixed>
+<stands>` and do what it prints. A reviewer that returns partial, its turn cap reached, ends the
 dialog: `workbench call <id> "<the standing finding>"`, never spawn it
 again to finish.
 
 The reviewer keeps its context across the exchange; a finding that stands
 gets one line under Evidence saying why. A finding is shown, not read — the
-reviewer ran something on the branch and the output is wrong — and one the
-worker cannot reproduce from that demonstration is withdrawn, as at archive
+reviewer ran something on the branch and the output is wrong — and one you
+cannot reproduce from that demonstration is withdrawn, as at archive
 (`unreproduced`). Round two always runs; `round` decides the rest by count,
-records `rounds:` on the item, and at round @@REVIEW_ROUND_CAP@@ parks it: `workbench
-call <id>` with the standing finding, and the item is reported blocked. A
+records `rounds:` on the item, and at round @@REVIEW_ROUND_CAP@@ parks it:
+`workbench call <id>` with the standing finding, and the item is reported blocked. A
 finding outside the item's criterion and the mechanism it changed is
 `workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix
 on this branch; a shared function is fixed once, not per caller. No finding

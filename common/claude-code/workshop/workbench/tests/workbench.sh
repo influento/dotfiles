@@ -198,13 +198,17 @@ git checkout -q -b side
 run "new refuses when the main checkout is off the default branch" 1 "has 'side' checked out, not main" "$WB" new bug "nope"
 check "the refusal spent no id" [ -z "$(find workbench/items -name '*.md')" ]
 git checkout -q main
-id=$("$WB" new bug "crash on save" 2>/dev/null)
+id=$("$WB" new bug "crash on save" 2>"$TMP/new.err")
 run "new refuses a newline in the title" 1 "a title is one line" "$WB" new bug $'first line\nsecond line'
 check "new allocates b-001" [ "$id" = b-001 ]
 item=workbench/items/bugs/b-001-crash-on-save.md
 check "new writes the item file" [ -f "$item" ]
 check "new commits it on main" [ "$(git log -1 --format=%s)" = "new b-001: crash on save" ]
 check "new leaves the tree clean" [ -z "$(git status --porcelain)" ]
+check "new says the criterion is agreed with the user before start" grep -q "fill it, agree its criterion and Side effects with the user, then 'workbench start b-001'" "$TMP/new.err"
+# The comments are substituted into the heredoc; a stray escape would leave
+# the call itself in the file, and every check but these would pass.
+check "the bug template carries the criterion, evidence and root-cause comments" bash -c "grep -q '^     It fails on the unchanged tree: run it now' '$item' && grep -q 'one fenced block per criterion step' '$item' && grep -q 'First look in workbench/items/archive/' '$item' && ! grep -q '(criterion_comment)\\|(evidence_comment)' '$item'"
 run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-001
 printf '\nTBD\n' >> "$item"
 run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
@@ -302,12 +306,19 @@ check "no check call asserts only its first condition" \
 # --- status, adopt ------------------------------------------------------------
 
 idl=$(newc feature "later")          # unstarted, in main
-"$WB" start "$idl" >/dev/null 2>&1
+out=$("$WB" start "$idl" 2>&1 >/dev/null)
+check "start tells the session that ran it to stop, and where the item's session goes" grep -q "^next: stop here; the user opens a session in .*/.worktrees/$idl-later and runs '/wb $idl' there$" <<< "$out"
+check "the rule reaches the item's worktree" [ -f ".worktrees/$idl-later/.claude/rules/workbench.md" ]
+# crit fills the criterion above the template comment, which names the guard
+# phrases start refuses; start reads past the comment.
+check "start took a criterion whose template comment is still in place" grep -q '"by inspection"' ".worktrees/$idl-later/workbench/items/features/$idl-later.md"
 set_status ".worktrees/$idl-later/workbench/items/features/$idl-later.md" "awaiting — next deploy"
 run "status keeps an awaiting item on its branch under branches" 0 "" bash -c "! '$WB' status | grep -q 'merged, still awaiting a trigger'"
 ( cd ".worktrees/$idl-later" && git add -A && git commit -qm later )
 "$WB" merge "$idl" "later" >/dev/null 2>&1
 run "status lists a merged awaiting item" 0 "$idl-later" bash -c "'$WB' status | sed -n '/awaiting a trigger/,\$p'"
+run "and says what to do when it fires" 0 "awaiting a trigger — when it fires: status 'open', its evidence, then archive" "$WB" status
+run "status after a compact says the rule is back and the skill may not be" 0 "^context was compacted; .claude/rules/workbench.md is back, the workbench skill may not be" bash -c "printf '{\"hook_event_name\":\"SessionStart\",\"source\":\"compact\"}' | '$WB' status"
 
 # new from inside another item's worktree lands on main, and start cuts the
 # new worktree under the main checkout
@@ -481,6 +492,8 @@ check "the retired copy is gone" [ ! -e .claude/agents/wb-spare.md ]
 # The assertion that matters: the reap is guarded by the marker, so a project's
 # own agent in the same directory is not collateral.
 check "a project's own agent survives the reap" [ -f .claude/agents/my-own.md ]
+printf -- '---\nname: wb-worker\nx-workbench: true\n---\nold\n' > .claude/agents/wb-worker.md
+run "init reaps the retired wb-worker copy" 0 "removed .claude/agents/wb-worker.md" "$WB" init
 check "the shipped agent survives the reap" [ -f .claude/agents/wb-reviewer.md ]
 rm .claude/agents/my-own.md
 
@@ -500,6 +513,24 @@ printf 'edited\n' >> .claude/rules/workbench.md
 run "status names a rule that differs from its source" 0 "^.claude/rules/workbench.md differs from its source" "$WB" status
 "$WB" init >/dev/null
 run "init puts it back" 0 "" bash -c "! '$WB' status | grep -q 'rules/workbench.md differs'"
+
+# An init-era CLAUDE.md: the title, then the block. A plain file keeps its mode.
+new_repo oldblock
+printf '# oldblock\n\n<!-- workbench:start -->\n## Workflow\nold\n<!-- workbench:end -->\n' > CLAUDE.md
+chmod 640 CLAUDE.md
+printf '# docs\n\nno block here\n' > NOTES.md
+mkdir -p workbench && printf '# Glossary\n\n<!-- an older header\n     over two lines -->\n\n**drift** — the offset a mob accumulates.\n' > workbench/GLOSSARY.md
+git add -A && git commit -qm old
+out=$("$WB" init 2>&1)
+check "init takes the block out of an init-era CLAUDE.md, the title left" [ "$(cat CLAUDE.md)" = "# oldblock" ]
+check "and keeps its mode" [ "$(stat -c %a CLAUDE.md)" = 640 ]
+check "init refreshes the glossary's header" bash -c "grep -q 'entries worth most are ordinary words the project has narrowed' workbench/GLOSSARY.md && ! grep -q 'an older header' workbench/GLOSSARY.md"
+check "and keeps its entries" grep -qx '\*\*drift\*\* — the offset a mob accumulates.' workbench/GLOSSARY.md
+check "init says both" bash -c "grep -q 'removed the workbench block from CLAUDE.md' <<< \"\$1\" && grep -q 'refreshed the header comment of GLOSSARY.md' <<< \"\$1\"" _ "$out"
+cp CLAUDE.md "$TMP/claude.after"; cp workbench/GLOSSARY.md "$TMP/glossary.after"
+run "a second init touches neither" 0 "" bash -c "! '$WB' init 2>&1 | grep -qE 'removed the workbench block|refreshed the header'"
+check "not a byte" bash -c "cmp -s CLAUDE.md '$TMP/claude.after' && cmp -s workbench/GLOSSARY.md '$TMP/glossary.after'"
+check "a markdown file without the block is never touched" [ "$(cat NOTES.md)" = "$(printf '# docs\n\nno block here')" ]
 
 # --- failure paths ----------------------------------------------------------
 
@@ -620,7 +651,7 @@ check "the archive left no temp file behind" [ "$(find "${TMPDIR:-/tmp}" -maxdep
 
 # duplicate ids
 cp workbench/items/archive/b-002-ghost.md workbench/items/bugs/b-002-again.md
-run "status flags duplicate ids" 0 "DUPLICATE IDS" "$WB" status
+run "status flags duplicate ids, with the repair" 0 "DUPLICATE IDS — renumber one: neither merged, the later one" "$WB" status
 rm workbench/items/bugs/b-002-again.md
 
 # the branch's item copied onto main by hand is main's copy moving since the
@@ -915,6 +946,8 @@ newc feature "before" >/dev/null
 run "new spike allocates an s- id on the shared counter" 0 "^s-002$" "$WB" new spike "cache restart"
 sp=s-002; fs=workbench/items/spikes/$sp-cache-restart.md
 check "the spike carries its own template" bash -c "[ \"\$(sed -n 's/^## //p' $fs | paste -sd'|')\" = 'Why|Questions|Findings|Suggestions|Decisions' ]"
+check "its Findings comment carries the spike's steps" bash -c "sed -n '/^## Findings/,/^## Suggestions/p' $fs | grep -q \"Done when every question has an entry: set 'status: answered'\" && sed -n '/^## Findings/,/^## Suggestions/p' $fs | grep -q 'no review dialog'"
+check "its Suggestions comment rules out workbench idea" bash -c "sed -n '/^## Suggestions/,/^## Decisions/p' $fs | grep -q \"runs no\" && sed -n '/^## Suggestions/,/^## Decisions/p' $fs | grep -q \"'workbench idea'\""
 check "the next feature takes the next number" [ "$(newc feature "after")" = f-003 ]
 run "status lists an open spike" 0 "$sp-cache-restart +open" "$WB" status
 

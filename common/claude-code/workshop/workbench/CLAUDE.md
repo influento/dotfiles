@@ -93,18 +93,19 @@ Each rule sits where the role that needs it is sure to see it:
 
 | Content | Home | Seen by |
 |---|---|---|
-| the concept: the loop, the hard rules, sizing, whose decisions are whose | `skills/workbench/SKILL.md` | the main session through a command, the worker through `initialPrompt` |
+| the concept: the loop, the hard rules, sizing, whose decisions are whose | `skills/workbench/SKILL.md` | any session, through a command (`/wb <id>` for the item's own); re-attached after a compact from 2.1.270 |
 | documentation, and the rule that domain work is an item | `.claude/rules/workbench.md` (`rules_content`) | every session and spawn, again after a compact |
-| how a field is written — the criterion, root cause, evidence, spike questions and findings | the template comment on that field (`write_bug`, `write_feature`, `write_spike`, `criterion_comment`, `evidence_comment`) | whoever fills the field, until it is filled |
+| how a field is written — the criterion, root cause, evidence — and everything particular to a spike | the template comment on that field (`write_bug`, `write_feature`, `write_spike`, `criterion_comment`, `evidence_comment`) | whoever fills the field, until it is filled |
 | what a glossary entry is, coining, aliases, homographs | the `GLOSSARY.md` header (`write_glossary`) | whoever edits the glossary |
 | working an item: measuring, tests, events, the review dialog | SKILL.md, "Working an item" and "The review dialog" | whichever session the user opens for the item |
 | the review method and its checklist | `agents/wb-reviewer.md` | the reviewer, which loads no skill |
 | what a situation needs — duplicate IDs, caps, awaiting items | the CLI's output where it detects it | whoever runs the command |
 
 A template comment is deleted once its field is filled, so it can carry
-only what writing that field needs; what a later phase needs goes in the
-worker body. The reviewer's checklist repeats rules by design, for the same
-reason.
+only what writing that field needs; what a later phase needs goes in
+SKILL.md, "Working an item". The reviewer's checklist repeats rules by
+design, for the same reason. One session per item, opened by the user in
+its worktree: `start` tells the session that ran it to stop there.
 
 ## Extension points
 
@@ -240,8 +241,9 @@ same regressions found ("Measured"); the facts probed through it stay.
   worktree, and an Agent-tool spawn from that session (probed 2.1.270;
   2.1.258 for `wb-reviewer` and `general-purpose` from a main session).
 - In a worktree only the worktree's `CLAUDE.md` is in context; the main
-  checkout's, two directories up, is not (probed 2.1.270, sonnet). The
-  workbench block reaches a worker only once it is committed.
+  checkout's, two directories up, is not (probed 2.1.270, sonnet). So
+  `.claude/rules/workbench.md` reaches an item's session only once it is
+  committed on main before `start`.
 - `autoMemoryDirectory`'s `MEMORY.md` loads in every mode used, Agent-tool
   spawns included (probed 2.1.270).
 - Hooks in the worktree's `.claude/settings.json` fire there: `SessionStart`
