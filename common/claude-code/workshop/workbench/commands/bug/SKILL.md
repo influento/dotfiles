@@ -15,7 +15,8 @@ The `workbench` skill's rules apply; load it if it is not in context.
 2. `workbench new bug "<title>"` — the description in a few words.
 3. Fill **What was seen** and **How to reproduce** as far as known, in
    glossary words. Leave **Root cause** for the investigation. Fill
-   **Side effects**; the user agrees it with the criterion.
+   **Side effects**; the user agrees it with the criterion. Leave
+   **Evidence** and its comment for the session that works the item.
 4. Draft **How to confirm it is fixed**, run it on the unchanged tree so it
    is seen failing, and bring it to the user. Nothing else happens until
    the criterion is agreed.

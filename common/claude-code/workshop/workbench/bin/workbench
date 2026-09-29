@@ -1221,7 +1221,9 @@ EOF
 
 evidence_comment() {
   cat <<'EOF'
-<!-- Two fenced blocks per criterion step, each the command and what it
+<!-- Stays until the evidence is in: whoever fills the other fields leaves
+     this comment for the session that works the item.
+     Two fenced blocks per criterion step, each the command and what it
      printed, not a summary of it:
        RED — the step run in this worktree before any change, on the
          unchanged tree; the value typed beside it in the criterion is
@@ -1234,7 +1236,7 @@ evidence_comment() {
      replace any token, key or personal data with `<REDACTED>`. A step the
      output does not meet is recorded as missed, with the number it
      reached, never reworded. Guards — the suite still green — go here
-     beside the steps. Delete this comment. -->
+     beside the steps. Delete this comment once the blocks are in. -->
 EOF
 }
 

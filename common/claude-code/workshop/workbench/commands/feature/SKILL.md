@@ -19,6 +19,7 @@ The `workbench` skill's rules apply; load it if it is not in context.
 2. `workbench new feature "<title>"` — the description in a few words.
 3. Fill **Why** and **What changes** from the description, in glossary
    words, and **Side effects**; the user agrees it with the criterion.
+   Leave **Evidence** and its comment for the session that works the item.
 4. Draft **How to confirm it works** — the list from step 1 — run it on
    the unchanged tree so it is seen failing, and bring it to the user.
    Nothing else happens until the criterion is agreed.
