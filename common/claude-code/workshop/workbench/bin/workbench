@@ -2696,9 +2696,9 @@ status_lines() {
 
 cmd_status() {
   local dirs=() said=0 all=0
-  case "${1:-}" in
-    '') ;;
-    --all) all=1 ;;
+  case "$#:${1:-}" in
+    0:) ;;
+    1:--all) all=1 ;;
     *) usage ;;
   esac
   # A blank line between blocks, none before the first: a session start reads

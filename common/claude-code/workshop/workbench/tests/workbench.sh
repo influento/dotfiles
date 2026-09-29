@@ -1522,6 +1522,7 @@ check "so does the open-items list" bash -c "sed -n '/^open items/,/^\$/p' '$TMP
 check "a decision line is cut at 140 characters" bash -c "sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.capped' | grep -m1 '^  b-' | awk '{ exit !(length(\$0) == 140 && /…\$/) }'"
 check "--all prints every decision whole and counts nothing" bash -c "[ \$(sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.all' | grep -c '^  b-.*keep empty rows\$') -eq 10 ] && ! grep -q '…and' '$TMP/status.all'"
 run "status refuses an unknown argument" 2 "usage:" "$WB" status --bogus
+run "and one after --all" 2 "usage:" "$WB" status --all bogus
 # The cut counts characters whatever the locale: under C, awk counted bytes,
 # split a '—' at the edge and cut Cyrillic to half length.
 new_repo statuscut
