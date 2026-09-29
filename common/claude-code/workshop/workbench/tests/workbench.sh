@@ -1563,6 +1563,12 @@ git add .claude/rules && git commit -qm "the rule file"
 run "status is quiet once main holds it" 0 "" bash -c "! '$WB' status | grep -q 'rules/workbench.md'"
 idr2=$(newc feature "rule check two")
 run "and start says nothing about it" 0 "" bash -c "! '$WB' start '$idr2' 2>&1 | grep -q 'rules/workbench.md'"
+# Main holds an older copy, and init regenerated the current one on disk only.
+printf 'an older rule\n' >> .claude/rules/workbench.md && git commit -qam "an older rule file"
+"$WB" init >/dev/null 2>&1
+run "status names a rule file regenerated but not committed" 0 "^.claude/rules/workbench.md is not committed on main as init wrote it" "$WB" status
+idr3=$(newc feature "rule check three")
+run "and start notes the worktree's older copy" 0 "^note: .claude/rules/workbench.md is missing or out of date on main" "$WB" start "$idr3"
 
 # --- git config keys move into the file --------------------------------------
 new_repo migrate
