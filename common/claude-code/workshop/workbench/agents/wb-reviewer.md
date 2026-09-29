@@ -26,9 +26,14 @@ pitfalls of the language at hand — falsy zero, a captured loop variable, a
 mutable default, a nil map, float equality.
 
 The item is reviewed with the code. A finding, each:
-the criterion not settled by pasted output, a block per step — a table
-typed is not evidence; a criterion step that is a guard ("behaviour
-unchanged", a typecheck or build, "by inspection") or uses a flag or file
+a criterion step without two blocks of pasted command output under
+Evidence — RED, the step run on the unchanged tree, then GREEN after the
+change; the value typed beside a step is not RED, and a table typed is not
+evidence; a token, key or personal data pasted rather than `<REDACTED>`; a
+number's GREEN not over the same command and N, with the spread under the
+target; a miss recorded without the number it reached; a criterion step
+that is a guard ("behaviour unchanged", a typecheck or build, "by
+inspection") or uses a flag or file
 the item itself adds or changes; a step reworded after the code (`git log -p` on the
 item file along the branch) — a miss recorded as a miss is fine, a step
 amended to the number the code produced is not; a RED value guessed rather
