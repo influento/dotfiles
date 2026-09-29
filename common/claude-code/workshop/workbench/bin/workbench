@@ -1221,15 +1221,20 @@ EOF
 
 evidence_comment() {
   cat <<'EOF'
-<!-- Filled in after implementation, one fenced block per criterion step:
-     the command and what it printed, not a summary of it — a table typed
-     by hand (`RED 31 → GREEN 0`, `clean`) is a summary whatever fence is
-     around it. At most one line of prose per block, naming the step it
-     settles. Archive refuses an Evidence section without a fenced block.
-     The block is committed: replace any token, key or personal data with
-     `<REDACTED>`. A step the output does not meet is recorded as missed,
-     with the number it reached, never reworded. Guards — the suite still
-     green — go here beside the steps. Delete this comment. -->
+<!-- Two fenced blocks per criterion step, each the command and what it
+     printed, not a summary of it:
+       RED — the step run in this worktree before any change, on the
+         unchanged tree; the value typed beside it in the criterion is
+         not RED
+       GREEN — the same command after the change
+     A table typed by hand (`RED 31 → GREEN 0`, `clean`) is a summary
+     whatever fence is around it. At most one line of prose per block,
+     naming the step and whether it is RED or GREEN. Archive refuses an
+     Evidence section without a fenced block. The blocks are committed:
+     replace any token, key or personal data with `<REDACTED>`. A step the
+     output does not meet is recorded as missed, with the number it
+     reached, never reworded. Guards — the suite still green — go here
+     beside the steps. Delete this comment. -->
 EOF
 }
 

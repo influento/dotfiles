@@ -209,7 +209,7 @@ check "new leaves the tree clean" [ -z "$(git status --porcelain)" ]
 check "new says the criterion is agreed with the user before start" grep -q "fill it, agree its criterion and Side effects with the user, then 'workbench start b-001'" "$TMP/new.err"
 # The comments are substituted into the heredoc; a stray escape would leave
 # the call itself in the file, and every check but these would pass.
-check "the bug template carries the criterion, evidence and root-cause comments" bash -c "grep -q '^     It fails on the unchanged tree: run it now' '$item' && grep -q 'one fenced block per criterion step' '$item' && grep -q 'First look in workbench/items/archive/' '$item' && ! grep -q '(criterion_comment)\\|(evidence_comment)' '$item'"
+check "the bug template carries the criterion, evidence and root-cause comments" bash -c "grep -q '^     It fails on the unchanged tree: run it now' '$item' && grep -q 'Two fenced blocks per criterion step' '$item' && grep -q 'First look in workbench/items/archive/' '$item' && ! grep -q '(criterion_comment)\\|(evidence_comment)' '$item'"
 run "archive refuses without evidence" 1 "no evidence recorded" "$WB" archive b-001
 printf '\nTBD\n' >> "$item"
 run "archive refuses prose-only evidence" 1 "no evidence recorded" "$WB" archive b-001
