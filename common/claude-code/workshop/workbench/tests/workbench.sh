@@ -1514,6 +1514,17 @@ check "so does the open-items list" bash -c "sed -n '/^open items/,/^\$/p' '$TMP
 check "a decision line is cut at 140 characters" bash -c "sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.capped' | grep -m1 '^  b-' | awk '{ exit !(length(\$0) == 140 && /…\$/) }'"
 check "--all prints every decision whole and counts nothing" bash -c "[ \$(sed -n '/^decisions waiting/,/^\$/p' '$TMP/status.all' | grep -c '^  b-.*keep empty rows\$') -eq 10 ] && ! grep -q '…and' '$TMP/status.all'"
 run "status refuses an unknown argument" 2 "usage:" "$WB" status --bogus
+# The cut counts characters whatever the locale: under C, awk counted bytes,
+# split a '—' at the edge and cut Cyrillic to half length.
+new_repo statuscut
+"$WB" init >/dev/null 2>&1
+id=$("$WB" new bug "cut probe" 2>/dev/null)
+# The item name pads to 34, so the dash lands at the 139th character.
+"$WB" call "$id" "$(printf 'y%.0s' $(seq 1 101))—tail of the decision" >/dev/null 2>&1
+"$WB" call - "$(printf 'п%.0s' $(seq 1 150))" >/dev/null 2>&1
+LC_ALL=C "$WB" status > "$TMP/status.c"
+check "under LC_ALL=C the cut lines are whole UTF-8" iconv -f UTF-8 -t UTF-8 -o /dev/null "$TMP/status.c"
+check "and 140 characters, Cyrillic included" bash -c "[ \$(grep -E '^  (b-|п)' '$TMP/status.c' | LC_ALL=C.UTF-8 awk 'length(\$0) == 140 && /…\$/' | wc -l) -eq 2 ]"
 
 # --- an item renamed before start lands as a rename --------------------------
 # The old path's deletion went uncommitted: main and the branch each held

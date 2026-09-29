@@ -2708,8 +2708,16 @@ cmd_status() {
   # characters.
   capped() {
     if [ "$all" -eq 1 ]; then cat; return; fi
-    awk -v n="$STATUS_LIST_CAP" -v w="${1:-0}" '
-      NR <= n { print (w && length($0) > w ? substr($0, 1, w - 1) "…" : $0); next }
+    # Characters counted by hand over bytes: awk's own length() counts bytes
+    # outside a UTF-8 locale (and in mawk always), and would split a character.
+    LC_ALL=C awk -v n="$STATUS_LIST_CAP" -v w="${1:-0}" '
+      function cut(s,   t, i, c) {
+        t = s
+        if (!w || gsub(/[^\200-\277]/, "", t) <= w) return s
+        for (i = 1; i <= length(s); i++)
+          if (substr(s, i, 1) !~ /[\200-\277]/ && ++c == w) return substr(s, 1, i - 1) "…"
+      }
+      NR <= n { print cut($0); next }
       { k++ }
       END { if (k) printf "  …and %d more; `workbench status --all`\n", k }'
   }
