@@ -105,10 +105,11 @@ Work only inside the item's worktree. A spike runs no criterion and has no
 review dialog: its template's comments are its steps.
 
 1. Install the project's dependencies the way its rules say, and run the
-   criterion on the unchanged tree. One that does not fail there is not a
-   criterion: settle the rewrite with the user. A bug whose steps you
-   followed and whose failure you cannot make happen: report
-   `unreproduced` with what you ran, and stop.
+   criterion on the unchanged tree, and paste that run under Evidence as
+   each step's RED block; GREEN follows after the change. One that does
+   not fail there is not a criterion: settle the rewrite with the user. A
+   bug whose steps you followed and whose failure you cannot make happen:
+   report `unreproduced` with what you ran, and stop.
 2. Do the work. Run everything you can; the user gets only what needs
    eyes — visual, subjective, in-world. Commit on the branch as you go;
    the item file commits with the code.
