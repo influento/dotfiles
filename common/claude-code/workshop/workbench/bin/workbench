@@ -1412,10 +1412,11 @@ status: open
 
 <!-- One entry per question, in prose: the answer, or a blocker saying why it
      could not be determined, which is a result too. A reframed question is a
-     finding. Output is findings, not assertions: no criterion runs, inspection
-     is the method, and there is no Evidence section and no review dialog;
-     measured output goes here. Self-contained: it outlives the folder, which
-     archive removes.
+     finding; the Questions stay as agreed — the user may edit them, in the
+     worktree only, and you never do. Output is findings, not assertions:
+     no criterion runs, inspection is the method, and there is no Evidence
+     section and no review dialog; measured output goes here.
+     Self-contained: it outlives the folder, which archive removes.
      Everything the spike builds — prototypes, scripts, tests, captures —
      goes in the folder beside this file, named as it is without .md, and
      nowhere else: merge lands the two together, archive removes the folder.

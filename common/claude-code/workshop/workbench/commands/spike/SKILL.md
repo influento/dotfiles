@@ -20,6 +20,7 @@ The `workbench` skill's rules apply; load it if it is not in context.
 3. `workbench new spike "<title>"` — the area in a few words.
 4. Fill **Why** and **Questions**, one line per named unknown, in glossary
    words, and bring them to the user. Nothing else happens until the
-   questions are agreed.
+   questions are agreed. Leave **Findings** and **Suggestions** and their
+   comments for the session that works the item.
 5. `workbench start <id>`, then stop: the user opens a session in the
    worktree it prints and runs `/wb <id>` there.
