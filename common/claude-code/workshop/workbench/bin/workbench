@@ -1226,7 +1226,8 @@ criterion_comment() {
 
      One run does not make these RED:
        a number — the metric over N runs with its spread:
-         `p50 over 10 runs (340ms ±25 today) → under 200ms`
+         `p50 over 10 runs (340ms ±25 today) → under 200ms`; GREEN is the
+         same command and N, the spread under the target
        a flake — `fails k of N`, the rate raised first (loop it, stress it)
          until k ≥ 5; GREEN is `0 of M`, M ≥ 3·N/k
        a boundary crossed — a working exploit, in a controlled environment;
