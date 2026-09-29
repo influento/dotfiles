@@ -264,7 +264,10 @@ same regressions found ("Measured"); the facts probed through it stay.
 - A hook's output over about 10KB does not reach the model: it is saved to
   a file and replaced by a 2KB preview and the path (probed 2.1.284,
   `SessionStart`, 10.5KB). So no hook carries the skill body (~10.4KB),
-  and a `status` that long would be cut to its first 2KB.
+  and a `status` that long would be cut to its first 2KB. So `status`
+  prints decisions, calls and duplicate IDs first, stops each list at 8
+  lines and cuts a decision or call line at 140 characters (`--all`
+  prints everything): every list full measured 7.5KB.
 - Without `/wb`, the rules file's "invoke the `workbench` skill" line alone
   loaded it: `continue <id>` in an item worktree, 48/48, opus and sonnet
   5.5 at low, medium, high; `/wb <id>` 48/48 across the same and xhigh

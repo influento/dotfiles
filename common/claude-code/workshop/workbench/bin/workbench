@@ -22,6 +22,10 @@ MARK_END='<!-- workbench:end -->'
 RULES_FILE=.claude/rules/workbench.md
 # One obvious sentence, one question.
 IDEA_MAX=200
+# Lines per list in 'status', and characters per decision or call line: eight
+# full lists stay under the ~10KB a SessionStart hook passes whole.
+STATUS_LIST_CAP=8
+STATUS_LINE_MAX=140
 CALL_MAX=300
 
 # The project's settings, committed: 'key=value' lines, the value running to
@@ -78,7 +82,8 @@ usage:
                                        (git config workbench.guards: regex of steps start refuses as guards)
   workbench archive <id> [--discard]   move to archive, recording the merge commit;
                                        --discard drops what an abandoned branch carries
-  workbench status                     in flight, duplicate ids, documents over their line caps
+  workbench status [--all]             in flight, duplicate ids, documents over their line caps;
+                                       each list stops at 8 lines unless --all
   workbench config [list]              every key in .claude/workshop.conf: effective value, file or default
   workbench config get <key>           the effective value of one key
   workbench config render              re-render the agent and skill copies from source and the file
@@ -2660,10 +2665,27 @@ status_lines() {
 }
 
 cmd_status() {
-  local dirs=() said=0
+  local dirs=() said=0 all=0
+  case "${1:-}" in
+    '') ;;
+    --all) all=1 ;;
+    *) usage ;;
+  esac
   # A blank line between blocks, none before the first: a session start reads
   # the output as it comes.
   sep() { [ "$said" -eq 0 ] || echo; said=1; }
+  # A SessionStart hook's output over about 10KB reaches the model as a 2KB
+  # preview: the sections it must not miss come first, and each list stops
+  # at STATUS_LIST_CAP lines unless --all. $1 cuts lines the user wrote,
+  # whose full text stays in the file they came from, to that many
+  # characters.
+  capped() {
+    if [ "$all" -eq 1 ]; then cat; return; fi
+    awk -v n="$STATUS_LIST_CAP" -v w="${1:-0}" '
+      NR <= n { print (w && length($0) > w ? substr($0, 1, w - 1) "…" : $0); next }
+      { k++ }
+      END { if (k) printf "  …and %d more; `workbench status --all`\n", k }'
+  }
   require_init
   # The SessionStart hook also fires on compaction. A rule without paths:
   # is read from disk again (probed 2.1.284); an invoked skill is
@@ -2689,6 +2711,45 @@ cmd_status() {
     sep
     echo "$alert"
   fi
+  # Decisions parked in the items themselves, from the copy that is the item.
+  local dec=() dl pf
+  for name in "${names[@]}"; do
+    pf=$(item_copy "$name")
+    [ -n "$pf" ] || continue
+    while IFS= read -r dl; do
+      [ -n "$dl" ] || continue
+      dec+=("$(printf '%-34s %s' "${name%.md}" "${dl#- }")")
+    done < <(open_decisions_of "$pf")
+  done
+  if [ "${#dec[@]}" -gt 0 ]; then
+    sep
+    echo "decisions waiting on the user — answer in the item, then delete the line"
+    printf '  %s\n' "${dec[@]}" | capped "$STATUS_LINE_MAX"
+  fi
+
+  # Calls tied to no item.
+  local calls
+  calls=$(open_calls)
+  if [ -n "$calls" ] && [ "$calls" -gt 0 ]; then
+    sep
+    echo "calls waiting on the user — $WB/DECISIONS.md"
+    grep '^- ' "$(main_root)/$WB/DECISIONS.md" | sed 's/^- /  /' | capped "$STATUS_LINE_MAX"
+  fi
+
+  # Same ID under two slugs, archive included; names deduplicated first.
+  # Allocated on two machines before either pushed: the slugs differ, so git
+  # merged both files silently. The SHA recorded at archive is the
+  # authoritative link, so renaming a merged item's file loses nothing.
+  local dupes
+  dupes=$(wb_find items -name '[bfs]-*-*.md' -print < <(all_roots) \
+    | sed 's|.*/||' | sort -u \
+    | sed -n 's|^\([bfs]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
+  if [ -n "$dupes" ]; then
+    sep
+    echo "DUPLICATE IDS — renumber one: neither merged, the later one (its file and branch); one merged, the other; both merged, one file only, never history"
+    printf '%s\n' "$dupes" | sed 's/^/  /' | capped
+  fi
+
   # Settings the file gets wrong, and copies rendered from settings it no
   # longer holds; the file is the main checkout's, like the copies checked.
   local problems
@@ -2759,50 +2820,11 @@ cmd_status() {
   if [ -z "$open_body$branch_body$await_body$limbo_body$ref_body" ]; then
     sep; echo "nothing in flight"
   fi
-  [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body"; }
-  [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body"; }
-  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger — when it fires: status 'open', its evidence, then archive"; printf '%s\n' "$await_body"; }
-  [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body"; }
-  [ -z "$ref_body" ] || { sep; echo "spikes on $mainb, kept as references — 'workbench archive <id>' removes the folder when done"; printf '%s\n' "$ref_body"; }
-
-  # Decisions parked in the items themselves, from the copy that is the item.
-  local dec=() dl pf
-  for name in "${names[@]}"; do
-    pf=$(item_copy "$name")
-    [ -n "$pf" ] || continue
-    while IFS= read -r dl; do
-      [ -n "$dl" ] || continue
-      dec+=("$(printf '%-34s %s' "${name%.md}" "${dl#- }")")
-    done < <(open_decisions_of "$pf")
-  done
-  if [ "${#dec[@]}" -gt 0 ]; then
-    sep
-    echo "decisions waiting on the user — answer in the item, then delete the line"
-    printf '  %s\n' "${dec[@]}"
-  fi
-
-  # Calls tied to no item.
-  local calls
-  calls=$(open_calls)
-  if [ -n "$calls" ] && [ "$calls" -gt 0 ]; then
-    sep
-    echo "calls waiting on the user — $WB/DECISIONS.md"
-    grep '^- ' "$mainr/$WB/DECISIONS.md" | sed 's/^- /  /'
-  fi
-
-  # Same ID under two slugs, archive included; names deduplicated first.
-  # Allocated on two machines before either pushed: the slugs differ, so git
-  # merged both files silently. The SHA recorded at archive is the
-  # authoritative link, so renaming a merged item's file loses nothing.
-  local dupes
-  dupes=$(wb_find items -name '[bfs]-*-*.md' -print < <(all_roots) \
-    | sed 's|.*/||' | sort -u \
-    | sed -n 's|^\([bfs]-[0-9]\{1,\}\)-.*|\1|p' | sort | uniq -d)
-  if [ -n "$dupes" ]; then
-    sep
-    echo "DUPLICATE IDS — renumber one: neither merged, the later one (its file and branch); one merged, the other; both merged, one file only, never history"
-    printf '%s\n' "$dupes" | sed 's/^/  /'
-  fi
+  [ -z "$open_body" ] || { sep; echo "open items"; printf '%s\n' "$open_body" | capped; }
+  [ -z "$branch_body" ] || { sep; echo "branches"; printf '%s\n' "$branch_body" | capped; }
+  [ -z "$await_body" ] || { sep; echo "merged, still awaiting a trigger — when it fires: status 'open', its evidence, then archive"; printf '%s\n' "$await_body" | capped; }
+  [ -z "$limbo_body" ] || { sep; echo "merged, still open — archive, or set 'awaiting — <trigger>' / 'unverified — <trigger>'"; printf '%s\n' "$limbo_body" | capped; }
+  [ -z "$ref_body" ] || { sep; echo "spikes on $mainb, kept as references — 'workbench archive <id>' removes the folder when done"; printf '%s\n' "$ref_body" | capped; }
 
   # Listed, not fixed: init refreshes them, and that is the user's commit.
   local drift stale edited agent_drift_out configured
