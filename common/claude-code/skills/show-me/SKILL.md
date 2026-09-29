@@ -104,33 +104,48 @@ function expandSkill(command: string): string {
 }
 ```
 
-- For a visual UI, layout, state comparison, or a concept too dense for plain text, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Use real labels and data, and support desktop and mobile. If the topic is a product with an established look, match its colors, type, spacing, and components; otherwise use a restrained neutral palette that reads in both light and dark.
+- For a visual UI, layout, state comparison, or a concept too dense for plain text, build one focused HTML page — a diagram, an infographic, a code review, or a short slide deck, whichever fits the point. Use real labels and data. If the topic is a product with an established look, match its colors, type, spacing, and components inside the `--html` fragment. Put graph-shaped relationships — sequences, state machines, dependency graphs — in a mermaid block in the page rather than a bare chat fence, which most surfaces show as source text.
 
-  Put graph-shaped relationships — sequences, state machines, dependency graphs — in a mermaid block *inside* that page rather than in a bare chat fence, which most surfaces show as source text:
+### building the page
 
-```html
-<pre class="mermaid">
-sequenceDiagram
-    participant User
-    participant UI
-    participant Daemon
-    User->>UI: choose command
-    UI->>Daemon: send expanded prompt
-    Daemon-->>UI: stream result
-</pre>
+Build pages with `~/.claude/skills/show-me/page`. It wraps blocks in a shared template that already carries the themes (light and dark, switchable by the user), fonts, highlighting, diagrams, diff rendering, versions, live reload, and a feedback box, so write only content — never a `<head>`, page-level CSS, or library tags.
+
+```sh
+~/.claude/skills/show-me/page --title "Checkout pricing bug" \
+  --h "Current flow" --md - --mermaid flow.mmd \
+  --h "Tests" --log test.log \
+  --h "Fix" --split --diff <(git diff) --code src/pricing.js:10-40 \
+  --open <<'EOF'
+Two lines of prose. ```mermaid fences inside markdown render as diagrams too.
+EOF
 ```
 
-  Load mermaid from `https://cdnjs.cloudflare.com` at a pinned version; published artifacts render these blocks natively with no library.
+| Flag | Block |
+| --- | --- |
+| `--h <heading>` | Starts a section; the following blocks go inside it. Its heading labels the user's notes on it, so make headings distinct. |
+| `--md <src>` | Markdown; raw HTML allowed; ```` ```mermaid ```` fences become diagrams |
+| `--mermaid <src>` | Mermaid source. Tag a flowchart node `:::accent` to highlight it — no `classDef` needed |
+| `--diff <src>` | A unified or git patch; put `--split` before it for side-by-side |
+| `--code <src>[:A-B]` | Source file, optionally lines A..B, with its real line numbers |
+| `--log <src>` | Terminal output; ANSI colors kept |
+| `--json <src>` | JSON, pretty-printed |
+| `--html <src>` | An HTML fragment for interactive or custom visuals; it runs in its own frame, so its CSS, ids, and scripts can't affect the rest of the page |
+
+- `<src>` is a path, `<(command)`, or `-` for stdin (once per page). Pass files, diffs, and command output **by path or pipe — never copy their contents into a block**; only prose, diagram source, and custom HTML should be written by you.
+- For `--html` fragments, style with the page variables so every theme works: backgrounds `--bg` `--bg2` `--bg3`; text `--fg` `--fg2` `--fg3`; `--border`; semantic `--accent` `--danger` `--success` `--warning` (each with a `-bg` variant); `--radius`; `--font-sans` `--font-mono`. Bare `button`, `input`, `select`, and `textarea` are pre-styled.
+- Every card has a note box, and the top bar's Copy button puts all notes on the clipboard as `[show-me: <title> v<N> · <path>]` followed by one `## <section>` block per note (`## General` for page-wide notes). A message starting with that tag is the user's feedback on version N of that page; each `##` names the section it is about.
 
 ### rendering the page
 
-Write it to `/tmp/show-me-<slug>.html` so it does not persist or clutter the project, then:
+`page` writes `/tmp/show-me/<project>/<slug>/index.html` (the project is the git repo name; override with `--project`, or the whole path with `--out`) and prints the path and version. Then:
 
 | Condition | Do this |
 | --- | --- |
-| `$WAYLAND_DISPLAY` or `$DISPLAY` is set | Open it locally: run `xdg-open /tmp/show-me-<slug>.html` (use `open` instead on macOS) |
-| Neither is set — a server or plain SSH session | Publish it with the Artifact tool and give the user the URL |
-| The user asks for a link, or wants to keep or share it | Publish it with the Artifact tool |
+| `$WAYLAND_DISPLAY` or `$DISPLAY` is set | Pass `--open`; it opens the browser only for a new page |
+| Neither is set — a server or plain SSH session | Publish the printed file with the Artifact tool and give the user the URL |
+| The user asks for a link, or wants to keep or share it | Publish the printed file with the Artifact tool |
+
+To revise a page, rebuild it with the same `--title`. That saves the next version (`v2.html`, ...), and a tab that already shows the page reloads itself within a couple of seconds, so don't open it again or ask the user to refresh. A rebuild with identical content adds no version.
 
 ### guidance
 

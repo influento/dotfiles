@@ -1,0 +1,172 @@
+#!/usr/bin/env node
+// Build a show-me page from blocks, in flag order, into the shared template.
+// Files are passed by path (or `-` for stdin), so their contents are never retyped.
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, copyFileSync } from "node:fs";
+import { basename, dirname, extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+
+const USAGE = `usage: page --title <t> [blocks...] [--out <file>] [--open]
+
+blocks (rendered in the order given; <src> is a path, <(cmd), or - for stdin):
+  --h <heading>        start a new section; following blocks go inside it
+  --md <src>           markdown (raw HTML allowed; \`\`\`mermaid fences become diagrams)
+  --mermaid <src>      mermaid diagram source
+  --diff <src>         unified/git patch        (--split before it for side-by-side)
+  --code <src>[:A-B]   source file, optionally lines A..B, highlighted with line numbers
+  --log <src>          terminal output, ANSI colors kept
+  --json <src>         JSON, pretty-printed
+  --html <src>         HTML fragment (no <head>); use the page's CSS variables
+
+output: $SHOW_ME_DIR (default /tmp/show-me)/<project>/<slug>/index.html, plus v1.html, v2.html, ...
+  --project <name>     group under this name (default: git repo name of the current directory)
+  --open               open in the browser when the page is new; an open tab live-reloads on rebuilds
+  --reopen             open in the browser even if the page already exists
+Rebuilding with the same --title adds a version; identical content does not.`;
+
+const CDN = {
+  md: ['<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.2/markdown-it.min.js"></script>'],
+  mermaid: ['<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.15.0/mermaid.min.js"></script>'],
+  hljs: ['<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>'],
+  diff: [
+    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html@3.4.52/bundles/css/diff2html.min.css">',
+    '<script src="https://cdn.jsdelivr.net/npm/diff2html@3.4.52/bundles/js/diff2html-ui-slim.min.js"></script>',
+  ],
+};
+const LANG = { ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".ts": "typescript", ".tsx": "typescript",
+  ".jsx": "javascript", ".py": "python", ".rb": "ruby", ".go": "go", ".rs": "rust", ".java": "java", ".kt": "kotlin",
+  ".c": "c", ".h": "c", ".cpp": "cpp", ".cs": "csharp", ".php": "php", ".sh": "bash", ".zsh": "bash", ".bash": "bash",
+  ".json": "json", ".yml": "yaml", ".yaml": "yaml", ".toml": "ini", ".sql": "sql", ".css": "css", ".html": "xml",
+  ".xml": "xml", ".md": "markdown", ".lua": "lua", ".swift": "swift", ".nix": "nix", ".dockerfile": "dockerfile" };
+
+const fail = (msg) => { console.error(`page: ${msg}\n\n${USAGE}`); process.exit(2); };
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const plain = (s) => `<script type="text/plain">${s.replace(/<\/script/gi, "<\\/script")}</script>`;
+
+let stdinUsed = false;
+function read(src) {
+  if (src === "-") {
+    if (stdinUsed) fail("stdin (-) can only be read once");
+    stdinUsed = true;
+    return readFileSync(0, "utf8");
+  }
+  if (!existsSync(src)) fail(`no such file: ${src}`);
+  return readFileSync(src, "utf8");
+}
+const shown = (src) => (src === "-" || src.startsWith("/dev/fd/") || src.startsWith("/proc/") ? "" : src);
+
+const args = process.argv.slice(2);
+if (!args.length || args.includes("--help") || args.includes("-h")) { console.log(USAGE); process.exit(0); }
+
+let title = "", out = "", project = "", open = false, reopen = false, split = false;
+const sections = [{ h: "", blocks: [] }];
+const used = new Set();
+const cur = () => sections[sections.length - 1];
+
+for (let i = 0; i < args.length; i++) {
+  const flag = args[i];
+  const val = () => { const v = args[++i]; if (v === undefined) fail(`${flag} needs a value`); return v; };
+  switch (flag) {
+    case "--title": title = val(); break;
+    case "--out": out = val(); break;
+    case "--open": open = true; break;
+    case "--reopen": reopen = true; break;
+    case "--project": project = val(); break;
+    case "--split": split = true; break;
+    case "--h": sections.push({ h: val(), blocks: [] }); break;
+    case "--md": used.add("md"); used.add("hljs"); cur().blocks.push(`<div class="blk" data-kind="md">${plain(read(val()))}</div>`); break;
+    case "--mermaid": used.add("mermaid"); cur().blocks.push(`<div class="blk" data-kind="mermaid">${plain(read(val()))}</div>`); break;
+    case "--diff": {
+      used.add("hljs"); used.add("diff");
+      const layout = split ? "side-by-side" : "line-by-line"; split = false;
+      cur().blocks.push(`<div class="blk" data-kind="diff" data-layout="${layout}">${plain(read(val()))}</div>`);
+      break;
+    }
+    case "--code": {
+      used.add("hljs");
+      let src = val(), from = 0, to = 0;
+      const m = src.match(/^(.*):(\d+)-(\d+)$/);
+      if (m && !existsSync(src)) { src = m[1]; from = +m[2]; to = +m[3]; }
+      let text = read(src);
+      if (from) text = text.split("\n").slice(from - 1, to).join("\n");
+      const lang = LANG[extname(src).toLowerCase()] || (basename(src) === "Dockerfile" ? "dockerfile" : "");
+      const lbl = shown(src) + (from ? `:${from}-${to}` : "");
+      cur().blocks.push(`<div class="blk" data-kind="code" data-lang="${lang}" data-start="${from || 1}" data-label="${esc(lbl)}">${plain(text)}</div>`);
+      break;
+    }
+    case "--log": cur().blocks.push(`<div class="blk" data-kind="log">${plain(read(val()))}</div>`); break;
+    case "--json": {
+      used.add("hljs");
+      const text = read(val());
+      let pretty = text;
+      try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch { fail("--json input is not valid JSON"); }
+      cur().blocks.push(`<div class="blk" data-kind="code" data-lang="json">${plain(pretty)}</div>`);
+      break;
+    }
+    case "--html": cur().blocks.push(`<div class="blk pad" data-kind="html">${plain(read(val()))}</div>`); break;
+    default: fail(`unknown argument: ${flag}`);
+  }
+}
+if (!title) fail("--title is required");
+if (!sections.some((s) => s.blocks.length)) fail("give at least one block");
+if (used.has("md")) used.add("mermaid"); // markdown may carry ```mermaid fences
+
+const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "page";
+if (!project) {
+  try { project = basename(execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()); }
+  catch { project = basename(process.cwd()); }
+}
+const projectSlug = project.replace(/[^A-Za-z0-9._-]+/g, "-") || "misc";
+
+// Blocks, ordered as given; sections with a heading become titled cards.
+const body = sections.filter((s) => s.blocks.length).map((s) => s.h
+  ? `<section class="card" data-h="${esc(s.h)}"><header><h2>${esc(s.h)}</h2></header>\n${s.blocks.join("\n")}\n</section>`
+  : `<section class="card">\n${s.blocks.join("\n")}\n</section>`).join("\n");
+const head = ["md", "hljs", "mermaid", "diff"].filter((k) => used.has(k)).flatMap((k) => CDN[k]).join("\n");
+
+const dir = out ? dirname(out) : join(process.env.SHOW_ME_DIR || "/tmp/show-me", projectSlug, slug);
+mkdirSync(dir, { recursive: true });
+const latestPath = out || join(dir, "index.html");
+const versions = readdirSync(dir).map((f) => f.match(/^v(\d+)\.html$/)).filter(Boolean).map((m) => +m[1]).sort((a, b) => a - b);
+const stateFile = join(dir, ".versions.json");
+let state = { versions: [], hash: "" };
+try { state = JSON.parse(readFileSync(stateFile, "utf8")); } catch {}
+
+// Skip a version when nothing changed, so a repeated build doesn't add v2 = v1.
+const here = dirname(fileURLToPath(import.meta.url));
+const asset = (f) => readFileSync(join(here, f), "utf8");
+const ASSETS = ["template.html", "theme.css", "themes.json", "runtime.js"];
+// The template files count too, so a template change rebuilds pages instead of reporting "unchanged".
+const hash = createHash("sha1").update([title, head, body, ...ASSETS.map(asset)].join("\0")).digest("hex");
+const isNew = versions.length === 0;
+if (!isNew && hash === state.hash) {
+  console.log(`${latestPath} (unchanged, still v${versions.at(-1)})`);
+  if (reopen) launch(latestPath);
+  process.exit(0);
+}
+const version = (versions.at(-1) || 0) + 1;
+state.versions.push({ n: version, t: new Date().toISOString() });
+state.hash = hash;
+
+const inline = (s) => s.replace(/<\/script/gi, "<\\/script");
+const tpl = asset("template.html");
+const render = (live) => {
+  const meta = JSON.stringify({ title, project, slug: projectSlug + "/" + slug, version, live, path: latestPath }).replace(/</g, "\\u003c");
+  const parts = { title: esc(title), project: esc(project), head, body, meta,
+    css: asset("theme.css"), themes: inline(asset("themes.json")), runtime: inline(asset("runtime.js")) };
+  return tpl.replace(/\{\{(title|project|head|body|meta|css|themes|runtime)\}\}/g, (_, k) => parts[k]);
+};
+writeFileSync(join(dir, `v${version}.html`), render(false));
+writeFileSync(latestPath, render(true));
+writeFileSync(join(dir, "version.js"), `window.__showMe&&__showMe.version(${JSON.stringify({ latest: version, versions: state.versions })});\n`);
+writeFileSync(stateFile, JSON.stringify(state));
+console.log(`${latestPath} (v${version})`);
+
+if (reopen || (open && isNew)) launch(latestPath);
+else if (open) console.log("already open tabs reload on their own");
+
+function launch(file) {
+  const cmd = process.platform === "darwin" ? "open" : "xdg-open";
+  spawn(cmd, [file], { detached: true, stdio: "ignore" }).unref();
+}

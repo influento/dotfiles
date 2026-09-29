@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{{title}}</title>
+<style id="themeCss">{{css}}</style>
+<script>
+// Boot: apply the saved palette before first paint.
+const THEMES = {{themes}};
+const PREFS = (() => { try { return JSON.parse(localStorage.getItem("show-me:prefs")) || {}; } catch { return {}; } })();
+function schemeNow() {
+  const m = PREFS.mode || "system";
+  return m === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : m;
+}
+function applyTheme(root = document.documentElement) {
+  const t = THEMES[PREFS.theme] || THEMES.github, scheme = schemeNow();
+  for (const [k, v] of Object.entries(t[scheme])) root.style.setProperty(`--${k}`, v);
+  root.style.colorScheme = scheme;
+  root.dataset.theme = scheme;
+}
+applyTheme();
+</script>
+{{head}}
+</head>
+<body>
+<header class="top"><div class="in">
+  <div class="crumb"><span class="proj">{{project}} /</span><span class="ttl">{{title}}</span></div>
+  <nav class="vers" id="vers" aria-label="Versions"></nav>
+  <div class="ctl">
+    <button class="primary" id="copyNotes" title="Copy all notes, grouped by card">Copy notes</button>
+    <button id="clearNotes" title="Clear all notes on this page" hidden>Clear</button>
+    <span class="live" id="live" title="Live reload"></span>
+    <select id="themeSel" aria-label="Theme"></select>
+    <button id="modeBtn" title="Light / dark / system"></button>
+  </div>
+</div></header>
+<div id="stale" class="stale" hidden></div>
+<main>
+{{body}}
+<section class="card" data-h="General" data-note-only>
+  <header><h2>General</h2></header>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+<script>const META = {{meta}};</script>
+<script>{{runtime}}</script>
+</body>
+</html>
