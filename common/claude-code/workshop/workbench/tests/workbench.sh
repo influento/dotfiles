@@ -142,6 +142,7 @@ new_repo trunk
 git checkout -q -b trunk && git branch -q -D main
 run "init on a trunk repo completes" 0 "workbench ready" "$WB" init
 run "init on a trunk repo reports the branch unresolved" 0 "default branch    UNRESOLVED" "$WB" init
+run "the checklist calls a glossary with no entries empty" 0 "glossary  .*GLOSSARY.md is empty" "$WB" init
 run "status on a trunk repo completes" 0 "nothing in flight" "$WB" status
 rm -rf "$TMP/nocommit"; mkdir -p "$TMP/nocommit"; cd "$TMP/nocommit"; git init -q -b main
 run "init on a repo with no commit completes" 0 "UNRESOLVED" "$WB" init
@@ -527,6 +528,7 @@ check "and keeps its mode" [ "$(stat -c %a CLAUDE.md)" = 640 ]
 check "init refreshes the glossary's header" bash -c "grep -q 'entries worth most are ordinary words the project has narrowed' workbench/GLOSSARY.md && ! grep -q 'an older header' workbench/GLOSSARY.md"
 check "and keeps its entries" grep -qx '\*\*drift\*\* — the offset a mob accumulates.' workbench/GLOSSARY.md
 check "init says both" bash -c "grep -q 'removed the workbench block from CLAUDE.md' <<< \"\$1\" && grep -q 'refreshed the header comment of GLOSSARY.md' <<< \"\$1\"" _ "$out"
+check "the checklist does not call a glossary with an entry empty" bash -c "! grep -q 'GLOSSARY.md is empty' <<< \"\$1\"" _ "$out"
 cp CLAUDE.md "$TMP/claude.after"; cp workbench/GLOSSARY.md "$TMP/glossary.after"
 run "a second init touches neither" 0 "" bash -c "! '$WB' init 2>&1 | grep -qE 'removed the workbench block|refreshed the header'"
 check "not a byte" bash -c "cmp -s CLAUDE.md '$TMP/claude.after' && cmp -s workbench/GLOSSARY.md '$TMP/glossary.after'"

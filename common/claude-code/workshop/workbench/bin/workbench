@@ -1157,7 +1157,11 @@ setup_checklist() {
   else
     echo "  memory            autoMemoryDirectory is unset (the project is not under ~): set it by hand in .claude/settings.json to the absolute path of .claude/memory, or leave memory where Claude Code keeps it"
   fi
-  echo "  glossary          $WB/GLOSSARY.md is empty; seed it with the user's words for what this project means in its own sense"
+  # An entry is any line left once the title and the header comment are gone.
+  local entries
+  entries=$(strip_comments < "$root/$WB/GLOSSARY.md" | grep -v '^# ' | grep -c '[^[:space:]]' || true)
+  [ "$entries" != 0 ] \
+    || echo "  glossary          $WB/GLOSSARY.md is empty; seed it with the user's words for what this project means in its own sense"
 }
 
 cmd_adopt() {
