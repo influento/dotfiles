@@ -256,8 +256,20 @@ same regressions found ("Measured"); the facts probed through it stay.
   `SessionStart` fires again with `source: compact` (probed 2.1.270,
   interactive). 2.1.270 also re-attaches invoked skills after the boundary
   (`invoked_skills` attachment in the transcript, "Skills restored" in the
-  UI) and the files that were read. `status` still says the skill body is
-  gone when its `source` is `compact`; over-cautious now, not wrong.
+  UI) and the files that were read; 2.1.284 too, within one process (6/6:
+  opus and sonnet 5.5 at low, medium, high, `/wb`, `/compact`, carry on,
+  stream-json input). A session resumed in a new process (`-p --resume`)
+  and then compacted gets no re-attach, only the summary. `status` still
+  says the skill body may be gone when its `source` is `compact`.
+- A hook's output over about 10KB does not reach the model: it is saved to
+  a file and replaced by a 2KB preview and the path (probed 2.1.284,
+  `SessionStart`, 10.5KB). So no hook carries the skill body (~10.4KB),
+  and a `status` that long would be cut to its first 2KB.
+- Without `/wb`, the rules file's "invoke the `workbench` skill" line alone
+  loaded it: `continue <id>` in an item worktree, 48/48, opus and sonnet
+  5.5 at low, medium, high; `/wb <id>` 48/48 across the same and xhigh
+  (probed 2.1.284, `-p`, fresh session, harness in
+  `~/.local/state/wbx-bench/skillload/`).
 - A `.claude/rules/*.md` without `paths:` is read from disk again after a
   compact, re-attached as an `instructions` attachment on the first turn
   after `compact_boundary`, as `CLAUDE.md` is; one with `paths:` is not —
