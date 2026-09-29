@@ -55,80 +55,63 @@ archive   the user's: to workbench/items/archive/, records the SHA
 5. **Deleting means deleting.** No "formerly", no "removed in favour of",
    no strikethrough, no inline changelog.
 
-6. **An item has the template's sections and no others.** `archive`
-   refuses any other heading. What was not proved is one line under
-   Evidence. A question that is the user's is one line under the item's
-   `## Decisions`, written by `workbench call`; the answer goes into the
-   field it changes and the line is deleted. The fields hold what the
-   reader needs to judge the claim — root cause, criterion, output — not
-   the reasoning behind the code; that is in the code or the commit.
+6. **An item has the template's sections and no others.** What was not
+   proved is one line under Evidence. The fields hold what the reader
+   needs to judge the claim — root cause, criterion, output — not the
+   reasoning behind the code; that is in the code or the commit.
 
 7. **Some decisions are the user's.** How an item is sized, the criterion,
    accepting a side effect, abandoning the work, a standing finding at the
    round cap, and the merge. Ask. A question you cannot get answered is
-   `workbench call <id> "<the question, with options>"`, or `workbench call
-   - "<question>"` when it belongs to no item, which parks it where
-   `workbench status` lists it; a parked call stays parked — never resolve
-   it by doing more work under a new item, never reverse it because later
-   items made it look moot. A permission not on the allow-list is Claude
-   Code's refusal rather than a decision: park it, never work around it.
+   `workbench call <id> "<the question, with options>"`, or
+   `workbench call - "<question>"` when it belongs to no item; a parked
+   call stays parked — never resolve it by doing more work under a new
+   item, never reverse it because later items made it look moot. A
+   permission not on the allow-list is Claude Code's refusal rather than a
+   decision: park it, never work around it.
 
 8. **The project has no scratch folder.** A file that exists only for this
    session — a probe, a capture, a rendered page — goes to the scratchpad
    directory the environment names. What it showed is Evidence when it
-   settles a criterion step; any other fact follows rule 4.
+   settles a criterion step.
 
 ## Setting up
 
 `workbench init` and `workbench adopt` end with a checklist headed
 `setup — decide these with the user`. Take each line to the user before any
-item is created; none is yours to settle. Two more: allow-list entries are
-written only with the user's OK, and the glossary is seeded with the user's
-words, never yours.
+item is created; none is yours to settle. Allow-list entries are written
+only with the user's OK.
 
 ## Commands
 
-`/bug`, `/feature`, `/spike`, `/idea` and `/wb` walk the steps. How each
-field is written is the comment on it in the item's template. Skills,
+`/bug`, `/feature`, `/spike`, `/idea` and `/wb` walk the steps. Skills,
 agents, rules and settings are committed copies, in every worktree and
-clone. `workbench status` says when a copy is behind its source;
-`workbench init` refreshes it; never edit the copy.
+clone, rendered by `workbench init`: never edit one. IDs come from a
+counter shared by every worktree; never hand-pick one.
 
-## Starting work
-
-```bash
-workbench new bug "frozen coords"      # allocates id, writes the file, commits it on main
-workbench start b-038                  # commits the criterion, then branch + worktree; refuses while the criterion or Side effects is empty
-workbench merge b-038 "<subject>"      # the user's: squash, trailer, cleanup
-```
+## Merge and archive
 
 **Neither merge nor archive is yours to start.** Both land work the user
-has not seen. When the review dialog ends and `round` says ready, report
-the item with its last round and stop — say what the merge would be, its
-subject the change rather than the item's title, and do not run it. The
-same for `archive`. Asked for either in so many words, run it: what is
-refused is taking the step yourself, not the command. Being told to work
-the item is not being told to merge it.
-
-IDs come from a counter shared by every worktree; never hand-pick one.
-The file lands in the main checkout wherever `new` runs. Between `new` and
-`start` the item is edited on main; after `start`, only in its worktree.
+has not seen. With the report (Working an item, step 4), say what the merge
+would be — `workbench merge <id> "<subject>"`, its subject the change
+rather than the item's title — and do not run it. The same for `archive`.
+Asked for either in so many words, run it: what is refused is taking the
+step yourself, not the command. Being told to work the item is not being
+told to merge it.
 
 ## Working an item
 
-`start` ends the session that ran it: the user opens a session in the
-item's worktree and runs `/wb <id>` there. Work only inside that worktree.
+Work only inside the item's worktree. A spike runs no criterion and has no
+review dialog: its template's comments are its steps.
 
-1. `cd` into the worktree and install the project's dependencies the way
-   its rules say. Read the item and run its criterion on the unchanged
-   tree. One that does not fail there is not a criterion: settle the
-   rewrite with the user. A bug whose steps you followed and whose failure
-   you cannot make happen: report `unreproduced` with what you ran, and
-   stop.
+1. Install the project's dependencies the way its rules say, and run the
+   criterion on the unchanged tree. One that does not fail there is not a
+   criterion: settle the rewrite with the user. A bug whose steps you
+   followed and whose failure you cannot make happen: report
+   `unreproduced` with what you ran, and stop.
 2. Do the work. Run everything you can; the user gets only what needs
    eyes — visual, subjective, in-world. Commit on the branch as you go;
-   the item file commits with the code. Evidence is pasted output under
-   `## Evidence`, one block per criterion step.
+   the item file commits with the code.
    - A number: base and branch run alternately in one session, the base
      from a scratch worktree — sessions in other worktrees share the
      machine, so a figure from another session is no baseline. What the
@@ -152,9 +135,6 @@ item's worktree and runs `/wb <id>` there. Work only inside that worktree.
 4. Report to the user: `ready` with the last round, `blocked — <one
    question, with the options>`, or `unreproduced — <what you ran>`. Then
    stop.
-
-A spike runs no criterion and has no review dialog: its template's
-comments are its steps.
 
 ## Sizing — the same call every time
 
@@ -187,56 +167,41 @@ One rule applied to N files — every driver reports itself — is one item
 with one criterion over the set, not N items and not one item now and its
 twin later. The exception is a mechanical change that cannot land green on
 one branch: an expand item (the new form beside the old), one migrate item
-per batch, and a contract item that deletes the old form — except a
-vocabulary rename, which stays one commit. Backlog lines are raw material:
-any number may fold into one item, one may split, and nothing records
-which fed which.
+per batch, and a contract item that deletes the old form. Backlog lines are
+raw material: any number may fold into one item, one may split, and
+nothing records which fed which.
 
 **Renames and refactors.** A rename is a feature of its own: the glossary
 entry and every occurrence change in one commit, the criterion the
 occurrence count going to 0 — scoped to the paths holding the domain sense
 when the word has another sense in this codebase. It is never absorbed into
-the item that exposed it; wanting one is a backlog line until someone does
-it, and a count that makes it real work sends it there. A refactor is not
-its own item: one a bug or feature needs is inside that item; one standing
-alone is a feature only with a measurement that means something to someone
-who does not read code — p99 latency, build time, dependency count, not
-"LOC −12%" — and that measurement is the criterion; without one it is a
-backlog line.
+the item that exposed it: that item keeps the old word, and the rename goes
+to the user, as its own feature or a backlog line. A refactor a bug or
+feature needs is inside that item. One standing alone is a feature only
+with a measurement that means something to someone who does not read code
+— p99 latency, build time, dependency count, not "LOC −12%" — and that
+measurement is the criterion; without one it is a backlog line.
 
 ## What is in flight
 
-`workbench status`: open items, merged and still `awaiting`, merged and
-still `open` (a fault), merged spikes kept as references, decisions
-waiting in items and in `DECISIONS.md`, documents over their line cap,
-duplicate IDs. `git branch` cannot see the merged ones.
+`workbench status`. `git branch` cannot see the merged items still open or
+awaiting.
 
 ## The review dialog
 
-Every bug and feature item, once the work is done:
-
-```
-review dialog                         a wb-reviewer spawned with the Agent tool, never forked
-  findings → answered by number → each ends fixed / stands / withdrawn
-  workbench round <id> <fixed> <stands>   again → a new reviewer · ready → report it · call → park it
-```
-
-Spawn it naming the branch and the item file, and answer by number
-through `SendMessage` to the id the spawn returned. After
+Every bug and feature item, once the work is done. Spawn a `wb-reviewer`
+with the Agent tool, never forked, naming the branch and the item file, and
+answer its findings by number through `SendMessage` to the id the spawn
+returned; each ends fixed, stands or withdrawn. After
 @@REVIEW_EXCHANGE_CAP@@ exchanges on one finding without agreement, ask the
 user. When every finding has its state, `workbench round <id> <fixed>
-<stands>` and do what it prints. A reviewer that returns partial, its turn cap reached, ends the
-dialog: `workbench call <id> "<the standing finding>"`, never spawn it
-again to finish.
+<stands>` and do what it prints. A reviewer that returns partial, its turn
+cap reached, ends the dialog: `workbench call <id> "<the standing
+finding>"`, never spawn it again to finish.
 
-The reviewer keeps its context across the exchange; a finding that stands
-gets one line under Evidence saying why. A finding is shown, not read — the
-reviewer ran something on the branch and the output is wrong — and one you
-cannot reproduce from that demonstration is withdrawn, as at archive
-(`unreproduced`). Round two always runs; `round` decides the rest by count,
-records `rounds:` on the item, and at round @@REVIEW_ROUND_CAP@@ parks it:
-`workbench call <id>` with the standing finding, and the item is reported blocked. A
-finding outside the item's criterion and the mechanism it changed is
-`workbench new bug`, or a `BACKLOG.md` line when it is an idea, never a fix
-on this branch; a shared function is fixed once, not per caller. No finding
-is dropped silently.
+Rerun each finding's demonstration; one you cannot reproduce is withdrawn.
+A finding that stands gets one line under Evidence saying why. A finding
+outside the item's criterion and the mechanism it changed is `workbench new
+bug`, or a `BACKLOG.md` line when it is an idea, never a fix on this
+branch; a shared function is fixed once, not per caller. No finding is
+dropped silently.

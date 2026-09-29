@@ -1343,7 +1343,7 @@ run "config get refuses an unknown key" 1 "no key 'nope'" "$WB" config get nope
 check "no rendered copy carries a token" bash -c "! grep -rqE '@@[A-Z_]+@@' .claude/agents .claude/skills"
 check "at the defaults the agent carries no model: or effort:" bash -c "! grep -qE '^(effort|model):' .claude/agents/wb-reviewer.md"
 check "at the defaults an agent copy is its source with the token filled" bash -c "diff <(sed 's/@@REVIEW_EXCHANGE_CAP@@/6/g' '$src_root/agents/wb-reviewer.md') .claude/agents/wb-reviewer.md"
-check "the skill copy states the default round cap" grep -q 'at round 5 parks it' .claude/skills/workbench/SKILL.md
+check "the skill copy states the default exchange cap" grep -q '^6 exchanges on one finding' .claude/skills/workbench/SKILL.md
 run "status says nothing about config with no file" 0 "" bash -c "! '$WB' status | grep -q '^config:'"
 
 # The hooks that apply a settings change: watch at session start, render on change.
@@ -1377,7 +1377,7 @@ check "and not the commands, which carry no setting" bash -c "! grep -qE 'skills
 check "the reviewer's too" bash -c "sed -n '2,/^---\$/p' .claude/agents/wb-reviewer.md | tail -3 | paste -sd'|' | grep -qx 'model: claude-haiku-4-5|effort: low|---'"
 check "every other line of an agent passes through" bash -c "diff <(grep -vE '^(model|effort):' .claude/agents/wb-reviewer.md) <(sed 's/@@REVIEW_EXCHANGE_CAP@@/4/g' '$src_root/agents/wb-reviewer.md')"
 check "the reviewer and the skill state the exchange cap" bash -c "grep -q 'After 4 exchanges' .claude/agents/wb-reviewer.md && grep -q '^4 exchanges on one finding' .claude/skills/workbench/SKILL.md"
-check "the skill states the round cap, and the line cap is read" bash -c "grep -q 'at round 3 parks it' .claude/skills/workbench/SKILL.md && [ \"\$('$WB' config get cap.claude)\" = 7 ]"
+check "the line cap is read" bash -c "[ \"\$('$WB' config get cap.claude)\" = 7 ]"
 run "the skill stamp is coherent after the render" 0 "" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source|out of date|agents differ'"
 snap() { find .claude -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; }
 before=$(snap)
@@ -1399,8 +1399,8 @@ conf reviewer.effort max
 run "a settings edit without a render: status says the copies are out of date" 0 "^config: copies out of date with .claude/workshop.conf — workbench config render, then restart$" "$WB" status
 run "and names the agent" 0 "" bash -c "'$WB' status | grep -A1 '^config: copies out of date' | grep -q wb-reviewer"
 check "not as an agent differing from its source" bash -c "! '$WB' status | grep -q 'agents differ'"
-conf review.round_cap 4
-run "a token in the skill is named as well" 0 "" bash -c "'$WB' status | grep -A1 '^config: copies out of date' | grep -q workbench"
+conf review.exchange_cap 5
+run "a token in the skill is named as well" 0 "" bash -c "'$WB' status | sed -n '/^config: copies out of date/{n;p}' | grep -qw workbench"
 check "never as a hand edit or a stale skill" bash -c "! '$WB' status | grep -qE 'edited by hand|behind their source'"
 "$WB" config render >/dev/null
 run "after the render status is clean" 0 "" bash -c "! '$WB' status | grep -qE 'out of date|agents differ|edited by hand|behind their source'"
@@ -1409,7 +1409,7 @@ run "a hand edit of an agent copy is 'differs', not config" 0 "agents differ fro
 check "and not out of date" bash -c "! '$WB' status | grep -q 'out of date'"
 "$WB" config render >/dev/null
 echo tweak >> .claude/skills/workbench/SKILL.md
-conf review.round_cap 2
+conf review.exchange_cap 3
 run "config render skips a skill copy edited by hand" 0 "edited by hand; not rendered" "$WB" config render
 check "the hand edit survives it" grep -q tweak .claude/skills/workbench/SKILL.md
 run "status still calls it a hand edit" 0 "edited by hand" "$WB" status

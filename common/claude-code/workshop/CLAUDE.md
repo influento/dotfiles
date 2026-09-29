@@ -73,7 +73,7 @@ line. This table is the reference; the tools' docs link here.
 | `reviewer.model` | `inherit` | `inherit` or a token without spaces | `wb-reviewer.md` frontmatter `model:`, left out at `inherit`: then the Agent tool's `model` argument, `CLAUDE_CODE_SUBAGENT_MODEL`, then the spawning session's model |
 | `reviewer.effort` | `inherit` | `inherit` `low` `medium` `high` `xhigh` `max` | `wb-reviewer.md` `effort:`, left out at `inherit`: then the spawning session's effort |
 | `review.exchange_cap` | `6` | positive integer | the exchange count in the reviewer's body and the skill; text only, nothing enforces it |
-| `review.round_cap` | `5` | positive integer | `workbench round` parks the dialog at this round (the item's checkout); the skill states it |
+| `review.round_cap` | `5` | positive integer | `workbench round` parks the dialog at this round (the item's checkout) |
 | `cap.claude` `cap.glossary` `cap.backlog` `cap.decisions` | `150` `300` `400` `200` | positive integer | the `cap:` lines of `workbench status` |
 | `premerge` | unset: no gate | a command; an empty value is unset, and `status` says so | `workbench merge` runs it in the branch worktree before the squash; read from the main checkout. ts-gate's install writes `npm run gate` when the key is absent |
 | `main` | auto-detect: `origin/HEAD`, then `main`, `master` | a branch name; `status` warns when no such branch exists | the default branch every workbench command lands on |
