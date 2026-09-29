@@ -1318,12 +1318,13 @@ status: open
 
 ## Side effects
 
-<!-- What works today and behaves differently once this lands: a route, an
+<!-- What works today and behaves differently once this lands, beyond the
+     wrong behaviour itself — the fix is not a side effect: a route, an
      exported function's name, signature or result, a command's output, a
      stored format — each with who sees the difference. 'none' when nothing
-     that exists changes. Agreed before start, like the criterion; one found
-     after start is 'workbench call <id> "side effect: …"', never an edit
-     here. Delete this comment. -->
+     else that exists changes. Agreed before start, like the criterion; one
+     found after start is 'workbench call <id> "side effect: …"', never an
+     edit here. Delete this comment. -->
 
 ## How to confirm it is fixed
 
