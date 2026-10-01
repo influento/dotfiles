@@ -35,7 +35,10 @@ local function format_and_save(bufnr)
       local result = client:request_sync("textDocument/codeAction", params, 3000, bufnr)
       if result and result.result then
         for _, action in ipairs(result.result) do
-          if action.edit then
+          -- `only` is a hint servers may ignore: marksman answers with its
+          -- "Create a Table of Contents" (kind "source") whatever is asked.
+          local kind = action.kind or ""
+          if action.edit and (kind == "source.organizeImports" or vim.startswith(kind, "source.organizeImports.")) then
             vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
           end
         end
