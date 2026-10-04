@@ -120,5 +120,8 @@
   "skipWorkflowUsageWarning": true,
   "editorMode": "vim",
   "showTurnDuration": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "enabledPlugins": {
+    "cc-plugin-you-should-know@builtin": true
+  }
 }

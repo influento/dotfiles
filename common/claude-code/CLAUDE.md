@@ -22,8 +22,8 @@ stale copy on the first `/config` change. A hard link breaks the same way; a bin
 mount makes the write fail with `EBUSY`. On merge, tracked values win for every key
 we define — and arrays are replaced wholesale, so dropping one entry from an
 allow-list here drops it there, and the install log names every live entry that
-goes — while keys only Claude Code knows about (`enabledPlugins`, feature flags,
-onboarding state) survive untouched.
+goes — while keys only Claude Code knows about (feature flags, onboarding state,
+plugins in `enabledPlugins` that this file does not name) survive untouched.
 
 Two consequences of merging rather than replacing:
 
