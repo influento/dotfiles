@@ -210,7 +210,7 @@ Skills are split into two trees under `common/claude-code/`:
 
 | Tree               | Deployed                                  | Contents                                                                                                                                                                                                                          |
 | ------------------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `skills/`          | symlinked to `~/.claude/skills/` (global) | `bugfix`, `codebase-design`, `deepen`, `densify`, `docx`, `frontend-design`, `grilling`, `handoff`, `human-like-text`, `pdf`, `private-remote`, `prototype`, `resolving-merge-conflicts`, `show-me`, `ste`, `tmux-peers`, `wat`, `workshop-setup` |
+| `skills/`          | symlinked to `~/.claude/skills/` (global) | `bugfix`, `codebase-design`, `deepen`, `densify`, `docx`, `frontend-design`, `grilling`, `handoff`, `hillclimb`, `human-like-text`, `pdf`, `private-remote`, `prototype`, `resolving-merge-conflicts`, `show-me`, `ste`, `tmux-peers`, `wat`, `workshop-setup` |
 | `workshop/`         | only `workbench/bin/workbench` and `stack/bin/stack` → `~/.local/bin/` | The tools installed into a project, whole: `workbench/` (the CLI and its tests, and under `text/` the rules, the reviewer agent and the item templates, which `workbench init` and `workbench new` copy in, and the setup checklist that `init` prints), `stack/` (the CLI for the libraries, toolkits and tools a project chooses one at a time with `stack add`: a rule, skills from the registry or skills.sh, a dependency, a read-only subtree under `repos/` when the source is worth reading, a CLAUDE.md line), and the registry by ecosystem: `typescript/` (`gate/`, the TypeScript Stop-hook gate copied in by its `install.sh`, with the `packages/` written against it) and `general/packages/` (no ecosystem). Never linked — see `common/claude-code/workshop/CLAUDE.md` |
 | `skills-optional/` | never deployed — opted into per project   | `go/` (`go-fundamentals`, `go-infra`, `go-reliability`, `go-tooling`), `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
 
@@ -243,7 +243,8 @@ sense inside one kind of project (`go/` in Go repos, `manim` in animation projec
 
 ## Commands
 
-- Lint: `shellcheck -x install.sh lib/*.sh themes/*.sh $(find common/scripts workstation/scripts -type f ! -name "*.md") common/claude-code/workshop/typescript/gate/*.sh`
+- Lint: run `shellcheck -x` on every tracked file whose first line is a bash shebang:
+  `git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x`
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
