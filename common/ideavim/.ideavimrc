@@ -185,6 +185,10 @@ nnoremap <leader>wq :action Unsplit<CR>
 nnoremap <leader>qq :qa<CR>
 nnoremap <leader>qw :wa <Bar> qa<CR>
 
+" Macros record on Q, not q, as in nvim (keymaps.lua says why).
+nnoremap q <Nop>
+nnoremap Q q
+
 nnoremap <leader>rc :source ~/.ideavimrc<CR>
 
 nnoremap <leader>ma :action ToggleBookmark<CR>

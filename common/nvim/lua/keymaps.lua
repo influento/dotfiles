@@ -50,6 +50,14 @@ map("n", "<leader>rc", "<cmd>restart<CR>", { desc = "Restart Neovim" })
 map("n", "<leader>qq", "<cmd>qa<CR>", { desc = "Quit all" })
 map("n", "<leader>qw", "<cmd>wa | qa<CR>", { desc = "Save all and quit" })
 
+-- Macros record on Q, not q. When <Space> lands right behind a mode change
+-- (<Esc> out of insert, <CR> on a : command), which-key lets that key through
+-- and <leader>qq resolves natively under timeoutlen. A pause over it drops the
+-- keys raw: <Space> moves the cursor and qq starts recording. A stray q now
+-- does nothing. Buffer-local q (close a plugin window) still wins over this.
+map("n", "q", "<Nop>")
+map("n", "Q", "q", { desc = "Record macro" })
+
 map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
 -- Diagnostic navigation
