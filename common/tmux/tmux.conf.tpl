@@ -155,5 +155,9 @@ set -g @resurrect-hook-post-save-all 'claude-tmux sync'
 # the sweep gives every running claude its title back.
 set -g @resurrect-hook-post-restore-all 'claude-tmux sweep'
 set -g @continuum-restore 'off'
+# Save every minute (continuum's minimum; default 15). A save takes about
+# 0.5 s, and unchanged saves are deleted, so this costs next to nothing and
+# claude panes started shortly before a reboot are still resumed.
+set -g @continuum-save-interval '1'
 
 run '~/.local/share/tmux/plugins/tpm/tpm'
