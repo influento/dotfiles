@@ -3,7 +3,12 @@
 # Timeline:
 #   15 min → lock screen (swaylock)
 #   30 min → turn off displays
-#   60 min → suspend
+#   60 min → suspend, then hibernate after HibernateDelaySec
+#
+# HibernateDelaySec is a system-level setting: arch-install
+# modules/hibernate.sh sets 15 min on laptops and 1h on desktops. Suspend
+# alone drains a laptop battery flat in a few days and loses a desktop's
+# session in a power cut; hibernate keeps the session on disk.
 #
 # Display is turned back on when activity resumes (resume event).
 # Lock is triggered before sleep to ensure screen is locked on wake.
@@ -15,6 +20,6 @@
 
 timeout 900 '~/.local/bin/lock'
 timeout 1800 '~/.local/bin/headless dpms off' resume '~/.local/bin/headless dpms on'
-timeout 3600 'systemctl suspend'
+timeout 3600 'systemctl suspend-then-hibernate'
 before-sleep '~/.local/bin/lock'
 lock '~/.local/bin/lock'

@@ -107,7 +107,8 @@ run again to rewrite their launcher.
 Toggles auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient
 systemd `--user` unit holding a logind block inhibitor. Lock (15m) and
 display-off (30m) still apply — only the 60m suspend is blocked. State clears on
-reboot.
+reboot. Closing a laptop lid still sleeps: logind's lid handling ignores sleep
+inhibitors (`LidSwitchIgnoreInhibited=yes` by default).
 
 The waybar indicator shows both states (visible when off too, since that is the
 case worth noticing) and toggles on click; state changes signal waybar (RTMIN+8)
