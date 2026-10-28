@@ -75,6 +75,18 @@ Records under `~/.local/state/claude-tmux/`, one per pane keyed by pane id
 plus the `session:window.pane` target that `sync` refreshes after each save. They are dropped on `SessionEnd` unless the reason is `other`. A kill
 reports `other`, which is what a reboot looks like; so does a finished
 `claude -p`, which is why a record alone never triggers a resume.
+What keeps a record valid until the next boot:
+
+| Case | Handling |
+| --- | --- |
+| Shutdown | systemd stops ghostty's scope, which holds the tmux server, before the pane scopes that hold claude, so SessionEnd often runs with tmux gone. The record keeps the target it had; one read then would be empty, and `restore` drops a record with no target |
+| Pane closed by hand | SessionEnd drops the record when the server still has sessions and the pane is in none. A shutdown destroys every session before claude gets its SIGHUP, so it never looks like this |
+| Stale record | `sync` drops a record whose pane is gone, or one written before the server started: its pane id now belongs to another pane, and its target would follow that pane |
+| Pane ids reassigned | `restore` sets every record aside before it moves any to its pane's new id, so a move never lands on a record not read yet, and it types one resume per pane |
+| Nested claude | a `claude -p` that a session runs as a tool inherits its `TMUX_PANE`; `signal` ignores a claude that has another claude above it |
+
+The characterization tests in tmux-plugins run this script: after a change,
+run `make test` there.
 
 The Stop hook also names the window from the first prompt — its first
 three words after any opener ("can you", "please"), cut at 15 characters and
