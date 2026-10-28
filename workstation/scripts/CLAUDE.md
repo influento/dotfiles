@@ -116,6 +116,13 @@ suspend-then-hibernate. `handle-lid-switch` makes logind ignore lid close: the
 is not blocked, so a laptop left running with the lid closed still shuts down
 cleanly when the battery runs out.
 
+`nosleep hibernate` is for "hibernate when this task finishes": it turns
+nosleep off and hibernates at once. A plain `nosleep off; systemctl hibernate`
+does not work with the lid closed. Releasing the lock lets logind suspend on
+the closed lid at once, the suspend freezes the caller, and the hibernate runs
+only when the lid is opened. The subcommand holds its own `handle-lid-switch`
+lock across the switch.
+
 The waybar indicator shows both states (visible when off too, since that is the
 case worth noticing) and toggles on click; state changes signal waybar (RTMIN+8)
 for instant feedback.

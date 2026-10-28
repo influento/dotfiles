@@ -25,13 +25,16 @@ REASON="nosleep: sleep inhibited by user"
 
 usage() {
   cat <<'EOF'
-Usage: nosleep <on|off|status|toggle>
+Usage: nosleep <on|off|status|toggle|hibernate>
 
-  on      Block idle sleep and lid-close sleep (screen lock and
-          display-off still apply)
-  off     Allow sleep again
-  status  Report whether sleep is currently inhibited
-  toggle  Flip between on and off
+  on         Block idle sleep and lid-close sleep (screen lock and
+             display-off still apply)
+  off        Allow sleep again
+  status     Report whether sleep is currently inhibited
+  toggle     Flip between on and off
+  hibernate  Turn nosleep off and hibernate now, even with the lid closed.
+             Use this to hibernate when a long task finishes; the machine
+             comes back with nosleep off
 EOF
 }
 
@@ -84,6 +87,21 @@ nosleep_status() {
   fi
 }
 
+# `nosleep off; systemctl hibernate` fails with the lid closed: logind acts on
+# the lid the moment the lock is released, and the suspend freezes the caller
+# before it reaches hibernate. It then hibernates only when the lid is opened.
+# Holding handle-lid-switch across the switch keeps logind off the lid. The
+# trailing sleep is frozen with everything else during hibernation, so the
+# lock is released a few seconds after resume, not before the image is taken.
+nosleep_hibernate() {
+  # shellcheck disable=SC2016 # $1 expands in the inner bash, not here
+  if ! systemd-inhibit --what=handle-lid-switch --why="nosleep: hibernating" \
+    bash -c '"$1" off && systemctl hibernate && sleep 10' _ "$0"; then
+    echo "nosleep: hibernate failed — nosleep is off, so normal sleep rules apply" >&2
+    return 1
+  fi
+}
+
 main() {
   case "${1:-status}" in
     on) nosleep_on ;;
@@ -92,6 +110,7 @@ main() {
     toggle)
       if is_active; then nosleep_off; else nosleep_on; fi
       ;;
+    hibernate) nosleep_hibernate ;;
     -h | --help | help) usage ;;
     *)
       echo "nosleep: unknown command '${1}'" >&2
