@@ -104,11 +104,17 @@ run again to rewrite their launcher.
 
 ## nosleep
 
-Toggles auto-suspend inhibition (`on`/`off`/`status`/`toggle`) via a transient
-systemd `--user` unit holding a logind block inhibitor. Lock (15m) and
-display-off (30m) still apply — only the 60m suspend is blocked. State clears on
-reboot. Closing a laptop lid still sleeps: logind's lid handling ignores sleep
-inhibitors (`LidSwitchIgnoreInhibited=yes` by default).
+Toggles sleep inhibition (`on`/`off`/`status`/`toggle`) via a transient
+systemd `--user` unit holding logind block inhibitors: while on, the machine
+never sleeps or hibernates on its own. Lock (15m) and display-off (30m) still
+apply. State clears on reboot.
+
+It holds two locks, and both are needed. `sleep` refuses the 60m idle
+suspend-then-hibernate. `handle-lid-switch` makes logind ignore lid close: the
+`sleep` lock alone does not, because logind ignores it for the lid switch
+(`LidSwitchIgnoreInhibited=yes` by default). UPower's critical-battery action
+is not blocked, so a laptop left running with the lid closed still shuts down
+cleanly when the battery runs out.
 
 The waybar indicator shows both states (visible when off too, since that is the
 case worth noticing) and toggles on click; state changes signal waybar (RTMIN+8)

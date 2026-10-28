@@ -24,6 +24,16 @@ input type:touchpad {
 # --- Output ---
 include ~/.config/sway/scale.conf
 
+# Laptop lid: turn the internal panel off while closed. With nosleep on, logind
+# ignores the lid, so without this the panel stays lit (OLED: no backlight to
+# cut) until the 30 min idle display-off. disable, not `power off`: swayidle's
+# resume runs `headless dpms on`, which would power a closed panel back on, but
+# never re-enables a disabled output. With an external monitor attached, its
+# workspaces move there. --reload applies the lid state on config reload,
+# --locked keeps it working on the lock screen. No effect without a lid.
+bindswitch --reload --locked lid:on output eDP-1 disable
+bindswitch --reload --locked lid:off output eDP-1 enable
+
 # --- Appearance ---
 gaps inner 0
 gaps outer 0

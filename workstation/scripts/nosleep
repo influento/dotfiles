@@ -1,28 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Toggle suspend inhibition for the current login session.
+# Toggle sleep inhibition for the current login session: while on, the
+# machine never sleeps or hibernates on its own.
 #
-# swayidle suspends the machine after 60 min of idle (see
-# workstation/swayidle/config). This holds a logind sleep inhibitor so that
-# swayidle's `systemctl suspend` is refused while active.
+# Two logind inhibitors, both needed:
+#   sleep              refuses every sleep operation, so swayidle's
+#                      suspend-then-hibernate after 60 min idle (see
+#                      workstation/swayidle/config) does nothing
+#   handle-lid-switch  stops logind acting on lid close at all. The sleep
+#                      lock alone does not cover the lid: logind ignores it
+#                      for the lid switch (LidSwitchIgnoreInhibited=yes)
 #
 # Lock/display-off timeouts are untouched: the screen still locks at 15 min
-# and displays still power off at 30 min. Only suspend is blocked.
+# and displays still power off at 30 min. UPower's critical-battery action
+# still fires, so a laptop left running with the lid closed shuts down
+# cleanly instead of dying.
 #
 # State lives in a transient systemd --user unit, so it survives closing the
 # terminal but is gone after a reboot.
 
 UNIT="nosleep"
-REASON="nosleep: suspend inhibited by user"
+REASON="nosleep: sleep inhibited by user"
 
 usage() {
   cat <<'EOF'
 Usage: nosleep <on|off|status|toggle>
 
-  on      Block auto-suspend (screen lock and display-off still apply)
-  off     Allow auto-suspend again
-  status  Report whether suspend is currently inhibited
+  on      Block idle sleep and lid-close sleep (screen lock and
+          display-off still apply)
+  off     Allow sleep again
+  status  Report whether sleep is currently inhibited
   toggle  Flip between on and off
 EOF
 }
@@ -49,11 +57,11 @@ nosleep_on() {
     return 0
   fi
   systemd-run --user --quiet --unit="$UNIT" \
-    --description="Inhibit automatic suspend" \
-    systemd-inhibit --what=sleep --why="$REASON" \
+    --description="Inhibit sleep (idle and lid close)" \
+    systemd-inhibit --what=sleep:handle-lid-switch --why="$REASON" \
     sleep infinity
-  echo "nosleep: on — auto-suspend blocked"
-  notify "No Sleep" "Auto-suspend blocked. Screen still locks and displays still power off."
+  echo "nosleep: on — sleep blocked (idle and lid close)"
+  notify "No Sleep" "Sleep blocked, lid close included. Screen still locks and displays still power off."
   refresh_waybar
 }
 
@@ -63,16 +71,16 @@ nosleep_off() {
     return 0
   fi
   systemctl --user stop "$UNIT"
-  echo "nosleep: off — auto-suspend allowed"
-  notify "No Sleep" "Auto-suspend re-enabled."
+  echo "nosleep: off — sleep allowed"
+  notify "No Sleep" "Sleep re-enabled, lid close included."
   refresh_waybar
 }
 
 nosleep_status() {
   if is_active; then
-    echo "nosleep: on — auto-suspend blocked"
+    echo "nosleep: on — sleep blocked (idle and lid close)"
   else
-    echo "nosleep: off — auto-suspend allowed"
+    echo "nosleep: off — sleep allowed"
   fi
 }
 
