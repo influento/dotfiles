@@ -4,128 +4,8 @@ Deployed to `~/.local/bin/` on every profile; `*.md` is skipped, so this file
 stays here. The rows in the root CLAUDE.md name each script. What follows is
 what a reader cannot get from the code quickly enough.
 
-## tmux-attention and claude-tmux
-
-Two layers with one contract between them. `tmux-attention` is a tmux
-extension: a pane can flag what it needs, and tmux renders, counts, finds and
-announces it. `claude-tmux` is the Claude Code integration: hooks in, flags
-out, plus the records that resume a conversation after a reboot. Neither knows
-the other's internals; the seam is `tmux-attention set`.
-
-### The attention model
-
-| State | Meaning | Glyph |
-| --- | --- | --- |
-| `needs-you` | waiting on a decision: a permission, a question | `?` red |
-| `done` | finished, nobody has looked yet | `✓` green |
-| `working` | busy | `●` blue |
-| unset | idle: seen, nothing pending | none |
-
-State lives in tmux options and dies with the server: `@attention`,
-`@attention_reason`, `@attention_at`, `@attention_owner` on the pane;
-`@attention_win` on the
-window, the highest-ranked pane's state, because a window-status format sees
-only the active pane's options and a flagged pane may not be the active one;
-`@attention_status` globally, the rendered counts that `status-right` reads
-through `#{E:...}` so a change shows on the next `refresh-client -S`, not on
-the next status-interval. Colours are read from `@attention_fg_*` options set
-in `tmux.conf.tpl`, so the theme never leaves the template.
-
-`set` prints the previous state only when the state changed, and nothing
-otherwise; callers use that to write records on transitions alone.
-`set --owner <cmd>` ties the flag to a process: `sweep` drops it once the
-pane's foreground command is something else, which is what a crash, an OOM
-kill or a closed terminal look like when no hook ran to clear it, and leaves
-`@attention_gone` ("working · claude exited") for `list` to show. The
-sweep runs inside `status`, `list` and `seen`, so any event anywhere, a
-focus change included, clears a dead flag; there is no timer, because an
-agent is legitimately silent for a long time. A flag set without an owner is
-never swept. claude-tmux sets every flag with `--owner claude`.
-
-`list`
-joins fields with the unit separator, not tab: tab is IFS whitespace, so
-`read` collapses an idle pane's empty fields and shifts every later column.
-
-What the config wires (`common/tmux/tmux.conf.tpl`, "Attention"):
-
-| Key or hook | Does |
-| --- | --- |
-| `prefix f` | fzf popup over sessions, each row its windows with their flag glyphs inline, flagged sessions first; Enter switches to the session, `ctrl-x` kills it (refused for the last one, which would take the terminal with it). Panes were listed here once and dropped: with many windows the list buried the sessions |
-| `prefix o` | jump to the next pane that needs you, else the next unread done; a second press walks on |
-| `pane-focus-in`, `after-select-window`, `after-select-pane` | `seen`: a focused `done` pane goes idle; sweeps dead flags first |
-| `client-focus-in` | `status`: sweep and recount when the terminal regains focus |
-| `after-split-window`, `after-kill-pane`, `pane-exited` | `borders`: `pane-border-status top` only while the window is split |
-
-Notifications go through `notify-send` when present, for `needs-you` and
-`done` only, after a one-second settle that re-reads the state, and never for
-the pane that is on screen in a focused client. Clicking one runs `jump
---pane`, which also focuses ghostty through swaymsg when there is a sway
-socket. No sound, by decision.
-
-### claude-tmux
-
-`signal <event>` is what the hooks in `common/claude-code/settings.json` run;
-the event table is in the script header. Only events whose state depends on
-the payload parse the JSON (one python3 start, about 60 ms); `working` does
-not, and costs a few milliseconds. Every subcommand is a silent no-op outside
-tmux, so the same global settings are safe on a machine without it.
-
-Records under `~/.local/state/claude-tmux/`, one per pane keyed by pane id
-(`%12`), hold the session id, transcript path, cwd, last state and title,
-plus the `session:window.pane` target that `sync` refreshes after each save. They are dropped on `SessionEnd` unless the reason is `other`. A kill
-reports `other`, which is what a reboot looks like; so does a finished
-`claude -p`, which is why a record alone never triggers a resume.
-What keeps a record valid until the next boot:
-
-| Case | Handling |
-| --- | --- |
-| Shutdown | systemd stops ghostty's scope, which holds the tmux server, before the pane scopes that hold claude, so SessionEnd often runs with tmux gone. The record keeps the target it had; one read then would be empty, and `restore` drops a record with no target |
-| Pane closed by hand | SessionEnd drops the record when the server still has sessions and the pane is in none. A shutdown destroys every session before claude gets its SIGHUP, so it never looks like this |
-| Stale record | `sync` drops a record whose pane is gone, or one written before the server started: its pane id now belongs to another pane, and its target would follow that pane |
-| Pane ids reassigned | `restore` sets every record aside before it moves any to its pane's new id, so a move never lands on a record not read yet, and it types one resume per pane |
-| Nested claude | a `claude -p` that a session runs as a tool inherits its `TMUX_PANE`; `signal` ignores a claude that has another claude above it |
-
-The characterization tests in tmux-plugins run this script: after a change,
-run `make test` there.
-
-The Stop hook also names the window from the first prompt — its first
-three words after any opener ("can you", "please"), cut at 15 characters and
-trimmed of trailing space — but only while the window still has tmux's
-automatic name: a rename turns `automatic-rename` off, and that option is the whole
-check, so a name the user set is never touched and a window named once is
-never renamed again. The name is kept in the record and in the window option
-`@claude_title`, and SessionEnd sets `automatic-rename` back on when the
-window still carries it, so a window whose claude ended names itself again.
-
-A title must never outlive its claude, and two things would let it.
-tmux-resurrect saves a titled window as user-named and restores names by
-window index, so after windows close and the rest renumber, a restore (a
-reboot, `prefix C-r`, or `tmux-attach` on a server it thinks is fresh)
-stamps a dead session's title on whatever window sits at that index now —
-an ssh window, say — with `automatic-rename` off, for good. So `sync`, run
-after every save, rewrites the save: every window whose name is a known
-title becomes `claude` under automatic rename, and the record puts the title
-back on the pane that actually resumes the session. And a pane killed with
-claude inside fires no SessionEnd, so `sweep` — from `sync`, and from the
-`pane-exited` and `after-kill-pane` hooks — hands the name back on any
-window that carries `@claude_title` or a recorded title and runs no claude,
-and puts a recorded title back on any claude running under the automatic
-name, which is what a restore onto a live server (`prefix C-r`) leaves,
-since the save says `claude`; resurrect's `post-restore-all` hook runs it.
-
-`restore`, run by `tmux-attach` after tmux-resurrect has rebuilt the layout,
-types `claude --resume <id>` into every recorded target that resurrect's
-last save shows running `claude` (column 10 of its `pane` lines), that is
-back as a plain shell in the recorded directory, and whose transcript is
-still on disk; it moves the record to the pane id the target has on the new
-server, marks it `restore=1`, and the `SessionStart` hook that follows
-re-applies the flag.
-What comes back is information, not a live prompt: a pending permission or
-question is gone with the process, so the pane returns as `needs-you`
-"before restart: …"; a turn cut mid-work returns as `needs-you` "interrupted
-mid-turn"; an unread `done` stays `done`. `claude` is
-deliberately not in `@resurrect-processes`: resurrect would relaunch it bare
-and lose the conversation.
+tmux-attention and claude-tmux moved to `influento/tmux-plugins` as tmux-agent
+and tmux-revive, with their docs and tests; install.sh pins the release.
 
 ## tmux-overlay
 
@@ -135,16 +15,9 @@ outer session, created in the pane's directory on first use. The popup is a
 nested client (`TMUX=` unset for the attach), which is what lets the same
 prefix key inside it reach the script and detach that client, closing the
 popup while the program lives on. `:q` ends the hidden session; the next
-press starts fresh. tmux-resurrect restores hidden sessions as shells, so
-one found running a shell is killed and recreated. `tmux-attention list`
-skips `ov-*` sessions.
-
-## claude-tmux platform facts
-
-Platform facts this rests on, checked against the hooks reference:
-
-- A hook inherits the process environment, so `$TMUX_PANE` names the pane.
-- `PermissionRequest` with no output lets the prompt show; `signal` prints
-  nothing on stdout.
-- `SessionEnd` hooks share a 1.5 s budget.
-- `SessionStart` fires on compaction too (`source: compact`); ignored.
+press starts fresh. tmux-revive saves hidden sessions like any other and
+restores one by typing its program into a shell, so after `:q` a restored
+session sits at that shell instead of ending; one found running a shell is
+killed and recreated. The `ov-` prefix is also the `@skip_sessions` pattern
+in `common/tmux/tmux.conf.tpl`, which tmux-agent's lists and tmux-revive's
+attach skip: a change to one is a change to the other.

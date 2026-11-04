@@ -370,67 +370,84 @@ install_obsidian_plugins() {
   done < "$plugins_file"
 }
 
-# Download tmux plugin binaries from influento/tmux-plugins GitHub Releases.
-# Installs each binary into ~/.local/bin/ and stamps the installed release in
-# ~/.local/state/dotfiles/ so cutting a new release triggers a reinstall.
-# Usage: install_tmux_plugins "/home/username"
-install_tmux_plugins() {
-  local user_home="$1"
+# True when <dir>/SHA256SUMS hashes to <sums-sha256> and lists every <file>
+# in <dir> with the sha256 that file has.
+# Usage: release_assets_match <dir> <sums-sha256> <file>...
+release_assets_match() {
+  local dir="$1" sums_sha256="$2"
+  shift 2
+  local sums="${dir}/SHA256SUMS" file want
+  [[ "$(sha256sum "$sums" | cut -d' ' -f1)" == "$sums_sha256" ]] || return 1
+  for file in "$@"; do
+    want="$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$sums")"
+    [[ -n "$want" && "$(sha256sum "${dir}/${file}" | cut -d' ' -f1)" == "$want" ]] || return 1
+  done
+}
+
+# Install one binary from a pinned GitHub release into ~/.local/bin/. The
+# release's SHA256SUMS must hash to <sums-sha256>, and each asset must match
+# its line there, so one pinned hash covers the whole release. A symlink is a
+# dev build (`make dev` in the binary's repo) and is left alone. A binary
+# whose --version prints <tag> is current. Otherwise the asset, and [wrapper]
+# when given (a release asset installed beside the binary), are downloaded to
+# a temp dir, checked and moved into place. A failed download or check keeps
+# what is installed.
+# Usage: install_release_binary <user-home> <repo> <name> <tag> <sums-sha256> [wrapper]
+install_release_binary() {
+  local user_home="$1" repo="$2" name="$3" tag="$4" sums_sha256="$5" wrapper="${6:-}"
   local bin_dir="${user_home}/.local/bin"
-  local state_dir="${user_home}/.local/state/dotfiles"
-  local repo="influento/tmux-plugins"
+  local target="${bin_dir}/${name}"
+
+  if [[ -L "$target" ]]; then
+    log_warn "${name}: ${target} is a symlink (a dev build), leaving it"
+    return 0
+  fi
+  if [[ -x "$target" && "$(timeout 5 "$target" --version 2>/dev/null)" == "$tag" ]] \
+    && [[ -z "$wrapper" || -f "${bin_dir}/${wrapper}" ]]; then
+    log_info "${name} ${tag} already installed"
+    return 0
+  fi
 
   local arch
   case "$(uname -m)" in
     x86_64)  arch="amd64" ;;
     aarch64) arch="arm64" ;;
-    *) log_warn "Unsupported architecture for tmux plugins: $(uname -m), skipping."; return 0 ;;
+    *) log_warn "${name}: no build for $(uname -m), skipping"; return 0 ;;
   esac
 
+  local asset="${name}-linux-${arch}"
+  local -a files=("$asset")
+  if [[ -n "$wrapper" ]]; then
+    files+=("$wrapper")
+  fi
+
   ensure_dir "$bin_dir"
-  ensure_dir "$state_dir"
-
-  log_section "Installing tmux plugins"
-
-  # Resolve the current release tag from the /releases/latest redirect
-  local tag
-  if ! tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest")"; then
-    log_warn "Could not resolve latest tmux plugins release, keeping installed versions."
+  local tmp_dir file
+  # In bin_dir, so the final mv is a rename: a hook running the old binary
+  # never sees a half-written file.
+  tmp_dir="$(mktemp -d "${bin_dir}/.${name}.XXXXXX")"
+  log_info "Downloading ${name} ${tag} for linux/${arch}..."
+  for file in SHA256SUMS "${files[@]}"; do
+    if ! curl -fsSL "https://github.com/${repo}/releases/download/${tag}/${file}" -o "${tmp_dir}/${file}"; then
+      log_warn "${name}: could not download ${file}, keeping the installed version"
+      rm -rf "$tmp_dir"
+      return 0
+    fi
+  done
+  if ! release_assets_match "$tmp_dir" "$sums_sha256" "${files[@]}"; then
+    log_warn "${name}: ${repo} ${tag} does not match the pinned SHA256SUMS, keeping the installed version"
+    rm -rf "$tmp_dir"
     return 0
   fi
-  tag="${tag##*/}"
 
-  local -a plugins=("tmux-warp")
-  local plugin
-  for plugin in "${plugins[@]}"; do
-    local target="${bin_dir}/${plugin}"
-    local stamp_file="${state_dir}/${plugin}-version"
-
-    if [[ -x "$target" && -f "$stamp_file" && "$(cat "$stamp_file")" == "$tag" ]]; then
-      log_info "tmux plugin already installed: ${plugin} (${tag})"
-      continue
-    fi
-
-    log_info "Downloading ${plugin} ${tag} for linux/${arch}..."
-
-    local url="https://github.com/${repo}/releases/download/${tag}/${plugin}-linux-${arch}"
-    local tmp_file
-    tmp_file="$(mktemp "${bin_dir}/.${plugin}.XXXXXX")"
-    if ! curl -fsSL "$url" -o "$tmp_file"; then
-      rm -f "$tmp_file"
-      log_warn "Failed to download tmux plugin: ${plugin}"
-      continue
-    fi
-    chmod 755 "$tmp_file"
-    mv "$tmp_file" "$target"
-    printf '%s\n' "$tag" > "$stamp_file"
-    log_info "tmux plugin installed: ${plugin} (${tag})"
-
-    # Download the matching shell wrapper if it exists
-    local wrapper_url="https://raw.githubusercontent.com/${repo}/${tag}/${plugin}/${plugin}.sh"
-    local wrapper_target="${bin_dir}/${plugin}.sh"
-    curl -fsSL "$wrapper_url" -o "$wrapper_target" 2>/dev/null && chmod +x "$wrapper_target" || true
-  done
+  chmod 755 "${tmp_dir}/${asset}"
+  mv -f "${tmp_dir}/${asset}" "$target"
+  if [[ -n "$wrapper" ]]; then
+    chmod 755 "${tmp_dir}/${wrapper}"
+    mv -f "${tmp_dir}/${wrapper}" "${bin_dir}/${wrapper}"
+  fi
+  rm -rf "$tmp_dir"
+  log_info "${name} ${tag} installed"
 }
 
 # Clone (or update) and install gtk-widgets from GitHub.

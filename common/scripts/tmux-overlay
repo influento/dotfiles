@@ -13,8 +13,8 @@ set -euo pipefail
 #
 # The popup is a nested tmux client attached to the hidden session, so the
 # prefix works inside it — that is how the toggle key reaches this script
-# from within. tmux-resurrect saves hidden sessions like any other and brings
-# them back as plain shells; a session found in that state is replaced.
+# from within. tmux-revive saves hidden sessions like any other and brings
+# them back with their program; one found running only a shell is replaced.
 
 usage() {
   echo "usage: tmux-overlay <name> <command...>" >&2
@@ -41,7 +41,8 @@ esac
 inner="ov-$name-$here"
 cwd=$(tmux display -p ${pane:+-t "$pane"} '#{pane_current_path}')
 
-# A restored hidden session runs a shell, not the program: start over.
+# A restored hidden session whose program has exited sits at a shell: start
+# over.
 if tmux has-session -t "=$inner" 2>/dev/null; then
   case "$(tmux display -p -t "$inner:" '#{pane_current_command}')" in
     zsh|bash|fish|sh) tmux kill-session -t "$inner:" ;;

@@ -57,30 +57,32 @@ bind -r L resize-pane -R 5
 
 # --- Sessions ---
 bind S new-session
-bind X confirm-before -p "kill session #S? (y/n)" "run-shell 'tmux switch-client -n \\; kill-session -t \"#S\"'"
+# Kill the session after moving the client to the next one, so the terminal
+# stays open. tmux-revive forgets it first: a session killed by hand never
+# comes back on a restore, the last one included.
+bind X confirm-before -p "kill session #S? (y/n)" "run-shell 'command -v tmux-revive >/dev/null && tmux-revive forget-session \"#S\"; tmux switch-client -n \\; kill-session -t \"=#S\"'"
 
-# --- Attention: what each pane needs (common/scripts/CLAUDE.md) ---
-# Panes flag themselves through tmux-attention; Claude Code does it via the
-# hooks in common/claude-code/settings.json. The glyph sits before the window
-# name, the counts on the status right, and split windows label their panes.
+# --- Attention: what each pane needs (tmux-agent, influento/tmux-plugins) ---
+# tmux-agent flags each pane from its agent's launcher and hooks (Claude
+# Code's are in common/claude-code/settings.json). It draws the flags with
+# these colours into @attention_mark on each pane, @attention_win_mark on each
+# window and @attention_status; the formats below only print them, and
+# prefix r redraws them with new colours.
 set -g @attention_fg_needs_you "@@RED@@"
 set -g @attention_fg_done "@@GREEN@@"
 set -g @attention_fg_working "@@BLUE@@"
+set -g @attention_fg_failed "@@PEACH@@"
 set -g @attention_fg_dim "@@OVERLAY0@@"
-set -g @attention_glyph "#{?#{==:#{@attention_win},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention_win},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention_win},working},#[fg=@@BLUE@@]● ,}}}"
-set -g @attention_pane_glyph "#{?#{==:#{@attention},needs-you},#[fg=@@RED@@]? ,#{?#{==:#{@attention},done},#[fg=@@GREEN@@]✓ ,#{?#{==:#{@attention},working},#[fg=@@BLUE@@]● ,}}}"
-bind f run-shell -b "tmux-attention popup #{client_name}"
-bind o run-shell "tmux-attention jump"
-set-hook -g pane-focus-in 'run-shell -b "tmux-attention seen #{pane_id}"'
-set-hook -g after-select-window 'run-shell -b "tmux-attention seen #{pane_id}"'
-set-hook -g after-select-pane 'run-shell -b "tmux-attention seen #{pane_id}"'
-set-hook -g after-split-window 'run-shell -b "tmux-attention borders #{window_id}"'
-set-hook -g after-kill-pane 'run-shell -b "tmux-attention borders #{window_id}; claude-tmux sweep"'
-set-hook -g pane-exited 'run-shell -b "tmux-attention borders #{window_id}; claude-tmux sweep"'
-set-hook -g session-closed 'run-shell -b "tmux-attention status"'
-set-hook -g client-focus-in 'run-shell -b "tmux-attention status"'
+# tmux-overlay's hidden sessions: tmux-agent's lists and tmux-revive's attach
+# skip them.
+set -g @skip_sessions 'ov-*'
+bind f run-shell -b "if command -v tmux-agent >/dev/null; then tmux-agent popup #{client_name}; else tmux display-message 'tmux-agent is not installed'; fi"
+bind o run-shell "if command -v tmux-agent >/dev/null; then tmux-agent jump; else tmux display-message 'tmux-agent is not installed'; fi"
+# Hooks: tmux-agent sets its own at index [10] and tmux-revive at [20], from
+# their tmux-init lines at the end of this file; [0] is free for this file.
+# Never `set-hook -u` without an index: it unsets every index of the hook.
 set -g pane-border-status off
-set -g pane-border-format "#[fg=@@OVERLAY0@@] #{E:@attention_pane_glyph}#[fg=@@SUBTEXT0@@]#{pane_current_command}#{?@attention_reason, · #{@attention_reason},#{?#{==:#{pane_current_command},claude}, · #{s/^[^A-Za-z0-9]* *//:pane_title},}} "
+set -g pane-border-format "#[fg=@@OVERLAY0@@] #{@attention_mark}#[fg=@@SUBTEXT0@@]#{pane_current_command}#{?@attention_reason, · #{@attention_reason},#{?#{==:#{pane_current_command},claude}, · #{s/^[^A-Za-z0-9]* *//:pane_title},}} "
 
 # --- Popups ---
 # tmux 3.8 made popups grey by default (themedarkgrey); keep them on the theme.
@@ -101,8 +103,7 @@ bind -T copy-mode-vi v send-keys -X begin-selection
 bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 
 # --- tmux-warp (flash.nvim-style jump) ---
-# NOTE: must run in the foreground (no -b). Backgrounding detaches warp's
-# command-prompt + label overlay from the client, so labels never paint.
+# Works in the foreground and with run-shell -b alike on tmux 3.8.
 bind s run-shell '~/.local/bin/tmux-warp.sh'
 
 # --- Status bar (themed) ---
@@ -115,9 +116,9 @@ set -g status-right "#{E:@attention_status}#[fg=@@SUBTEXT0@@] %H:%M "
 set -g status-right-length 60
 
 # Active window
-setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #{E:@attention_glyph}#[fg=@@TEXT@@]#I:#W "
+setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #{@attention_win_mark}#[fg=@@TEXT@@]#I:#W "
 # Inactive window
-setw -g window-status-format "#[fg=@@OVERLAY0@@] #{E:@attention_glyph}#[fg=@@OVERLAY0@@]#I:#W "
+setw -g window-status-format "#[fg=@@OVERLAY0@@] #{@attention_win_mark}#[fg=@@OVERLAY0@@]#I:#W "
 
 # Pane borders
 set -g pane-border-style "fg=@@SURFACE0@@"
@@ -125,6 +126,12 @@ set -g pane-active-border-style "fg=@@BLUE@@"
 
 # Message style
 set -g message-style "bg=@@SURFACE0@@,fg=@@TEXT@@"
+
+# --- Saved sessions (tmux-revive, influento/tmux-plugins) ---
+# tmux-revive saves every session, window and pane on each change, and
+# tmux-attach restores them when a terminal starts a new server. prefix C-r
+# adds back what the live server lacks.
+bind C-r run-shell "if command -v tmux-revive >/dev/null; then tmux-revive restore; else tmux display-message 'tmux-revive is not installed'; fi"
 
 # --- TPM (auto-bootstrap) ---
 # Plugins live outside the repo; TMUX_PLUGIN_MANAGER_PATH must be set before tpm runs
@@ -136,28 +143,10 @@ set -g @plugin 'tmux-plugins/tpm'
 set -g @plugin 'christoomey/vim-tmux-navigator'
 set -g @plugin 'tmux-plugins/tmux-sensible'
 set -g @plugin 'tmux-plugins/tmux-yank'
-set -g @plugin 'tmux-plugins/tmux-resurrect'
-set -g @plugin 'tmux-plugins/tmux-continuum'
-
-# Session persistence. Saving stays with continuum; restoring does not --
-# it decides whether to run from a `ps | grep "^tmux"` count and then restores
-# in the background while the shell is already live, which both skips restores
-# at random and corrupts window layouts. workstation/scripts/tmux-attach does
-# the restore instead, before the shell exists. `prefix + Ctrl-r` still works.
-set -g @resurrect-capture-pane-contents 'on'
-# claude-tmux's records name the pane each conversation runs in; window and
-# pane indexes shift as windows close, so they are refreshed as of each save.
-# The same pass rewrites the save so claude-titled windows come back as
-# "claude" under automatic-rename: resurrect restores names by window index,
-# and a dead session's title on the wrong window would stick for good.
-set -g @resurrect-hook-post-save-all 'claude-tmux sync'
-# A restore onto a live server (prefix C-r) renames those windows to "claude";
-# the sweep gives every running claude its title back.
-set -g @resurrect-hook-post-restore-all 'claude-tmux sweep'
-set -g @continuum-restore 'off'
-# Save every minute (continuum's minimum; default 15). A save takes about
-# 0.5 s, and unchanged saves are deleted, so this costs next to nothing and
-# claude panes started shortly before a reboot are still resumed.
-set -g @continuum-save-interval '1'
 
 run '~/.local/share/tmux/plugins/tpm/tpm'
+
+# Last, after tpm: each plugin sets its hooks at its own index and draws its
+# options again, so prefix r applies a new tmux.conf without duplicates.
+run-shell 'command -v tmux-agent >/dev/null && tmux-agent tmux-init || true'
+run-shell 'command -v tmux-revive >/dev/null && tmux-revive tmux-init || true'

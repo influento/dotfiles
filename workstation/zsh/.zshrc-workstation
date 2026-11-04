@@ -133,6 +133,13 @@ doc() {
   disown
 }
 
+# --- tmux-plugins: agents through tmux-agent's launcher, folders to tmux-revive ---
+# Interactive shells inside tmux only. Claude Code copies this config, from a
+# non-interactive shell, into every Bash tool call, where a `claude` function
+# would send an agent's own `claude -p` through the launcher of the outer pane.
+[[ -o interactive && -n $TMUX ]] && (( $+commands[tmux-agent] )) && eval "$(tmux-agent shell-init zsh)"
+[[ -o interactive && -n $TMUX ]] && (( $+commands[tmux-revive] )) && eval "$(tmux-revive shell-init zsh)"
+
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
   export ELECTRON_OZONE_PLATFORM_HINT=wayland

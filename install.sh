@@ -21,6 +21,15 @@ source "${DOTFILES_DIR}/lib/theme.sh"
 # shellcheck source=lib/reminders.sh
 source "${DOTFILES_DIR}/lib/reminders.sh"
 
+# --- Pinned releases ---
+# influento/tmux-plugins: one tag for tmux-warp, tmux-agent and tmux-revive.
+# The sha256 is that of the release's SHA256SUMS, which every asset is
+# checked against. tmux.conf, settings.json and the zsh config call these
+# binaries, so a new tag is pinned in the same commit as their changes.
+readonly TMUX_PLUGINS_REPO=influento/tmux-plugins
+readonly TMUX_PLUGINS_VERSION=v0.2.0
+readonly TMUX_PLUGINS_SHA256=558df754baf8fa7722c0d3fc4712cf65334011128e80f1a3b2304c5b9463e593
+
 # --- Defaults ---
 PROFILE=""
 TARGET_USER="${USER:-}"
@@ -119,8 +128,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  common configs: $(list_config_dirs "${DOTFILES_DIR}/common")"
   log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
-  log_info "  tmux plugins: download tmux-warp from GitHub Releases"
+  log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION} (SHA256SUMS ${TMUX_PLUGINS_SHA256:0:12}…): tmux-warp"
   if [[ "$PROFILE" == "workstation" ]]; then
+    log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION}: tmux-agent, tmux-revive"
     log_info "  workstation configs: $(list_config_dirs "${DOTFILES_DIR}/workstation")"
     log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
@@ -163,11 +173,18 @@ fi
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 install_npm_packages "${DOTFILES_DIR}/common/npm/packages.conf"
 install_claude_code
-install_tmux_plugins "$USER_HOME"
+log_section "Installing tmux-plugins ${TMUX_PLUGINS_VERSION}"
+install_release_binary "$USER_HOME" "$TMUX_PLUGINS_REPO" tmux-warp \
+  "$TMUX_PLUGINS_VERSION" "$TMUX_PLUGINS_SHA256" tmux-warp.sh
 
 # Deploy workstation configs (workstation profile only)
 if [[ "$PROFILE" == "workstation" ]]; then
   deploy_configs "${DOTFILES_DIR}/workstation" "$USER_HOME" "workstation"
+  log_section "Installing tmux-plugins ${TMUX_PLUGINS_VERSION} (workstation)"
+  install_release_binary "$USER_HOME" "$TMUX_PLUGINS_REPO" tmux-agent \
+    "$TMUX_PLUGINS_VERSION" "$TMUX_PLUGINS_SHA256"
+  install_release_binary "$USER_HOME" "$TMUX_PLUGINS_REPO" tmux-revive \
+    "$TMUX_PLUGINS_VERSION" "$TMUX_PLUGINS_SHA256"
   install_npm_packages "${DOTFILES_DIR}/workstation/npm/packages.conf"
   install_gtk_widgets "$USER_HOME" "$THEME"
   install_obsidian_plugins "$USER_HOME"
@@ -186,6 +203,33 @@ if [[ "$PROFILE" == "server" && -L "${USER_HOME}/.config/systemd/user/server-aut
   systemctl --user daemon-reload 2>/dev/null || true
   log_info "Retired the server-auto-update timer"
 fi
+
+# tmux-attention and claude-tmux moved into tmux-agent and tmux-revive. A
+# running tmux server still holds the hooks the old tmux.conf set at index 0,
+# which call the deleted scripts, so they are unset here, before `prefix r`
+# loads the new tmux.conf. Each goes by its index, and only while it still
+# calls an old script: an unset without the index would take the plugins'
+# [10] and [20] with it. Also retired: resurrect's prefix C-s and its two
+# claude-tmux hooks, the tmux-warp version stamp, and claude-tmux's records.
+# This block can go once every machine has been redeployed.
+if tmux list-sessions >/dev/null 2>&1; then
+  for hook in -g:after-select-window -g:after-select-pane -g:after-split-window \
+    -g:after-kill-pane -g:session-closed -g:client-focus-in \
+    -gw:pane-focus-in -gw:pane-exited; do
+    scope="${hook%%:*}" hook="${hook#*:}"
+    current="$(tmux show-hooks "$scope" "$hook" 2>/dev/null || true)"
+    if grep -qE "^${hook}\[0\] .*(tmux-attention|claude-tmux)" <<<"$current"; then
+      tmux set-hook "${scope}u" "${hook}[0]"
+      log_info "Unset the old tmux hook ${hook}[0]"
+    fi
+  done
+  if [[ "$(tmux list-keys -T prefix C-s 2>/dev/null || true)" == *resurrect* ]]; then
+    tmux unbind-key -T prefix C-s
+  fi
+  tmux set-option -gu @resurrect-hook-post-save-all \; set-option -gu @resurrect-hook-post-restore-all
+fi
+rm -f "${USER_HOME}/.local/state/dotfiles/tmux-warp-version"
+rm -rf "${USER_HOME}/.local/state/claude-tmux"
 
 # Remove symlinks left behind by scripts or configs deleted or renamed in the repo
 prune_dead_links "$USER_HOME"

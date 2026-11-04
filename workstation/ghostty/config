@@ -30,9 +30,8 @@ confirm-close-surface = false
 # Shell integration (prompt jumping, command output selection)
 shell-integration = detect
 
-# Auto-start tmux. tmux-attach restores the saved session state before it
-# attaches -- see workstation/scripts/tmux-attach for why continuum's own
-# auto-restore cannot do this job.
+# Auto-start tmux. tmux-attach runs tmux-revive, which restores the saved
+# sessions on a new server before it attaches (workstation/scripts/tmux-attach).
 command = tmux-attach
 
 # Keybinds
