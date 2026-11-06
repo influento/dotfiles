@@ -129,8 +129,17 @@ set -g message-style "bg=@@SURFACE0@@,fg=@@TEXT@@"
 
 # --- Saved sessions (tmux-revive, influento/tmux-plugins) ---
 # tmux-revive saves every session, window and pane on each change, and
-# tmux-attach restores them when a terminal starts a new server. prefix C-r
-# adds back what the live server lacks.
+# tmux-attach restores them when a terminal starts a new server. Scrollback
+# is captured on a timer instead: every minute and the whole history-limit,
+# as resurrect captured it at each of its 1-minute saves. prefix C-s saves
+# and captures now, before a planned reboot say; prefix C-r adds back what
+# the live server lacks. A save adds a snapshot only when the sessions,
+# windows or panes change, and 500 are kept: the 31 days of resurrect saves
+# held 79 such changes.
+set -g @revive_snapshots 500
+set -g @revive_scrollback_lines 50000
+set -g @revive_scrollback_interval 60
+bind C-s run-shell "if command -v tmux-revive >/dev/null; then tmux-revive save && tmux-revive capture && tmux display-message 'Sessions saved'; else tmux display-message 'tmux-revive is not installed'; fi"
 bind C-r run-shell "if command -v tmux-revive >/dev/null; then tmux-revive restore; else tmux display-message 'tmux-revive is not installed'; fi"
 
 # --- TPM (auto-bootstrap) ---

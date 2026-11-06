@@ -16,8 +16,9 @@ nested client (`TMUX=` unset for the attach), which is what lets the same
 prefix key inside it reach the script and detach that client, closing the
 popup while the program lives on. `:q` ends the hidden session; the next
 press starts fresh. tmux-revive saves hidden sessions like any other and
-restores one by typing its program into a shell, so after `:q` a restored
-session sits at that shell instead of ending; one found running a shell is
-killed and recreated. The `ov-` prefix is also the `@skip_sessions` pattern
-in `common/tmux/tmux.conf.tpl`, which tmux-agent's lists and tmux-revive's
-attach skip: a change to one is a change to the other.
+restores one by typing its program into a shell, so a restored session
+lacks the options the script sets and sits at that shell after `:q`. So a
+session whose pane's start command is not the program is killed and
+recreated on the next press. The `ov-` prefix is also the `@skip_sessions`
+pattern in `common/tmux/tmux.conf.tpl`, which tmux-agent's lists and
+tmux-revive's attach skip: a change to one is a change to the other.
