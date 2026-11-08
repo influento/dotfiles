@@ -137,7 +137,7 @@
     "anthropic-skills:chrome-browser": "off"
   },
   "enabledPlugins": {
-    "cc-plugin-you-should-know@builtin": true,
+    "cc-plugin-you-should-know@builtin": false,
     "brand-voice@synced": false
   }
 }
