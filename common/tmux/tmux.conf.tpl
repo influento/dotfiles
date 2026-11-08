@@ -92,7 +92,15 @@ bind g display-popup -E -w 85% -h 85% -d "#{pane_current_path}" lazygit
 bind t display-popup -E -w 80% -h 80% -d "#{pane_current_path}"
 # One nvim per tmux session, kept alive in a hidden session; the same key
 # inside the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
-bind v run-shell "tmux-overlay nvim nvim"
+# run-shell sets no pane and no client, so the binding passes both.
+bind v run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' nvim nvim"
+# Inside an overlay popup: its hidden session has no prefix and uses these
+# tables, so a popup never opens another popup or leaves for a session.
+# Prefix + the overlay's key hides it, the prefix twice reaches the program,
+# every other prefix key does nothing. Keep C-Space equal to the prefix.
+bind -T ov-root C-Space switch-client -T ov-prefix
+bind -T ov-prefix C-Space send-keys C-Space
+bind -T ov-prefix v detach-client
 # The pane's whole history in nvim, in a window of its own; :q cleans up. The
 # file name is what lua/scrollback.lua keys on for ]] and [[ between prompts.
 bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'

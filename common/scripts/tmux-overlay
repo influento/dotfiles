@@ -3,49 +3,52 @@ set -euo pipefail
 
 # tmux-overlay — a persistent program in a popup, one per tmux session.
 #
-#   tmux-overlay <name> <command...>
+#   tmux-overlay -c <client> <name> <command...>
 #
 # First press: creates a hidden session `ov-<name>-<session>` running the
-# command in the current pane's directory, and shows it in a popup. Press
-# again inside the popup: the popup closes, the program keeps running with
-# its state. Press again outside: the same program comes back. When the
-# program exits the hidden session dies and the next press starts it fresh.
+# command in the current pane's directory, and shows it in a popup on
+# <client>. Press again inside the popup: the popup closes, the program keeps
+# running with its state. Press again outside: the same program comes back.
+# When the program exits the hidden session dies and the next press starts it
+# fresh.
 #
-# The popup is a nested tmux client attached to the hidden session, so the
-# prefix works inside it — that is how the toggle key reaches this script
-# from within. tmux-revive saves hidden sessions like any other and brings
+# The popup is a nested tmux client attached to the hidden session. That
+# session has no prefix and the key table `ov-root` (tmux.conf binds it), so
+# inside the popup only the keys bound there work: the toggle closes the
+# popup, every other prefix key does nothing. A popup never opens a second
+# popup, and the nested client never leaves the hidden session.
+#
+# The caller passes the client and the pane ($TMUX_PANE) because run-shell
+# sets neither; without them tmux answers with the last active client, which
+# is a guess. tmux-revive saves hidden sessions like any other and brings
 # them back by typing the program into a shell; such a session is replaced.
 
 usage() {
-  echo "usage: tmux-overlay <name> <command...>" >&2
+  echo "usage: tmux-overlay -c <client> <name> <command...>" >&2
   exit 2
 }
 
-[ $# -ge 2 ] || usage
-name="$1"; shift
+[ "${1:-}" = "-c" ] && [ $# -ge 4 ] || usage
+client="$2"; name="$3"; shift 3
 [ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
-
 pane="${TMUX_PANE:-}"
-here=$(tmux display -p ${pane:+-t "$pane"} '#{session_name}')
+[ -n "$pane" ] || { echo "tmux-overlay: TMUX_PANE is not set" >&2; exit 1; }
 
-# Inside the overlay: close it. The client to detach is the one attached to
-# this hidden session, named explicitly so no "current client" guess is made.
+here=$(tmux display -p -t "$pane" '#{session_name}')
+
+# Keys inside the popup go to the hidden session's own table, so a press
+# from in there never reaches this script. Refuse anyway rather than nest.
 case "$here" in
-  "ov-$name-"*)
-    while IFS= read -r c; do
-      [ -z "$c" ] || tmux detach-client -t "$c"
-    done < <(tmux list-clients -t "=$here" -F '#{client_name}' 2>/dev/null || true)
-    exit 0 ;;
+  ov-*) exit 0 ;;
 esac
 
 inner="ov-$name-$here"
-cwd=$(tmux display -p ${pane:+-t "$pane"} '#{pane_current_path}')
+cwd=$(tmux display -p -t "$pane" '#{pane_current_path}')
 
 # Start over on a hidden session this script did not start. A restore types
 # the program into a shell, so the pane's start command is not the program
-# (tmux-revive's own, or none), the session lacks the options set below, and
-# :q would leave that shell in the popup. tmux shows a start command with a
-# space in quotes.
+# (tmux-revive's own, or none) and :q would leave that shell in the popup.
+# tmux shows a start command with a space in quotes.
 if tmux has-session -t "=$inner" 2>/dev/null; then
   start=$(tmux display -p -t "$inner:" '#{pane_start_command}')
   if [ "$start" != "$*" ] && [ "$start" != "\"$*\"" ]; then
@@ -55,11 +58,15 @@ fi
 
 if ! tmux has-session -t "=$inner" 2>/dev/null; then
   tmux new-session -d -s "$inner" -c "$cwd" "$*"
-  tmux set -t "$inner:" status off
-  tmux set -t "$inner:" detach-on-destroy on
 fi
+# Set on every open, so a session from before these options gets them too.
+tmux set -t "$inner:" status off \; \
+  set -t "$inner:" detach-on-destroy on \; \
+  set -t "$inner:" prefix None \; \
+  set -t "$inner:" prefix2 None \; \
+  set -t "$inner:" key-table ov-root
 
 # $TMUX must be unset for the nested attach, tmux refuses it otherwise; the
 # socket it named is passed explicitly so a non-default server still works.
 sock="${TMUX%%,*}"
-exec tmux display-popup -E -w 92% -h 92% "TMUX= exec tmux -S '$sock' attach -t '=$inner'"
+exec tmux display-popup -c "$client" -E -w 92% -h 92% "TMUX= exec tmux -S '$sock' attach -t '=$inner'"
