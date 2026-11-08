@@ -95,8 +95,8 @@ set -g pane-border-format "#[fg=@@OVERLAY0@@] #{@attention_mark}#[fg=@@SUBTEXT0@
 # tmux 3.8 made popups grey by default (themedarkgrey); keep them on the theme.
 set -g popup-style "bg=@@BASE@@,fg=@@TEXT@@"
 set -g popup-border-style "bg=@@BASE@@,fg=@@OVERLAY0@@"
-bind g display-popup -E -w 85% -h 85% -d "#{pane_current_path}" lazygit
-bind t display-popup -E -w 80% -h 80% -d "#{pane_current_path}"
+bind g display-popup -E -w 95% -h 95% -d "#{pane_current_path}" lazygit
+bind t display-popup -E -w 95% -h 95% -d "#{pane_current_path}"
 # One nvim per tmux session, kept alive in a hidden session; the same key
 # inside the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
 # run-shell sets no pane and no client, so the binding passes both.

@@ -6,6 +6,8 @@ gui:
   border: rounded
   showBottomLine: false
   showCommandLog: false
+  # Stack unstaged above staged so each diff gets the full width.
+  mainPanelSplitMode: vertical
   theme:
     activeBorderColor:
       - "@@LAVENDER@@"  # Lavender
