@@ -12,6 +12,7 @@ Check these when upgrading tools or debugging config issues.
 | **Neovim** | `common/nvim/init.lua`, `lua/` | [neovim.io/doc](https://neovim.io/doc/user/) | lazy.nvim plugin manager, lua config |
 | **tmux** | `common/tmux/tmux.conf.tpl` | [tmux man page](https://man.openbsd.org/tmux.1) | Themed template, generates `tmux.conf` |
 | **Git** | `common/git/.gitconfig` | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
+| **delta** | `common/delta/delta.gitconfig.tpl` | [delta manual](https://dandavison.github.io/delta/), `delta --help` | gitconfig `[delta]` section, included by `.gitconfig`; themed template, generates `delta.gitconfig`; `delta --show-config` prints what is in effect. Package is `git-delta`, binary is `delta` |
 | **fontconfig** | `common/fontconfig/fonts.conf` | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
 | **btop** | `common/btop/btop.conf`, `themes/dotfiles.theme.tpl` | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format; theme file is a themed template, generates `dotfiles.theme` |
 | **fastfetch** | `common/fastfetch/config.jsonc` | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |

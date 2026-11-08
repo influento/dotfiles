@@ -52,6 +52,7 @@ propagate in both directions: `common/claude-code/CLAUDE.md`.
 | `common/ideavim/.ideavimrc`                                      | `~/.ideavimrc`                                                                                              | all         |
 | `common/tmux/`                                                   | `~/.config/tmux/`                                                                                           | all         |
 | `common/git/.gitconfig`                                          | `~/.gitconfig`                                                                                              | all         |
+| `common/delta/`                                                  | `~/.config/delta/` (included by `~/.gitconfig`)                                                             | all         |
 | `common/starship/`                                               | `~/.config/starship/`                                                                                       | all         |
 | `common/fontconfig/`                                             | `~/.config/fontconfig/`                                                                                     | all         |
 | `workstation/lazygit/`                                           | `~/.config/lazygit/`                                                                                        | workstation |
@@ -102,6 +103,8 @@ colors are stored as `.tpl` templates with `@@TOKEN@@` placeholders. At install 
 | -------------------- | --------------------------- | ----------------------------------- |
 | `@@COLOR_NAME@@`     | `#hexvalue` (hash-prefixed) | CSS, YAML, most configs             |
 | `@@COLOR_NAME_RAW@@` | `hexvalue` (bare hex)       | swaylock and tools expecting no `#` |
+| `@@MIX_COLOR_PCT@@`  | `#hexvalue`, PCT% of COLOR over `BASE` | tints on the theme background (delta's line backgrounds) |
+| `@@SYNTAX_THEME@@`   | `THEME_META` name of the matching bat/delta syntax theme | delta |
 
 ### Theme Selection
 
@@ -110,7 +113,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 ### Adding a New Theme
 
 1. Copy `themes/catppuccin-mocha.sh` to `themes/<name>.sh`
-2. Update `THEME_META` (NAME, DISPLAY_NAME) and all `THEME_COLORS` values
+2. Update `THEME_META` (NAME, DISPLAY_NAME, SYNTAX_THEME from `delta --list-syntax-themes`) and all `THEME_COLORS` values
 3. Set `THEME=<name>` in `theme.conf` or pass `--theme <name>`
 4. Run `bash install.sh --profile workstation` to regenerate configs
 
@@ -127,6 +130,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | ---------------------------------------------- | ---------------- | ---------------------------- |
 | `common/zsh/.zshrc.tpl`                        | `.zshrc`         | `@@TOKEN@@`                  |
 | `common/starship/starship.toml.tpl`            | `starship.toml`  | `@@TOKEN@@`                  |
+| `common/delta/delta.gitconfig.tpl`             | `delta.gitconfig` | `@@TOKEN@@`, `@@MIX_COLOR_PCT@@` |
 | `common/tmux/tmux.conf.tpl`                    | `tmux.conf`      | `@@TOKEN@@`                  |
 | `common/btop/themes/dotfiles.theme.tpl`        | `dotfiles.theme` | `@@TOKEN@@`                  |
 | `workstation/lazygit/config.yml.tpl`           | `config.yml`     | `@@TOKEN@@`                  |
@@ -154,6 +158,7 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 | **IdeaVim**          | `common/ideavim/.ideavimrc`         | JetBrains IDE Vim layer: mirrors nvim keymaps and options                                                                                                                                                                                                                                                                                                                                                                      |
 | **tmux**             | `common/tmux/tmux.conf.tpl`         | Terminal multiplexer: prefix key, panes, status bar (themed), attention glyphs and counts, popups (`prefix g` lazygit, `prefix t` scratch shell, `prefix e` scrollback in nvim with `]]`/`[[` between prompts — `common/nvim/lua/scrollback.lua`), ssh windows named `host(ssh)` from the destination as typed (zsh preexec → pane option `@ssh_host` → `automatic-rename-format`)                                                                                                                                                                                                                                             |
 | **Git**              | `common/git/.gitconfig`             | Version control: user identity, aliases, defaults                                                                                                                                                                                                                                                                                                                                                                              |
+| **delta**            | `common/delta/delta.gitconfig.tpl`  | Diff viewer for lazygit and git's pager (themed): line tints, new-file line numbers, clickable file names (`lazygit-edit://` in lazygit opens nvim at the line). Git's pager falls back to less where delta is not installed (servers) |
 | **Starship**         | `common/starship/starship.toml.tpl` | Cross-shell prompt: segments, theme, icons (themed)                                                                                                                                                                                                                                                                                                                                                                            |
 | **fontconfig**       | `common/fontconfig/fonts.conf`      | Font rendering: hinting, antialiasing, default families                                                                                                                                                                                                                                                                                                                                                                        |
 | **btop**             | `common/btop/btop.conf`             | System monitor: theme, layout, vim keys                                                                                                                                                                                                                                                                                                                                                                                        |

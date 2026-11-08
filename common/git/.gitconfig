@@ -7,6 +7,8 @@
 
 [include]
     path = ~/.gitconfig.local
+    # delta: pager and diff colors, rendered from the theme (common/delta/)
+    path = ~/.config/delta/delta.gitconfig
 
 [core]
     editor = nvim

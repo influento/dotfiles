@@ -64,9 +64,41 @@ build_sed_script() {
   done
 }
 
+# Blend a palette color into BASE and print the bare hex result.
+# Usage: mix_color "a6e3a1" 16   # 16% of the color, 84% of BASE
+mix_color() {
+  local color="$1" pct="$2" base="${THEME_COLORS[BASE]}" out="" i c b
+  for i in 0 2 4; do
+    c=$((16#${color:i:2}))
+    b=$((16#${base:i:2}))
+    out+="$(printf '%02x' $(( (c * pct + b * (100 - pct) + 50) / 100 )))"
+  done
+  printf '%s' "$out"
+}
+
+# Build sed replacements for the @@MIX_<COLOR>_<PCT>@@ tokens in one template:
+# PCT% of the palette color over BASE, hash-prefixed. For tints on the theme
+# background, e.g. diff line backgrounds. An unknown color is left in place,
+# so validate_rendered reports it.
+# Usage: mix_sed_script "/path/to/file.tpl"
+mix_sed_script() {
+  local tpl="$1" token key pct script=""
+  while IFS= read -r token; do
+    [[ "$token" =~ ^@@MIX_([A-Z0-9]+)_([0-9]{1,3})@@$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    pct="${BASH_REMATCH[2]}"
+    if [[ -z "${THEME_COLORS[$key]:-}" ]] || (( 10#$pct > 100 )); then
+      continue
+    fi
+    script+="s|${token}|#$(mix_color "${THEME_COLORS[$key]}" "$((10#$pct))")|g;"
+  done < <(grep -oE '@@MIX_[A-Z0-9]+_[0-9]+@@' "$tpl" | sort -u || true)
+  printf '%s' "$script"
+}
+
 # Render all .tpl template files under the given directory.
-# Each template is processed with sed using the current SED_SCRIPT,
-# and the output is written to the same path minus the .tpl extension.
+# Each template is processed with sed using the current SED_SCRIPT plus its
+# own @@MIX_...@@ blends, and the output is written to the same path minus
+# the .tpl extension.
 # Usage: render_templates "/path/to/common" "common"
 render_templates() {
   local search_dir="$1"
@@ -79,7 +111,7 @@ render_templates() {
 
   while IFS= read -r -d '' tpl; do
     local output="${tpl%.tpl}"
-    sed "$SED_SCRIPT" "$tpl" > "$output"
+    sed "$(mix_sed_script "$tpl")${SED_SCRIPT}" "$tpl" > "$output"
     chmod --reference="$tpl" "$output"
     count=$((count + 1))
   done < <(find "$search_dir" -name '*.tpl' -print0)

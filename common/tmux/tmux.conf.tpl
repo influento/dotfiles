@@ -27,6 +27,10 @@ set -s extended-keys on
 set -as terminal-features 'xterm*:extkeys'
 set -as terminal-features 'ghostty:extkeys'
 
+# --- Hyperlinks (OSC 8: delta's clickable file names and line numbers) ---
+set -as terminal-features 'xterm*:hyperlinks'
+set -as terminal-features 'ghostty:hyperlinks'
+
 # --- Splits ---
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"

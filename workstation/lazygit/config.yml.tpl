@@ -33,8 +33,11 @@ gui:
       - "@@TEXT@@"  # Text
 
 git:
-  paging:
-    pager: delta --dark --paging=never
+  # delta's look comes from the [delta] section of ~/.gitconfig
+  # (common/delta/). The link format makes file names and line numbers
+  # clickable: lazygit opens them in nvim at that line.
+  diffRenderers:
+    - command: 'delta --dark --paging=never --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"'
   autoFetch: true
   autoRefresh: true
 

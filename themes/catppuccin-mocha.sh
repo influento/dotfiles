@@ -9,6 +9,8 @@
 declare -gA THEME_META=(
   [NAME]="catppuccin-mocha"
   [DISPLAY_NAME]="Catppuccin Mocha"
+  # bat/delta syntax theme that matches the palette (`delta --list-syntax-themes`)
+  [SYNTAX_THEME]="Catppuccin Mocha"
 )
 
 # shellcheck disable=SC2034
