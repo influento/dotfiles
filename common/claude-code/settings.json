@@ -70,7 +70,9 @@
       "Read(**/*.pem)",
       "Read(**/*_rsa)",
       "Read(**/*_ed25519)",
-      "Read(~/.config/gh/hosts.yml)"
+      "Read(~/.config/gh/hosts.yml)",
+      "SendFeedback",
+      "ReportFindings"
     ],
     "defaultMode": "auto"
   },
@@ -120,7 +122,22 @@
   "editorMode": "vim",
   "showTurnDuration": true,
   "skipAutoPermissionPrompt": true,
+  "disableClaudeAiConnectors": true,
+  "skillOverrides": {
+    "anthropic-skills:google-workspace": "off",
+    "anthropic-skills:docs": "off",
+    "anthropic-skills:morning": "off",
+    "anthropic-skills:pptx": "off",
+    "anthropic-skills:xlsx": "off",
+    "anthropic-skills:built-in-browser": "off",
+    "anthropic-skills:computer-use": "off",
+    "anthropic-skills:docx": "off",
+    "anthropic-skills:pdf": "off",
+    "anthropic-skills:import-memory": "off",
+    "anthropic-skills:chrome-browser": "off"
+  },
   "enabledPlugins": {
-    "cc-plugin-you-should-know@builtin": true
+    "cc-plugin-you-should-know@builtin": true,
+    "brand-voice@synced": false
   }
 }
