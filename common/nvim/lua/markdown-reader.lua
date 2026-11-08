@@ -120,6 +120,16 @@ local auto = vim.g.markdown_reader_auto ~= false
 
 local M = {}
 
+-- The file a reader buffer shows, or nil for any other buffer. The reader buffer
+-- is nameless (see open()), so anything that wants "the current file" -- the
+-- neo-tree reveal and follow in plugins/neo-tree.lua -- asks here instead.
+function M.source(buf)
+  local r = reader[buf]
+  if not r or not vim.api.nvim_buf_is_valid(r.src) then return nil end
+  local path = vim.api.nvim_buf_get_name(r.src)
+  return path ~= "" and path or nil
+end
+
 -- Open one named file raw, without touching `auto` -- the session stays in
 -- reading mode, this one file does not. :EditAt uses it so lazygit's `e` lands
 -- on editable source at the exact line.
