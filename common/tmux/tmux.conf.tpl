@@ -16,6 +16,9 @@ set -g history-limit 50000
 set -g focus-events on
 set -g allow-passthrough on
 set -s set-clipboard on
+# OSC 52 copies from panes (nvim over ssh, Claude Code) reach the system
+# clipboard through wl-copy: Ghostty denies OSC 52 writes, see its config.
+set-hook -g pane-set-clipboard 'run-shell -b "command -v wl-copy >/dev/null && tmux save-buffer - | wl-copy"'
 
 # --- True color ---
 set -g default-terminal "tmux-256color"

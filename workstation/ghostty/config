@@ -26,6 +26,17 @@ mouse-hide-while-typing = true
 scrollback-limit = 50000
 copy-on-select = clipboard
 confirm-close-surface = false
+# No OSC 52 writes: tmux (with tmux-yank) and Claude Code copy with wl-copy and
+# also send OSC 52. When wl-copy lands first, sway rejects Ghostty's write as
+# superseded, yet GTK keeps treating itself as the owner and ignores every later
+# copy, so ctrl+v pastes stale text until restart. OSC 52 copies from inside
+# tmux (nvim over ssh) still arrive: tmux's pane-set-clipboard hook passes them
+# to wl-copy (common/tmux/tmux.conf.tpl). Outside tmux they are dropped.
+# GTK bug, open as of GTK 4.24.1 (Nov 2026):
+# https://gitlab.gnome.org/GNOME/gtk/-/work_items/8527 (MR !10441 fixes only
+# compositors that send cancelled; wlroots does not). Once a GTK release fixes
+# it, drop this line and check that ctrl+v still pastes the newest copy.
+clipboard-write = deny
 
 # Shell integration (prompt jumping, command output selection)
 shell-integration = detect
