@@ -44,4 +44,4 @@ what leaves the tree at deploy, and how each reaches a project:
 
 Opted into per project by symlink: `skills-optional/CLAUDE.md`. A
 language's practices are not here: they are a stack package of that
-ecosystem (`workshop/go/packages/go-practices/`).
+ecosystem (`workshop/go/packages/practices/go-practices/`).
