@@ -1,35 +1,104 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# tmux-overlay — a persistent program in a popup, one per tmux session.
+# tmux-overlay — a persistent program in a popup.
 #
-#   tmux-overlay -c <client> <name> <command...>
+#   tmux-overlay -c <client> [-s session|repo] <name> <command...>
 #
-# First press: creates a hidden session `ov-<name>-<session>` running the
-# command in the current pane's directory, and shows it in a popup on
-# <client>. Press again inside the popup: the popup closes, the program keeps
-# running with its state. Press again outside: the same program comes back.
-# When the program exits the hidden session dies and the next press starts it
-# fresh.
+# First press: creates a hidden session running the command and shows it in
+# a popup on <client>. Press again inside the popup: the popup closes, the
+# program keeps running with its state. Press again outside: the same
+# program comes back. When the program exits the hidden session dies and the
+# next press starts it fresh.
+#
+# The scope picks which panes share one program:
+#   session  (default) one per tmux session: `ov-<name>-<session>`, started
+#            in the pane's directory.
+#   repo     one per git repository, from any window of any session:
+#            `ov-<name>-<root>`, started in the repository's top folder. The
+#            root is relative to $HOME, so the name is the same on every
+#            machine with the same layout. Outside a repository the pane's
+#            folder stands in for the root.
+#
+# A pane that runs ssh gets a message instead: tmux sees the local folder
+# the ssh started in, not the remote one. So does a pane whose folder does
+# not exist here.
+#
+# Each press also ends hidden sessions that no client has used for
+# TMUX_OVERLAY_IDLE seconds (default 12 hours) and that run only their own
+# program, so a busy shell or a lazygit in the middle of a push stays.
 #
 # The popup is a nested tmux client attached to the hidden session. That
 # session has no prefix and the key table `ov-root` (tmux.conf binds it), so
-# inside the popup only the keys bound there work: the toggle closes the
+# inside the popup only the keys bound there work: the toggles close the
 # popup, every other prefix key does nothing. A popup never opens a second
 # popup, and the nested client never leaves the hidden session.
 #
 # The caller passes the client and the pane ($TMUX_PANE) because run-shell
 # sets neither; without them tmux answers with the last active client, which
-# is a guess. tmux-revive saves hidden sessions like any other and brings
-# them back by typing the program into a shell; such a session is replaced.
+# is a guess. tmux-revive may save hidden sessions and bring them back by
+# typing the program into a shell; such a session is replaced.
 
 usage() {
-  echo "usage: tmux-overlay -c <client> <name> <command...>" >&2
+  echo "usage: tmux-overlay -c <client> [-s session|repo] <name> <command...>" >&2
   exit 2
 }
 
+# say <message>: shows the message on the client and stops.
+say() {
+  tmux display-message -l -c "$client" "tmux-overlay: $1"
+  exit 0
+}
+
+# key <text>: <text> as a session name part. Letters, digits, - and _ only:
+# tmux turns . and : into _ and expands # in a name, / would stop the ov-*
+# glob in @skip_sessions from matching.
+key() {
+  printf '%s' "$1" | sed 's/[^[:alnum:]_-]/_/g'
+}
+
+# root_key <dir>: the repo scope's part of the session name.
+root_key() {
+  local dir="$1"
+  case "$dir" in
+    "$HOME") key home ;;
+    "$HOME"/*) key "${dir#"$HOME"/}" ;;
+    *) key "${dir#/}" ;;
+  esac
+}
+
+# reap <keep>: ends idle hidden sessions other than <keep>. One this script
+# started (it has @ov_root) goes only while it runs nothing but its own
+# program. One without @ov_root, from a restore or from before the scopes,
+# goes when idle: nothing in it is worth keeping, and its start command
+# says nothing about what runs.
+reap() {
+  local keep="$1" idle="${TMUX_OVERLAY_IDLE:-43200}" now attached activity owner name start current
+  now=$(date +%s)
+  tmux list-sessions -F '#{session_attached} #{session_activity} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
+    while read -r attached activity owner name; do
+      case "$name" in ov-*) ;; *) continue ;; esac
+      [ "$name" != "$keep" ] && [ "$attached" = 0 ] || continue
+      [ $((now - activity)) -ge "$idle" ] || continue
+      if [ "$owner" = 1 ]; then
+        start=$(tmux display -p -t "=$name:" '#{pane_start_command}') || continue
+        current=$(tmux display -p -t "=$name:" '#{pane_current_command}') || continue
+        start="${start#\"}"; start="${start%% *}"
+        [ "$current" = "$(basename "$start")" ] || continue
+      fi
+      tmux kill-session -t "=$name" || true
+    done
+}
+
 [ "${1:-}" = "-c" ] && [ $# -ge 4 ] || usage
-client="$2"; name="$3"; shift 3
+client="$2"; shift 2
+scope=session
+if [ "$1" = "-s" ]; then
+  scope="${2:-}"; shift 2 || usage
+fi
+case "$scope" in session|repo) ;; *) usage ;; esac
+[ $# -ge 2 ] || usage
+name="$1"; shift
 [ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
 pane="${TMUX_PANE:-}"
 [ -n "$pane" ] || { echo "tmux-overlay: TMUX_PANE is not set" >&2; exit 1; }
@@ -42,31 +111,59 @@ case "$here" in
   ov-*) exit 0 ;;
 esac
 
-inner="ov-$name-$here"
+ssh_host=$(tmux show -pqv -t "$pane" @ssh_host)
+if [ -n "$ssh_host" ] || [ "$(tmux display -p -t "$pane" '#{pane_current_command}')" = ssh ]; then
+  say "this pane is on ${ssh_host:-a remote machine} over ssh; $name would open on this machine"
+fi
+
 cwd=$(tmux display -p -t "$pane" '#{pane_current_path}')
+[ -d "$cwd" ] || say "$cwd does not exist on this machine"
+
+if [ "$scope" = repo ]; then
+  dir=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || dir="$cwd"
+  inner="ov-$name-$(root_key "$dir")"
+  # Two folders can give one name (a/b_c and a_b/c): the second one gets a
+  # name of its own.
+  owner=$(tmux show -qv -t "=$inner:" @ov_root 2>/dev/null || true)
+  if [ -n "$owner" ] && [ "$owner" != "$dir" ]; then
+    inner="$inner-$(printf '%s' "$dir" | cksum | cut -d' ' -f1)"
+  fi
+else
+  dir="$cwd"
+  inner="ov-$name-$(key "$here")"
+fi
+
+# A failed cleanup must not keep the popup from opening.
+reap "$inner" || true
 
 # Start over on a hidden session this script did not start. A restore types
 # the program into a shell, so the pane's start command is not the program
 # (tmux-revive's own, or none) and :q would leave that shell in the popup.
 # tmux shows a start command with a space in quotes.
 if tmux has-session -t "=$inner" 2>/dev/null; then
-  start=$(tmux display -p -t "$inner:" '#{pane_start_command}')
+  start=$(tmux display -p -t "=$inner:" '#{pane_start_command}')
   if [ "$start" != "$*" ] && [ "$start" != "\"$*\"" ]; then
-    tmux kill-session -t "$inner:"
+    tmux kill-session -t "=$inner"
   fi
 fi
 
 if ! tmux has-session -t "=$inner" 2>/dev/null; then
-  tmux new-session -d -s "$inner" -c "$cwd" "$*"
+  # -c is a format: ## keeps a # in the folder name.
+  tmux new-session -d -s "$inner" -c "${dir//#/##}" "$*"
+  tmux set -t "=$inner:" @ov_root "$dir"
 fi
 # Set on every open, so a session from before these options gets them too.
-tmux set -t "$inner:" status off \; \
-  set -t "$inner:" detach-on-destroy on \; \
-  set -t "$inner:" prefix None \; \
-  set -t "$inner:" prefix2 None \; \
-  set -t "$inner:" key-table ov-root
+tmux set -t "=$inner:" status off \; \
+  set -t "=$inner:" detach-on-destroy on \; \
+  set -t "=$inner:" prefix None \; \
+  set -t "=$inner:" prefix2 None \; \
+  set -t "=$inner:" key-table ov-root
 
 # $TMUX must be unset for the nested attach, tmux refuses it otherwise; the
 # socket it named is passed explicitly so a non-default server still works.
-sock="${TMUX%%,*}"
-exec tmux display-popup -c "$client" -E -w 92% -h 92% "TMUX= exec tmux -S '$sock' attach -t '=$inner'"
+# Both go in the environment, not the command: tmux expands # in the command
+# and a ' in a path would end the quoting.
+# shellcheck disable=SC2016 # expanded by the popup's shell
+exec tmux display-popup -c "$client" -E -w 92% -h 92% \
+  -e "OV_SOCKET=${TMUX%%,*}" -e "OV_SESSION=$inner" \
+  'TMUX= exec tmux -S "$OV_SOCKET" attach -t "=$OV_SESSION"'

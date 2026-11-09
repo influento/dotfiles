@@ -95,19 +95,22 @@ set -g pane-border-format "#[fg=@@OVERLAY0@@] #{@attention_mark}#[fg=@@SUBTEXT0@
 # tmux 3.8 made popups grey by default (themedarkgrey); keep them on the theme.
 set -g popup-style "bg=@@BASE@@,fg=@@TEXT@@"
 set -g popup-border-style "bg=@@BASE@@,fg=@@OVERLAY0@@"
-bind g display-popup -E -w 95% -h 95% -d "#{pane_current_path}" lazygit
-bind t display-popup -E -w 95% -h 95% -d "#{pane_current_path}"
-# One nvim per tmux session, kept alive in a hidden session; the same key
-# inside the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
-# run-shell sets no pane and no client, so the binding passes both.
-bind v run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' nvim nvim"
+# Programs kept alive in hidden sessions: lazygit and nvim one per git repo,
+# shared by every session; the shell one per session. The same key inside
+# the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
+# run-shell sets no pane and no client, so the bindings pass both.
+bind g run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo lazygit lazygit"
+bind v run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo nvim nvim"
+bind t run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' shell \"\${SHELL:-sh}\""
 # Inside an overlay popup: its hidden session has no prefix and uses these
 # tables, so a popup never opens another popup or leaves for a session.
-# Prefix + the overlay's key hides it, the prefix twice reaches the program,
+# Prefix + an overlay's key hides it, the prefix twice reaches the program,
 # every other prefix key does nothing. Keep C-Space equal to the prefix.
 bind -T ov-root C-Space switch-client -T ov-prefix
 bind -T ov-prefix C-Space send-keys C-Space
+bind -T ov-prefix g detach-client
 bind -T ov-prefix v detach-client
+bind -T ov-prefix t detach-client
 # The pane's whole history in nvim, in a window of its own; :q cleans up. The
 # file name is what lua/scrollback.lua keys on for ]] and [[ between prompts.
 bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'
