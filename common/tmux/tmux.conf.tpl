@@ -95,22 +95,26 @@ set -g pane-border-format "#[fg=@@OVERLAY0@@] #{@attention_mark}#[fg=@@SUBTEXT0@
 # tmux 3.8 made popups grey by default (themedarkgrey); keep them on the theme.
 set -g popup-style "bg=@@BASE@@,fg=@@TEXT@@"
 set -g popup-border-style "bg=@@BASE@@,fg=@@OVERLAY0@@"
-# Programs kept alive in hidden sessions: lazygit and nvim one per git repo,
-# shared by every session; the shell one per session. The same key inside
-# the popup hides it again (common/scripts/CLAUDE.md, "tmux-overlay").
-# run-shell sets no pane and no client, so the bindings pass both.
-bind g run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo lazygit lazygit"
-bind v run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo nvim nvim"
-bind t run-shell "TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' shell \"\${SHELL:-sh}\""
+# Programs in popups: lazygit and nvim kept in hidden sessions, one per git
+# repo shared by every session; the shell new at every open and ended when
+# its popup closes (common/scripts/CLAUDE.md, "tmux-overlay"). run-shell
+# sets no pane and no client, so the bindings pass both.
+%hidden OV_G="TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo lazygit lazygit"
+%hidden OV_V="TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s repo nvim nvim"
+%hidden OV_T="TMUX_PANE='#{pane_id}' tmux-overlay -c '#{client_name}' -s popup shell \"\${SHELL:-sh}\""
+bind g run-shell "$OV_G"
+bind v run-shell "$OV_V"
+bind t run-shell "$OV_T"
 # Inside an overlay popup: its hidden session has no prefix and uses these
 # tables, so a popup never opens another popup or leaves for a session.
-# Prefix + an overlay's key hides it, the prefix twice reaches the program,
-# every other prefix key does nothing. Keep C-Space equal to the prefix.
+# Prefix + the popup's own key closes it, another overlay's key swaps the
+# popup to that overlay, the prefix twice reaches the program, every other
+# prefix key does nothing. Keep C-Space equal to the prefix.
 bind -T ov-root C-Space switch-client -T ov-prefix
 bind -T ov-prefix C-Space send-keys C-Space
-bind -T ov-prefix g detach-client
-bind -T ov-prefix v detach-client
-bind -T ov-prefix t detach-client
+bind -T ov-prefix g run-shell "$OV_G"
+bind -T ov-prefix v run-shell "$OV_V"
+bind -T ov-prefix t run-shell "$OV_T"
 # A closed session can leave hidden ones nothing owns; each press checks too.
 set-hook -g session-closed[0] 'run-shell -b "tmux-overlay --reap"'
 # The pane's whole history in nvim, in a window of its own; :q cleans up. The

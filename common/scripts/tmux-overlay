@@ -1,46 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# tmux-overlay — a persistent program in a popup.
+# tmux-overlay — a program in a popup.
 #
-#   tmux-overlay -c <client> [-s session|repo] <name> <command...>
+#   tmux-overlay -c <client> [-s repo|popup] <name> <command...>
 #   tmux-overlay --reap
+#   tmux-overlay --show     (the popup's own process)
 #
-# First press: creates a hidden session running the command and shows it in
-# a popup on <client>. Press again inside the popup: the popup closes, the
-# program keeps running with its state. Press again outside: the same
-# program comes back. When the program exits the hidden session dies and the
-# next press starts it fresh.
+# The popup is a nested tmux client attached to a hidden session that runs
+# the command. The scope picks which panes share one and how long it lives:
+#   repo     kept, one per git repository, from any window of any session:
+#            `ov-<name>-<root>`, started in the repository's top folder.
+#            The root is relative to $HOME, so the name is the same on
+#            every machine with the same layout. Outside a repository the
+#            pane's folder stands in for the root. The pane's folder at the
+#            press picks the repository. Press again inside the popup: the
+#            popup closes, the program keeps running with its state. Press
+#            again outside: the same program comes back. When the program
+#            exits the next press starts it fresh.
+#   popup    (default) new at every open, in the pane's folder, and ended
+#            with what runs in it when the popup closes:
+#            `ov-<name>-<client>`.
 #
-# The scope picks which panes share one program:
-#   session  (default) one per tmux session, followed by its id so a rename
-#            keeps it: `ov-<name>-<session>`, started in the pane's folder.
-#   repo     one per git repository, from any window of any session:
-#            `ov-<name>-<root>`, started in the repository's top folder. The
-#            root is relative to $HOME, so the name is the same on every
-#            machine with the same layout. Outside a repository the pane's
-#            folder stands in for the root. The pane's folder at the press
-#            picks the repository.
+# Inside the popup, another overlay's key swaps the popup to that overlay,
+# as a press from the pane behind the popup would open it; the popup's own
+# key closes it. A cd inside the popup picks nothing.
 #
-# One terminal shows a hidden session at a time: a press from a second one
-# takes it over, and the first one's popup closes with a message.
+# One terminal shows a hidden session at a time: a press or a swap from a
+# second one takes it over, and the first one's popup closes with a message.
 #
 # A pane that runs ssh gets a message instead: tmux sees the local folder
 # the ssh started in, not the remote one. So does a pane whose folder does
 # not exist here.
 #
 # Each press, and --reap (the session-closed hook in tmux.conf), ends the
-# hidden sessions nothing owns any more: a repo one when no pane outside the
-# hidden sessions is in its repository, a session one when its session is
-# gone. Never one on screen, nor one at work: a shell with a job, lazygit
-# with an editor or a git run, nvim with unsaved changes or a terminal job.
-# Such a one goes at the first --reap or press after the work ends.
+# repo sessions nothing owns any more: no pane outside the hidden sessions
+# is in its repository. Never one on screen, nor one at work: lazygit with
+# an editor or a git run, nvim with unsaved changes or a terminal job. Such
+# a one goes at the first --reap or press after the work ends.
 #
-# The popup is a nested tmux client attached to the hidden session. That
-# session has no prefix and the key table `ov-root` (tmux.conf binds it), so
-# inside the popup only the keys bound there work: the toggles close the
-# popup, every other prefix key does nothing. A popup never opens a second
-# popup, and the nested client never leaves the hidden session.
+# The hidden session has no prefix and the key table `ov-root` (tmux.conf
+# binds it), so inside the popup only the keys bound there work: the
+# overlay keys run this script, every other prefix key does nothing. A
+# popup never opens a second popup, and the nested client never leaves the
+# hidden sessions.
 #
 # The caller passes the client and the pane ($TMUX_PANE) because run-shell
 # sets neither; without them tmux answers with the last active client, which
@@ -48,7 +51,7 @@ set -euo pipefail
 # typing the program into a shell; such a session is replaced.
 
 usage() {
-  echo "usage: tmux-overlay -c <client> [-s session|repo] <name> <command...> | --reap" >&2
+  echo "usage: tmux-overlay -c <client> [-s repo|popup] <name> <command...> | --reap" >&2
   exit 2
 }
 
@@ -111,34 +114,85 @@ busy() {
 }
 
 # reap <keep>: ends the hidden sessions, other than <keep>, that nothing
-# owns, nobody shows and no work keeps. One without @ov_root (from a
-# restore, or from before this script set it) always goes: its program was
-# typed into a shell, nothing in it is worth keeping.
+# owns, nobody shows and no work keeps. A popup one is left alone: it ends
+# with its popup, and before the popup attaches it is not shown yet. A shell
+# from before the popup scope (@ov_scope session) goes once idle. One
+# without @ov_root (from a restore, or from before this script set it)
+# always goes: its program was typed into a shell.
 reap() {
-  local keep="$1" paths=() attached scope owner rooted name root path owned
+  local keep="$1" paths=() attached scope rooted name root path owned
   mapfile -t paths < <(tmux list-panes -a -f '#{?#{m:ov-*,#{session_name}},0,1}' -F '#{pane_current_path}' 2>/dev/null)
-  tmux list-sessions -F '#{session_attached} #{?@ov_scope,#{@ov_scope},-} #{?@ov_owner,#{@ov_owner},-} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
-    while read -r attached scope owner rooted name; do
+  tmux list-sessions -F '#{session_attached} #{?@ov_scope,#{@ov_scope},-} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
+    while read -r attached scope rooted name; do
       case "$name" in ov-*) ;; *) continue ;; esac
       [ "$name" != "$keep" ] && [ "$attached" = 0 ] || continue
       if [ "$rooted" = 1 ]; then
-        if [ "$scope" = session ]; then
-          tmux has-session -t "$owner" 2>/dev/null && continue
-        else
-          # A repo one, or a session one from before @ov_scope: owned by
-          # any pane in its folder or below.
-          root=$(tmux show -qv -t "=$name:" @ov_root) || continue
-          owned=0
-          for path in "${paths[@]}"; do
-            case "$path" in "$root"|"${root%/}"/*) owned=1; break ;; esac
-          done
-          [ "$owned" = 0 ] || continue
-        fi
+        case "$scope" in
+          popup) continue ;;
+          session) ;;
+          *)
+            # A repo one, or one from before @ov_scope: owned by any pane
+            # in its folder or below.
+            root=$(tmux show -qv -t "=$name:" @ov_root) || continue
+            owned=0
+            for path in "${paths[@]}"; do
+              case "$path" in "$root"|"${root%/}"/*) owned=1; break ;; esac
+            done
+            [ "$owned" = 0 ] || continue
+            ;;
+        esac
         busy "$name" && continue
       fi
       tmux kill-session -t "=$name" 2>/dev/null || true
     done
 }
+
+# ot <args>: tmux on the outer server, from inside the popup. $TMUX must be
+# unset for the nested attach, tmux refuses it otherwise; the socket is
+# passed explicitly so a non-default server still works.
+ot() {
+  TMUX='' tmux -S "$OV_SOCKET" "$@"
+}
+
+# popup_loop: the popup's process. It attaches to $OV_SESSION, and after a
+# swap to the session the swap names in @ov_next_<this popup's tty>.
+# attach -d detaches the session's other clients, whose popups then close.
+# @ov_viewer is set in the same command list, so the last attach is always
+# the recorded one. A popup one ends with its last client: that is set at
+# the attach, not at its creation, because tmux ends a session with
+# destroy-unattached as soon as no client is on it. A popup whose attach
+# ends with another terminal recorded was taken over and says so; one
+# closed or quit says nothing. A mark left by a swap whose popup died would
+# send a later popup on the same tty there, so it is cleared first.
+popup_loop() {
+  local s="$OV_SESSION" mark next end v
+  mark="@ov_next_$(key "$(tty)")"
+  ot set -gu "$mark" 2>/dev/null || true
+  while :; do
+    end=off
+    [ "$(ot show -qv -t "=$s:" @ov_scope 2>/dev/null)" != popup ] || end=on
+    ot attach -d -t "=$s" \; set -t "=$s:" @ov_viewer "$OV_CLIENT" \; \
+      set -t "=$s:" destroy-unattached "$end" || return 0
+    next=$(ot show -gqv "$mark" 2>/dev/null) || next=
+    if [ -n "$next" ]; then
+      ot set -gu "$mark"
+      s="$next"
+      continue
+    fi
+    v=$(ot show -qv -t "=$s:" @ov_viewer 2>/dev/null) || return 0
+    [ -z "$v" ] || [ "$v" = "$OV_CLIENT" ] ||
+      ot display-message -l -c "$OV_CLIENT" "tmux-overlay: $(ot show -qv -t "=$s:" @ov_label) moved to another terminal"
+    return 0
+  done
+}
+
+# The popup runs this script with the outer server's variables in its own
+# environment, so it comes first.
+if [ "${1:-}" = --show ]; then
+  [ $# = 1 ] || usage
+  popup_loop
+  exit 0
+fi
 
 [ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
 
@@ -150,22 +204,35 @@ fi
 
 [ "${1:-}" = "-c" ] && [ $# -ge 4 ] || usage
 client="$2"; shift 2
-scope=session
+scope=popup
 if [ "$1" = "-s" ]; then
   scope="${2:-}"; shift 2 || usage
 fi
-case "$scope" in session|repo) ;; *) usage ;; esac
+case "$scope" in popup|repo) ;; *) usage ;; esac
 [ $# -ge 2 ] || usage
 name="$1"; shift
 pane="${TMUX_PANE:-}"
 [ -n "$pane" ] || { echo "tmux-overlay: TMUX_PANE is not set" >&2; exit 1; }
 
-read -r sid here < <(tmux display -p -t "$pane" '#{session_id} #{session_name}')
+here=$(tmux display -p -t "$pane" '#{session_name}')
 
-# Keys inside the popup go to the hidden session's own table, so a press
-# from in there never reaches this script. Refuse anyway rather than nest.
+# A key inside a popup: the hidden session's table runs this with the
+# nested client and the hidden pane. The popup's own key closes it. Another
+# one swaps it, as a press from the pane behind the popup: the outer client
+# is the one the hidden session recorded, its pane the one on its screen.
+nested=
 case "$here" in
-  ov-*) exit 0 ;;
+  ov-*)
+    nested="$client"
+    if [ "$(tmux show -qv -t "=$here:" @ov_name)" = "$name" ]; then
+      tmux detach-client -t "$nested"
+      exit 0
+    fi
+    client=$(tmux show -qv -t "=$here:" @ov_viewer)
+    [ -n "$client" ] || exit 0
+    pane=$(tmux list-clients -f "#{==:#{client_name},$client}" -F '#{pane_id}')
+    [ -n "$pane" ] || exit 0
+    ;;
 esac
 
 ssh_host=$(tmux show -pqv -t "$pane" @ssh_host)
@@ -190,24 +257,13 @@ if [ "$scope" = repo ]; then
     "$HOME"/*) label="$name for ~/${dir#"$HOME"/}" ;;
     *) label="$name for $dir" ;;
   esac
-  owner=-
 else
   dir="$cwd"
-  label="$name for session $here"
-  owner="$sid"
-  # The session's own, whatever its name now.
-  inner=
-  while read -r o n s; do
-    if [ "$o" = "$sid" ] && [ "$n" = "$name" ]; then inner="$s"; break; fi
-  done < <(tmux list-sessions -F '#{?@ov_owner,#{@ov_owner},-} #{?@ov_name,#{@ov_name},-} #{session_name}')
-  if [ -z "$inner" ]; then
-    # A name from the session's name. One left by a gone session of that
-    # name (kept by its work) is not this one's: then the id tells them
-    # apart. One from before @ov_scope is taken over.
-    inner="ov-$name-$(key "$here")"
-    o=$(tmux show -qv -t "=$inner:" @ov_owner 2>/dev/null || true)
-    [ -z "$o" ] || inner="$inner-${sid#\$}"
-  fi
+  label="$name"
+  inner="ov-$name-$(key "$client")"
+  # Always new. One with this name is left from a popup that never
+  # attached: this terminal has one popup, and it is not showing it.
+  tmux kill-session -t "=$inner" 2>/dev/null || true
 fi
 
 # A failed cleanup must not keep the popup from opening.
@@ -228,8 +284,7 @@ fi
 # no --reap sees it without @ov_root. Two presses at once: the second
 # new-session fails, the first one's session is used.
 ident=(set -t "=$inner:" @ov_root "$dir" \; set -t "=$inner:" @ov_scope "$scope" \;
-  set -t "=$inner:" @ov_name "$name")
-[ "$owner" = - ] || ident+=(\; set -t "=$inner:" @ov_owner "$owner")
+  set -t "=$inner:" @ov_name "$name" \; set -t "=$inner:" @ov_label "$label")
 if ! tmux has-session -t "=$inner" 2>/dev/null; then
   # -c is a format: ## keeps a # in the folder name.
   tmux new-session -d -s "$inner" -c "${dir//#/##}" "$*" \; "${ident[@]}" 2>/dev/null ||
@@ -246,20 +301,19 @@ tmux "${ident[@]}" \; \
   set -t "=$inner:" prefix2 None \; \
   set -t "=$inner:" key-table ov-root
 
-# $TMUX must be unset for the nested attach, tmux refuses it otherwise; the
-# socket it named is passed explicitly so a non-default server still works.
+# A swap: the popup's process attaches to $inner once its client detaches,
+# the same attach as for a press.
+if [ -n "$nested" ]; then
+  tmux set -g "@ov_next_$(key "$nested")" "$inner" \; detach-client -t "$nested"
+  exit 0
+fi
+
 # The values go in the environment, not the command: tmux expands # in the
 # command and a ' in a path would end the quoting.
-#
-# attach -d detaches the session's other clients, whose popups then close.
-# @ov_viewer is set in the same command list, so the last attach is always
-# the recorded one. A popup whose attach ends with another terminal recorded
-# was taken over and says so; one hidden or quit says nothing.
+self="$0"
+case "$self" in /*) ;; *) self="$PWD/$self" ;; esac
 # shellcheck disable=SC2016 # expanded by the popup's shell
 exec tmux display-popup -c "$client" -E -w 92% -h 92% \
   -e "OV_SOCKET=${TMUX%%,*}" -e "OV_SESSION=$inner" \
-  -e "OV_CLIENT=$client" -e "OV_LABEL=$label" \
-  'TMUX= tmux -S "$OV_SOCKET" attach -d -t "=$OV_SESSION" \; set -t "=$OV_SESSION:" @ov_viewer "$OV_CLIENT" || exit
-v=$(TMUX= tmux -S "$OV_SOCKET" show -qv -t "=$OV_SESSION:" @ov_viewer 2>/dev/null) || exit 0
-[ -z "$v" ] || [ "$v" = "$OV_CLIENT" ] ||
-  TMUX= tmux -S "$OV_SOCKET" display-message -l -c "$OV_CLIENT" "tmux-overlay: $OV_LABEL moved to another terminal"'
+  -e "OV_CLIENT=$client" -e "OV_SELF=$self" \
+  '"$OV_SELF" --show'
