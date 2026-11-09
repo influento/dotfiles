@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# `chrome` and `google-chrome` (a symlink to this file) both run
+# google-chrome-stable, so the three names are one browser.
+# Chrome only: Chromium is a different browser and keeps its own name.
+set -euo pipefail
+
+if ! command -v google-chrome-stable >/dev/null 2>&1; then
+  echo "$(basename "$0"): Google Chrome is not installed" >&2
+  exit 1
+fi
+exec google-chrome-stable "$@"
