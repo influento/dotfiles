@@ -111,6 +111,8 @@ bind -T ov-prefix C-Space send-keys C-Space
 bind -T ov-prefix g detach-client
 bind -T ov-prefix v detach-client
 bind -T ov-prefix t detach-client
+# A closed session can leave hidden ones nothing owns; each press checks too.
+set-hook -g session-closed[0] 'run-shell -b "tmux-overlay --reap"'
 # The pane's whole history in nvim, in a window of its own; :q cleans up. The
 # file name is what lua/scrollback.lua keys on for ]] and [[ between prompts.
 bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'

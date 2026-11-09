@@ -4,6 +4,7 @@ set -euo pipefail
 # tmux-overlay — a persistent program in a popup.
 #
 #   tmux-overlay -c <client> [-s session|repo] <name> <command...>
+#   tmux-overlay --reap
 #
 # First press: creates a hidden session running the command and shows it in
 # a popup on <client>. Press again inside the popup: the popup closes, the
@@ -12,21 +13,28 @@ set -euo pipefail
 # next press starts it fresh.
 #
 # The scope picks which panes share one program:
-#   session  (default) one per tmux session: `ov-<name>-<session>`, started
-#            in the pane's directory.
+#   session  (default) one per tmux session, followed by its id so a rename
+#            keeps it: `ov-<name>-<session>`, started in the pane's folder.
 #   repo     one per git repository, from any window of any session:
 #            `ov-<name>-<root>`, started in the repository's top folder. The
 #            root is relative to $HOME, so the name is the same on every
 #            machine with the same layout. Outside a repository the pane's
-#            folder stands in for the root.
+#            folder stands in for the root. The pane's folder at the press
+#            picks the repository.
+#
+# One terminal shows a hidden session at a time: a press from a second one
+# takes it over, and the first one's popup closes with a message.
 #
 # A pane that runs ssh gets a message instead: tmux sees the local folder
 # the ssh started in, not the remote one. So does a pane whose folder does
 # not exist here.
 #
-# Each press also ends hidden sessions that no client has used for
-# TMUX_OVERLAY_IDLE seconds (default 12 hours) and that run only their own
-# program, so a busy shell or a lazygit in the middle of a push stays.
+# Each press, and --reap (the session-closed hook in tmux.conf), ends the
+# hidden sessions nothing owns any more: a repo one when no pane outside the
+# hidden sessions is in its repository, a session one when its session is
+# gone. Never one on screen, nor one at work: a shell with a job, lazygit
+# with an editor or a git run, nvim with unsaved changes or a terminal job.
+# Such a one goes at the first --reap or press after the work ends.
 #
 # The popup is a nested tmux client attached to the hidden session. That
 # session has no prefix and the key table `ov-root` (tmux.conf binds it), so
@@ -40,7 +48,7 @@ set -euo pipefail
 # typing the program into a shell; such a session is replaced.
 
 usage() {
-  echo "usage: tmux-overlay -c <client> [-s session|repo] <name> <command...>" >&2
+  echo "usage: tmux-overlay -c <client> [-s session|repo] <name> <command...> | --reap" >&2
   exit 2
 }
 
@@ -67,28 +75,78 @@ root_key() {
   esac
 }
 
-# reap <keep>: ends idle hidden sessions other than <keep>. One this script
-# started (it has @ov_root) goes only while it runs nothing but its own
-# program. One without @ov_root, from a restore or from before the scopes,
-# goes when idle: nothing in it is worth keeping, and its start command
-# says nothing about what runs.
+# Unsaved buffers plus running terminal jobs. A terminal buffer never counts
+# as changed, so its job is counted on its own.
+NVIM_WORK='len(filter(getbufinfo(),{_,b->b.changed&&getbufvar(b.bufnr,"&buftype")!="terminal"}))+len(filter(nvim_list_chans(),{_,c->get(c,"mode","")=="terminal"&&jobwait([c.id],0)[0]==-1}))'
+
+# nvim_busy <pid>: true unless the nvim at <pid> says it has no work. nvim
+# 0.12 listens on nvim.<pid>.0 of its server process, a child of the one
+# the pane started; older ones are a single process. No socket or no answer
+# in 2 seconds (a :! command blocks it) counts as work.
+nvim_busy() {
+  local pid="$1" p sock n
+  for p in "$pid" $(pgrep -P "$pid" || true); do
+    for sock in "${XDG_RUNTIME_DIR:-/nonexistent}/nvim.$p.0" "${TMPDIR:-/tmp}/nvim.${USER:-$(id -un)}"/*/"nvim.$p.0"; do
+      [ -S "$sock" ] || continue
+      n=$(timeout 2 nvim --server "$sock" --remote-expr "$NVIM_WORK" 2>/dev/null) || return 0
+      [ "$n" != 0 ]
+      return
+    done
+  done
+  return 0
+}
+
+# busy <session>: true while the hidden session's program is not alone in
+# its pane: something else in the foreground (a command in the shell, an
+# editor from lazygit), a child process (a shell's background job, lazygit's
+# git), or nvim's own work. Unknown counts as busy.
+busy() {
+  local s="$1" pid current start
+  read -r pid current < <(tmux display -p -t "=$s:" '#{pane_pid} #{pane_current_command}') || return 0
+  start=$(tmux display -p -t "=$s:" '#{pane_start_command}') || return 0
+  start="${start#\"}"; start="${start%% *}"; start="${start##*/}"
+  [ -n "$pid" ] && [ "$current" = "$start" ] || return 0
+  [ "$start" = nvim ] && { nvim_busy "$pid"; return; }
+  pgrep -P "$pid" >/dev/null
+}
+
+# reap <keep>: ends the hidden sessions, other than <keep>, that nothing
+# owns, nobody shows and no work keeps. One without @ov_root (from a
+# restore, or from before this script set it) always goes: its program was
+# typed into a shell, nothing in it is worth keeping.
 reap() {
-  local keep="$1" idle="${TMUX_OVERLAY_IDLE:-43200}" now attached activity owner name start current
-  now=$(date +%s)
-  tmux list-sessions -F '#{session_attached} #{session_activity} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
-    while read -r attached activity owner name; do
+  local keep="$1" paths=() attached scope owner rooted name root path owned
+  mapfile -t paths < <(tmux list-panes -a -f '#{?#{m:ov-*,#{session_name}},0,1}' -F '#{pane_current_path}' 2>/dev/null)
+  tmux list-sessions -F '#{session_attached} #{?@ov_scope,#{@ov_scope},-} #{?@ov_owner,#{@ov_owner},-} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
+    while read -r attached scope owner rooted name; do
       case "$name" in ov-*) ;; *) continue ;; esac
       [ "$name" != "$keep" ] && [ "$attached" = 0 ] || continue
-      [ $((now - activity)) -ge "$idle" ] || continue
-      if [ "$owner" = 1 ]; then
-        start=$(tmux display -p -t "=$name:" '#{pane_start_command}') || continue
-        current=$(tmux display -p -t "=$name:" '#{pane_current_command}') || continue
-        start="${start#\"}"; start="${start%% *}"
-        [ "$current" = "$(basename "$start")" ] || continue
+      if [ "$rooted" = 1 ]; then
+        if [ "$scope" = session ]; then
+          tmux has-session -t "$owner" 2>/dev/null && continue
+        else
+          # A repo one, or a session one from before @ov_scope: owned by
+          # any pane in its folder or below.
+          root=$(tmux show -qv -t "=$name:" @ov_root) || continue
+          owned=0
+          for path in "${paths[@]}"; do
+            case "$path" in "$root"|"${root%/}"/*) owned=1; break ;; esac
+          done
+          [ "$owned" = 0 ] || continue
+        fi
+        busy "$name" && continue
       fi
-      tmux kill-session -t "=$name" || true
+      tmux kill-session -t "=$name" 2>/dev/null || true
     done
 }
+
+[ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
+
+if [ "${1:-}" = --reap ]; then
+  [ $# = 1 ] || usage
+  reap ""
+  exit 0
+fi
 
 [ "${1:-}" = "-c" ] && [ $# -ge 4 ] || usage
 client="$2"; shift 2
@@ -99,11 +157,10 @@ fi
 case "$scope" in session|repo) ;; *) usage ;; esac
 [ $# -ge 2 ] || usage
 name="$1"; shift
-[ -n "${TMUX:-}" ] || { echo "tmux-overlay: not inside tmux" >&2; exit 1; }
 pane="${TMUX_PANE:-}"
 [ -n "$pane" ] || { echo "tmux-overlay: TMUX_PANE is not set" >&2; exit 1; }
 
-here=$(tmux display -p -t "$pane" '#{session_name}')
+read -r sid here < <(tmux display -p -t "$pane" '#{session_id} #{session_name}')
 
 # Keys inside the popup go to the hidden session's own table, so a press
 # from in there never reaches this script. Refuse anyway rather than nest.
@@ -124,13 +181,33 @@ if [ "$scope" = repo ]; then
   inner="ov-$name-$(root_key "$dir")"
   # Two folders can give one name (a/b_c and a_b/c): the second one gets a
   # name of its own.
-  owner=$(tmux show -qv -t "=$inner:" @ov_root 2>/dev/null || true)
-  if [ -n "$owner" ] && [ "$owner" != "$dir" ]; then
+  root=$(tmux show -qv -t "=$inner:" @ov_root 2>/dev/null || true)
+  if [ -n "$root" ] && [ "$root" != "$dir" ]; then
     inner="$inner-$(printf '%s' "$dir" | cksum | cut -d' ' -f1)"
   fi
+  case "$dir" in
+    "$HOME") label="$name for ~" ;;
+    "$HOME"/*) label="$name for ~/${dir#"$HOME"/}" ;;
+    *) label="$name for $dir" ;;
+  esac
+  owner=-
 else
   dir="$cwd"
-  inner="ov-$name-$(key "$here")"
+  label="$name for session $here"
+  owner="$sid"
+  # The session's own, whatever its name now.
+  inner=
+  while read -r o n s; do
+    if [ "$o" = "$sid" ] && [ "$n" = "$name" ]; then inner="$s"; break; fi
+  done < <(tmux list-sessions -F '#{?@ov_owner,#{@ov_owner},-} #{?@ov_name,#{@ov_name},-} #{session_name}')
+  if [ -z "$inner" ]; then
+    # A name from the session's name. One left by a gone session of that
+    # name (kept by its work) is not this one's: then the id tells them
+    # apart. One from before @ov_scope is taken over.
+    inner="ov-$name-$(key "$here")"
+    o=$(tmux show -qv -t "=$inner:" @ov_owner 2>/dev/null || true)
+    [ -z "$o" ] || inner="$inner-${sid#\$}"
+  fi
 fi
 
 # A failed cleanup must not keep the popup from opening.
@@ -147,13 +224,23 @@ if tmux has-session -t "=$inner" 2>/dev/null; then
   fi
 fi
 
+# What the hidden session is, set with its creation in one command list so
+# no --reap sees it without @ov_root. Two presses at once: the second
+# new-session fails, the first one's session is used.
+ident=(set -t "=$inner:" @ov_root "$dir" \; set -t "=$inner:" @ov_scope "$scope" \;
+  set -t "=$inner:" @ov_name "$name")
+[ "$owner" = - ] || ident+=(\; set -t "=$inner:" @ov_owner "$owner")
 if ! tmux has-session -t "=$inner" 2>/dev/null; then
   # -c is a format: ## keeps a # in the folder name.
-  tmux new-session -d -s "$inner" -c "${dir//#/##}" "$*"
-  tmux set -t "=$inner:" @ov_root "$dir"
+  tmux new-session -d -s "$inner" -c "${dir//#/##}" "$*" \; "${ident[@]}" 2>/dev/null ||
+    tmux has-session -t "=$inner"
 fi
 # Set on every open, so a session from before these options gets them too.
-tmux set -t "=$inner:" status off \; \
+# @ov_root stays the folder it started in.
+ident[4]=$(tmux show -qv -t "=$inner:" @ov_root || true)
+[ -n "${ident[4]}" ] || ident[4]="$dir"
+tmux "${ident[@]}" \; \
+  set -t "=$inner:" status off \; \
   set -t "=$inner:" detach-on-destroy on \; \
   set -t "=$inner:" prefix None \; \
   set -t "=$inner:" prefix2 None \; \
@@ -161,9 +248,18 @@ tmux set -t "=$inner:" status off \; \
 
 # $TMUX must be unset for the nested attach, tmux refuses it otherwise; the
 # socket it named is passed explicitly so a non-default server still works.
-# Both go in the environment, not the command: tmux expands # in the command
-# and a ' in a path would end the quoting.
+# The values go in the environment, not the command: tmux expands # in the
+# command and a ' in a path would end the quoting.
+#
+# attach -d detaches the session's other clients, whose popups then close.
+# @ov_viewer is set in the same command list, so the last attach is always
+# the recorded one. A popup whose attach ends with another terminal recorded
+# was taken over and says so; one hidden or quit says nothing.
 # shellcheck disable=SC2016 # expanded by the popup's shell
 exec tmux display-popup -c "$client" -E -w 92% -h 92% \
   -e "OV_SOCKET=${TMUX%%,*}" -e "OV_SESSION=$inner" \
-  'TMUX= exec tmux -S "$OV_SOCKET" attach -t "=$OV_SESSION"'
+  -e "OV_CLIENT=$client" -e "OV_LABEL=$label" \
+  'TMUX= tmux -S "$OV_SOCKET" attach -d -t "=$OV_SESSION" \; set -t "=$OV_SESSION:" @ov_viewer "$OV_CLIENT" || exit
+v=$(TMUX= tmux -S "$OV_SOCKET" show -qv -t "=$OV_SESSION:" @ov_viewer 2>/dev/null) || exit 0
+[ -z "$v" ] || [ "$v" = "$OV_CLIENT" ] ||
+  TMUX= tmux -S "$OV_SOCKET" display-message -l -c "$OV_CLIENT" "tmux-overlay: $OV_LABEL moved to another terminal"'
