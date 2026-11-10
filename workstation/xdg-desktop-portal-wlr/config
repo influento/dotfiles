@@ -1,0 +1,11 @@
+# Screen-share source picker.
+#
+# An app that offers windows as well as monitors (Telegram) makes xdpw skip
+# slurp, which can only pick a monitor, and try wmenu/wofi/rofi/bemenu/mew/
+# fuzzel instead. With none installed the share fails silently. The portal
+# runs with PATH=/usr/local/bin:/usr/bin, hence the full path; xdpw runs the
+# command through /bin/sh, which expands $HOME. Read only at startup:
+#   systemctl --user restart xdg-desktop-portal-wlr
+[screencast]
+chooser_type=dmenu
+chooser_cmd=$HOME/.local/bin/launcher --dmenu --prompt 'Share:'

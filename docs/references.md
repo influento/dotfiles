@@ -38,5 +38,6 @@ Check these when upgrading tools or debugging config issues.
 | **GTK 3/4** | [GTK settings](https://docs.gtk.org/gtk3/class.Settings.html) | `settings.ini` + `gtk.css` |
 | **Qt6ct** | [qt6ct GitHub](https://github.com/trialuser02/qt6ct) | Qt icon theme + fonts (Fusion style); requires `QT_QPA_PLATFORMTHEME=qt6ct` env var |
 | **XDG portal** | [xdg-desktop-portal](https://flatpak.github.io/xdg-desktop-portal/) | Routes portals to wlr backend |
+| **xdg-desktop-portal-wlr** | [xdpw GitHub](https://github.com/emersion/xdg-desktop-portal-wlr), `man 5 xdg-desktop-portal-wlr` | INI; `[screencast] chooser_type`/`chooser_cmd` pick the share source; read only at startup |
 | **mpv** | [mpv.io/manual](https://mpv.io/manual/stable/) | Themed OSD/OSC, `input.conf` for keybindings, `script-opts/` for script config |
 | **yt-dlp** | [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp#configuration) | One option per line, same syntax as CLI flags |

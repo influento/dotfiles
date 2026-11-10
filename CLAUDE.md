@@ -93,6 +93,7 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **wlsunset** | `workstation/wlsunset/` | Night light: temperature, location-based schedule |
 | **SwayOSD** | `workstation/swayosd/` | Volume/brightness popup styling |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/` | Routes desktop portals to wlr for Sway |
+| **xdg-desktop-portal-wlr** | `workstation/xdg-desktop-portal-wlr/` | Screen-share source picker is `launcher --dmenu`: without one, sharing from an app that offers windows (Telegram) fails silently |
 | **GTK theming** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` → `~/.config/gtk-3.0/`, `gtk-4.0/` | GTK apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/` → `~/.config/qt6ct/` | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (needs the qt6ct env var from the OS installer) |
 | **mpv** | `workstation/mpv/` | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration |
