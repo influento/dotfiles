@@ -505,7 +505,11 @@ install_gtk_widgets() {
   log_section "Installing gtk-widgets"
 
   if [[ -d "$install_dir/.git" ]]; then
-    git -C "$install_dir" pull --ff-only --quiet 2>/dev/null || true
+    local pull_err
+    if ! pull_err="$(git -C "$install_dir" pull --ff-only --quiet 2>&1)"; then
+      log_warn "gtk-widgets: could not update ${install_dir}, installing the version checked out"
+      grep -m 1 -E '^(fatal|error):' <<<"$pull_err" | sed 's/^/  /' >&2 || true
+    fi
   else
     git clone --depth 1 "$repo_url" "$install_dir"
   fi
