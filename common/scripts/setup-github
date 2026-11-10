@@ -100,11 +100,9 @@ else
   if [[ -z "$git_name" || -z "$git_email" ]]; then
     warn "Skipping git identity — name and email are both required."
   else
-    cat > "$gitconfig_local" <<EOF
-[user]
-    name = $git_name
-    email = $git_email
-EOF
+    # git config quotes what the file format needs (" \ # ;).
+    git config --file "$gitconfig_local" user.name "$git_name"
+    git config --file "$gitconfig_local" user.email "$git_email"
     info "Wrote git identity to $gitconfig_local"
   fi
 fi
