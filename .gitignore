@@ -29,10 +29,6 @@ workstation/ghostty/themes/dotfiles.conf
 workstation/yazi/theme.toml
 workstation/sway/config
 
-# Runtime config (written by widgets)
-workstation/sway/scale.conf
-workstation/wlsunset/temperature
-
 # skill-creator eval artifacts (workspace dirs are siblings of the skill)
 common/claude-code/skills/**/*-workspace/
 common/claude-code/skills/**/__pycache__/

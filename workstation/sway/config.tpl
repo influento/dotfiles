@@ -22,7 +22,7 @@ input type:touchpad {
 }
 
 # --- Output ---
-include ~/.config/sway/scale.conf
+include ~/.local/state/dotfiles/scale.conf
 
 # Laptop lid: turn the internal panel off while closed. With nosleep on, logind
 # ignores the lid, so without this the panel stays lit (OLED: no backlight to

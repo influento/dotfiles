@@ -137,4 +137,25 @@ snapshot "$H" >"$TMP/debian.s2"
 check cmp -s "$TMP/debian.s1" "$TMP/debian.s2"
 check not grep -qE 'Linked|Relinked|Backing up' "$TMP/debian.2"
 
+echo "== sway and wlsunset read the display popup's state outside the repo"
+# gtk-widgets' display popup writes both files there. Under ~/.config they would
+# land in the repo through the links.
+H="$TMP/state"; mkdir -p "$H/.local/state/dotfiles" "$TMP/state-bin"
+deploy "$H" 2>/dev/null
+printf 'output * scale 1.3\n' >"$H/.local/state/dotfiles/scale.conf"
+printf '3700\n' >"$H/.local/state/dotfiles/temperature"
+printf '#!/bin/sh\necho "$@"\n' >"$TMP/state-bin/wlsunset"
+chmod +x "$TMP/state-bin/wlsunset"
+HOME="$H" PATH="$TMP/state-bin:$PATH" bash "$H/.config/wlsunset/wlsunset.sh" >"$TMP/state.wlsunset"
+check grep -qx -- '-T 3701 -t 3700' "$TMP/state.wlsunset"
+if command -v sway >/dev/null; then
+  # -C parses the config and exits; the headless backend needs no seat or display
+  HOME="$H" WLR_BACKENDS=headless WLR_RENDERER=pixman timeout 10 \
+    env -u WAYLAND_DISPLAY -u DISPLAY -u SWAYSOCK \
+    sway -C -d -c "$H/.config/sway/config" >"$TMP/state.sway" 2>&1 || true
+  check grep -q 'Subcommand: scale 1.3' "$TMP/state.sway"
+else
+  echo "skip sway -C: sway not installed"
+fi
+
 exit "$fail"

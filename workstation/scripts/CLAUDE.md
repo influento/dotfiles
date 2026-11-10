@@ -99,11 +99,12 @@ Four constraints drove the design. Do not "simplify" past them:
 2. **Never assume `HEADLESS-1`.** Sway increments the suffix on every
    `create_output` for the compositor's lifetime, so the second toggle yields
    `HEADLESS-2`. Resolve the name via the `HEADLESS-` prefix at call time.
-3. **Always set the virtual output's scale explicitly.** `sway/scale.conf` sets
-   `output * scale 1.3` for the ultrawide; inherited, it misrenders the remote
-   view. Mode and scale are both required on a HiDPI client: mode sets the
-   framebuffer wayvnc streams, scale sets the logical layout inside it. Wrong
-   scale gives half-size UI or a blurry upscale.
+3. **Always set the virtual output's scale explicitly.** The display popup's
+   `~/.local/state/dotfiles/scale.conf` sets `output * scale 1.3` for the
+   ultrawide; inherited, it misrenders the remote view. Mode and scale are both
+   required on a HiDPI client: mode sets the framebuffer wayvnc streams, scale
+   sets the logical layout inside it. Wrong scale gives half-size UI or a blurry
+   upscale.
 4. **Idle handling must skip virtual outputs.** `swayidle/config` calls
    `headless dpms off` rather than `output * power off` for exactly this reason,
    and `headless on` invokes `nosleep on`, since the 60-minute

@@ -200,8 +200,9 @@ headless_on() {
   virtual="$(current_headless_output)"
   [[ -n "${virtual}" ]] || die "could not create a headless output"
 
-  # Scale is always set explicitly: scale.conf applies `output * scale 1.3` for
-  # the ultrawide, and inheriting that would misrender the remote view.
+  # Scale is always set explicitly: the display popup's scale.conf applies
+  # `output * scale 1.3` for the ultrawide, and inheriting that would misrender
+  # the remote view.
   swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale ${HEADLESS_SCALE}"
 
   # --render-cursor composites the pointer into the framebuffer at the output's

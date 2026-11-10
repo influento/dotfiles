@@ -4,7 +4,7 @@
 # Temperature is persisted by display-popup widget
 set -euo pipefail
 
-temp_file="$HOME/.config/wlsunset/temperature"
+temp_file="$HOME/.local/state/dotfiles/temperature"
 temp=4500
 if [[ -f "$temp_file" ]]; then
   temp=$(cat "$temp_file")
