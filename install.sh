@@ -27,8 +27,8 @@ source "${DOTFILES_DIR}/lib/reminders.sh"
 # checked against. tmux.conf, settings.json and the zsh config call these
 # binaries, so a new tag is pinned in the same commit as their changes.
 readonly TMUX_PLUGINS_REPO=influento/tmux-plugins
-readonly TMUX_PLUGINS_VERSION=v0.3.0
-readonly TMUX_PLUGINS_SHA256=b2e5ba06135e4108942e6207ddd09b7a3ae43835409fd2e05e15b5635d110d1b
+readonly TMUX_PLUGINS_VERSION=v0.3.1
+readonly TMUX_PLUGINS_SHA256=0124ad0c3a044add739462e01086796356de2c6d119b3a509437156f157f15bd
 
 # --- Defaults ---
 PROFILE=""
