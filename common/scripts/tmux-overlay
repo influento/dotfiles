@@ -8,47 +8,12 @@ set -euo pipefail
 #   tmux-overlay --show     (the popup's own process)
 #
 # The popup is a nested tmux client attached to a hidden session that runs
-# the command. The scope picks which panes share one and how long it lives:
-#   repo     kept, one per git repository, from any window of any session:
-#            `ov-<name>-<root>`, started in the repository's top folder.
-#            The root is relative to $HOME, so the name is the same on
-#            every machine with the same layout. Outside a repository the
-#            pane's folder stands in for the root. The pane's folder at the
-#            press picks the repository. Press again inside the popup: the
-#            popup closes, the program keeps running with its state. Press
-#            again outside: the same program comes back. When the program
-#            exits the next press starts it fresh.
-#   popup    (default) new at every open, in the pane's folder, and ended
-#            with what runs in it when the popup closes:
+# the command.
+#   repo     kept, one per git repository: `ov-<name>-<root>`.
+#   popup    (default) new at every open, ended when the popup closes:
 #            `ov-<name>-<client>`.
-#
-# Inside the popup, another overlay's key swaps the popup to that overlay,
-# as a press from the pane behind the popup would open it; the popup's own
-# key closes it. A cd inside the popup picks nothing.
-#
-# One terminal shows a hidden session at a time: a press or a swap from a
-# second one takes it over, and the first one's popup closes with a message.
-#
-# A pane that runs ssh gets a message instead: tmux sees the local folder
-# the ssh started in, not the remote one. So does a pane whose folder does
-# not exist here, and a program that is not installed.
-#
-# Each press, and --reap (the session-closed hook in tmux.conf), ends the
-# repo sessions nothing owns any more: no pane outside the hidden sessions
-# is in its repository. Never one on screen, nor one at work: lazygit with
-# an editor or a git run, nvim with unsaved changes or a terminal job. Such
-# a one goes at the first --reap or press after the work ends.
-#
-# The hidden session has no prefix and the key table `ov-root` (tmux.conf
-# binds it), so inside the popup only the keys bound there work: the
-# overlay keys run this script, every other prefix key does nothing. A
-# popup never opens a second popup, and the nested client never leaves the
-# hidden sessions.
-#
-# The caller passes the client and the pane ($TMUX_PANE) because run-shell
-# sets neither; without them tmux answers with the last active client, which
-# is a guess. tmux-revive may save hidden sessions and bring them back by
-# typing the program into a shell; such a session is replaced.
+# A pane that runs ssh, a folder that does not exist here, and a program
+# that is not installed get a message instead. Why: common/scripts/CLAUDE.md.
 
 usage() {
   echo "usage: tmux-overlay -c <client> [-s repo|popup] <name> <command...> | --reap" >&2

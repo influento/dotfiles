@@ -1,11 +1,7 @@
 # Common scripts
 
 Deployed to `~/.local/bin/` on every profile; `*.md` is skipped, so this file
-stays here. The rows in the root CLAUDE.md name each script. What follows is
-what a reader cannot get from the code quickly enough.
-
-tmux-attention and claude-tmux moved to `influento/tmux-plugins` as tmux-agent
-and tmux-revive, with their docs and tests; install.sh pins the release.
+stays here. The rows in the root CLAUDE.md name each script.
 
 ## tmux-overlay
 
@@ -62,10 +58,10 @@ One terminal shows a hidden session at a time. The popup attaches with
 `attach -d`, which detaches the session's other clients, so with two
 terminals on one server (two workstations on a shared one) the press from
 the second takes it over and the first one's popup closes; the program and
-its state do not notice. Before, both popups attached, keys from both
-reached it and `window-size latest` resized it to whichever typed last.
-The attach sets `@ov_viewer` (the outer client) in the same command list,
-so even two presses at once leave it naming the client that attached last.
+its state do not notice. With both attached, keys from both would reach it
+and `window-size latest` would resize it to whichever typed last. The
+attach sets `@ov_viewer` (the outer client) in the same command list, so
+even two presses at once leave it naming the client that attached last.
 A popup whose attach ends with another client in `@ov_viewer` was taken
 over and says `<@ov_label> moved to another terminal`
 (`lazygit for ~/dev/r1`); one hidden or quit says nothing. Taking over and
@@ -77,13 +73,11 @@ overlay's key swaps the popup to that overlay without closing it: nvim to
 lazygit is one press. The swap is a press from the pane behind the popup:
 the hidden session's `@ov_viewer` is the outer client, and the pane on that
 client's screen gives the folder and the refusals. A `cd` inside the popup
-picks nothing, the popup is not a place to work from. The script prepares
-the target like a press, sets the server option `@ov_next_<nested
-client>`, and detaches the nested client; the popup's `--show` loop reads
-it and attaches to the target with the same `attach -d` and `@ov_viewer`,
-so a swap takes over from another terminal like a press, and a popup that
-swapped is told when it is taken over. A shell swapped away from ends like
-one hidden.
+picks nothing, the popup is not a place to work from. The swap hands the
+target to the popup's `--show` loop in the server option `@ov_next_<nested
+client>`, so it attaches with the same `attach -d` and `@ov_viewer` as a
+press: a swap takes over like a press, and a popup that swapped is told
+when it is taken over. A shell swapped away from ends like one hidden.
 
 Refused with a message on the client, no popup and no swap:
 
@@ -121,8 +115,8 @@ one not yet attached is about to be. A shell from before the popup scope
 tmux-revive, or from before the scopes) goes whatever it runs: its program
 was typed into a shell.
 Nothing depends on time, so sleep, hibernate and a clock jump change
-nothing; a power-off ends them all, and tmux-revive after v0.3.0 does not save
-them.
+nothing; a power-off ends them all, and tmux-revive from v0.3.1 does not
+save them.
 The options that say what a session is (`@ov_root`, `@ov_scope`, `@ov_name`,
 `@ov_label`) are set in the `new-session` command list, so a `--reap` never
 sees one without them; two presses at once make one session.
@@ -131,16 +125,16 @@ A popup never opens a second popup. The script gives each hidden session no
 prefix and the key table `ov-root` (bound in `common/tmux/tmux.conf.tpl`):
 inside the popup, prefix + `g`, `v` or `t` runs the script (close or swap
 above), the prefix twice reaches the program, and every other prefix key
-does nothing. Before this, a session switch inside the popup (`prefix o`,
-`X`, `S`, `( )`, `w`) moved the nested client to an outer session, and the
-next `prefix v` opened a popup inside the popup. A new overlay key needs its
-own line in `ov-prefix`.
+does nothing. So no session switch (`prefix o`, `X`, `S`, `( )`, `w`)
+moves the nested client to an outer session, where the next `prefix v`
+would open a popup inside the popup. A new overlay key needs its own line
+in `ov-prefix`.
 
-`:q` ends the hidden session; the next press starts fresh. tmux-revive up
-to v0.3.0 saves hidden sessions like any other and restores one by typing
-its program into a shell, so after `:q` the popup would sit at that shell.
-So a session whose pane's start command is not the program is killed and
-recreated on the next press. Later tmux-revive releases leave
+`:q` ends the hidden session; the next press starts fresh. tmux-revive
+up to v0.3.0 saved hidden sessions like any other and restored one by
+typing its program into a shell, so after `:q` the popup would sit at that
+shell. So a session whose pane's start command is not the program is
+killed and recreated on the next press. From v0.3.1 tmux-revive leaves
 `@skip_sessions` out of the save; the check stays for snapshots written
 before.
 
