@@ -8,6 +8,10 @@ bind C-Space send-prefix
 
 # --- General ---
 set -g mouse on
+# tmux 3.8 opens a floating pane on a Ctrl+drag; a Ctrl+click that moves
+# a little leaves a stray 1x1 one. Keep the mouse, drop that.
+unbind -n C-MouseDrag1Pane
+unbind -n C-MouseDrag1Empty
 set -g base-index 1
 setw -g pane-base-index 1
 set -g renumber-windows on
