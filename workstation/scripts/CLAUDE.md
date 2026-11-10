@@ -4,9 +4,6 @@ Deployed to `~/.local/bin/` by the `scripts` case of `deploy_configs` in
 `lib/helpers.sh`, which skips `*.md` -- this file stays here. Every script here
 is desktop-specific (Sway/Wayland); the shared ones live in `common/scripts/`.
 
-The rows in the root CLAUDE.md name each script and where it deploys. What
-follows is what a reader cannot get from the code quickly enough.
-
 ## auto-update
 
 Background system update on sway start: `yay -Syu` (repos + AUR) + npm updates,
@@ -38,30 +35,21 @@ the key split is on the *first* colon in the line, so a keyless reminder
 containing a colon loses everything before it; give such a line a key, even a
 dummy one.
 
-## tmux-attach
-
-What `ghostty/config` runs instead of `tmux new-session -A -s main`. Two lines:
-`tmux-revive attach`, which restores the saved sessions on a new server before
-it attaches (its rules and tests are in `influento/tmux-plugins`), or plain
-`tmux new-session -A -s main` when the binary is missing, so a failed download
-never costs the terminal.
-
 ## tg
 
 Creates isolated Telegram Desktop instances — each with its own `--workdir` and
-`.desktop` launcher, so they appear separately in the app launcher. `create`/`list`/`remove`,
-and it auto-runs `update-desktop-database`. The launcher calls `tg-run <slug>`,
-which starts the instance with private `XDG_CONFIG_HOME`/`XDG_DATA_HOME` under
-`<workdir>/xdg/`: symlinks to every real entry, except `mimeapps.list` (a
-private copy) and `applications/` (a private dir). Telegram re-registers itself
-as the `tg://` handler on the first launch after every update, with its
-`-workdir` command line; without the shadow that rewrites the real
-`mimeapps.list` (the dotfiles symlink, so the repo goes dirty) and litters
-`userapp-*.desktop` files. The env var the script once set for this
-(`TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME`) no longer exists in Telegram; the
-only in-app switch is an experimental toggle stored in the workdir's encrypted
-settings, which cannot be pre-set. Instances made before this need `tg "<name>"`
-run again to rewrite their launcher.
+`.desktop` launcher, so they appear separately in the app launcher. `tg <name>`,
+`--list` and `--remove`; creating and removing run `update-desktop-database`.
+The launcher calls `tg-run <slug>`, which starts the instance with private
+`XDG_CONFIG_HOME`/`XDG_DATA_HOME` under `<workdir>/xdg/`: symlinks to every real
+entry, except `mimeapps.list` (a private copy) and `applications/` (a private
+dir). Telegram re-registers itself as the `tg://` handler on the first launch
+after every update, with its `-workdir` command line; without the shadow that
+rewrites the real `mimeapps.list` (the dotfiles symlink, so the repo goes dirty)
+and litters `userapp-*.desktop` files. The old
+`TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME` env var no longer exists, and Telegram
+has no setting that can be pre-set to stop this. `tg "<name>"` on an existing
+instance rewrites its launcher.
 
 ## nosleep
 
@@ -153,9 +141,3 @@ and restored on the way out.
 Requires `wayvnc`, `waypipe` and a VNC client (`virt-viewer`, or `wlvncc` from
 the AUR), plus tty1 autologin. All system-level, so they live in arch-install.
 
-
-### swayidle
-
-`swayidle/config` calls `headless dpms off` rather than `output * power off` so
-that idle handling never powers off the virtual output — constraint 4 above,
-enforced from outside this directory.

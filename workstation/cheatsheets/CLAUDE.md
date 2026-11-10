@@ -2,21 +2,11 @@
 
 Single multi-scope HTML cheatsheet covering nvim, ideavim, and tmux. Opened via Chrome/Chromium app mode (no browser chrome) and pinned on a sway workspace.
 
-Lives at `~/dev/infra/dotfiles/workstation/cheatsheets/`. The `cheat` zsh alias (defined in `workstation/zsh/.zshrc-workstation`) opens Chrome (Chromium as fallback, via `_chrome_bin`) with `file://$HOME/dev/infra/dotfiles/workstation/cheatsheets/tools/index.html` directly — no deploy step, no symlink.
-
-## Layout
-
-```
-workstation/cheatsheets/
-├── CLAUDE.md     # this file
-└── tools/
-    ├── index.html
-    └── styles.css
-```
+The `cheat` zsh alias (`_cheat` in `workstation/zsh/.zshrc-workstation`) finds the repo by resolving the `~/.zshrc-workstation` symlink, then opens `workstation/cheatsheets/tools/index.html` from it in Chrome (Chromium as fallback, via `_chrome_bin`) — no deploy step, no symlink. A second call focuses the open window.
 
 ## Scopes
 
-The page has a tri/quad-mode top-bar switcher (keys 1/2/3/4):
+The page has a four-mode top-bar switcher (keys 1/2/3/4):
 
 | Key | Scope    | Shows                                   |
 | --- | -------- | --------------------------------------- |
@@ -49,15 +39,7 @@ Vim-core sections are grouped by **what you're doing** so a glance matches a goa
 - **Extras** — `data-show="nvim"` / `data-show="ideavim"` deltas, tail of vim-core
 - **D · cmdline** — Ex ranges, Session (custom)
 
-Each group carries a `g-*` class (see Design conventions) for color cueing.
-
-## Launcher
-
-`cheat` zsh alias in `workstation/zsh/.zshrc-workstation`:
-
-- First call launches Chrome (or Chromium) in `--app=` mode, detached (no browser chrome, just title bar + page)
-- Subsequent calls focus the existing window via `swaymsg [title="Tools cheatsheet"] focus`
-- Isolated `--user-data-dir` (`$XDG_RUNTIME_DIR/chrome-cheat-tools`)
+Each group carries a `g-*` class, whose accent overrides the family color (`styles.css`).
 
 ## Source of truth
 
@@ -73,27 +55,4 @@ The sheet is curated — it shows bindings actually used in this workflow, not e
 
 ## Design conventions
 
-- **Layout**: CSS multi-column (`column-width` on `main.bricks`) — sections flow as bricks, no row-equalization
-- **Font**: JetBrains Mono only
-- **Background**: dark (`#0d1117`)
-- **Family colors** drive `--accent`:
-  - `.vim` (vim core / shared) — green `#7ee787`
-  - `.ide` (plugin / leader / IDE actions) — steel `#79c0ff`
-  - `.patterns` (highlight card) — amber `#ffb86c`
-  - `[data-scope="tmux"]` masthead/button accent — violet `#c4a7e7`
-- **Group accents** (override family on vim-core sections so the eye can bucket
-  them at a glance — see Section ordering below):
-  - `.g-move` — green (motion, jumps, search)
-  - `.g-edit` — amber (visual, text objects, edit, insert)
-  - `.g-augment` — violet (surround, folds, registers, marks)
-  - `.g-cmd` — steel (cmdline, custom session)
-  - `.g-extras` — green (scope-only deltas)
-- **Density**: ~18px base, 380px column width
-
-## Adaptive
-
-- Default: ~380px columns
-- ≥1800px: 360px columns, 16px font
-- ≥2400px: 400px columns, 17px font
-- ≤600px: single column
-- Print: 3 columns, white background, monochrome
+Family classes set a section's accent: `.vim` for vim core and shared rows, `.ide` for plugin, leader and IDE actions. Colors, column widths, breakpoints and the print layout are in `tools/styles.css`.

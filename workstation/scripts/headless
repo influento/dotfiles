@@ -3,32 +3,15 @@ set -euo pipefail
 
 # headless — switch this machine between normal desktop and headless remote mode.
 #
-# Backup mode for power outages. The physical monitor is by far the largest
-# consumer in the setup, so headless mode disables every physical output and
-# serves the live Sway session over VNC to a virtual output instead, sized for
-# whatever screen you connect from.
-#
-#   on      Create a headless output, start wayvnc on loopback, inhibit
-#           suspend, then disable the physical outputs. Sway migrates the
-#           workspaces to the headless output automatically.
-#   off     Reverse all of that, restoring the workspace-to-output layout
-#           recorded on the way in.
-#   status  Report the current mode.
-#   toggle  Flip between on and off.
-#
-# Capturing a virtual output rather than the physical one is deliberate: a
-# disabled or powered-off output stops being composited, so wlr-screencopy has
-# no frames to hand wayvnc and the stream would freeze. The headless output is
-# always composited, which makes remote access independent of the monitor.
-#
-# wayvnc binds to loopback only. Reach it by tunnelling over the SSH daemon
-# that already runs on this machine, never by exposing the port:
-#
+#   headless on|off|status|toggle
 #   headless connect <host>        full desktop, from the remote machine
 #   headless app <host> <cmd>...   single app over waypipe, no session needed
+#   headless dpms on|off           power the physical outputs only (swayidle)
 #
-# State lives in a transient systemd --user unit plus $XDG_RUNTIME_DIR, so it
-# is gone after a reboot: a rebooted machine always comes back a normal desktop.
+# Backup mode for power outages: the physical outputs go off and the live Sway
+# session is served over VNC from a virtual output. wayvnc binds to loopback
+# only; reach it over SSH, never by exposing the port. Design constraints and
+# requirements: see workstation/scripts/CLAUDE.md.
 
 UNIT="wayvnc"
 # Sway increments the suffix on every create_output for the lifetime of the
