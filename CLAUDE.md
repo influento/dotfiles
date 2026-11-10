@@ -22,6 +22,10 @@ and idempotent so it can be safely re-run at any time.
 
 - Lint: run `shellcheck -x` on every tracked file whose first line is a bash shebang:
   `git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x`
+- Check: `./check` runs the Lint command, every tool's offline test suite, the topo
+  tests and `tests/deploy.sh`. That last one deploys twice into a throwaway HOME and
+  fails if the second deploy changes anything. It needs the templates rendered
+  (`install.sh` once)
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`
@@ -185,7 +189,8 @@ Adding a config:
 2. A `~/.config/<name>/` target works automatically via `deploy_configs`. For another
    target (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
 3. Add a row to the [Tools](#tools) table
-4. Run the Lint command from [Commands](#commands)
+4. Run `./check` ([Commands](#commands)). A new special target gets a line in
+   `tests/deploy.sh`
 
 ## Claude Code Skills
 

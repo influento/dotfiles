@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# check — every lint and offline test in this repo, in one run. Not deployed.
+# Prints one line per step; a failed step prints its output after it.
+# Leaves out typescript/gate/tests/verify.sh: it makes a model call from
+# inside a project (typescript/gate/CLAUDE.md).
+# Usage: ./check
+# shellcheck disable=SC2329  # lint and suite are called through step
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+LOG=$(mktemp)
+trap 'rm -f "$LOG"' EXIT
+failed=0
+
+# Run a command as one named step, its output kept unless it fails.
+step() {
+  local name="$1" start=$SECONDS
+  shift
+  if "$@" >"$LOG" 2>&1; then
+    printf 'ok   %s (%ss)\n' "$name" "$((SECONDS - start))"
+  else
+    printf 'FAIL %s\n' "$name"
+    sed 's/^/     /' "$LOG"
+    failed=1
+  fi
+}
+
+lint() {
+  git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x
+}
+# A suite runs from the directory that holds its tests/, as its CLAUDE.md says.
+suite() {
+  (cd "$(dirname "$(dirname "$1")")" && bash "tests/${1##*/}")
+}
+
+step lint lint
+# Tracked files only: a new suite joins once it is git-added.
+while IFS= read -r t; do
+  step "$t" suite "$t"
+done < <(git ls-files '*tests/*.sh' | grep -v '/verify\.sh$')
+step topo bash -c 'cd common/claude-code/skills/topo && node --test test/'
+
+exit "$failed"
