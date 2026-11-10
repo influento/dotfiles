@@ -53,8 +53,8 @@ Options:
   --help              Show this help message
 
 Profiles:
-  server       CLI tools only: zsh, neovim, tmux, git, starship
-  workstation  CLI tools + desktop: sway, waybar, ghostty, theming
+  server       common configs only: shell, editor, terminal tools, Claude Code
+  workstation  common + desktop: sway, waybar, ghostty, theming
 
 Examples:
   bash install.sh --profile server
@@ -128,6 +128,7 @@ log_info "Theme:      $THEME"
 if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info ""
   log_info "Dry run — would deploy:"
+  log_info "  oh-my-zsh, zsh plugins: install if missing"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  common configs: $(list_config_dirs "${DOTFILES_DIR}/common")"
   log_info "  bat, fd: link ~/.local/bin/{bat,fd} to Debian's batcat, fdfind where only those exist"
@@ -135,13 +136,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
   log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION} (SHA256SUMS ${TMUX_PLUGINS_SHA256:0:12}…): tmux-warp"
   if [[ "$PROFILE" == "workstation" ]]; then
-    log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION}: tmux-agent, tmux-revive"
     log_info "  workstation configs: $(list_config_dirs "${DOTFILES_DIR}/workstation")"
+    log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION}: tmux-agent, tmux-revive"
     log_info "  npm packages: install from workstation/npm/packages.conf"
     log_info "  gtk-widgets: clone/update and install from GitHub"
     log_info "  obsidian plugins: install from workstation/obsidian/plugins.conf (if vault exists)"
   fi
-  log_info "  oh-my-zsh: install if missing"
+  log_info "  dead links: remove symlinks into the repo whose source is gone"
   exit 0
 fi
 
@@ -161,17 +162,6 @@ fi
 validate_rendered "${DOTFILES_DIR}/common"
 if [[ "$PROFILE" == "workstation" ]]; then
   validate_rendered "${DOTFILES_DIR}/workstation"
-fi
-
-# Ensure all shell scripts are executable (the per-directory CLAUDE.md files are docs, not scripts)
-find "${DOTFILES_DIR}" -name '*.sh' -exec chmod +x {} +
-find "${DOTFILES_DIR}/common/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
-# workbench is a self-contained tool under common/claude-code/workshop/, not a script in
-# common/scripts/ — see the claude-code case in deploy_configs.
-chmod +x "${DOTFILES_DIR}/common/claude-code/workshop/workbench/bin/workbench" 2>/dev/null || true
-chmod +x "${DOTFILES_DIR}/common/claude-code/workshop/stack/bin/stack" 2>/dev/null || true
-if [[ "$PROFILE" == "workstation" ]]; then
-  find "${DOTFILES_DIR}/workstation/scripts" -type f ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true
 fi
 
 # Deploy common configs (all profiles)

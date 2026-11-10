@@ -219,6 +219,9 @@ practices are neither: they are a stack package of its ecosystem
 - Indent with 2 spaces, no tabs
 - Functions use `snake_case`
 - Quote all variable expansions
+- A script is committed executable (`git add --chmod=+x`); `install.sh` never sets the bit
+- Common config calls a workstation-only binary (tmux-agent, tmux-revive) only behind
+  `command -v`
 - Before every commit/push, audit the staged diff for sensitive information leaks:
   usernames, passwords, API keys, tokens, private IPs, email addresses, or any
   data that should not appear in a public repository. Flag any findings to the user
