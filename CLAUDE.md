@@ -92,7 +92,6 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **swaybg** | `workstation/swaybg/` | Wallpaper: launcher script, images |
 | **wlsunset** | `workstation/wlsunset/` | Night light: temperature, location-based schedule |
 | **SwayOSD** | `workstation/swayosd/` | Volume/brightness popup styling |
-| **cliphist** | `workstation/cliphist/` | Clipboard history picker script |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/` | Routes desktop portals to wlr for Sway |
 | **GTK theming** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` → `~/.config/gtk-3.0/`, `gtk-4.0/` | GTK apps: theme, icons, cursor, font |
 | **Qt theming** | `workstation/theming/qt6ct/` → `~/.config/qt6ct/` | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (needs the qt6ct env var from the OS installer) |
@@ -125,6 +124,7 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/*.txt`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
 | `lock` | workstation | Switches to the US layout, then locks |
+| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' launcher) |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |
 | `stale-kernel` | workstation | Waybar indicator: the kernel was upgraded and a reboot is pending |
 

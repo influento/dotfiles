@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# cliphist — Clipboard history picker (gtk-widgets launcher --dmenu)
-#
-# Sway config autostart (to start listening):
-#   exec wl-paste --watch cliphist -max-items 100 store
-#
-# Sway config keybind:
-#   bindsym $mod+v exec ~/.config/cliphist/cliphist-pick.sh
+# cliphist-pick — Clipboard history picker (gtk-widgets launcher --dmenu), on
+# $mod+v. sway also starts the history: wl-paste --watch cliphist store.
 set -euo pipefail
 
 # Esc makes launcher exit 1 with no output; stop there, or wl-copy would run

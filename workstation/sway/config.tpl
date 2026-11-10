@@ -52,7 +52,7 @@ client.urgent           @@RED@@ @@RED@@ @@BASE@@ @@RED@@   @@RED@@
 bindsym --to-code $mod+Return exec $term
 bindsym --to-code $mod+d exec $menu
 bindsym --to-code $mod+Shift+q kill
-bindsym --to-code Mod4+v exec ~/.config/cliphist/cliphist-pick.sh
+bindsym --to-code Mod4+v exec ~/.local/bin/cliphist-pick
 bindsym --to-code $mod+Escape exec ~/.local/bin/lock
 
 # Headless mode: disable the monitor and serve the session over VNC instead
