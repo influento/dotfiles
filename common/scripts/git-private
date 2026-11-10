@@ -42,6 +42,13 @@ esac
 host="${root%%:*}"
 dir="${root#*:}"
 dir="${dir%/}"
+# A ~ inside the quoted remote command below is never expanded. ssh starts
+# that command in the home folder, and git resolves host:<relative path>
+# against home too, so ~/x is written as x.
+case "$dir" in
+  \~) dir="." ;;
+  \~/*) dir="${dir#\~/}" ;;
+esac
 
 toplevel="$(git rev-parse --show-toplevel)"
 name="${name:-$(basename "$toplevel")}"
