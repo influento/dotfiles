@@ -75,32 +75,28 @@ merge_json_config() {
 
   ensure_dir "$(dirname "$target")"
 
-  # No live file yet, or python3 unavailable: tracked copy wins outright.
-  if [[ ! -e "$target" ]]; then
-    install -m 600 "$src" "$target"
-    log_info "Created: $target (from $src)"
-    return 0
-  fi
-
-  if ! command -v python3 &>/dev/null; then
-    log_warn "python3 not found — copying $src over $target without merging"
-    install -m 600 "$src" "$target"
-    return 0
-  fi
-
-  # A corrupt live file is rebuilt from the tracked copy rather than merged
-  # into; the backup below keeps the broken original.
-  if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$target" 2>/dev/null; then
-    log_warn "$target is not valid JSON — rebuilding it from $src"
-  fi
-
-  local merged dropped
+  local merged dropped rc=0
   merged="$(mktemp)"
   dropped="$(mktemp)"
 
-  # stdout is the merged document; stderr lists every live list entry the
-  # tracked copy replaces away, one "path: entry" per line, logged below.
-  if ! python3 - "$src" "$target" >"$merged" 2>"$dropped" <<'PY'
+  if ! command -v python3 &>/dev/null; then
+    # The tracked copy wins outright; the backup below keeps the live one.
+    log_warn "python3 not found — copying $src over $target without merging"
+    cp "$src" "$merged"
+    if cmp -s "$src" "$target"; then
+      rc=3
+    fi
+  else
+    # A live file that is not a JSON object (corrupt, or [] or null) is
+    # rebuilt from the tracked copy; the backup below keeps the original.
+    if [[ -e "$target" ]] && ! python3 -c 'import json,sys; sys.exit(not isinstance(json.load(open(sys.argv[1])), dict))' "$target" 2>/dev/null; then
+      log_warn "$target is not a JSON object — rebuilding it from $src"
+    fi
+
+    # stdout is the merged document; stderr lists every live list entry the
+    # tracked copy replaces away, one "path: entry" per line, logged below.
+    # Exit 3: the live file already holds the merged content.
+    python3 - "$src" "$target" >"$merged" 2>"$dropped" <<'PY' || rc=$?
 import json
 import sys
 
@@ -137,31 +133,43 @@ with open(src_path, encoding="utf-8") as handle:
 try:
     with open(target_path, encoding="utf-8") as handle:
         live = json.load(handle)
-except (json.JSONDecodeError, UnicodeDecodeError):
-    live = {}
+except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+    live = None
+base = live if isinstance(live, dict) else {}
 
-for path, entry in dropped_entries(live, tracked):
+merged = deep_merge(base, tracked)
+# Compared parsed, not as text: Claude Code may lay the file out differently.
+if merged == live:
+    sys.exit(3)
+
+for path, entry in dropped_entries(base, tracked):
     print(f"{path}: {json.dumps(entry, ensure_ascii=False)}", file=sys.stderr)
 
-json.dump(deep_merge(live, tracked), sys.stdout, indent=2, ensure_ascii=False)
+json.dump(merged, sys.stdout, indent=2, ensure_ascii=False)
 sys.stdout.write("\n")
 PY
-  then
-    rm -f "$merged" "$dropped"
-    log_warn "Could not build merged config from $src — leaving $target untouched"
-    return 0
   fi
 
-  if cmp -s "$merged" "$target"; then
-    rm -f "$merged" "$dropped"
-    log_info "Already current: $target"
-    return 0
-  fi
+  case "$rc" in
+    0) ;;
+    3)
+      rm -f "$merged" "$dropped"
+      log_info "Already current: $target"
+      return 0
+      ;;
+    *)
+      log_warn "Could not build merged config from $src — leaving $target untouched: $(tail -n 1 "$dropped")"
+      rm -f "$merged" "$dropped"
+      return 0
+      ;;
+  esac
 
-  local backup
-  backup="${target}.backup.$(date +%Y%m%d%H%M%S)"
-  cp "$target" "$backup"
-  log_warn "Backing up existing: $target → $backup"
+  if [[ -e "$target" ]]; then
+    local backup
+    backup="${target}.backup.$(date +%Y%m%d%H%M%S)"
+    cp "$target" "$backup"
+    log_warn "Backing up existing: $target → $backup"
+  fi
 
   # Arrays are replaced wholesale, so an entry only the live file had (a
   # permission allowed from inside Claude Code, say) is gone after this write.
@@ -173,7 +181,7 @@ PY
 
   install -m 600 "$merged" "$target"
   rm -f "$merged" "$dropped"
-  log_info "Merged: $src → $target"
+  log_info "Wrote: $target (from $src)"
 }
 
 # Create directory if it doesn't exist.
