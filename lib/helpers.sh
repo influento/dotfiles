@@ -541,7 +541,8 @@ install_npm_packages() {
   npm config set prefix "$HOME/.local"
 
   local installed
-  installed="$(npm list -g --depth=0 --parseable 2>/dev/null | tail -n +2 | xargs -I{} basename {} || true)"
+  # Each path ends in node_modules/<name>, or node_modules/@scope/<name>.
+  installed="$(npm list -g --depth=0 --parseable 2>/dev/null | tail -n +2 | sed 's#.*/node_modules/##' || true)"
 
   local packages_file
   for packages_file in "$@"; do
@@ -555,10 +556,8 @@ install_npm_packages() {
       [[ -z "${line// /}" ]] && continue
 
       local pkg="$line"
-      # Package name for checking: @scope/name → name
-      local pkg_short="${pkg##*/}"
 
-      if echo "$installed" | grep -qxF "$pkg_short"; then
+      if echo "$installed" | grep -qxF "$pkg"; then
         log_info "npm package already installed: ${pkg}"
       else
         log_info "Installing npm package: ${pkg}..."
