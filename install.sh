@@ -126,6 +126,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "Dry run — would deploy:"
   log_info "  theme: $THEME (render .tpl templates with theme colors)"
   log_info "  common configs: $(list_config_dirs "${DOTFILES_DIR}/common")"
+  log_info "  bat, fd: link ~/.local/bin/{bat,fd} to Debian's batcat, fdfind where only those exist"
   log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
   log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION} (SHA256SUMS ${TMUX_PLUGINS_SHA256:0:12}…): tmux-warp"
@@ -171,6 +172,7 @@ fi
 
 # Deploy common configs (all profiles)
 deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
+link_debian_names "$USER_HOME"
 install_npm_packages "${DOTFILES_DIR}/common/npm/packages.conf"
 install_claude_code
 log_section "Installing tmux-plugins ${TMUX_PLUGINS_VERSION}"

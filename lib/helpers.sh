@@ -208,6 +208,24 @@ prune_dead_links() {
   done
 }
 
+# Debian installs bat and fd as batcat and fdfind, while the zsh aliases and
+# fzf commands call bat and fd. Link the plain names in ~/.local/bin where
+# only the Debian name exists; a real bat or fd elsewhere on PATH wins.
+# Usage: link_debian_names "/home/username"
+link_debian_names() {
+  local user_home="$1"
+  local pair name debian_path found
+
+  for pair in bat:batcat fd:fdfind; do
+    name="${pair%%:*}"
+    debian_path="$(command -v "${pair#*:}" 2>/dev/null)" || continue
+    found="$(command -v "$name" 2>/dev/null || true)"
+    [[ -z "$found" || "$found" == "${user_home}/.local/bin/${name}" ]] || continue
+    ensure_dir "${user_home}/.local/bin"
+    link_config "$debian_path" "${user_home}/.local/bin/${name}"
+  done
+}
+
 # Install oh-my-zsh for a user if not already present.
 # Usage: install_omz "/home/username"
 install_omz() {
