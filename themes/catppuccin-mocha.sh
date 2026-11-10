@@ -50,11 +50,4 @@ declare -gA THEME_COLORS=(
   [SAPPHIRE]="74c7ec"
   [BLUE]="89b4fa"
   [LAVENDER]="b4befe"
-
-  # Semantic aliases
-  [ACCENT]="b4befe"
-  [ERROR]="f38ba8"
-  [WARNING]="fab387"
-  [SUCCESS]="a6e3a1"
-  [INFO]="89b4fa"
 )

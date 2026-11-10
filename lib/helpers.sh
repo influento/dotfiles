@@ -593,7 +593,7 @@ list_config_dirs() {
 deploy_configs() {
   local source_dir="$1"
   local user_home="$2"
-  local config_type="$3"  # "common", "server", or "workstation"
+  local config_type="$3"  # "common" or "workstation"
 
   if [[ ! -d "$source_dir" ]]; then
     log_warn "Config directory not found: $source_dir"

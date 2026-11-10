@@ -192,47 +192,6 @@ if [[ "$PROFILE" == "workstation" ]]; then
   install_obsidian_plugins "$USER_HOME"
 fi
 
-# The server profile is common-only. Earlier deploys enabled a
-# server-auto-update timer whose only job, npm updates from
-# common/npm/packages.conf, had an empty list; retire it where it exists.
-# This block can go once every server has been redeployed.
-if [[ "$PROFILE" == "server" && -L "${USER_HOME}/.config/systemd/user/server-auto-update.timer" ]]; then
-  systemctl --user stop server-auto-update.timer 2>/dev/null || true
-  systemctl --user disable server-auto-update.timer 2>/dev/null || true
-  rm -f "${USER_HOME}/.config/systemd/user/server-auto-update.timer" \
-    "${USER_HOME}/.config/systemd/user/server-auto-update.service" \
-    "${USER_HOME}/.config/systemd/user/timers.target.wants/server-auto-update.timer"
-  systemctl --user daemon-reload 2>/dev/null || true
-  log_info "Retired the server-auto-update timer"
-fi
-
-# tmux-attention and claude-tmux moved into tmux-agent and tmux-revive. A
-# running tmux server still holds the hooks the old tmux.conf set at index 0,
-# which call the deleted scripts, so they are unset here, before `prefix r`
-# loads the new tmux.conf. Each goes by its index, and only while it still
-# calls an old script: an unset without the index would take the plugins'
-# [10] and [20] with it. Also retired: resurrect's prefix C-s and its two
-# claude-tmux hooks, the tmux-warp version stamp, and claude-tmux's records.
-# This block can go once every machine has been redeployed.
-if tmux list-sessions >/dev/null 2>&1; then
-  for hook in -g:after-select-window -g:after-select-pane -g:after-split-window \
-    -g:after-kill-pane -g:session-closed -g:client-focus-in \
-    -gw:pane-focus-in -gw:pane-exited; do
-    scope="${hook%%:*}" hook="${hook#*:}"
-    current="$(tmux show-hooks "$scope" "$hook" 2>/dev/null || true)"
-    if grep -qE "^${hook}\[0\] .*(tmux-attention|claude-tmux)" <<<"$current"; then
-      tmux set-hook "${scope}u" "${hook}[0]"
-      log_info "Unset the old tmux hook ${hook}[0]"
-    fi
-  done
-  if [[ "$(tmux list-keys -T prefix C-s 2>/dev/null || true)" == *resurrect* ]]; then
-    tmux unbind-key -T prefix C-s
-  fi
-  tmux set-option -gu @resurrect-hook-post-save-all \; set-option -gu @resurrect-hook-post-restore-all
-fi
-rm -f "${USER_HOME}/.local/state/dotfiles/tmux-warp-version"
-rm -rf "${USER_HOME}/.local/state/claude-tmux"
-
 # Remove symlinks left behind by scripts or configs deleted or renamed in the repo
 prune_dead_links "$USER_HOME"
 
