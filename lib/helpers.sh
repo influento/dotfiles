@@ -347,16 +347,18 @@ install_obsidian_plugins() {
       ensure_dir "$plugin_dir"
 
       local base_url="https://github.com/${repo}/releases/latest/download"
-      local dl_cmd="curl -fsSL"
 
-      ${dl_cmd} "${base_url}/main.js" -o "${plugin_dir}/main.js"
-      ${dl_cmd} "${base_url}/manifest.json" -o "${plugin_dir}/manifest.json"
-      ${dl_cmd} "${base_url}/styles.css" -o "${plugin_dir}/styles.css" 2>/dev/null || true
-
-      if [[ ! -f "${plugin_dir}/manifest.json" ]]; then
+      # A failed download warns and moves on; a bare curl would end the
+      # whole install under set -e. manifest.json is fetched last, since
+      # its presence is what marks the plugin installed on the next run.
+      if ! curl -fsSL "${base_url}/main.js" -o "${plugin_dir}/main.js" \
+        || ! curl -fsSL "${base_url}/manifest.json" -o "${plugin_dir}/manifest.json"; then
+        rm -f "${plugin_dir}/main.js" "${plugin_dir}/manifest.json"
+        rmdir "$plugin_dir" 2>/dev/null || true
         log_warn "Failed to download plugin: ${plugin_id}"
         continue
       fi
+      curl -fsSL "${base_url}/styles.css" -o "${plugin_dir}/styles.css" 2>/dev/null || true
 
       log_info "Plugin installed: ${plugin_id}"
     fi
