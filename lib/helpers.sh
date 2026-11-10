@@ -30,6 +30,13 @@ link_config() {
       fi
       return 0
     fi
+    # Our own link to another path in this repo (a source moved or
+    # renamed): nothing to keep, and prune_dead_links would delete a backup.
+    if [[ "$(readlink "$target")" == "${DOTFILES_DIR}"/* ]]; then
+      ln -sfn "$src" "$target"
+      log_info "Relinked: $target → $src"
+      return 0
+    fi
   fi
 
   # Back up existing file/directory (not a symlink to our source)
