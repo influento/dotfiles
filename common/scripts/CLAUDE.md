@@ -93,6 +93,7 @@ Refused with a message on the client, no popup and no swap:
   Only a typed `ssh` is caught; mosh, et or ssh under a wrapper script are
   not, none is in use.
 - A pane whose folder does not exist here.
+- A program that is not installed (lazygit on a server).
 
 A repo session lives while something owns it, not for a time. Each
 press, and `--reap` from the `session-closed[0]` hook in

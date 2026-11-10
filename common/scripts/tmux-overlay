@@ -31,7 +31,7 @@ set -euo pipefail
 #
 # A pane that runs ssh gets a message instead: tmux sees the local folder
 # the ssh started in, not the remote one. So does a pane whose folder does
-# not exist here.
+# not exist here, and a program that is not installed.
 #
 # Each press, and --reap (the session-closed hook in tmux.conf), ends the
 # repo sessions nothing owns any more: no pane outside the hidden sessions
@@ -242,6 +242,7 @@ fi
 
 cwd=$(tmux display -p -t "$pane" '#{pane_current_path}')
 [ -d "$cwd" ] || say "$cwd does not exist on this machine"
+command -v "${1%% *}" >/dev/null || say "${1%% *} is not installed on this machine"
 
 if [ "$scope" = repo ]; then
   dir=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || dir="$cwd"
