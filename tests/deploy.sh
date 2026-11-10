@@ -95,6 +95,17 @@ deploy "$H" 2>"$TMP/old.2"
 snapshot "$H" >"$TMP/old.s2"
 check cmp -s "$TMP/old.s1" "$TMP/old.s2"
 
+echo "== pruning covers every folder a deploy links into"
+H="$TMP/prune"; mkdir -p "$H"
+deploy "$H" 2>/dev/null
+# beside each link into the repo, a dead one, as a renamed source leaves it
+find "$H" -type l -lname "${DOTFILES_DIR}/*" -printf '%h\n' | sort -u | while IFS= read -r d; do
+  ln -s "${DOTFILES_DIR}/renamed-away" "$d/dead-probe"
+done
+check test -n "$(find "$H" -name dead-probe)"
+prune_dead_links "$H" 2>/dev/null
+check test -z "$(find "$H" -name dead-probe)"
+
 echo "== a Debian PATH: batcat and fdfind, no bat or fd"
 H="$TMP/debian"; mkdir -p "$H" "$TMP/debian-bin" "$TMP/path"
 for f in /usr/bin/* /bin/*; do

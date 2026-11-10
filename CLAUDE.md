@@ -187,7 +187,9 @@ Adding a config:
 1. Create a directory under `common/` (all profiles) or `workstation/` (desktop only)
    with the config files inside; a config with theme colors is a `.tpl` (Editing step 4)
 2. A `~/.config/<name>/` target works automatically via `deploy_configs`. For another
-   target (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`
+   target (like `~/.zshrc`), add a case to `deploy_configs` in `lib/helpers.sh`. A
+   target in a folder no other link uses also goes into `prune_dead_links`'s list:
+   `tests/deploy.sh` fails until it does
 3. Add a row to the [Tools](#tools) table
 4. Run `./check` ([Commands](#commands)). A new special target gets a line in
    `tests/deploy.sh`
