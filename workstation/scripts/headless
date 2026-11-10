@@ -227,7 +227,7 @@ headless_on() {
   # twice the size it should be.
   # --disable-resizing refuses SetDesktopSize outright rather than failing the
   # request, since a Sway output cannot be resized on a client's say-so.
-  systemd-run --user --quiet --unit="${UNIT}" \
+  systemd-run --user --quiet --collect --unit="${UNIT}" \
     --description="wayvnc serving ${virtual} (headless mode)" \
     wayvnc --output="${virtual}" --render-cursor --disable-resizing \
     "${VNC_ADDR}" "${VNC_PORT}"

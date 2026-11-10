@@ -59,7 +59,7 @@ nosleep_on() {
     echo "nosleep: already on"
     return 0
   fi
-  systemd-run --user --quiet --unit="$UNIT" \
+  systemd-run --user --quiet --collect --unit="$UNIT" \
     --description="Inhibit sleep (idle and lid close)" \
     systemd-inhibit --what=sleep:handle-lid-switch --why="$REASON" \
     sleep infinity
