@@ -462,17 +462,22 @@ install_release_binary() {
   # In bin_dir, so the final mv is a rename: a hook running the old binary
   # never sees a half-written file.
   tmp_dir="$(mktemp -d "${bin_dir}/.${name}.XXXXXX")"
+  # An interrupted download leaves nothing in bin_dir.
+  # shellcheck disable=SC2064 # tmp_dir is local: expand it now
+  trap "rm -rf $(printf '%q' "$tmp_dir")" EXIT
   log_info "Downloading ${name} ${tag} for linux/${arch}..."
   for file in SHA256SUMS "${files[@]}"; do
     if ! curl -fsSL "https://github.com/${repo}/releases/download/${tag}/${file}" -o "${tmp_dir}/${file}"; then
       log_warn "${name}: could not download ${file}, keeping the installed version"
       rm -rf "$tmp_dir"
+      trap - EXIT
       return 0
     fi
   done
   if ! release_assets_match "$tmp_dir" "$sums_sha256" "${files[@]}"; then
     log_warn "${name}: ${repo} ${tag} does not match the pinned SHA256SUMS, keeping the installed version"
     rm -rf "$tmp_dir"
+    trap - EXIT
     return 0
   fi
 
@@ -483,6 +488,7 @@ install_release_binary() {
     mv -f "${tmp_dir}/${wrapper}" "${bin_dir}/${wrapper}"
   fi
   rm -rf "$tmp_dir"
+  trap - EXIT
   log_info "${name} ${tag} installed"
 }
 
