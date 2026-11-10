@@ -203,13 +203,14 @@ ensure_dir() {
 # Remove symlinks that point into this dotfiles repo but whose targets no
 # longer exist (a script or config deleted or renamed in the repo). Scans one
 # level of each directory deploy_configs links into: $HOME dotfiles,
-# ~/.local/bin, ~/.config and ~/.claude.
+# ~/.local/bin, ~/.local/share/applications, ~/.config and ~/.claude.
 # Usage: prune_dead_links "/home/username"
 prune_dead_links() {
   local user_home="$1"
   local dir link target
 
-  for dir in "$user_home" "${user_home}/.local/bin" "${user_home}/.config" "${user_home}/.claude"; do
+  for dir in "$user_home" "${user_home}/.local/bin" "${user_home}/.local/share/applications" \
+    "${user_home}/.config" "${user_home}/.claude"; do
     [[ -d "$dir" ]] || continue
     for link in "$dir"/* "$dir"/.[!.]*; do
       [[ -L "$link" ]] || continue
