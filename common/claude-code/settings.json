@@ -123,6 +123,7 @@
   "editorMode": "vim",
   "showTurnDuration": true,
   "skipAutoPermissionPrompt": true,
+  "feedbackSurveyRate": 0,
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "anthropic-skills:google-workspace": "off",
