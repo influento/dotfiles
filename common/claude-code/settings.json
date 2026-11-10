@@ -1,6 +1,6 @@
 {
   "respectGitignore": true,
-  "cleanupPeriodDays": 30,
+  "cleanupPeriodDays": 3650,
   "includeGitInstructions": true,
   "attribution": {
     "commit": "",
@@ -112,6 +112,7 @@
     }
   },
   "autoCompactWindow": 400000,
+  "idleCompaction": false,
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
