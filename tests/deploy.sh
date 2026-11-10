@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # The linking half of install.sh against a throwaway HOME: a deploy links
 # every source, keeps what it replaces, and a second deploy changes nothing.
-# Nothing is fetched. Needs the templates rendered (bash install.sh once).
+# Nothing is fetched. The links point into a copy of the checkout with every
+# template rendered, so the checkout's own render state does not matter.
 # Plain bash, no framework. Run: bash tests/deploy.sh
 # shellcheck source-path=SCRIPTDIR
 set -euo pipefail
 
-DOTFILES_DIR=$(readlink -f "$(dirname "$0")/..")
+REPO=$(readlink -f "$(dirname "$0")/..")
 # shellcheck source=../lib/log.sh
-source "${DOTFILES_DIR}/lib/log.sh"
+source "${REPO}/lib/log.sh"
 # shellcheck source=../lib/helpers.sh
-source "${DOTFILES_DIR}/lib/helpers.sh"
+source "${REPO}/lib/helpers.sh"
+# shellcheck source=../lib/theme.sh
+source "${REPO}/lib/theme.sh"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -36,11 +39,21 @@ dead_links() {
   find "$1" -type l -lname "${DOTFILES_DIR}/*" ! -exec test -e {} \; -print
 }
 
-missing=$(cd "$DOTFILES_DIR" && git ls-files '*.tpl' | while read -r t; do [[ -e "${t%.tpl}" ]] || echo "$t"; done)
-if [[ -n "$missing" ]]; then
-  echo "FAIL templates not rendered (run bash install.sh first): $missing"
-  exit 1
-fi
+echo "== the copy: tracked and new files, templates rendered"
+# DOTFILES_DIR is what helpers.sh and theme.sh read as the repo.
+DOTFILES_DIR="$TMP/repo"; mkdir -p "$DOTFILES_DIR"
+git -C "$REPO" ls-files -z -co --exclude-standard |
+  tar -C "$REPO" --null --ignore-failed-read -T - -cf - 2>/dev/null | tar -C "$DOTFILES_DIR" -xf -
+THEME=catppuccin-mocha
+[[ -f "${DOTFILES_DIR}/theme.conf" ]] && source "${DOTFILES_DIR}/theme.conf"
+load_theme "$THEME" 2>/dev/null
+build_sed_script
+render_templates "${DOTFILES_DIR}/common" common 2>/dev/null
+render_templates "${DOTFILES_DIR}/workstation" workstation 2>/dev/null
+# each template rendered beside itself, no token left in what it rendered
+unrendered=$(find "$DOTFILES_DIR" -name '*.tpl' -exec sh -c \
+  'for t; do o="${t%.tpl}"; [ -e "$o" ] && ! grep -qE "@@[A-Z0-9_]+@@" "$o" || echo "$t"; done' _ {} +)
+check test -z "$unrendered"
 
 echo "== a fresh HOME"
 H="$TMP/fresh"; mkdir -p "$H"

@@ -23,9 +23,9 @@ and idempotent so it can be safely re-run at any time.
 - Lint: run `shellcheck -x` on every tracked file whose first line is a bash shebang:
   `git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x`
 - Check: `./check` runs the Lint command, every tool's offline test suite, the topo
-  tests and `tests/deploy.sh`. That last one deploys twice into a throwaway HOME and
-  fails if the second deploy changes anything. It needs the templates rendered
-  (`install.sh` once)
+  tests and `tests/deploy.sh`. That last one renders every template into a copy of the
+  checkout, deploys it twice into a throwaway HOME, and fails if the second deploy
+  changes anything
 - Deploy (server): `bash install.sh --profile server --user myuser`
 - Deploy (workstation): `bash install.sh --profile workstation --user myuser`
 - Dry run: `bash install.sh --profile server --dry-run`

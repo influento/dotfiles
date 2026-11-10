@@ -34,10 +34,11 @@ suite() {
 }
 
 step lint lint
-# Tracked files only: a new suite joins once it is git-added.
+# Each tracked tests/*.sh, not files in folders below it (fixtures).
+# A new suite joins once it is git-added.
 while IFS= read -r t; do
   step "$t" suite "$t"
-done < <(git ls-files '*tests/*.sh' | grep -v '/verify\.sh$')
+done < <(git ls-files '*tests/*.sh' | grep -E '(^|/)tests/[^/]+\.sh$' | grep -v '/verify\.sh$')
 step topo bash -c 'cd common/claude-code/skills/topo && node --test test/'
 
 exit "$failed"
