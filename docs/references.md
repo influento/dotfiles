@@ -5,38 +5,38 @@ Check these when upgrading tools or debugging config issues.
 
 ## Common (all profiles)
 
-| Tool | Config file(s) | Docs | Notes |
-|---|---|---|---|
-| **zsh + oh-my-zsh** | `common/zsh/.zshrc.tpl` | [oh-my-zsh wiki](https://github.com/ohmyzsh/ohmyzsh/wiki) | Plugins: git, sudo, extract, zsh-autosuggestions, zsh-syntax-highlighting; themed template, generates `.zshrc` |
-| **Starship** | `common/starship/starship.toml.tpl` | [starship.rs/config](https://starship.rs/config/) | TOML format, module reference has all options; themed template, generates `starship.toml` |
-| **Neovim** | `common/nvim/init.lua`, `lua/` | [neovim.io/doc](https://neovim.io/doc/user/) | lazy.nvim plugin manager, lua config |
-| **tmux** | `common/tmux/tmux.conf.tpl` | [tmux man page](https://man.openbsd.org/tmux.1) | Themed template, generates `tmux.conf` |
-| **Git** | `common/git/.gitconfig` | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
-| **delta** | `common/delta/delta.gitconfig.tpl` | [delta manual](https://dandavison.github.io/delta/), `delta --help` | gitconfig `[delta]` section, included by `.gitconfig`; themed template, generates `delta.gitconfig`; `delta --show-config` prints what is in effect. Package is `git-delta`, binary is `delta` |
-| **fontconfig** | `common/fontconfig/fonts.conf` | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
-| **btop** | `common/btop/btop.conf`, `themes/dotfiles.theme.tpl` | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format; theme file is a themed template, generates `dotfiles.theme` |
-| **fastfetch** | `common/fastfetch/config.jsonc` | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |
-| **fzf** | Configured in `.zshrc.tpl` | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
-| **zoxide** | Configured in `.zshrc.tpl` | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | `eval "$(zoxide init zsh)"` |
+| Tool | Docs | Notes |
+|---|---|---|
+| **zsh + oh-my-zsh** | [oh-my-zsh wiki](https://github.com/ohmyzsh/ohmyzsh/wiki) | Plugins: git, sudo, extract, vi-mode, zsh-autosuggestions, zsh-syntax-highlighting |
+| **Starship** | [starship.rs/config](https://starship.rs/config/) | TOML format, module reference has all options |
+| **Neovim** | [neovim.io/doc](https://neovim.io/doc/user/) | lazy.nvim plugin manager, lua config |
+| **tmux** | [tmux man page](https://man.openbsd.org/tmux.1) | — |
+| **Git** | [git-scm.com/docs/git-config](https://git-scm.com/docs/git-config) | Identity in `~/.gitconfig.local` |
+| **delta** | [delta manual](https://dandavison.github.io/delta/), `delta --help` | gitconfig `[delta]` section, included by `.gitconfig`; `delta --show-config` prints what is in effect. Package is `git-delta`, binary is `delta` |
+| **fontconfig** | [freedesktop fontconfig](https://www.freedesktop.org/software/fontconfig/fontconfig-user.html) | XML format |
+| **btop** | [btop GitHub](https://github.com/aristocratos/btop#configurability) | Key=value format |
+| **fastfetch** | [fastfetch GitHub](https://github.com/fastfetch-cli/fastfetch/wiki) | JSONC format, module list in wiki |
+| **fzf** | [fzf GitHub](https://github.com/junegunn/fzf#environment-variables) | Set in `common/zsh/.zshrc.tpl`. Env vars: `FZF_DEFAULT_OPTS`, `FZF_CTRL_T_OPTS`, `FZF_ALT_C_OPTS` |
+| **zoxide** | [zoxide GitHub](https://github.com/ajeetdsouza/zoxide#configuration) | Set in `common/zsh/.zshrc.tpl`. `eval "$(zoxide init zsh)"` |
 
 ## Workstation only
 
-| Tool | Config file(s) | Docs | Notes |
-|---|---|---|---|
-| **LazyGit** | `workstation/lazygit/config.yml.tpl` | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | Themed template, generates `config.yml` |
-| **Yazi** | `workstation/yazi/yazi.toml`, `keymap.toml`, `theme.toml.tpl` | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name`; theme is a themed template, generates `theme.toml` |
-| **Sway** | `workstation/sway/config.tpl` | [swaywm.org](https://man.archlinux.org/man/sway.5) | i3-compatible syntax, themed template |
-| **Waybar** | `workstation/waybar/config.tpl`, `style.css.tpl` | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling; themed templates, generate `config` and `style.css` |
-| **Ghostty** | `workstation/ghostty/config`, `themes/dotfiles.conf.tpl` | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format; theme file is a themed template, generates `dotfiles.conf` |
-| **swaylock** | `workstation/swaylock/config.tpl` | [swaylock man](https://man.archlinux.org/man/swaylock.1) | Themed template |
-| **swayidle** | `workstation/swayidle/config` | [swayidle man](https://man.archlinux.org/man/swayidle.1) | — |
-| **mako** | `workstation/mako/config.tpl` | [mako man](https://man.archlinux.org/man/mako.5) | Themed template |
-| **swaybg** | `workstation/swaybg/wallpaper.sh.tpl` | [swaybg man](https://man.archlinux.org/man/swaybg.1) | Themed template |
-| **wlsunset** | `workstation/wlsunset/wlsunset.sh` | [wlsunset man](https://man.archlinux.org/man/wlsunset.1) | — |
-| **SwayOSD** | `workstation/swayosd/style.css.tpl` | [SwayOSD GitHub](https://github.com/ErikReider/SwayOSD) | Themed CSS |
-| **cliphist** | `workstation/cliphist/cliphist-pick.sh` | [cliphist GitHub](https://github.com/sentriz/cliphist) | `launcher --dmenu` picker script |
-| **GTK 3/4** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` | [GTK settings](https://docs.gtk.org/gtk3/class.Settings.html) | `settings.ini` + `gtk.css` |
-| **Qt6ct** | `workstation/theming/qt6ct/qt6ct.conf` | [qt6ct GitHub](https://github.com/trialuser02/qt6ct) | Qt icon theme + fonts (Fusion style); requires `QT_QPA_PLATFORMTHEME=qt6ct` env var |
-| **XDG portal** | `workstation/xdg-desktop-portal/portals.conf` | [xdg-desktop-portal](https://flatpak.github.io/xdg-desktop-portal/) | Routes portals to wlr backend |
-| **mpv** | `workstation/mpv/mpv.conf.tpl`, `input.conf`, `script-opts/osc.conf.tpl` | [mpv.io/manual](https://mpv.io/manual/stable/) | Themed OSD/OSC, `input.conf` for keybindings, `script-opts/` for script config |
-| **yt-dlp** | `workstation/yt-dlp/config` | [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp#configuration) | One option per line, same syntax as CLI flags |
+| Tool | Docs | Notes |
+|---|---|---|
+| **LazyGit** | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | — |
+| **Yazi** | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name` |
+| **Sway** | [swaywm.org](https://man.archlinux.org/man/sway.5) | i3-compatible syntax |
+| **Waybar** | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling |
+| **Ghostty** | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format |
+| **swaylock** | [swaylock man](https://man.archlinux.org/man/swaylock.1) | — |
+| **swayidle** | [swayidle man](https://man.archlinux.org/man/swayidle.1) | — |
+| **mako** | [mako man](https://man.archlinux.org/man/mako.5) | — |
+| **swaybg** | [swaybg man](https://man.archlinux.org/man/swaybg.1) | — |
+| **wlsunset** | [wlsunset man](https://man.archlinux.org/man/wlsunset.1) | — |
+| **SwayOSD** | [SwayOSD GitHub](https://github.com/ErikReider/SwayOSD) | CSS styling |
+| **cliphist** | [cliphist GitHub](https://github.com/sentriz/cliphist) | `launcher --dmenu` picker script |
+| **GTK 3/4** | [GTK settings](https://docs.gtk.org/gtk3/class.Settings.html) | `settings.ini` + `gtk.css` |
+| **Qt6ct** | [qt6ct GitHub](https://github.com/trialuser02/qt6ct) | Qt icon theme + fonts (Fusion style); requires `QT_QPA_PLATFORMTHEME=qt6ct` env var |
+| **XDG portal** | [xdg-desktop-portal](https://flatpak.github.io/xdg-desktop-portal/) | Routes portals to wlr backend |
+| **mpv** | [mpv.io/manual](https://mpv.io/manual/stable/) | Themed OSD/OSC, `input.conf` for keybindings, `script-opts/` for script config |
+| **yt-dlp** | [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp#configuration) | One option per line, same syntax as CLI flags |

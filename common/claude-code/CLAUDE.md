@@ -1,31 +1,17 @@
 # Claude Code (source tree)
 
-Four things live here, deployed four different ways:
+What each tree here is and how it deploys: the root CLAUDE.md, "Claude Code
+Skills", which also says which tree a new skill belongs in.
 
-| Path               | Deployed                                                    |
-| ------------------ | ----------------------------------------------------------- |
-| `settings.json`    | deep-merged into `~/.claude/settings.json`, never symlinked  |
-| `skills/`          | symlinked to `~/.claude/skills/` (global)                    |
-| `skills-optional/` | never deployed — opted into per project                      |
-| `workshop/`        | never linked as a tree — see `workshop/CLAUDE.md`            |
-
-Why the trees are split, and which tree a new skill belongs in: the root
-CLAUDE.md, "Claude Code Skills".
+Skills are drafted and tested with the claude.ai-synced
+`anthropic-skills:skill-creator`. Its eval scripts need PyYAML and a browser,
+so they only fully work on the workstation.
 
 ## settings.json is merged, not symlinked
 
-`~/.claude/settings.json` is deep-merged by
-`merge_json_config` instead of symlinked. Claude Code saves settings by writing a
-temp file and `rename()`-ing it over the target, which replaces the symlink rather
-than writing through it, so a symlinked settings file silently degrades into a
-stale copy on the first `/config` change. A hard link breaks the same way; a bind
-mount makes the write fail with `EBUSY`. On merge, tracked values win for every key
-we define — and arrays are replaced wholesale, so dropping one entry from an
-allow-list here drops it there, and the install log names every live entry that
-goes — while keys only Claude Code knows about (feature flags, onboarding state,
-plugins in `enabledPlugins` that this file does not name) survive untouched.
-
-Two consequences of merging rather than replacing:
+`~/.claude/settings.json` is deep-merged by `merge_json_config`
+(`lib/helpers.sh`); its comment says why a symlink breaks and how the merge
+treats each key. Two consequences of merging rather than replacing:
 
 - **Deletions do not propagate.** Removing a whole key from the tracked file leaves
   it in place in `~/.claude/settings.json`. Delete it there by hand as well.
@@ -42,6 +28,4 @@ what leaves the tree at deploy, and how each reaches a project:
 
 ## skills-optional
 
-Opted into per project by symlink: `skills-optional/CLAUDE.md`. A
-language's practices are not here: they are a stack package of that
-ecosystem (`workshop/go/packages/practices/go-practices/`).
+Opted into per project by symlink: `skills-optional/CLAUDE.md`.
