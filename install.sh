@@ -65,6 +65,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --profile|--user|--theme)
+      [[ $# -ge 2 && "$2" != --* ]] || die "Missing value for $1. Use --help for usage." ;;
+  esac
+  case "$1" in
     --profile)   PROFILE="$2"; shift 2 ;;
     --user)      TARGET_USER="$2"; shift 2 ;;
     --theme)     THEME="$2"; shift 2 ;;
