@@ -74,9 +74,11 @@ step "Upload SSH key to GitHub"
 
 key_title="${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo 'unknown')}"
 
-# Check if this key is already uploaded
-if gh ssh-key list 2>/dev/null | grep -qF "$key_title"; then
-  info "SSH key already uploaded with title: $key_title"
+# Match the key itself: after a reinstall GitHub still holds the old key
+# under this host's title, and a title match would skip the new one.
+key_body="$(awk '{print $2}' "${SSH_KEY}.pub")"
+if gh ssh-key list 2>/dev/null | grep -qF "$key_body"; then
+  info "SSH key already uploaded"
 else
   gh ssh-key add "${SSH_KEY}.pub" --title "$key_title"
   info "SSH key uploaded to GitHub as: $key_title"
