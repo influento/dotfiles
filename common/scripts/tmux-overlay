@@ -83,34 +83,22 @@ busy() {
 
 # reap <keep>: ends the hidden sessions, other than <keep>, that nothing
 # owns, nobody shows and no work keeps. A popup one is left alone: it ends
-# with its popup, and before the popup attaches it is not shown yet. A shell
-# from before the popup scope (@ov_scope session) goes once idle. One
-# without @ov_root (from a restore, or from before this script set it)
-# always goes: its program was typed into a shell.
+# with its popup, and before the popup attaches it is not shown yet.
 reap() {
-  local keep="$1" paths=() attached scope rooted name root path owned
+  local keep="$1" paths=() attached scope name root path owned
   mapfile -t paths < <(tmux list-panes -a -f '#{?#{m:ov-*,#{session_name}},0,1}' -F '#{pane_current_path}' 2>/dev/null)
-  tmux list-sessions -F '#{session_attached} #{?@ov_scope,#{@ov_scope},-} #{?@ov_root,1,0} #{session_name}' 2>/dev/null |
-    while read -r attached scope rooted name; do
+  tmux list-sessions -F '#{session_attached} #{?@ov_scope,#{@ov_scope},-} #{session_name}' 2>/dev/null |
+    while read -r attached scope name; do
       case "$name" in ov-*) ;; *) continue ;; esac
-      [ "$name" != "$keep" ] && [ "$attached" = 0 ] || continue
-      if [ "$rooted" = 1 ]; then
-        case "$scope" in
-          popup) continue ;;
-          session) ;;
-          *)
-            # A repo one, or one from before @ov_scope: owned by any pane
-            # in its folder or below.
-            root=$(tmux show -qv -t "=$name:" @ov_root) || continue
-            owned=0
-            for path in "${paths[@]}"; do
-              case "$path" in "$root"|"${root%/}"/*) owned=1; break ;; esac
-            done
-            [ "$owned" = 0 ] || continue
-            ;;
-        esac
-        busy "$name" && continue
-      fi
+      [ "$name" != "$keep" ] && [ "$attached" = 0 ] && [ "$scope" != popup ] || continue
+      # Owned by any pane in its folder or below.
+      root=$(tmux show -qv -t "=$name:" @ov_root) || continue
+      owned=0
+      for path in "${paths[@]}"; do
+        case "$path" in "$root"|"${root%/}"/*) owned=1; break ;; esac
+      done
+      [ "$owned" = 0 ] || continue
+      busy "$name" && continue
       tmux kill-session -t "=$name" 2>/dev/null || true
     done
 }
@@ -238,17 +226,6 @@ fi
 # A failed cleanup must not keep the popup from opening.
 reap "$inner" || true
 
-# Start over on a hidden session this script did not start. A restore types
-# the program into a shell, so the pane's start command is not the program
-# (tmux-revive's own, or none) and :q would leave that shell in the popup.
-# tmux shows a start command with a space in quotes.
-if tmux has-session -t "=$inner" 2>/dev/null; then
-  start=$(tmux display -p -t "=$inner:" '#{pane_start_command}')
-  if [ "$start" != "$*" ] && [ "$start" != "\"$*\"" ]; then
-    tmux kill-session -t "=$inner"
-  fi
-fi
-
 # What the hidden session is, set with its creation in one command list so
 # no --reap sees it without @ov_root. Two presses at once: the second
 # new-session fails, the first one's session is used.
@@ -259,12 +236,7 @@ if ! tmux has-session -t "=$inner" 2>/dev/null; then
   tmux new-session -d -s "$inner" -c "${dir//#/##}" "$*" \; "${ident[@]}" 2>/dev/null ||
     tmux has-session -t "=$inner"
 fi
-# Set on every open, so a session from before these options gets them too.
-# @ov_root stays the folder it started in.
-ident[4]=$(tmux show -qv -t "=$inner:" @ov_root || true)
-[ -n "${ident[4]}" ] || ident[4]="$dir"
-tmux "${ident[@]}" \; \
-  set -t "=$inner:" status off \; \
+tmux set -t "=$inner:" status off \; \
   set -t "=$inner:" detach-on-destroy on \; \
   set -t "=$inner:" prefix None \; \
   set -t "=$inner:" prefix2 None \; \

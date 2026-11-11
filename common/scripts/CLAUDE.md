@@ -35,8 +35,9 @@ Contracts with other files:
 - The `ov-` prefix is also the `@skip_sessions` pattern in
   `common/tmux/tmux.conf.tpl`, which tmux-agent's lists and tmux-revive's
   attach skip. A change to one is a change to the other.
-- tmux-revive from v0.3.1 does not save `@skip_sessions`. The check that
-  recreates a session whose pane's start command is not the program stays for
-  snapshots that older versions wrote.
+- tmux-revive (v0.3.1 and later) does not save `@skip_sessions`, so a hidden
+  session only ever comes from this script, with its options set. A snapshot
+  from an older version still holds them; one restored by hand needs
+  `tmux kill-session` on each `ov-*` it brings back.
 - A new overlay needs, in `common/tmux/tmux.conf.tpl`, a `%hidden` command
   variable, a root binding and an `ov-prefix` binding.
