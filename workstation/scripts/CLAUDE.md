@@ -142,3 +142,8 @@ and restored on the way out.
 Requires `wayvnc`, `waypipe` and a VNC client (`virt-viewer`, or `wlvncc` from
 the AUR), plus tty1 autologin. All system-level, so they live in arch-install.
 
+## delta-wrap
+
+Finds the line numbers by the `{np:>4} │ ` gutter that
+`line-numbers-right-format` in `common/delta/delta.gitconfig.tpl` draws. A new
+format needs a new `GUTTER` in the script, or no line wraps.

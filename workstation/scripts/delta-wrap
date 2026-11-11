@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""delta-wrap — delta for lazygit, long lines wrapped behind the line numbers.
+
+delta wraps only side-by-side diffs, and lazygit's own wrap starts the rest of
+a long line in the number column. This wraps each numbered line to $COLUMNS
+(the pane width lazygit sets). Other lines pass through.
+
+Usage: delta-wrap [delta args...]
+"""
+import os
+import re
+import subprocess
+import sys
+import unicodedata
+
+# One CSI sequence (colors, erase to end of line) or one OSC sequence (links).
+ESCAPE = re.compile(r"\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+# The gutter that line-numbers-right-format "{np:>4} │ " draws.
+GUTTER = re.compile(r"[ \d]+ │ ")
+# Leading indent, and a markdown list marker the continuation hangs under.
+HANG = re.compile(r" *(?:(?:[-*+]|\d+[.)]) +)?")
+RESET = ("\x1b[0m", "\x1b[m")
+
+
+def width(char):
+  if unicodedata.combining(char):
+    return 0
+  return 2 if unicodedata.east_asian_width(char) in "WF" else 1
+
+
+def cells_of(line):
+  """Split a line into cells: (escapes before the char, char). Escapes after
+  the last char come back on their own."""
+  cells, pending, pos = [], "", 0
+  for m in ESCAPE.finditer(line):
+    for char in line[pos:m.start()]:
+      cells.append((pending, char))
+      pending = ""
+    pending += m.group()
+    pos = m.end()
+  for char in line[pos:]:
+    cells.append((pending, char))
+    pending = ""
+  return cells, pending
+
+
+def colors_before(cells, end):
+  """The color sequences in effect before cell `end`, since the last reset."""
+  active = []
+  for escapes, _ in cells[:end]:
+    for seq in ESCAPE.findall(escapes):
+      if seq in RESET:
+        active = []
+      elif seq.endswith("m") and seq.startswith("\x1b["):
+        active.append(seq)
+  return "".join(active)
+
+
+def break_rows(chars, start, first_cap, cap):
+  """Greedy word wrap of chars[start:] into (start, end) rows."""
+  rows, cap_now, n = [], first_cap, len(chars)
+  while sum(width(c) for c in chars[start:]) > cap_now:
+    col, j, brk = 0, start, None
+    while j < n and col + width(chars[j]) <= cap_now:
+      if chars[j] == " ":
+        brk = j + 1
+      col += width(chars[j])
+      j += 1
+    if chars[j] == " ":
+      end = j
+    elif brk and brk > start:
+      end = brk
+    else:
+      end = max(j, start + 1)
+    rows.append((start, end))
+    start = end
+    while start < n and chars[start] == " ":
+      start += 1
+    cap_now = cap
+  rows.append((start, n))
+  return rows
+
+
+def wrap(line, columns):
+  cells, tail = cells_of(line)
+  chars = [char for _, char in cells]
+  text = "".join(chars)
+  gutter = GUTTER.match(text)
+  if not gutter or sum(width(c) for c in chars) <= columns:
+    return line
+  cut = gutter.end()
+  room = columns - cut
+  hang = len(HANG.match(text, cut).group())
+  if hang > room // 2:
+    hang = 0
+  if room < 10:
+    return line
+
+  # The gutter again, with the number and its link left out.
+  blank = "".join(
+    ESCAPE.sub(lambda m: "" if m.group().startswith("\x1b]") else m.group(), escapes)
+    + (" " if char.isdigit() else char)
+    for escapes, char in cells[:cut]
+  )
+
+  def run(start, end):
+    return "".join(escapes + char for escapes, char in cells[start:end])
+
+  rows = break_rows(chars, cut, room, room - hang)
+  out = []
+  for i, (start, end) in enumerate(rows):
+    if i == 0:
+      head = run(0, cut)
+    else:
+      head = "\x1b[0m" + blank + colors_before(cells, start) + " " * hang
+    out.append(head + run(start, end) + "\x1b[0m" + tail)
+  return "\n".join(out)
+
+
+def main():
+  try:
+    columns = int(os.environ.get("COLUMNS", ""))
+  except ValueError:
+    columns = 0
+  delta = subprocess.Popen(["delta", *sys.argv[1:]], stdout=subprocess.PIPE)
+  out = sys.stdout.buffer
+  try:
+    for raw in delta.stdout:
+      line = raw.decode("utf-8", "surrogateescape").rstrip("\n")
+      if columns > 0:
+        line = wrap(line, columns)
+      out.write((line + "\n").encode("utf-8", "surrogateescape"))
+    out.flush()
+  except BrokenPipeError:
+    # lazygit closed the pane's pipe; keep the exit flush quiet.
+    os.dup2(os.open(os.devnull, os.O_WRONLY), out.fileno())
+    delta.kill()
+  return delta.wait()
+
+
+if __name__ == "__main__":
+  sys.exit(main())

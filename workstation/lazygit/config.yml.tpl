@@ -37,9 +37,10 @@ gui:
 git:
   # delta's look comes from the [delta] section of ~/.gitconfig
   # (common/delta/). The link format makes file names and line numbers
-  # clickable: lazygit opens them in nvim at that line.
+  # clickable: lazygit opens them in nvim at that line. delta-wrap
+  # (workstation/scripts/) wraps long lines behind the line numbers.
   diffRenderers:
-    - command: 'delta --dark --paging=never --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"'
+    - command: 'delta-wrap --dark --paging=never --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"'
   autoFetch: true
   autoRefresh: true
 

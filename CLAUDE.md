@@ -128,6 +128,7 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' `launcher-clipboard` and launcher): thumbnails, Right opens a preview pane, a row's cross or Ctrl+d deletes an entry |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |
 | `stale-kernel` | workstation | Waybar indicator: the kernel was upgraded and a reboot is pending |
+| `delta-wrap` | workstation | lazygit's diff renderer: runs delta and wraps long lines behind the line numbers |
 
 How they work and why: `common/scripts/CLAUDE.md`, `workstation/scripts/CLAUDE.md`.
 
