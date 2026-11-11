@@ -10,7 +10,8 @@ set -euo pipefail
 # $XDG_CONFIG_HOME/mimeapps.list. That file is the dotfiles symlink, so the
 # repo goes dirty and tg links open in the wrong account. The only switch
 # Telegram offers is an in-app toggle stored in the workdir's encrypted
-# settings, which nothing outside the app can pre-set.
+# settings, which nothing outside the app can pre-set; the old
+# TDESKTOP_DISABLE_REGISTER_CUSTOM_SCHEME env var no longer exists.
 #
 # So the instance gets private XDG homes instead: every entry of ~/.config
 # and ~/.local/share is symlinked into them, except mimeapps.list, which is a

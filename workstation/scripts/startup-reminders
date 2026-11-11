@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # startup-reminders — Show pending reminders as desktop notifications on sway start.
-# Reads reminders/*.txt from the dotfiles repo and sends each pending line via
-# notify-send. Which lines are pending is decided by lib/reminders.sh, shared
-# with install.sh.
+# Reads reminders/common.txt and reminders/workstation.txt from the dotfiles
+# repo and sends each pending line via notify-send. Which lines are pending
+# is decided by lib/reminders.sh, shared with install.sh.
 
 # Resolve repo root through this script's own symlink
 # (~/.local/bin/startup-reminders → <dotfiles>/workstation/scripts/startup-reminders)
@@ -14,6 +14,7 @@ DOTFILES_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
 # shellcheck source=../../lib/reminders.sh
 source "${DOTFILES_DIR}/lib/reminders.sh"
 
+# Sway starts mako at the same time; give it time to come up.
 sleep 10
 
 while IFS= read -r msg; do

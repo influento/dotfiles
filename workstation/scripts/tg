@@ -3,7 +3,7 @@ set -euo pipefail
 
 # tg — Create isolated Telegram Desktop instances that show up in the app launcher.
 #
-# Each instance gets its own --workdir (separate account/data) and its own
+# Each instance gets its own -workdir (separate account/data) and its own
 # .desktop launcher under ~/.local/share/applications, so it appears alongside
 # the default "Telegram" entry in the app launcher ($mod+d). The .desktop entry runs
 # tg-run, which keeps the instance's tg:// registration out of the real

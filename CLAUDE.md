@@ -22,12 +22,13 @@ and idempotent so it can be safely re-run at any time.
 
 - Lint: run `shellcheck -x` on every tracked file whose first line is a bash shebang:
   `git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x`
-- Check: `./check` runs the Lint command, every tool's offline test suite, the topo
-  tests and `tests/deploy.sh`. That last one renders every template into a copy of the
-  checkout, deploys it twice into a throwaway HOME, and fails if the second deploy
-  changes anything
-- Deploy (server): `bash install.sh --profile server --user myuser`
-- Deploy (workstation): `bash install.sh --profile workstation --user myuser`
+- Check: `./check` runs the Lint command, every tracked `tests/*.sh` suite and the
+  topo tests. Among the suites, `tests/deploy.sh` renders every template into a copy
+  of the checkout, deploys it twice into a throwaway HOME, and fails if the second
+  deploy changes anything
+- Deploy (server): `bash install.sh --profile server`
+- Deploy (workstation): `bash install.sh --profile workstation`. Run as the target
+  user: `--user` only checks that it matches
 - Dry run: `bash install.sh --profile server --dry-run`
 
 ## How It Works
@@ -64,7 +65,7 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **zsh + oh-my-zsh** | `common/zsh/.zshrc` (from `.zshrc.tpl`) → `~/.zshrc`; `.zshenv` → `~/.zshenv` | Shell: plugins, aliases, environment, prompt theme. `.zshenv` sets PATH for non-interactive shells (`ssh host <cmd>`) |
 | **Neovim** | `common/nvim/` | Editor: keymaps, plugins (lazy.nvim), options |
 | **IdeaVim** | `common/ideavim/.ideavimrc` → `~/.ideavimrc` | JetBrains IDE Vim layer: mirrors nvim keymaps and options |
-| **tmux** | `common/tmux/` | Prefix key, panes, status bar, attention glyphs and counts, popups (`prefix g` lazygit, `v` nvim, `t` shell: tmux-overlay), `prefix e` scrollback in nvim with `]]`/`[[` between prompts (`common/nvim/lua/scrollback.lua`), ssh windows named `host(ssh)` from the zsh hook's `@ssh_host` |
+| **tmux** | `common/tmux/` | Prefix key, panes, status bar, attention glyphs and counts, popups (`prefix g`/`v`/`t`: tmux-overlay), `prefix e` scrollback in nvim, ssh windows named `host(ssh)` |
 | **Git** | `common/git/.gitconfig` → `~/.gitconfig` | User identity (in `~/.gitconfig.local`), aliases, defaults |
 | **delta** | `common/delta/` (included by `~/.gitconfig`) | Diff viewer for lazygit and git's pager: line tints, line numbers, file names that open nvim at the line from lazygit. Git falls back to less where delta is missing (servers) |
 | **Starship** | `common/starship/` | Prompt: segments, icons |
@@ -72,7 +73,7 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **btop** | `common/btop/` | System monitor: theme, layout, vim keys |
 | **fastfetch** | `common/fastfetch/` | System info display: modules, layout |
 | **Claude Code** | `common/claude-code/` → `~/.claude/settings.json` (merged), `~/.claude/skills/`, `~/.local/bin/workbench`, `~/.local/bin/stack` | Settings, permissions, skills, and the workbench and stack CLIs: `common/claude-code/CLAUDE.md`. Installed by Anthropic's native installer on the first run; it updates itself |
-| **npm packages** | `common/npm/packages.conf` | Global npm packages, installed to `~/.local`, updated by auto-update |
+| **npm packages** | `common/npm/packages.conf` | Global npm packages, installed to `~/.local`, updated by auto-update on workstations |
 | **tmux-warp** | `influento/tmux-plugins` release (`TMUX_PLUGINS_VERSION` in `install.sh`, checked against its SHA256SUMS) → `~/.local/bin/tmux-warp`, `tmux-warp.sh` | Flash.nvim-style jump navigation for tmux: search + char modes |
 | **scripts** | `common/scripts/*` → `~/.local/bin/` | See [Scripts](#scripts) |
 
@@ -90,15 +91,15 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **swayidle** | `workstation/swayidle/` | Idle manager: lock, screen off, suspend timers |
 | **mako** | `workstation/mako/` | Notification daemon: appearance, urgency, timeouts |
 | **swaybg** | `workstation/swaybg/` | Wallpaper: launcher script, images |
-| **wlsunset** | `workstation/wlsunset/` | Night light: temperature, location-based schedule |
+| **wlsunset** | `workstation/wlsunset/` | Night light: one fixed temperature, set from gtk-widgets' display popup |
 | **SwayOSD** | `workstation/swayosd/` | Volume/brightness popup styling |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/` | Routes desktop portals to wlr for Sway |
-| **xdg-desktop-portal-wlr** | `workstation/xdg-desktop-portal-wlr/` | Screen-share source picker is `launcher --dmenu`: without one, sharing from an app that offers windows (Telegram) fails silently |
-| **GTK theming** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` → `~/.config/gtk-3.0/`, `gtk-4.0/` | GTK apps: theme, icons, cursor, font |
+| **xdg-desktop-portal-wlr** | `workstation/xdg-desktop-portal-wlr/` | Screen-share source picker: `launcher --dmenu` |
+| **GTK theming** | `workstation/theming/gtk-3.0/`, `gtk-4.0/` → `~/.config/gtk-3.0/`, `gtk-4.0/` | GTK apps: theme, icons, cursor, font (gtk-3.0); libadwaita color overrides (gtk-4.0) |
 | **Qt theming** | `workstation/theming/qt6ct/` → `~/.config/qt6ct/` | Qt6 apps: Fusion style, Papirus-Dark icons, fonts (needs the qt6ct env var from the OS installer) |
 | **mpv** | `workstation/mpv/` | Media player: keep-open, volume, OSD/OSC theming, yt-dlp integration |
 | **yt-dlp** | `workstation/yt-dlp/` | Video downloader: 1080p cap, mp4, metadata, SponsorBlock |
-| **MIME defaults** | `workstation/mimeapps/mimeapps.list` → `~/.config/mimeapps.list`; `nvim-ghostty.desktop` → `~/.local/share/applications/` | swayimg for images; text and source types open nvim in a new Ghostty window. Each type is listed: an unset one falls back to `nvim.desktop`, whose `Terminal=true` runs inline in the calling terminal and hijacks lazygit's pty |
+| **MIME defaults** | `workstation/mimeapps/mimeapps.list` → `~/.config/mimeapps.list`; `nvim-ghostty.desktop` → `~/.local/share/applications/` | Default apps: swayimg for images, Chrome for the web, nvim in a new Ghostty window for text and source types, Telegram and Claude Code for their URL schemes |
 | **Obsidian plugins** | `workstation/obsidian/plugins.conf` → `~/Dropbox/data-vault/.obsidian/plugins/` | Downloaded from GitHub releases into the vault |
 | **npm packages** | `workstation/npm/packages.conf` | Workstation-only global npm packages |
 | **tmux-agent** | the same `influento/tmux-plugins` release → `~/.local/bin/tmux-agent` | A pane flags what it needs (`needs-you`/`done`/`working`, ✗ for a failed run), set by Claude Code's hooks and the `claude` shell function. Glyphs, counts, `prefix f` picker, `prefix o` jump, desktop notification for panes out of view |
@@ -122,11 +123,11 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `tg`, `tg-run` | workstation | Isolated Telegram Desktop instances that appear separately in the launcher |
 | `nosleep`, `nosleep-status` | workstation | Toggle sleep inhibition, lid close included (`on`/`off`/`status`/`toggle`), or `hibernate` now; waybar indicator |
 | `headless`, `headless-status` | workstation | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
-| `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/*.txt`) |
+| `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
 | `lock` | workstation | Switches to the US layout, then locks |
-| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' `launcher-clipboard` and launcher): thumbnails, Right opens a preview pane, a row's cross or Ctrl+d deletes an entry; a pick goes back via `launcher-clipboard --restore` (images and file links as bytes + file + path) |
-| `cliphist-store` | workstation | The clipboard history writer sway runs (`wl-paste --watch cliphist-store`): a copy without `text/plain` that offers an image is stored as the image (Chrome's "Copy image" offers its URL first), one entry per copy; images and file links then go back up via `launcher-clipboard --offer` as bytes + file + path (Telegram pastes the picture, a terminal the path); skips cliphist-pick's own restores |
+| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v`, through gtk-widgets' launcher: thumbnails, preview, delete |
+| `cliphist-store` | workstation | The clipboard history writer sway runs (`wl-paste --watch cliphist-store`): images and file links paste as picture or path |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |
 | `stale-kernel` | workstation | Waybar indicator: the kernel was upgraded and a reboot is pending |
 | `delta-wrap` | workstation | lazygit's diff renderer: runs delta and wraps long lines behind the line numbers |
@@ -175,13 +176,14 @@ catppuccin-mocha color shows up in the output.
 ## Changing a Config
 
 **IMPORTANT: Never use the Write tool for files that contain or will contain Nerd Font
-icons** (U+F0000–U+F9999). The Write tool silently strips multi-byte UTF-8 icon
-characters. This applies to both editing existing files AND creating new files.
+icons** (Private Use Area: U+E000–U+F8FF, U+F0000–U+FFFFD). The Write tool silently
+strips multi-byte UTF-8 icon characters. This applies to both editing existing files
+AND creating new files.
 
 - **Editing existing files with icons**: Use the Edit tool for targeted changes
 - **Creating new files with icons**: Use Bash heredoc (`cat << 'EOF' > file`)
-- **Common icon locations**: waybar scripts, sway config, any script that outputs
-  waybar JSON (format strings with icon glyphs)
+- **Finding files with icons**:
+  `git grep -IlP '[\x{E000}-\x{F8FF}\x{F0000}-\x{FFFFD}]'`
 
 Editing a config:
 
@@ -236,7 +238,8 @@ practices are neither: they are a stack package of its ecosystem
 ## Code Conventions
 
 - All scripts use `#!/usr/bin/env bash` shebang
-- Every script starts with `set -euo pipefail`
+- Every script starts with `set -euo pipefail` (sourced files in `lib/` and `themes/`
+  do not: they inherit the caller's options)
 - Bash passes the Lint command (`shellcheck -x`)
 - Indent with 2 spaces, no tabs
 - Functions use `snake_case`
@@ -251,6 +254,6 @@ practices are neither: they are a stack package of its ecosystem
 
 ## Documentation
 
-- **`docs/references.md`** — official doc links and config format notes for every tool.
+- **`docs/references.md`** — official doc links and config format notes, by tool.
 - Subfolders have their own `CLAUDE.md` for detail that only matters there; it loads
   when that tree is touched.

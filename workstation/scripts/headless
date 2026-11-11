@@ -226,6 +226,8 @@ headless_on() {
     : >"${NOSLEEP_OWNED_FILE}"
   fi
 
+  # disable, not power off: it puts the monitor in standby and makes Sway move
+  # the workspaces to the virtual output by itself.
   local output
   for output in "${physical[@]}"; do
     swaymsg -q "output \"${output}\" disable" || true

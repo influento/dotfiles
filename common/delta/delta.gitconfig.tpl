@@ -23,7 +23,8 @@
     minus-empty-line-marker-style = "normal @@MIX_RED_16@@"
     whitespace-error-style = "reverse @@PINK@@"
 
-    # Gutter: the line number in the new file only
+    # Gutter: the line number in the new file only. delta-wrap finds it by the
+    # " │ " after the number (GUTTER in workstation/scripts/delta-wrap).
     line-numbers = true
     line-numbers-left-format = ""
     line-numbers-right-format = "{np:>4} │ "

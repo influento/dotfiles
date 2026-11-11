@@ -13,7 +13,8 @@ set -euo pipefail
 #   popup    (default) new at every open, ended when the popup closes:
 #            `ov-<name>-<client>`.
 # A pane that runs ssh, a folder that does not exist here, and a program
-# that is not installed get a message instead. Why: common/scripts/CLAUDE.md.
+# that is not installed get a message instead. The design decisions behind
+# all of this: common/scripts/CLAUDE.md.
 
 usage() {
   echo "usage: tmux-overlay -c <client> [-s repo|popup] <name> <command...> | --reap" >&2
@@ -44,7 +45,9 @@ root_key() {
 }
 
 # Unsaved buffers plus running terminal jobs. A terminal buffer never counts
-# as changed, so its job is counted on its own.
+# as changed, so its job is counted on its own. The changed field, not the
+# bufmodified filter of getbufinfo(): that one also counts a fresh scratch
+# buffer.
 NVIM_WORK='len(filter(getbufinfo(),{_,b->b.changed&&getbufvar(b.bufnr,"&buftype")!="terminal"}))+len(filter(nvim_list_chans(),{_,c->get(c,"mode","")=="terminal"&&jobwait([c.id],0)[0]==-1}))'
 
 # nvim_busy <pid>: true unless the nvim at <pid> says it has no work. nvim

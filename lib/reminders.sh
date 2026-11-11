@@ -3,7 +3,8 @@
 #
 # reminders/<name>.txt holds one reminder per line. `key:message` is pending
 # until `key` appears in the state file (one key per line); a line without a
-# colon is always pending. The split is on the first colon.
+# colon is always pending. The split is on the first colon, so a keyless
+# message that contains a colon needs a key, even a dummy one.
 #
 # Shared by install.sh (log_warn lines at the end of a deploy) and
 # workstation/scripts/startup-reminders (desktop notifications on sway start).
