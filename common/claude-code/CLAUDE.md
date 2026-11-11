@@ -4,8 +4,8 @@ What each tree here is, how it deploys and which tree a new skill belongs in:
 the root CLAUDE.md, "Claude Code Skills".
 
 Skills are drafted and tested with the claude.ai-synced
-`anthropic-skills:skill-creator`. Its `quick_validate.py` needs PyYAML, which no
-installer provides yet.
+`anthropic-skills:skill-creator`. Its `quick_validate.py`, which
+`package_skill.py` runs, needs PyYAML: `python-yaml` from arch-install.
 
 ## settings.json is merged, not symlinked
 
