@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # cliphist-pick — Clipboard history picker (gtk-widgets launcher --dmenu), on
 # $mod+v. sway also starts the history: wl-paste --watch cliphist store.
+# launcher-clipboard adds thumbnails and previews to cliphist's list; Right in
+# the picker opens the preview pane.
 set -euo pipefail
 
+# The pick's "<id>\t" is all cliphist decode needs: cut drops the label and
+# the options after it, NUL bytes included, before bash sees them.
 # Esc makes launcher exit 1 with no output; stop there, or wl-copy would run
 # on empty input and clear the clipboard. The Clear button exits 10: empty
 # the history and the current clipboard
 status=0
-sel=$(cliphist list | launcher --dmenu --prompt Clipboard --after-tab --action Clear) || status=$?
+id=$(launcher-clipboard |
+  launcher --dmenu --prompt Clipboard --after-tab --action Clear |
+  cut -f1) || status=$?
 case "$status" in
-  0) printf '%s\n' "$sel" | cliphist decode | wl-copy ;;
+  0) printf '%s\t\n' "$id" | cliphist decode | wl-copy ;;
   10)
     wl-copy --clear
     cliphist wipe

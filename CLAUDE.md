@@ -125,7 +125,7 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/*.txt`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
 | `lock` | workstation | Switches to the US layout, then locks |
-| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' launcher) |
+| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' `launcher-clipboard` and launcher): thumbnails, Right opens a preview pane |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |
 | `stale-kernel` | workstation | Waybar indicator: the kernel was upgraded and a reboot is pending |
 
