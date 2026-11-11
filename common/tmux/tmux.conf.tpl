@@ -39,10 +39,28 @@ set -as terminal-features 'xterm*:hyperlinks'
 set -as terminal-features 'ghostty:hyperlinks'
 
 # --- Splits ---
-bind | split-window -h -c "#{pane_current_path}"
-bind - split-window -v -c "#{pane_current_path}"
+# With the focus in tmux-agent's sidebar, | and - split the main pane used last,
+# in its folder. tmux-agent sets the @sidebar_* options, so without it (servers)
+# each key is the plain split.
+bind | if -F '#{&&:#{@sidebar_client},#{P:#{?#{==:#{pane_id},#{@sidebar_last}},1,}}}' "run-shell -C \"select-pane -t #{@sidebar_last} ; split-window -h -c '##{pane_current_path}'\"" 'split-window -h -c "#{pane_current_path}"'
+bind - if -F '#{&&:#{@sidebar_client},#{P:#{?#{==:#{pane_id},#{@sidebar_last}},1,}}}' "run-shell -C \"select-pane -t #{@sidebar_last} ; split-window -v -c '##{pane_current_path}'\"" 'split-window -v -c "#{pane_current_path}"'
 unbind '"'
 unbind %
+
+# --- Window keys ---
+# With tmux-agent's sidebar open, n/p/1-9 move the sidebar and switch windows in
+# one draw; otherwise they are tmux's defaults.
+bind n if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' +\"" 'next-window'
+bind p if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' -\"" 'previous-window'
+bind 1 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 1\"" 'select-window -t :=1'
+bind 2 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 2\"" 'select-window -t :=2'
+bind 3 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 3\"" 'select-window -t :=3'
+bind 4 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 4\"" 'select-window -t :=4'
+bind 5 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 5\"" 'select-window -t :=5'
+bind 6 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 6\"" 'select-window -t :=6'
+bind 7 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 7\"" 'select-window -t :=7'
+bind 8 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 8\"" 'select-window -t :=8'
+bind 9 if -F '#{@sidebar_open}' "run-shell \"tmux-agent sidebar step '#{client_name}' 9\"" 'select-window -t :=9'
 
 # New window in current path
 bind c new-window -c "#{pane_current_path}"
