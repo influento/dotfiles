@@ -2,7 +2,8 @@
 # cliphist-pick — Clipboard history picker (gtk-widgets launcher --dmenu), on
 # $mod+v. sway also starts the history: wl-paste --watch cliphist store.
 # launcher-clipboard adds thumbnails and previews to cliphist's list; Right in
-# the picker opens the preview pane.
+# the picker opens the preview pane. A row's cross (or Ctrl+d) deletes that
+# entry: launcher hands its line to cliphist delete and stays open.
 set -euo pipefail
 
 # The pick's "<id>\t" is all cliphist decode needs: cut drops the label and
@@ -12,7 +13,8 @@ set -euo pipefail
 # the history and the current clipboard
 status=0
 id=$(launcher-clipboard |
-  launcher --dmenu --prompt Clipboard --after-tab --action Clear |
+  launcher --dmenu --prompt Clipboard --after-tab --action Clear \
+    --delete 'cliphist delete' |
   cut -f1) || status=$?
 case "$status" in
   0) printf '%s\t\n' "$id" | cliphist decode | wl-copy ;;
