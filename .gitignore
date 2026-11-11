@@ -44,3 +44,6 @@ common/claude-code/skills-optional/build-cv/
 # .trash/ is where disabling the sync moves them.
 common/claude-code/skills/synced/
 common/claude-code/skills/.trash/
+
+# Per-machine theme choice (install.sh falls back to catppuccin-mocha)
+/theme.conf

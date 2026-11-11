@@ -149,7 +149,8 @@ file is in `.gitignore`. `git ls-files '*.tpl'` lists the templates.
 
 ### Theme Selection
 
-Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
+Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`).
+`theme.conf` is per machine and gitignored.
 
 ### Adding a New Theme
 
@@ -157,6 +158,17 @@ Priority: `--theme` CLI flag > `theme.conf` > fallback (`catppuccin-mocha`)
 2. Update `THEME_META` (NAME, DISPLAY_NAME, SYNTAX_THEME from `delta --list-syntax-themes`) and all `THEME_COLORS` values
 3. Set `THEME=<name>` in `theme.conf` or pass `--theme <name>`
 4. Run `bash install.sh --profile workstation` to regenerate configs
+
+Two parts do not follow the palette yet. Fix them when the second theme arrives:
+
+- **Neovim**: `common/nvim/lua/plugins/catppuccin.lua` hardcodes `flavour = "mocha"`.
+  catppuccin.nvim's `color_overrides` takes the `THEME_COLORS` names in lowercase, so
+  the file can become a template filled from the palette
+- **gtk-widgets**: keeps its own palette copy in its `themes/<name>.json` and gets only
+  the theme name. Have this repo write the palette JSON at install time, and drop the copy
+
+Then make `tests/deploy.sh` render a dummy second palette and fail when a
+catppuccin-mocha color shows up in the output.
 
 ## Changing a Config
 
