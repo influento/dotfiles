@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# cliphist-store — Clipboard history writer, run by sway as
+# wl-paste --watch cliphist-store. wl-paste hands it the copy in the first
+# text type the app offers. That is wrong for an image copied from a browser:
+# Chrome's "Copy image" offers text/x-moz-url (the URL in UTF-16), text/html
+# and image/png, so a plain watcher stores the URL and loses the picture.
+# Rule, one entry per copy:
+#   launcher-clipboard's marker offered -> store nothing: cliphist-pick put
+#                          an entry back (as file + path + bytes) and moved it
+#                          to the top itself
+#   text/plain offered  -> store what wl-paste chose (text, as before)
+#   else image/* offered -> store the image
+#   else                 -> store what wl-paste chose
+# An image, or a copy that offers text/uri-list (capture's file links), then
+# goes back up through launcher-clipboard --offer: as file + path (+ bytes),
+# so a fresh copy pastes as the picture in Telegram and as a path in a
+# terminal, as a pick from $mod+v does. It leaves every other copy alone.
+# CLIPBOARD_STATE other than "data" (clear, nil, sensitive) goes to cliphist
+# unchanged: it handles those itself.
+set -euo pipefail
+
+max_items=100
+marker=application/x-launcher-clipboard
+
+# The entry just stored is the newest; sed reads the whole list (no SIGPIPE)
+offer_newest() {
+  local id
+  id=$(cliphist list | sed -n '1s/\t.*//p')
+  [[ -n "$id" ]] && launcher-clipboard --offer "$id" || true
+}
+
+if [[ "${CLIPBOARD_STATE:-data}" != data ]]; then
+  exec cliphist -max-items "$max_items" store
+fi
+types=$(wl-paste --list-types 2>/dev/null) || types=
+if grep -qxF "$marker" <<<"$types"; then
+  cat >/dev/null
+  exit 0
+fi
+if ! grep -q '^text/plain' <<<"$types" && grep -q '^image/' <<<"$types"; then
+  # Read the offered text so the app is not left writing to a closed pipe
+  cat >/dev/null
+  wl-paste --type image | cliphist -max-items "$max_items" store
+  offer_newest
+  exit 0
+fi
+cliphist -max-items "$max_items" store
+if grep -qxF text/uri-list <<<"$types"; then
+  offer_newest
+fi

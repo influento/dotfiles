@@ -201,7 +201,7 @@ exec ~/.config/swaybg/wallpaper.sh
 exec swayidle -w
 exec mako
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-exec wl-paste --watch cliphist -max-items 100 store
+exec wl-paste --watch cliphist-store
 exec ~/.config/wlsunset/wlsunset.sh
 exec swayosd-server
 exec network-agent

@@ -125,7 +125,8 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/*.txt`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
 | `lock` | workstation | Switches to the US layout, then locks |
-| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' `launcher-clipboard` and launcher): thumbnails, Right opens a preview pane, a row's cross or Ctrl+d deletes an entry |
+| `cliphist-pick` | workstation | Clipboard history picker on `$mod+v` (cliphist through gtk-widgets' `launcher-clipboard` and launcher): thumbnails, Right opens a preview pane, a row's cross or Ctrl+d deletes an entry; a pick goes back via `launcher-clipboard --restore` (images and file links as bytes + file + path) |
+| `cliphist-store` | workstation | The clipboard history writer sway runs (`wl-paste --watch cliphist-store`): a copy without `text/plain` that offers an image is stored as the image (Chrome's "Copy image" offers its URL first), one entry per copy; images and file links then go back up via `launcher-clipboard --offer` as bytes + file + path (Telegram pastes the picture, a terminal the path); skips cliphist-pick's own restores |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |
 | `stale-kernel` | workstation | Waybar indicator: the kernel was upgraded and a reboot is pending |
 | `delta-wrap` | workstation | lazygit's diff renderer: runs delta and wraps long lines behind the line numbers |

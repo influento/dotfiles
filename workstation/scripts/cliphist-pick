@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # cliphist-pick — Clipboard history picker (gtk-widgets launcher --dmenu), on
-# $mod+v. sway also starts the history: wl-paste --watch cliphist store.
+# $mod+v. sway also starts the history: wl-paste --watch cliphist-store.
 # launcher-clipboard adds thumbnails and previews to cliphist's list; Right in
 # the picker opens the preview pane. A row's cross (or Ctrl+d) deletes that
 # entry: launcher hands its line to cliphist delete and stays open.
 set -euo pipefail
 
-# The pick's "<id>\t" is all cliphist decode needs: cut drops the label and
-# the options after it, NUL bytes included, before bash sees them.
+# The pick's "<id>" is all launcher-clipboard --restore needs: cut drops the
+# label and the options after it, NUL bytes included, before bash sees them.
+# --restore puts images and file links back as file + path (+ image bytes),
+# so Telegram pastes the picture and a terminal the path; text goes through
+# wl-copy as before.
 # Esc makes launcher exit 1 with no output; stop there, or wl-copy would run
 # on empty input and clear the clipboard. The Clear button exits 10: empty
 # the history and the current clipboard
@@ -17,7 +20,7 @@ id=$(launcher-clipboard |
     --delete 'cliphist delete' |
   cut -f1) || status=$?
 case "$status" in
-  0) printf '%s\t\n' "$id" | cliphist decode | wl-copy ;;
+  0) launcher-clipboard --restore "$id" ;;
   10)
     wl-copy --clear
     cliphist wipe
