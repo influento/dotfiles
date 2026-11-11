@@ -15,6 +15,11 @@
 # goes back up through launcher-clipboard --offer: as file + path (+ bytes),
 # so a fresh copy pastes as the picture in Telegram and as a path in a
 # terminal, as a pick from $mod+v does. It leaves every other copy alone.
+# Only a copy cliphist stored goes up: cliphist 0.7.0 drops input over
+# 5,000,000 bytes and empty or whitespace-only input without a word, and the
+# newest entry is then an older copy. A stored copy always gets a new id (a
+# dedup too: cliphist deletes the old entry and inserts a new one), so the
+# newest id is read before the store and compared after it.
 # CLIPBOARD_STATE other than "data" (clear, nil, sensitive) goes to cliphist
 # unchanged: it handles those itself.
 set -euo pipefail
@@ -22,11 +27,19 @@ set -euo pipefail
 max_items=100
 marker=application/x-launcher-clipboard
 
-# The entry just stored is the newest; sed reads the whole list (no SIGPIPE)
-offer_newest() {
+# sed reads the whole list (no SIGPIPE)
+newest_id() {
+  cliphist list | sed -n '1s/\t.*//p'
+}
+
+# A cliphist-pick restore that stores between $1 and the store would pass
+# as this copy; it needs a pick in those few milliseconds.
+offer_if_stored() {
   local id
-  id=$(cliphist list | sed -n '1s/\t.*//p')
-  [[ -n "$id" ]] && launcher-clipboard --offer "$id" || true
+  id=$(newest_id)
+  if [[ -n "$id" && "$id" != "$1" ]]; then
+    launcher-clipboard --offer "$id" || true
+  fi
 }
 
 if [[ "${CLIPBOARD_STATE:-data}" != data ]]; then
@@ -40,11 +53,14 @@ fi
 if ! grep -q '^text/plain' <<<"$types" && grep -q '^image/' <<<"$types"; then
   # Read the offered text so the app is not left writing to a closed pipe
   cat >/dev/null
+  before=$(newest_id)
   wl-paste --type image | cliphist -max-items "$max_items" store
-  offer_newest
+  offer_if_stored "$before"
   exit 0
 fi
-cliphist -max-items "$max_items" store
-if grep -qxF text/uri-list <<<"$types"; then
-  offer_newest
+if ! grep -qxF text/uri-list <<<"$types"; then
+  exec cliphist -max-items "$max_items" store
 fi
+before=$(newest_id)
+cliphist -max-items "$max_items" store
+offer_if_stored "$before"

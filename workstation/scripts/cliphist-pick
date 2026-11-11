@@ -11,9 +11,10 @@ set -euo pipefail
 # --restore puts images and file links back as file + path (+ image bytes),
 # so Telegram pastes the picture and a terminal the path; text goes through
 # wl-copy as before.
-# Esc makes launcher exit 1 with no output; stop there, or wl-copy would run
-# on empty input and clear the clipboard. The Clear button exits 10: empty
-# the history and the current clipboard
+# Esc makes launcher exit 1 with no output; stop there, or launcher-clipboard
+# --restore would run with an empty id (cliphist decodes nothing, and wl-copy
+# of empty input replaces the clipboard with empty data). The Clear button
+# exits 10: empty the history and the current clipboard
 status=0
 id=$(launcher-clipboard |
   launcher --dmenu --prompt Clipboard --after-tab --action Clear \
