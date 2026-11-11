@@ -243,7 +243,7 @@
         <dt>"0</dt><dd>last yank only</dd>
         <dt>"+ "*</dt><dd>system clipboard</dd>
         <dt>:reg</dt><dd>list registers</dd>
-        <dt>q{a}…q</dt><dd>record macro</dd>
+        <dt>Q{a}…Q</dt><dd>record macro <span class="hint">q does nothing</span></dd>
         <dt>@{a} @@</dt><dd>replay / repeat last</dd>
       </dl>
     </section>
@@ -251,7 +251,7 @@
     <section class="vim g-augment">
       <h2>Marks</h2>
       <dl>
-        <dt>m{a-z}</dt><dd>set buffer-local mark</dd>
+        <dt>m{a-z}</dt><dd>set mark: buffer-local in nvim, global in IdeaVim</dd>
         <dt>m{A-Z}</dt><dd>set global mark (across files)</dd>
         <dt>gm{c}</dt><dd>jump to mark <span class="hint">remap of `</span></dd>
         <dt>'{c}</dt><dd>jump to mark line</dd>
@@ -556,7 +556,7 @@
       <dl>
         <dt>&lt;leader&gt;qq</dt><dd>quit all</dd>
         <dt>&lt;leader&gt;qw</dt><dd>save all + quit</dd>
-        <dt>&lt;leader&gt;rc</dt><dd>reload config</dd>
+        <dt>&lt;leader&gt;rc</dt><dd>restart nvim / reload .ideavimrc</dd>
       </dl>
     </section>
 
@@ -587,7 +587,6 @@
         <dt>p d</dt><dd>detach</dd>
         <dt>p D</dt><dd>choose client to detach</dd>
         <dt>p (  )</dt><dd>prev / next session</dd>
-        <dt>p L</dt><dd>last session</dd>
       </dl>
     </section>
 
