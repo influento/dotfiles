@@ -7,11 +7,10 @@
 # too, gets a new higher id; drops input over FAKE_LIMIT bytes or blank),
 # wl-paste (types and image from files) and launcher-clipboard (records its
 # arguments). Nothing touches the real clipboard or history.
-# Plain bash, no framework. Run: bash tests/repro-cliphist-store-skip.sh
+# Plain bash, no framework. Run from workstation/scripts: bash tests/cliphist-store.sh
 set -euo pipefail
 
-REPO=$(readlink -f "$(dirname "$0")/..")
-STORE="${REPO}/workstation/scripts/cliphist-store"
+STORE=$(readlink -f "$(dirname "$0")/../cliphist-store")
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
