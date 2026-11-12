@@ -19,9 +19,11 @@ return {
       local dap = require("dap")
       local dapui = require("dapui")
 
+      -- Only on dev machines (npm present); see lua/plugins/lsp.lua
+      local dev_tools = vim.fn.executable("npm") == 1
       require("mason-nvim-dap").setup({
-        ensure_installed = { "codelldb", "debugpy", "delve", "js" },
-        automatic_installation = true,
+        ensure_installed = dev_tools and { "codelldb", "debugpy", "delve", "js" } or {},
+        automatic_installation = dev_tools,
       })
 
       dapui.setup()

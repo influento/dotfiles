@@ -1,3 +1,10 @@
+-- Dev machines have npm; servers deliberately don't. Without it, skip all
+-- Mason auto-installs (several tools need npm to install or node to run):
+-- the editor works the same, just without language servers and formatters.
+local function dev_only(list)
+  return vim.fn.executable("npm") == 1 and list or {}
+end
+
 return {
   {
     "williamboman/mason.nvim",
@@ -7,13 +14,13 @@ return {
     "WhoIsSethDaniel/mason-tool-installer.nvim",
     dependencies = { "williamboman/mason.nvim" },
     opts = {
-      ensure_installed = {
+      ensure_installed = dev_only({
         "csharpier",
         "prettier",
         "ruff",
         "shfmt",
         "stylua",
-      },
+      }),
     },
   },
   {
@@ -44,7 +51,7 @@ return {
       })
 
       require("mason-lspconfig").setup({
-        ensure_installed = {
+        ensure_installed = dev_only({
           "bashls",
           "clangd",
           "gopls",
@@ -57,7 +64,7 @@ return {
           "taplo",
           "ts_ls",
           "yamlls",
-        },
+        }),
       })
 
       vim.api.nvim_create_autocmd("LspAttach", {
