@@ -110,13 +110,11 @@ bind o run-shell "if command -v tmux-agent >/dev/null; then tmux-agent jump; els
 # Hooks: tmux-agent sets its own at index [10] and tmux-revive at [20], from
 # their tmux-init lines at the end of this file; [0] is free for this file.
 # Never `set-hook -u` without an index: it unsets every index of the hook.
-set -g pane-border-status off
-set -g pane-border-format "#[fg=@@OVERLAY0@@] #{@attention_mark}#[fg=@@SUBTEXT0@@]#{pane_current_command}#{?@attention_reason, · #{@attention_reason},#{?#{==:#{pane_current_command},claude}, · #{s/^[^A-Za-z0-9]* *//:pane_title},}} "
 
 # --- Popups ---
 # tmux 3.8 made popups grey by default (themedarkgrey); keep them on the theme.
 set -g popup-style "bg=@@BASE@@,fg=@@TEXT@@"
-set -g popup-border-style "bg=@@BASE@@,fg=@@OVERLAY0@@"
+set -g popup-border-style "bg=@@BASE@@,fg=@@LAVENDER@@"
 # Programs in popups: lazygit and nvim kept in hidden sessions, one per git
 # repo shared by every session; the shell new at every open and ended when
 # its popup closes (common/scripts/CLAUDE.md, "tmux-overlay"). run-shell
@@ -156,9 +154,9 @@ bind s run-shell '~/.local/bin/tmux-warp.sh'
 set -g status-position top
 set -g status-interval 5
 set -g status-style "bg=@@BASE@@,fg=@@TEXT@@"
-set -g status-left "#[bg=@@BLUE@@,fg=@@BASE@@,bold] #S #[default] "
+set -g status-left "#[fg=@@LAVENDER@@,bold] #S #[default] "
 set -g status-left-length 30
-set -g status-right "#{E:@attention_status}#[fg=@@SUBTEXT0@@] %H:%M "
+set -g status-right "#{E:@attention_status} "
 set -g status-right-length 60
 
 # Active window
@@ -166,9 +164,40 @@ setw -g window-status-current-format "#[bg=@@SURFACE0@@,fg=@@TEXT@@,bold] #{@att
 # Inactive window
 setw -g window-status-format "#[fg=@@OVERLAY0@@] #{@attention_win_mark}#[fg=@@OVERLAY0@@]#I:#W "
 
-# Pane borders
-set -g pane-border-style "fg=@@SURFACE0@@"
-set -g pane-active-border-style "fg=@@BLUE@@"
+# Panes: main area mantle, panel base, the gap beside the panel in the
+# main colour; surface1 lines between main panes, lavender on the
+# focused one; unfocused text subtext0. No label lines.
+set -g @attention_borders off
+set -g pane-border-status off
+set -g pane-border-indicators off
+set -g pane-border-lines single
+set -g pane-border-style "#{?#{@sidebar_client},bg=@@MANTLE@@ fg=@@MANTLE@@,bg=@@MANTLE@@ fg=@@SURFACE1@@}"
+set -g pane-active-border-style "#{?#{@sidebar_client},bg=@@MANTLE@@ fg=@@MANTLE@@,bg=@@MANTLE@@ fg=@@LAVENDER@@}"
+set -g window-style "bg=@@MANTLE@@,fg=@@SUBTEXT0@@"
+set -g window-active-style "bg=@@MANTLE@@,fg=@@TEXT@@"
+# The panel (prefix f): its colours, focused, and its cursor row
+set -g @sidebar_style "bg=@@BASE@@,fg=@@SUBTEXT0@@"
+set -g @sidebar_active_style "bg=@@BASE@@,fg=@@TEXT@@"
+set -g @sidebar_cursor_style "bg=@@SURFACE1@@,fg=@@LAVENDER@@"
+
+# Copy mode: selection, search matches, the current match
+set -g mode-style "bg=@@LAVENDER@@,fg=@@CRUST@@"
+set -g copy-mode-match-style "bg=@@YELLOW@@,fg=@@CRUST@@"
+set -g copy-mode-current-match-style "bg=@@PEACH@@,fg=@@CRUST@@"
+
+# No menus (right-click, prefix < and >) and no pane numbers (prefix q).
+# A right-click still reaches programs that use the mouse.
+unbind '<'
+unbind '>'
+unbind q
+unbind -n MouseDown3Status
+unbind -n MouseDown3StatusLeft
+unbind -n MouseDown3Empty
+unbind -n M-MouseDown3Pane
+unbind -n M-MouseDown3Status
+unbind -n M-MouseDown3StatusLeft
+unbind -n M-MouseDown3Empty
+bind -n MouseDown3Pane { select-pane -t= ; send-keys -M }
 
 # Message style
 set -g message-style "bg=@@SURFACE0@@,fg=@@TEXT@@"
