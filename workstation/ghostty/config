@@ -13,8 +13,14 @@ theme = dotfiles.conf
 bold-is-bright = true
 
 # Window
+# tmux paints its panes mantle and its panel base, so the padding takes the
+# colour of the cells next to it (plain `extend` leaves the bottom strip base).
+# No vertical padding: pane lines reach the window bottom, and balance splits
+# the pixels left over from the last row between top and bottom.
 window-padding-x = 8
-window-padding-y = 8
+window-padding-y = 0
+window-padding-balance = true
+window-padding-color = extend-always
 window-decoration = none
 
 # Cursor
