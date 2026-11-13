@@ -519,6 +519,57 @@ install_gtk_widgets() {
   log_info "gtk-widgets installed"
 }
 
+# Remove the links this repo made before the workshop moved to its own repo:
+# ~/.claude/skills, ~/.local/bin/workbench and ~/.local/bin/stack into
+# common/claude-code/, and ~/.local/bin/docx-py into common/scripts/. The
+# workshop's installer then finds those places free, instead of backing up
+# links into a tree that is gone. Links that point anywhere else are the
+# workshop installer's to handle.
+# Usage: release_workshop_links "/home/username"
+release_workshop_links() {
+  local user_home="$1"
+  local pair link
+
+  for pair in ".claude/skills:common/claude-code/" ".local/bin/workbench:common/claude-code/" \
+    ".local/bin/stack:common/claude-code/" ".local/bin/docx-py:common/scripts/docx-py"; do
+    link="${user_home}/${pair%%:*}"
+    [[ -L "$link" && "$(readlink "$link")" == "${DOTFILES_DIR}/${pair#*:}"* ]] || continue
+    rm -f "$link"
+    log_info "Released: $link (the workshop installs it now)"
+  done
+}
+
+# Clone (or update) the private workshop repo beside this one and run its
+# installer: one link per skill into ~/.claude/skills/, and the workbench and
+# stack CLIs into ~/.local/bin/. The clone goes over SSH, so a machine
+# without GitHub access (a server before setup-github) skips it with a
+# warning; BatchMode keeps ssh from prompting.
+# Usage: install_workshop "/home/username"
+install_workshop() {
+  local user_home="$1"
+  local repo_url="git@github.com:influento/workshop.git"
+  local install_dir
+  install_dir="$(cd "${DOTFILES_DIR}/.." && pwd)/workshop"
+
+  log_section "Installing workshop"
+  release_workshop_links "$user_home"
+
+  if [[ -d "$install_dir/.git" ]]; then
+    local pull_err
+    if ! pull_err="$(GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+      git -C "$install_dir" pull --ff-only --quiet 2>&1)"; then
+      log_warn "workshop: could not update ${install_dir}, installing the version checked out"
+      grep -m 1 -E '^(fatal|error):' <<<"$pull_err" | sed 's/^/  /' >&2 || true
+    fi
+  elif ! GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+    git clone --quiet "$repo_url" "$install_dir" 2>/dev/null; then
+    log_warn "workshop: could not clone ${repo_url} (no GitHub SSH access?), skipped. Run setup-github, then install.sh again"
+    return 0
+  fi
+
+  bash "$install_dir/install.sh"
+}
+
 # Install global npm packages from one or more packages.conf files if not already present.
 # Usage: install_npm_packages file1 [file2 ...]
 install_npm_packages() {
@@ -663,26 +714,13 @@ deploy_configs() {
         link_config "${item}/nvim-ghostty.desktop" \
           "${user_home}/.local/share/applications/nvim-ghostty.desktop"
         ;;
-      # Claude Code: skills dir symlinked, settings.json merged (Claude Code
-      # rewrites that file itself and would replace a symlink — see
-      # merge_json_config)
+      # Claude Code: settings.json merged (Claude Code rewrites that file
+      # itself and would replace a symlink — see merge_json_config). Skills
+      # and the workbench and stack CLIs come from the workshop repo
+      # (install_workshop).
       claude-code)
         ensure_dir "${user_home}/.claude"
-        link_config "${item}/skills" "${user_home}/.claude/skills"
         merge_json_config "${item}/settings.json" "${user_home}/.claude/settings.json"
-        # workshop/workbench/ is a whole tool, not a config: its skills, agents and
-        # commands are rendered into a project by its own CLI ('workbench
-        # init'), never deployed from here. Only the CLI is, because it is what
-        # does the opting in — it has to be runnable before a project can ask
-        # for any of the rest.
-        ensure_dir "${user_home}/.local/bin"
-        link_config "${item}/workshop/workbench/bin/workbench" \
-          "${user_home}/.local/bin/workbench"
-        # workshop/stack/ likewise: the registry of packages a project may
-        # choose (workshop/<language>/packages/) stays here, 'stack add'
-        # copies from it.
-        link_config "${item}/workshop/stack/bin/stack" \
-          "${user_home}/.local/bin/stack"
         ;;
       # Scripts are symlinked individually into ~/.local/bin/
       scripts)

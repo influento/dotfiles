@@ -1,11 +1,7 @@
-# Claude Code (source tree)
+# Claude Code (settings)
 
-What each tree here is, how it deploys and which tree a new skill belongs in:
-the root CLAUDE.md, "Claude Code Skills".
-
-Skills are drafted and tested with the claude.ai-synced
-`anthropic-skills:skill-creator`. Its `quick_validate.py`, which
-`package_skill.py` runs, needs PyYAML: `python-yaml` from arch-install.
+Only `settings.json` lives here. Skills and the workbench and stack CLIs come
+from the workshop repo: the root CLAUDE.md, "Claude Code Skills".
 
 ## settings.json is merged, not symlinked
 

@@ -29,24 +29,10 @@ workstation/ghostty/themes/dotfiles.conf
 workstation/yazi/theme.toml
 workstation/sway/config
 
-# skill-creator eval artifacts (workspace dirs are siblings of the skill)
-common/claude-code/skills/**/*-workspace/
-common/claude-code/skills/**/__pycache__/
-common/claude-code/skills-optional/**/*-workspace/
-common/claude-code/skills-optional/**/__pycache__/
-
-# py-gate's tests run check.py, which imports conf.py beside it
-common/claude-code/workshop/**/__pycache__/
-
-# build-cv contains real CV data (name, employers, dates) — this repo is public,
-# and identity is deliberately kept untracked (see common/git/.gitconfig)
-common/claude-code/skills-optional/build-cv/
-
-# Claude Code writes claude.ai skill sync into ~/.claude/skills, which is a symlink
-# into this repo — 4.3 MB of proprietary-licensed skills that are not ours to publish.
-# .trash/ is where disabling the sync moves them.
-common/claude-code/skills/synced/
-common/claude-code/skills/.trash/
+# The skills moved to the workshop repo. A checkout from before the move still
+# holds the claude.ai skill sync (synced/, .trash/) there: skills that are not
+# ours to publish. Delete the folder by hand.
+common/claude-code/skills/
 
 # Per-machine theme choice (install.sh falls back to catppuccin-mocha)
 /theme.conf

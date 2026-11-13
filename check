@@ -39,6 +39,5 @@ step lint lint
 while IFS= read -r t; do
   step "$t" suite "$t"
 done < <(git ls-files '*tests/*.sh' | grep -E '(^|/)tests/[^/]+\.sh$' | grep -v '/verify\.sh$')
-step topo bash -c 'cd common/claude-code/skills/topo && node --test test/'
 
 exit "$failed"

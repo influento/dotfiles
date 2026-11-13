@@ -134,6 +134,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log_info "  bat, fd: link ~/.local/bin/{bat,fd} to Debian's batcat, fdfind where only those exist"
   log_info "  npm packages: install from common/npm/packages.conf"
   log_info "  claude-code: install via Anthropic native installer if missing (self-updates)"
+  log_info "  workshop: clone/update the private repo over SSH (skipped without access), run its installer"
   log_info "  tmux-plugins ${TMUX_PLUGINS_VERSION} (SHA256SUMS ${TMUX_PLUGINS_SHA256:0:12}…): tmux-warp"
   if [[ "$PROFILE" == "workstation" ]]; then
     log_info "  workstation configs: $(list_config_dirs "${DOTFILES_DIR}/workstation")"
@@ -169,6 +170,7 @@ deploy_configs "${DOTFILES_DIR}/common" "$USER_HOME" "common"
 link_debian_names "$USER_HOME"
 install_npm_packages "${DOTFILES_DIR}/common/npm/packages.conf"
 install_claude_code
+install_workshop "$USER_HOME"
 log_section "Installing tmux-plugins ${TMUX_PLUGINS_VERSION}"
 install_release_binary "$USER_HOME" "$TMUX_PLUGINS_REPO" tmux-warp \
   "$TMUX_PLUGINS_VERSION" "$TMUX_PLUGINS_SHA256" tmux-warp.sh

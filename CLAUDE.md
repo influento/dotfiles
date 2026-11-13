@@ -3,13 +3,14 @@
 ## Project Overview
 
 Profile-driven, idempotent dotfiles manager for user-level configuration. Part of a
-five-repo architecture:
+six-repo architecture:
 
 1. **arch-install** — Arch Linux workstation installer (system-level only)
 2. **debian-server** — Debian server installer (system-level only)
 3. **dotfiles** (this repo) — User-level configuration (shell, editor, tools, desktop)
 4. **gtk-widgets** — Custom GTK4 widgets (Python + PyGObject)
 5. **tmux-plugins** — tmux plugins as Go binaries: tmux-warp, tmux-agent, tmux-revive; one release, pinned in `install.sh`
+6. **workshop** (private) — agent skills and the tools a project installs (workbench, stack, the gates); cloned beside this repo and installed by its own `install.sh`
 
 OS repositories are responsible only for system-level concerns: base installation,
 package manager operations, services, and required packages. They must not contain
@@ -22,8 +23,8 @@ and idempotent so it can be safely re-run at any time.
 
 - Lint: run `shellcheck -x` on every tracked file whose first line is a bash shebang:
   `git ls-files -z | xargs -0 awk 'FNR==1 && /^#!.*bash/ {print FILENAME} {nextfile}' | xargs shellcheck -x`
-- Check: `./check` runs the Lint command, every tracked `tests/*.sh` suite and the
-  topo tests. Among the suites, `tests/deploy.sh` renders every template into a copy
+- Check: `./check` runs the Lint command and every tracked `tests/*.sh` suite.
+  Among the suites, `tests/deploy.sh` renders every template into a copy
   of the checkout, deploys it twice into a throwaway HOME, and fails if the second
   deploy changes anything
 - Deploy (server): `bash install.sh --profile server`
@@ -72,7 +73,8 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **fontconfig** | `common/fontconfig/` | Font rendering: hinting, antialiasing, default families |
 | **btop** | `common/btop/` | System monitor: theme, layout, vim keys |
 | **fastfetch** | `common/fastfetch/` | System info display: modules, layout |
-| **Claude Code** | `common/claude-code/` → `~/.claude/settings.json` (merged), `~/.claude/skills/`, `~/.local/bin/workbench`, `~/.local/bin/stack` | Settings, permissions, skills, and the workbench and stack CLIs: `common/claude-code/CLAUDE.md`. Installed by Anthropic's native installer on the first run; it updates itself |
+| **Claude Code** | `common/claude-code/settings.json` → `~/.claude/settings.json` (merged) | Settings, permissions, hooks: `common/claude-code/CLAUDE.md`. Installed by Anthropic's native installer on the first run; it updates itself |
+| **workshop** | `influento/workshop` (private, SSH), cloned beside this repo → `~/.claude/skills/<skill>`, `~/.local/bin/workbench`, `~/.local/bin/stack` | Skills and the tools a project installs, deployed by its own `install.sh`. Skipped with a warning where the clone fails (no GitHub key yet) |
 | **npm packages** | `common/npm/packages.conf` | Global npm packages, installed to `~/.local`, updated by auto-update on workstations |
 | **tmux-warp** | `influento/tmux-plugins` release (`TMUX_PLUGINS_VERSION` in `install.sh`, checked against its SHA256SUMS) → `~/.local/bin/tmux-warp`, `tmux-warp.sh` | Flash.nvim-style jump navigation for tmux: search + char modes |
 | **scripts** | `common/scripts/*` → `~/.local/bin/` | See [Scripts](#scripts) |
@@ -117,7 +119,6 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `setup-github` | all | First-login setup: SSH key, GitHub auth, git identity, private git root (`private.root` in `~/.gitconfig.local`), remote switch |
 | `git-private` | all | `git private`: create `<private.root>/<name>.git` over SSH, add it as `origin` (or `mirror` beside a GitHub origin), push. Driven by the `private-remote` skill |
 | `tmux-overlay` | all | The `prefix g`/`v`/`t` popups: `common/scripts/CLAUDE.md` |
-| `docx-py` | all | Runs the docx skill's Python scripts with their dependencies |
 | `auto-update` | workstation | Background system update on sway start: repos + AUR + npm, with a cooldown |
 | `chrome`, `google-chrome` | workstation | Run `google-chrome-stable`, never Chromium; e.g. `chrome --headless --screenshot=out.png file:///…` |
 | `tg`, `tg-run` | workstation | Isolated Telegram Desktop instances that appear separately in the launcher |
@@ -213,27 +214,10 @@ Adding a config:
 
 ## Claude Code Skills
 
-Skills are split into trees under `common/claude-code/`:
-
-| Tree | Deployed | Contents |
-|---|---|---|
-| `skills/` | symlinked to `~/.claude/skills/` (global) | Skills for every project |
-| `workshop/` | only `workbench/bin/workbench` and `stack/bin/stack` → `~/.local/bin/` | The tools a project installs (workbench, stack, the package registry by ecosystem, guard): `common/claude-code/workshop/CLAUDE.md` |
-| `skills-optional/` | never deployed — symlinked per project into `<project>/.claude/skills/` | `manim`, `excalidraw`, `build-cv` (gitignored — holds real CV data and this repo is public). How to opt in: `common/claude-code/skills-optional/CLAUDE.md` |
-
-The split is about **trigger blast radius**, not disk or token cost. Only a skill's
-`name` and `description` frontmatter is loaded into context at session start — the
-`SKILL.md` body and its `references/`/`scripts/` load lazily when the skill fires. What
-degrades quality is having many descriptions compete as classifiers, so a language-
-or project-specific skill misfires in an unrelated repo.
-
-Rule of thumb: a skill is **global** if it modifies how Claude writes or responds
-anywhere (registers like `human-like-text`) or handles a file
-format with no natural home repo (`docx`, `pdf`). It is **optional** if it only makes
-sense inside one kind of project (`manim` in animation projects,
-`excalidraw` in the Obsidian vault, `build-cv` when writing a CV). A language's
-practices are neither: they are a stack package of its ecosystem
-(`workshop/go/packages/practices/go-practices/`, `workshop/typescript/packages/practices/ts-practices/`), committed in the project that adds it.
+Skills, the per-project optional skills and the workshop tools live in the
+private `workshop` repo (`../workshop/`, its `AGENTS.md`). This repo keeps only
+Claude Code's `settings.json`. `install_workshop` in `lib/helpers.sh` clones or
+updates that repo and runs its installer.
 
 ## Code Conventions
 
