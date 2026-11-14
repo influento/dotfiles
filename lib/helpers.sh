@@ -493,7 +493,9 @@ install_release_binary() {
 }
 
 # Clone (or update) and install gtk-widgets from GitHub.
-# Symlinks widget scripts into ~/.local/bin/ via the repo's own installer.
+# The repo's own installer writes its commands into ~/.local/bin/. A running
+# waybar then reloads: its custom modules run every few minutes or only once,
+# and one that ran while a command was missing stays hidden until it runs again.
 # Usage: install_gtk_widgets "/home/username" "theme-name"
 install_gtk_widgets() {
   local user_home="$1"
@@ -517,6 +519,10 @@ install_gtk_widgets() {
   log_info "Running gtk-widgets installer..."
   (cd "$install_dir" && bash install.sh --theme "$theme")
   log_info "gtk-widgets installed"
+
+  if pkill -USR2 -x -u "$(id -u)" waybar; then
+    log_info "waybar reloaded"
+  fi
 }
 
 # Remove the links this repo made before the workshop moved to its own repo:
