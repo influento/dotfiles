@@ -102,6 +102,8 @@ set -g @attention_fg_done "@@GREEN@@"
 set -g @attention_fg_working "@@BLUE@@"
 set -g @attention_fg_failed "@@PEACH@@"
 set -g @attention_fg_dim "@@OVERLAY0@@"
+set -g @attention_fg_role "@@MAUVE@@"
+set -g @attention_fg_repo "@@TEAL@@"
 # tmux-overlay's hidden sessions: tmux-agent's lists and tmux-revive's attach
 # skip them.
 set -g @skip_sessions 'ov-*'
