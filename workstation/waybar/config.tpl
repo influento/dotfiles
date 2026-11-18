@@ -33,6 +33,7 @@
   "group/controls": {
     "orientation": "horizontal",
     "modules": [
+      "custom/webcam",
       "custom/display",
       "tray",
       "custom/power"
@@ -119,6 +120,13 @@
     "interval": "once",
     "tooltip": false,
     "on-click": "~/.local/bin/widget-toggle display"
+  },
+  "custom/webcam": {
+    "exec": "~/.local/bin/webcam-status",
+    "return-type": "json",
+    "interval": 5,
+    "tooltip": false,
+    "on-click": "~/.local/bin/widget-toggle webcam"
   },
   "custom/stale-kernel": {
     "exec": "~/.local/bin/stale-kernel",

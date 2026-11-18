@@ -56,6 +56,7 @@ window#waybar {
 #custom-usb,
 #custom-claude-usage,
 #custom-display,
+#custom-webcam,
 #custom-headless,
 #custom-nosleep,
 #custom-stale-kernel,
@@ -86,6 +87,15 @@ window#waybar {
 
 #custom-display {
   color: @@SAPPHIRE@@;
+}
+
+#custom-webcam {
+  color: @@SUBTEXT0@@;
+}
+
+/* webcam-effects runs: apps see the "Webcam effects" camera (/dev/video10) */
+#custom-webcam.effects {
+  color: @@GREEN@@;
 }
 
 
