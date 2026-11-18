@@ -210,7 +210,7 @@ prune_dead_links() {
   local dir link target
 
   for dir in "$user_home" "${user_home}/.local/bin" "${user_home}/.local/share/applications" \
-    "${user_home}/.config" "${user_home}/.claude"; do
+    "${user_home}/.config" "${user_home}/.claude" "${user_home}/pictures"; do
     [[ -d "$dir" ]] || continue
     for link in "$dir"/* "$dir"/.[!.]*; do
       [[ -L "$link" ]] || continue
@@ -719,6 +719,11 @@ deploy_configs() {
         ensure_dir "${user_home}/.local/share/applications"
         link_config "${item}/nvim-ghostty.desktop" \
           "${user_home}/.local/share/applications/nvim-ghostty.desktop"
+        ;;
+      # Background pictures of gtk-widgets' webcam popup, which lists this path
+      webcam)
+        ensure_dir "${user_home}/pictures"
+        link_config "$item" "${user_home}/pictures/webcam"
         ;;
       # Claude Code: settings.json merged (Claude Code rewrites that file
       # itself and would replace a symlink — see merge_json_config). Skills
