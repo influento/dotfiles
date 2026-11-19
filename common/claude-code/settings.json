@@ -2,6 +2,9 @@
   "respectGitignore": true,
   "cleanupPeriodDays": 3650,
   "includeGitInstructions": true,
+  "env": {
+    "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1"
+  },
   "attribution": {
     "commit": "",
     "pr": ""
