@@ -122,11 +122,11 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `auto-update` | workstation | Background system update on sway start: repos + AUR + npm, with a cooldown |
 | `chrome`, `google-chrome` | workstation | Run `google-chrome-stable`, never Chromium; e.g. `chrome --headless --screenshot=out.png file:///…` |
 | `tg`, `tg-run` | workstation | Isolated Telegram Desktop instances that appear separately in the launcher |
-| `nosleep`, `nosleep-status` | workstation | Toggle sleep inhibition, lid close included (`on`/`off`/`status`/`toggle`), or `hibernate` now; waybar indicator |
+| `nosleep`, `nosleep-status` | workstation | Keep the machine running: `on` blocks sleep, lid close included; `awake [DURATION]` also skips the idle lock and display-off (calls, reading). `off`/`status`/`toggle`/`cycle`, or `hibernate` now; waybar indicator, click cycles |
 | `headless`, `headless-status` | workstation | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
-| `lock` | workstation | Switches to the US layout, then locks |
+| `lock` | workstation | Switches to the US layout, then locks. `--lid`: sway's lid close, locks only while nosleep keeps the machine running |
 | `cliphist-pick` | workstation | Clipboard history picker on `$mod+v`, through gtk-widgets' launcher: thumbnails, preview, delete |
 | `cliphist-store` | workstation | The clipboard history writer sway runs (`wl-paste --watch cliphist-store`): images and file links paste as picture or path |
 | `setup-wireguard` | workstation | Imports WireGuard configs from Dropbox into NetworkManager |

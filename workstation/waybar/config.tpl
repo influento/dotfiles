@@ -147,7 +147,7 @@
     "interval": 30,
     "signal": 8,
     "tooltip": false,
-    "on-click": "~/.local/bin/nosleep toggle"
+    "on-click": "~/.local/bin/nosleep cycle"
   },
   "tray": {
     "spacing": 8

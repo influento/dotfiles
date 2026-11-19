@@ -175,10 +175,15 @@ window#waybar {
   min-width: 0;
 }
 
-/* Stays visible in both states: the case worth noticing is suspend being
-   allowed while a remote session is meant to stay reachable. */
+/* Stays visible in every state: the case worth noticing is suspend being
+   allowed while a remote session is meant to stay reachable. awake stands
+   out more: the screen will not lock on its own while it is on. */
 #custom-nosleep.active {
   color: @@TEAL@@;
+}
+
+#custom-nosleep.awake {
+  color: @@PEACH@@;
 }
 
 #custom-nosleep.inactive {

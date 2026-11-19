@@ -1,6 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage: lock [--lid]
+#
+# --lid is sway's lid-close binding. It locks only when nothing else will:
+#   - sleep must be blocked (nosleep or nosleep awake). Otherwise logind
+#     suspends on lid close and swayidle's before-sleep locks; locking here
+#     too would race it
+#   - no output other than the internal panel may be active. A docked laptop
+#     with the lid shut, or headless mode serving its virtual output, is still
+#     in use
+#   - the screen must not be locked already: the binding fires on the lock
+#     screen too, and on config reload while the lid is closed
+# When the outputs cannot be read, it locks: a closed lid left unlocked is
+# the worse mistake.
+
+if [[ "${1:-}" == --lid ]]; then
+  if ! systemctl --user is-active --quiet nosleep \
+    && ! systemctl --user is-active --quiet nosleep-awake; then
+    exit 0
+  fi
+  if pgrep -xu "$(id -u)" swaylock >/dev/null; then
+    exit 0
+  fi
+  others="$(swaymsg -t get_outputs -r \
+    | jq '[.[] | select(.active and .name != "eDP-1")] | length')" || others=0
+  if [[ "$others" =~ ^[1-9][0-9]*$ ]]; then
+    exit 0
+  fi
+fi
+
 # Switch to US layout before locking so password can always be typed
 swaymsg input type:keyboard xkb_switch_layout 0 2>/dev/null || true
 exec swaylock -f

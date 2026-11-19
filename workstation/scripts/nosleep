@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Toggle sleep inhibition for the current login session: while on, the
-# machine never sleeps or hibernates on its own.
+# Keep the machine running for the current login session, in two levels:
 #
-# Two logind inhibitors, both needed:
+#   nosleep  the machine never sleeps or hibernates on its own. The screen
+#            still locks at 15 min and displays still power off at 30 min.
+#            For a long task you walk away from
+#   awake    nosleep, plus no idle lock and no idle display-off. For a call
+#            or reading: you are there but give no input
+#
+# Each level is a transient systemd --user unit, so it survives closing the
+# terminal but is gone after a reboot. The units are independent: awake holds
+# its own inhibitors, so `nosleep on` (headless calls it) never stops an
+# awake. Both stay on until `off` (or `hibernate`) stops them.
+#
+# Two logind inhibitors, held by both units:
 #   sleep              refuses every sleep operation, so swayidle's
 #                      suspend-then-hibernate after 60 min idle (see
 #                      workstation/swayidle/config) does nothing
@@ -12,34 +22,45 @@ set -euo pipefail
 #                      lock alone does not cover the lid: logind ignores it
 #                      for the lid switch (LidSwitchIgnoreInhibited=yes)
 #
-# Lock/display-off timeouts are untouched: the screen still locks at 15 min
-# and displays still power off at 30 min. UPower's critical-battery action
-# still fires, so a laptop left running with the lid closed shuts down
-# cleanly instead of dying.
-#
-# State lives in a transient systemd --user unit, so it survives closing the
-# terminal but is gone after a reboot.
+# awake's lock and display-off are skipped by swayidle itself: its timeouts
+# check for the awake unit. Lid close locks at either level (`lock --lid`,
+# bound in sway), unless another output is in use: docked, or headless mode.
+# UPower's critical-battery action still fires, so a laptop left running with
+# the lid closed shuts down cleanly instead of dying.
 
 UNIT="nosleep"
+AWAKE_UNIT="nosleep-awake"
 REASON="nosleep: sleep inhibited by user"
 
 usage() {
   cat <<'EOF'
-Usage: nosleep <on|off|status|toggle|hibernate>
+Usage: nosleep <on|awake|off|status|toggle|cycle|hibernate>
 
   on         Block idle sleep and lid-close sleep (screen lock and
              display-off still apply)
-  off        Allow sleep again
-  status     Report whether sleep is currently inhibited
-  toggle     Flip between on and off
-  hibernate  Turn nosleep off and hibernate now, even with the lid closed.
+  awake      As on, and the screen neither locks nor turns off when idle
+  off        Allow sleep, idle lock and display-off again
+  status     Report the current level: off, nosleep or awake
+  toggle     Off if any level is on, otherwise on
+  cycle      Step off -> nosleep -> awake -> off (the waybar click)
+  hibernate  Turn everything off and hibernate now, even with the lid closed.
              Use this to hibernate when a long task finishes; the machine
              comes back with nosleep off
 EOF
 }
 
 is_active() {
-  systemctl --user is-active --quiet "$UNIT"
+  systemctl --user is-active --quiet "$1"
+}
+
+level() {
+  if is_active "$AWAKE_UNIT"; then
+    echo awake
+  elif is_active "$UNIT"; then
+    echo nosleep
+  else
+    echo off
+  fi
 }
 
 notify() {
@@ -55,7 +76,7 @@ refresh_waybar() {
 }
 
 nosleep_on() {
-  if is_active; then
+  if is_active "$UNIT"; then
     echo "nosleep: already on"
     return 0
   fi
@@ -68,23 +89,42 @@ nosleep_on() {
   refresh_waybar
 }
 
+nosleep_awake() {
+  if is_active "$AWAKE_UNIT"; then
+    echo "nosleep: already awake"
+    return 0
+  fi
+  systemd-run --user --quiet --collect --unit="$AWAKE_UNIT" \
+    --description="Inhibit sleep, idle lock and display-off" \
+    systemd-inhibit --what=sleep:handle-lid-switch --why="$REASON (awake)" \
+    sleep infinity
+  echo "nosleep: awake — no sleep, no idle lock, no display-off"
+  notify "Awake" "No sleep, no idle lock, no display-off until turned off. Closing the lid still locks."
+  refresh_waybar
+}
+
 nosleep_off() {
-  if ! is_active; then
+  if [[ "$(level)" == off ]]; then
     echo "nosleep: already off"
     return 0
   fi
-  systemctl --user stop "$UNIT"
-  echo "nosleep: off — sleep allowed"
-  notify "No Sleep" "Sleep re-enabled, lid close included."
+  local unit
+  for unit in "$AWAKE_UNIT" "$UNIT"; do
+    if is_active "$unit"; then
+      systemctl --user stop "$unit"
+    fi
+  done
+  echo "nosleep: off — sleep, idle lock and display-off allowed"
+  notify "No Sleep" "Off. Sleep, idle lock and display-off apply again."
   refresh_waybar
 }
 
 nosleep_status() {
-  if is_active; then
-    echo "nosleep: on — sleep blocked (idle and lid close)"
-  else
-    echo "nosleep: off — sleep allowed"
-  fi
+  case "$(level)" in
+    awake) echo "nosleep: awake — no sleep, no idle lock, no display-off" ;;
+    nosleep) echo "nosleep: on — sleep blocked (idle and lid close)" ;;
+    off) echo "nosleep: off — sleep allowed" ;;
+  esac
 }
 
 # `nosleep off; systemctl hibernate` fails with the lid closed: logind acts on
@@ -105,10 +145,19 @@ nosleep_hibernate() {
 main() {
   case "${1:-status}" in
     on) nosleep_on ;;
+    awake) nosleep_awake ;;
     off) nosleep_off ;;
     status) nosleep_status ;;
+    level) level ;;
     toggle)
-      if is_active; then nosleep_off; else nosleep_on; fi
+      if [[ "$(level)" == off ]]; then nosleep_on; else nosleep_off; fi
+      ;;
+    cycle)
+      case "$(level)" in
+        off) nosleep_on ;;
+        nosleep) nosleep_awake ;;
+        awake) nosleep_off ;;
+      esac
       ;;
     hibernate) nosleep_hibernate ;;
     -h | --help | help) usage ;;

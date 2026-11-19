@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Waybar backing script for the nosleep indicator.
+# Waybar backing script for the nosleep indicator: three states, one per
+# level (off, nosleep, awake). Clicking it cycles them.
 #
-# Unlike the headless indicator, this one stays visible in both states. The
+# Unlike the headless indicator, this one stays visible in every state. The
 # point of it is noticing when suspend inhibition is *off* — a session left
 # running for remote access dies quietly at the 60 min suspend, and on WiFi
 # there is no Wake-on-LAN to recover it. A widget that vanishes when disabled
@@ -12,8 +13,8 @@ set -euo pipefail
 # No tooltip: toggling already raises a notification, so a hover tooltip only
 # repeats what was just said.
 
-if systemctl --user is-active --quiet nosleep; then
-  echo '{"text": "󰅶", "class": "active"}'
-else
-  echo '{"text": "󰒲", "class": "inactive"}'
-fi
+case "$("$(dirname "$(readlink -f "$0")")/nosleep" level)" in
+  awake) echo '{"text": "󰈈", "class": "awake"}' ;;
+  nosleep) echo '{"text": "󰅶", "class": "active"}' ;;
+  *) echo '{"text": "󰒲", "class": "inactive"}' ;;
+esac

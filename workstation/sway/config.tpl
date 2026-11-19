@@ -31,7 +31,9 @@ include ~/.local/state/dotfiles/scale.conf
 # never re-enables a disabled output. With an external monitor attached, its
 # workspaces move there. --reload applies the lid state on config reload,
 # --locked keeps it working on the lock screen. No effect without a lid.
-bindswitch --reload --locked lid:on output eDP-1 disable
+# `lock --lid` locks when nosleep keeps the machine running with the lid shut,
+# where no before-sleep lock comes; it decides itself when to do nothing.
+bindswitch --reload --locked lid:on output eDP-1 disable; exec ~/.local/bin/lock --lid
 bindswitch --reload --locked lid:off output eDP-1 enable
 
 # --- Appearance ---
