@@ -123,7 +123,7 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `chrome`, `google-chrome` | workstation | Run `google-chrome-stable`, never Chromium; e.g. `chrome --headless --screenshot=out.png file:///…` |
 | `tg`, `tg-run` | workstation | Isolated Telegram Desktop instances that appear separately in the launcher |
 | `nosleep`, `nosleep-status` | workstation | Keep the machine running: `on` blocks sleep, lid close included; `awake [DURATION]` also skips the idle lock and display-off (calls, reading). `off`/`status`/`toggle`/`cycle`, or `hibernate` now; waybar indicator, click cycles |
-| `headless`, `headless-status` | workstation | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop |
+| `headless`, `headless-status` | workstation | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop, `bind` (`$mod+Ctrl+o`) gives a workspace on another tool's headless output its own viewer on the same workspace number |
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/`) |
 | `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
 | `lock` | workstation | Switches to the US layout, then locks. `--lid`: sway's lid close, locks only while nosleep keeps the machine running |

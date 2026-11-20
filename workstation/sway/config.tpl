@@ -156,6 +156,19 @@ bindsym --to-code --inhibited $mod+Ctrl+Shift+9 move container to workspace numb
 # misbehaving or unresponsive remote viewer can always be dismissed.
 bindsym --to-code --inhibited $mod+Ctrl+q kill
 
+# Flip the focused viewer between sending every key to the remote session and
+# leaving them here, so the viewer window can be moved and resized with the
+# usual bindings. Focusing another window releases the keys as well.
+bindsym --to-code --inhibited $mod+Ctrl+Escape seat - shortcuts_inhibitor toggle
+
+# Bind or unbind a headless host's workspace that has an output of its own:
+# it gets its own viewer on the same workspace number here (headless bind).
+# Next to $mod+Shift+o; $mod+o itself is free, so no local twin is lost.
+bindsym --to-code --inhibited $mod+Ctrl+o exec ~/.local/bin/headless bind
+
+# A screenshot of this screen, viewer included, while $mod+p goes remote.
+bindsym --to-code --inhibited $mod+Ctrl+p exec capture region --dir ~/pictures/screenshots --copy
+
 # --- Keybindings: Brightness ---
 # Fn brightness keys (XF86MonBrightness*), plus $mod+F5/F6 as a fallback for
 # keyboards without them. Backend (laptop backlight / DDC) is picked by

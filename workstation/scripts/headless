@@ -5,6 +5,7 @@ set -euo pipefail
 #
 #   headless on|off|status|toggle
 #   headless connect <host>        full desktop, from the remote machine
+#   headless bind [host]           bind or unbind a host workspace (own viewer)
 #   headless app <host> <cmd>...   single app over waypipe, no session needed
 #   headless dpms on|off           power the physical outputs only (swayidle)
 #
@@ -73,6 +74,14 @@ Usage: headless <command>
   toggle                Flip between on and off
 
   connect <host>        Tunnel over SSH and open the remote desktop (VNC)
+  bind [host]           Pick a host workspace that has an output of its own
+                        (another tool's HEADLESS-* output) and give it its
+                        own viewer, full screen on the same workspace number
+                        here, connected only while that workspace is visible.
+                        Picking a bound one unbinds it; the menu opens again
+                        until Esc. Its first row brings the desktop viewer to
+                        the front. Needs an open viewer; without a host, the
+                        one connected
   app <host> <cmd>...   Run one remote app locally over waypipe
 
   dpms <on|off>         Power the physical outputs only, never the virtual
@@ -329,6 +338,7 @@ headless_off() {
   if is_active; then
     systemctl --user stop "${UNIT}"
   fi
+  headless_unserve all
   # Release the inhibitor only if headless mode was the one that took it.
   if [[ -e "${NOSLEEP_OWNED_FILE}" ]]; then
     nosleep off >/dev/null || true
@@ -491,13 +501,46 @@ headless_connect() {
          "HiDPI screen; install wlvncc or virt-viewer for a sharp one" >&2
   fi
 
+  # One connect per host: a second one would share the tunnel, and its exit
+  # would close the first one's tunnel along with its own.
+  local control
+  control="$(tunnel_socket "${host}")"
+  if ssh -q -S "${control}" -O check "${host}" 2>/dev/null; then
+    echo "headless: already connected to ${host}"
+    swaymsg -q '[app_id="^wlvncc$"] focus' 2>/dev/null || true
+    return 0
+  fi
+  # A socket left by a connect that was killed: ssh would not become the
+  # master beside it.
+  rm -f "${control}"
+
   ensure_remote_headless "${host}"
 
-  local control="${RUNTIME_DIR}/headless-tunnel-${host}.sock"
-  ssh -f -N -M -S "${control}" -L "${VNC_PORT}:${VNC_ADDR}:${VNC_PORT}" "${host}" \
+  # ExitOnForwardFailure: with the port taken, fail here instead of running
+  # on without the forward the viewer needs.
+  ssh -f -N -M -S "${control}" -o ExitOnForwardFailure=yes \
+    -L "${VNC_PORT}:${VNC_ADDR}:${VNC_PORT}" "${host}" \
     || die "could not open SSH tunnel to ${host}"
+  local restore watcher
+  restore_bound "${host}" &
+  restore=$!
+  # The watcher starts once the restore is done: a viewer needs its forward.
+  {
+    while kill -0 "${restore}" 2>/dev/null; do sleep 0.1; done
+    watch_bound_viewers "${host}"
+  } &
+  watcher=$!
+  # Closing the desktop viewer closes the bound ones too and stops their
+  # wayvnc; which ones are bound stays recorded for the next connect. The
+  # watcher goes first, with its swaymsg, so it opens nothing during the
+  # cleanup. The restore is waited for: a wayvnc it starts after the cleanup
+  # would be left running.
   # shellcheck disable=SC2064
-  trap "ssh -q -S '${control}' -O exit '${host}' >/dev/null 2>&1 || true" EXIT
+  trap "pkill -P ${watcher} 2>/dev/null; kill ${watcher} 2>/dev/null
+    wait ${restore} 2>/dev/null || true
+    pkill -f -- '^wlvncc -a headless-ws' || true
+    on_host '${host}' unserve all >/dev/null 2>&1 || true
+    ssh -q -S '${control}' -O exit '${host}' >/dev/null 2>&1 || true" EXIT
 
   echo "headless: connecting with ${viewer}"
   if [[ "${viewer}" == "remote-viewer" ]]; then
@@ -505,6 +548,330 @@ headless_connect() {
          "so local shortcuts do not work until you do"
   fi
   run_viewer "${viewer}"
+}
+
+# --- Bound workspaces ---
+# A host workspace that has an output of its own (another tool's HEADLESS-*,
+# made to keep its windows rendering) can be bound: it gets its own wayvnc and
+# its own viewer here, full screen on the same workspace number. The desktop
+# viewer keeps showing the desktop. `headless bind` picks them; the choice is
+# kept per host in BOUND_DIR, and `connect` opens them again.
+
+# Run on the host: one line per workspace that can be bound, as
+# "<ws>\t<output>\t<label>". A workspace on this script's own output shares
+# it with the desktop, so it cannot have a view of its own. The label is the
+# first window's sway mark, after its last colon ("<tool>:<name>"), else its
+# title: the owning tool can name its windows.
+headless_bindable() {
+  ensure_swaysock
+  swaymsg -t get_tree -r | python3 -c '
+import json, sys
+tree, own, prefix = json.load(sys.stdin), sys.argv[1], sys.argv[2]
+visible = {o["name"]: o.get("current_workspace")
+           for o in json.loads(sys.argv[3]) if o.get("active")}
+
+def label(node):
+    if node.get("pid"):
+        marks = node.get("marks") or []
+        if marks:
+            return marks[0].rsplit(":", 1)[-1]
+        if node.get("name"):
+            return node["name"]
+    for child in node.get("nodes", []) + node.get("floating_nodes", []):
+        found = label(child)
+        if found:
+            return found
+    return ""
+
+for out in tree["nodes"]:
+    name = out["name"]
+    if not name.startswith(prefix) or name == own:
+        continue
+    for ws in out.get("nodes", []):
+        if ws["name"] != visible.get(name) or not ws["name"].isdigit():
+            continue
+        text = label(ws)
+        if len(text) > 40:
+            text = text[:39] + "…"
+        print(ws["name"] + "\t" + name + "\t" + text)
+' "$(current_headless_output)" "${HEADLESS_PREFIX}" "$(swaymsg -t get_outputs -r)"
+}
+
+# The port is VNC_PORT + N, so a workspace number has to stay small.
+valid_ws() {
+  [[ "${1:-}" =~ ^[1-9][0-9]?$ ]] || die "not a workspace number from 1 to 99: ${1:-}"
+}
+
+# The output a wayvnc instance serves, from its control socket.
+served_output() {
+  wayvncctl -S "$1" output-list 2>/dev/null | sed -n 's/^\* \([^:]*\):.*/\1/p'
+}
+
+# Run on the host: serve workspace $1's output on its own port, and print the
+# port. The output is left as it is (no mode, scale or unplug): it belongs to
+# another tool. An instance still on an output the workspace has left (the
+# tool recreated it) is replaced.
+headless_serve() {
+  local ws="${1:-}"
+  valid_ws "${ws}"
+  ensure_swaysock
+  is_active || die "headless mode is off"
+  local output
+  output="$(headless_bindable | awk -F'\t' -v ws="${ws}" '$1 == ws { print $2; exit }')"
+  [[ -n "${output}" ]] || die "workspace ${ws} has no output of its own"
+
+  local unit="${UNIT}-ws${ws}"
+  local socket="${RUNTIME_DIR}/wayvncctl-ws${ws}"
+  local port=$((VNC_PORT + ws))
+  if systemctl --user is-active --quiet "${unit}"; then
+    if [[ "$(served_output "${socket}")" == "${output}" ]]; then
+      echo "${port}"
+      return 0
+    fi
+    systemctl --user stop "${unit}"
+  fi
+  systemctl --user reset-failed "${unit}" 2>/dev/null || true
+
+  # The same flags as the desktop's instance: see headless_on.
+  systemd-run --user --quiet --collect --unit="${unit}" \
+    --description="wayvnc serving ${output} (headless, bound workspace ${ws})" \
+    wayvnc --output="${output}" --socket="${socket}" --render-cursor \
+    --disable-resizing --gpu --max-fps="${HEADLESS_FPS}" "${VNC_ADDR}" "${port}"
+
+  local _
+  for _ in $(seq 50); do
+    [[ "$(served_output "${socket}")" == "${output}" ]] && { echo "${port}"; return 0; }
+    sleep 0.1
+  done
+  die "wayvnc did not start on ${output}"
+}
+
+# Run on the host: stop serving workspace $1, or every bound one with "all".
+# wayvnc leaves its control socket behind when stopped, so it goes too.
+headless_unserve() {
+  local ws="${1:-}"
+  if [[ "${ws}" == "all" ]]; then
+    systemctl --user stop "${UNIT}-ws*.service" 2>/dev/null || true
+    rm -f "${RUNTIME_DIR}"/wayvncctl-ws*
+    return 0
+  fi
+  valid_ws "${ws}"
+  systemctl --user stop "${UNIT}-ws${ws}.service" 2>/dev/null || true
+  rm -f "${RUNTIME_DIR}/wayvncctl-ws${ws}"
+}
+
+# Runs this copy of the script on the host, so the host-side commands never
+# depend on the version the host has installed.
+on_host() {
+  local host="$1"
+  shift
+  # SC2029: the arguments are meant to expand here; they are checked words.
+  # shellcheck disable=SC2029
+  ssh "${host}" "bash -s -- $*" <"${BASH_SOURCE[0]}"
+}
+
+tunnel_socket() {
+  echo "${RUNTIME_DIR}/headless-tunnel-$1.sock"
+}
+
+# The host whose tunnel is open, if exactly one is.
+connected_host() {
+  local control host found=()
+  for control in "${RUNTIME_DIR}"/headless-tunnel-*.sock; do
+    [[ -S "${control}" ]] || continue
+    host="${control##*/headless-tunnel-}"
+    host="${host%.sock}"
+    if ssh -q -S "${control}" -O check "${host}" 2>/dev/null; then
+      found+=("${host}")
+    fi
+  done
+  [[ ${#found[@]} -eq 1 ]] && echo "${found[0]}"
+}
+
+BOUND_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/headless"
+
+bound_file() {
+  echo "${BOUND_DIR}/bound-$1"
+}
+
+is_bound() {
+  grep -qxF "$2" "$(bound_file "$1")" 2>/dev/null
+}
+
+set_bound() {
+  local file
+  file="$(bound_file "$1")"
+  mkdir -p "${BOUND_DIR}"
+  {
+    grep -vxF "$2" "${file}" 2>/dev/null || true
+    if [[ "$3" == "on" ]]; then
+      echo "$2"
+    fi
+  } | sort -n >"${file}.tmp"
+  mv "${file}.tmp" "${file}"
+}
+
+viewer_running() {
+  pgrep -f -- "^wlvncc -a headless-ws$1 " >/dev/null
+}
+
+# Waits for the viewer to exit, so its window is gone before a new one with
+# the same app_id is looked for.
+stop_bound_viewer() {
+  pkill -f -- "^wlvncc -a headless-ws$1 " || return 0
+  local _
+  for _ in $(seq 50); do
+    viewer_running "$1" || return 0
+    sleep 0.1
+  done
+}
+
+# Opens the viewer of bound workspace $1, full screen on the same workspace
+# number here.
+show_bound_viewer() {
+  local ws="$1"
+  # No -i: $mod+N stays on this machine, so the workspace keys always switch
+  # away from a bound view.
+  setsid -f wlvncc -a "headless-ws${ws}" "${VNC_ADDR}" "$((VNC_PORT + ws))" >/dev/null 2>&1
+
+  local _ criteria="[app_id=\"^headless-ws${ws}\$\"]"
+  for _ in $(seq 100); do
+    if swaymsg -t get_tree | grep -qF "\"app_id\": \"headless-ws${ws}\""; then
+      swaymsg -q "${criteria} move container to workspace number ${ws}, fullscreen enable"
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "headless: the viewer of workspace ${ws} did not open" >&2
+  return 1
+}
+
+# Connect on view: a bound workspace's viewer runs only while that workspace
+# is visible here. A hidden viewer still receives and decodes the whole
+# stream (measured: ~55 Mbit/s and ~8% of a core for each busy 60 fps stream), while an
+# idle wayvnc with no client costs nothing. Showing one again takes the
+# viewer's connect time (~0.2-0.35 s).
+sync_bound_viewers() {
+  local host="$1" visible ws
+  visible="$(swaymsg -t get_workspaces -r | python3 -c '
+import json, sys
+for workspace in json.load(sys.stdin):
+    if workspace.get("visible"):
+        print(workspace["name"])
+')"
+  [[ -s "$(bound_file "${host}")" ]] || return 0
+  while read -r ws; do
+    [[ -n "${ws}" ]] || continue
+    if grep -qxF "${ws}" <<<"${visible}"; then
+      viewer_running "${ws}" || show_bound_viewer "${ws}" || true
+    elif viewer_running "${ws}"; then
+      stop_bound_viewer "${ws}"
+    fi
+  done <"$(bound_file "${host}")"
+}
+
+# Run by `connect` in the background: syncs on every workspace change here.
+watch_bound_viewers() {
+  local host="$1" _
+  sync_bound_viewers "${host}"
+  while read -r _; do
+    sync_bound_viewers "${host}"
+  done < <(swaymsg -t subscribe -m '["workspace"]')
+}
+
+# Binds workspace $2 of $1: wayvnc there and a forward through the open
+# tunnel. The viewer follows from sync_bound_viewers.
+serve_bound() {
+  local host="$1" ws="$2" control port
+  control="$(tunnel_socket "${host}")"
+  port="$(on_host "${host}" serve "${ws}")" || return 1
+  ssh -q -S "${control}" -O cancel -L "${port}:${VNC_ADDR}:${port}" "${host}" 2>/dev/null || true
+  ssh -q -S "${control}" -O forward -L "${port}:${VNC_ADDR}:${port}" "${host}" \
+    || { echo "headless: could not forward port ${port}" >&2; return 1; }
+}
+
+close_bound() {
+  local host="$1" ws="$2" port=$((VNC_PORT + $2))
+  stop_bound_viewer "${ws}"
+  ssh -q -S "$(tunnel_socket "${host}")" -O cancel -L "${port}:${VNC_ADDR}:${port}" "${host}" 2>/dev/null || true
+  on_host "${host}" unserve "${ws}" || true
+}
+
+# Called by `connect`: serves every bound workspace the host still has.
+restore_bound() {
+  local host="$1" bindable ws
+  [[ -s "$(bound_file "${host}")" ]] || return 0
+  bindable="$(on_host "${host}" bindable)" || return 0
+  while read -r ws; do
+    [[ -n "${ws}" ]] || continue
+    if awk -F'\t' -v ws="${ws}" '$1 == ws { found = 1 } END { exit !found }' <<<"${bindable}"; then
+      serve_bound "${host}" "${ws}" || true
+    else
+      echo "headless: workspace ${ws} is bound but has no output of its own on ${host}; skipped"
+    fi
+  done <"$(bound_file "${host}")"
+}
+
+# Run from the remote machine, usually by a key binding with no terminal, so
+# failures also go out as notifications. Lists the whole session first, then
+# the host's bindable workspaces. Picking a workspace binds or unbinds it and
+# opens the menu again with the new marks, until Esc; picking the session
+# closes the menu and brings its viewer to the front.
+headless_bind() {
+  local host="${1:-}"
+  host="${host:-$(connected_host || true)}"
+  if [[ -z "${host}" ]] || ! ssh -q -S "$(tunnel_socket "${host}")" -O check "${host}" 2>/dev/null; then
+    notify "Headless" "No viewer open: run headless connect <host> first"
+    die "bind needs an open viewer: run headless connect <host> first"
+  fi
+  command -v launcher >/dev/null 2>&1 || die "launcher (gtk-widgets) is not installed"
+  command -v wlvncc >/dev/null 2>&1 || die "bound workspaces need wlvncc"
+
+  # Listed once: binding changes the marks, not which workspaces there are.
+  local bindable
+  if ! bindable="$(on_host "${host}" bindable)"; then
+    notify "Headless" "Could not list the workspaces of ${host}"
+    die "could not list the workspaces of ${host}"
+  fi
+
+  local choice ws
+  while choice="$(bind_rows "${host}" "${bindable}" \
+    | launcher --dmenu --prompt "bind · ${host}" --after-tab)"; do
+    ws="${choice%%$'\t'*}"
+    if [[ "${ws}" == "desktop" ]]; then
+      swaymsg -q '[app_id="^wlvncc$"] focus' || true
+      return 0
+    fi
+    valid_ws "${ws}"
+    if is_bound "${host}" "${ws}"; then
+      close_bound "${host}" "${ws}"
+      set_bound "${host}" "${ws}" off
+    elif serve_bound "${host}" "${ws}"; then
+      set_bound "${host}" "${ws}" on
+      sync_bound_viewers "${host}"
+    else
+      notify "Headless" "Could not bind workspace ${ws} of ${host}"
+    fi
+  done
+}
+
+# The rows of the bind menu, as "<key>\t<text>": the session, the bindable
+# workspaces with ● on the bound ones, and bound ones without an output of
+# their own now, so they can be unbound.
+bind_rows() {
+  local host="$1" bindable="$2" ws output label mark
+  printf 'desktop\t   desktop · the whole session\n'
+  while IFS=$'\t' read -r ws output label; do
+    [[ -n "${ws}" ]] || continue
+    mark="   "
+    is_bound "${host}" "${ws}" && mark="● "
+    printf '%s\t%sws %s%s   (%s)\n' "${ws}" "${mark}" "${ws}" "${label:+ · ${label}}" "${output}"
+  done <<<"${bindable}"
+  while read -r ws; do
+    [[ -n "${ws}" ]] || continue
+    awk -F'\t' -v ws="${ws}" '$1 == ws { found = 1 } END { exit !found }' <<<"${bindable}" && continue
+    printf '%s\t● ws %s · no output of its own now\n' "${ws}" "${ws}"
+  done < <(cat "$(bound_file "${host}")" 2>/dev/null)
 }
 
 # waypipe needs no headless output, no VNC and no running compositor on the
@@ -529,6 +896,20 @@ main() {
     connect)
       shift
       headless_connect "$@"
+      ;;
+    bind)
+      shift
+      headless_bind "$@"
+      ;;
+    # Run on the host by the commands above, through on_host.
+    bindable) headless_bindable ;;
+    serve)
+      shift
+      headless_serve "$@"
+      ;;
+    unserve)
+      shift
+      headless_unserve "$@"
       ;;
     app)
       shift
