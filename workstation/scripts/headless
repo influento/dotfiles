@@ -4,7 +4,8 @@ set -euo pipefail
 # headless — switch this machine between normal desktop and headless remote mode.
 #
 #   headless on|off|status|toggle
-#   headless connect <host>        full desktop, from the remote machine
+#   headless connect <host>        full desktop, from the remote machine,
+#                                  with the clipboard crossing both ways
 #   headless bind [host]           bind or unbind a host workspace (own viewer)
 #   headless app <host> <cmd>...   single app over waypipe, no session needed
 #   headless dpms on|off           power the physical outputs only (swayidle)
@@ -73,7 +74,8 @@ Usage: headless <command>
   status                Report whether headless mode is active
   toggle                Flip between on and off
 
-  connect <host>        Tunnel over SSH and open the remote desktop (VNC)
+  connect <host>        Tunnel over SSH and open the remote desktop (VNC);
+                        the clipboard crosses both ways while it runs
   bind [host]           Pick a host workspace that has an output of its own
                         (another tool's HEADLESS-* output) and give it its
                         own viewer, full screen on the same workspace number
@@ -567,7 +569,12 @@ headless_connect() {
     || die "could not open SSH tunnel to ${host}"
   mkdir -p "${BOUND_DIR}"
   echo "${host}" >"${LAST_HOST_FILE}"
-  local restore watcher
+  local restore watcher clip
+  # setsid: the bridge leads a process group, so the trap ends all of it
+  # (its ssh streams, its wl-paste watcher) with one kill.
+  setsid "${BASH_SOURCE[0]}" clip-bridge "${host}" </dev/null >/dev/null \
+    2>"${RUNTIME_DIR}/headless-clip-${host}.log" &
+  clip=$!
   restore_bound "${host}" &
   restore=$!
   # The watcher starts once the restore is done: a viewer needs its forward.
@@ -583,6 +590,7 @@ headless_connect() {
   # would be left running.
   # shellcheck disable=SC2064
   trap "pkill -P ${watcher} 2>/dev/null; kill ${watcher} 2>/dev/null
+    kill -- -${clip} 2>/dev/null
     wait ${restore} 2>/dev/null || true
     pkill -f -- '^wlvncc -a headless-ws' || true
     on_host '${host}' unserve all >/dev/null 2>&1 || true
@@ -1179,6 +1187,137 @@ menu_rows() {
   done < <(bound_workspaces "${host}")
 }
 
+# --- Clipboard ---
+# wlvncc has no clipboard, so connect bridges it over the tunnel instead, for
+# every viewer alike: a copy on either side lands in the other's clipboard.
+# Two streams through the tunnel's master, each a run of frames, a header
+# line "<mime type> <length>" and then that many raw bytes:
+#   host -> here   on_host clip-out | clip_recv
+#   here -> host   clip_watch | ssh host clip-in
+# Each side keeps the hash of the last copy it received (<state>.in) and does
+# not send a copy back with that hash, or the two would bounce one copy
+# forever. Only copies made after connect cross: wl-paste --watch reports the
+# current clipboard when it starts, and that first report is dropped
+# (<state>.skip), or connecting would swap the two clipboards.
+
+# The type a copy crosses in, from its offered types ($1): text where the app
+# offers text, else an image. An offer from launcher-clipboard (cliphist-store
+# re-offering a copied image, a $mod+v pick) carries its marker; its text is
+# a path to a file on this machine only, so its image goes instead.
+clip_type() {
+  local types="$1" image text
+  image="$(grep -m1 '^image/' <<<"${types}")" || image=""
+  text="$(grep -m1 -x 'text/plain;charset=utf-8' <<<"${types}" \
+    || grep -m1 '^text/plain' <<<"${types}")" || text=""
+  if [[ -n "${image}" ]] && grep -qxF application/x-launcher-clipboard <<<"${types}"; then
+    echo "${image}"
+  elif [[ -n "${text}" ]]; then
+    echo "${text}"
+  elif [[ -n "${image}" ]]; then
+    echo "${image}"
+  else
+    return 1
+  fi
+}
+
+# Run by wl-paste --watch for each copy: writes the copy's frame to stdout.
+# It runs in a bash -c of its own (clip_watch), so it takes everything as
+# arguments and calls nothing outside this function and clip_type.
+clip_emit() {
+  local state="$1" types type data hash
+  # wl-paste hands over the copy in the type it picks; read it so the app
+  # is not left writing to a closed pipe, and fetch the type wanted below.
+  cat >/dev/null
+  if [[ -e "${state}.skip" ]]; then
+    rm -f "${state}.skip"
+    return 0
+  fi
+  # nil, clear, or sensitive (a password manager's copy): nothing crosses.
+  [[ "${CLIPBOARD_STATE:-data}" == data ]] || return 0
+  types="$(wl-paste --list-types 2>/dev/null)" || return 0
+  type="$(clip_type "${types}")" || return 0
+  data="$(mktemp)"
+  wl-paste --no-newline --type "${type}" >"${data}" 2>/dev/null || { rm -f "${data}"; return 0; }
+  hash="$(sha256sum <"${data}")"
+  if [[ "${hash%% *}" != "$(cat "${state}.in" 2>/dev/null)" ]]; then
+    # Frames from two copies in quick succession must not interleave. A
+    # write that fails means the far side is gone: the watcher goes too.
+    # shellcheck disable=SC2016  # expanded by the inner sh
+    if ! flock "${state}.lock" sh -c 'printf "%s %s\n" "$1" "$(stat -c %s "$2")"; cat "$2"' \
+      _ "${type}" "${data}"; then
+      kill "${PPID}" 2>/dev/null || true
+    fi
+  fi
+  rm -f "${data}"
+}
+
+# Watch this side's clipboard and write a frame per copy to stdout.
+clip_watch() {
+  local state="$1"
+  : >"${state}.skip"
+  exec wl-paste --watch bash -c "$(declare -f clip_type clip_emit); clip_emit \"\$1\"" \
+    headless-clip "${state}"
+}
+
+# Read frames from stdin until it closes and put each into the clipboard.
+# bash's read takes the header a byte at a time and head -c takes no more
+# than the length, so neither eats into the next frame.
+clip_recv() {
+  local state="$1" type len hash
+  while read -r type len; do
+    [[ "${len}" =~ ^[0-9]+$ ]] || die "clipboard: bad frame header '${type} ${len}'"
+    head -c "${len}" >"${state}.data"
+    hash="$(sha256sum <"${state}.data")"
+    echo "${hash%% *}" >"${state}.in"
+    # wl-copy stays behind to serve the copy: it gets no stdout or stderr
+    # that would hold the stream open.
+    wl-copy --type "${type}" <"${state}.data" >/dev/null 2>&1
+  done
+  rm -f "${state}.data"
+}
+
+# Over SSH the session's Wayland socket is not in the environment; the user
+# manager has it, the same one wayvnc's unit gets.
+ensure_wayland_display() {
+  [[ -n "${WAYLAND_DISPLAY:-}" ]] && return 0
+  local display
+  display="$(systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')"
+  [[ -n "${display}" ]] || die "no WAYLAND_DISPLAY in the user manager — is sway running?"
+  export WAYLAND_DISPLAY="${display}"
+}
+
+# Run on the host: its copies, as frames on stdout. A watcher left by an
+# earlier connect goes first; it would only notice the closed stream at the
+# next copy. One viewing machine per host, as for the tunnel.
+headless_clip_out() {
+  ensure_wayland_display
+  local state="${RUNTIME_DIR}/headless-clip" pid
+  pid="$(cat "${state}.pid" 2>/dev/null || true)"
+  if [[ -n "${pid}" && "$(ps -o comm= -p "${pid}" 2>/dev/null)" == wl-paste ]]; then
+    kill "${pid}" 2>/dev/null || true
+  fi
+  echo "$$" >"${state}.pid"
+  clip_watch "${state}"
+}
+
+# Run on the host: frames from stdin into its clipboard.
+headless_clip_in() {
+  ensure_wayland_display
+  clip_recv "${RUNTIME_DIR}/headless-clip"
+}
+
+# Run here by connect, in a process group of its own that connect kills.
+# clip-in reads its frames from the same stdin as the script: bash -s runs
+# main as soon as it has read the last line, and leaves the rest unread.
+headless_clip_bridge() {
+  local host="$1"
+  local state="${RUNTIME_DIR}/headless-clip-${host}"
+  on_host "${host}" clip-out | clip_recv "${state}" &
+  { cat "${BASH_SOURCE[0]}"; clip_watch "${state}"; } \
+    | ssh -S "$(tunnel_socket "${host}")" "${host}" 'bash -s -- clip-in' &
+  wait
+}
+
 # waypipe needs no headless output, no VNC and no running compositor on the
 # far side — only sshd. This is the path that still works after a reboot.
 headless_app() {
@@ -1222,6 +1361,12 @@ main() {
       headless_show "$@"
       ;;
     served) headless_served ;;
+    clip-out) headless_clip_out ;;
+    clip-in) headless_clip_in ;;
+    clip-bridge)
+      shift
+      headless_clip_bridge "$@"
+      ;;
     app)
       shift
       headless_app "$@"
