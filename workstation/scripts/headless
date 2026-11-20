@@ -51,6 +51,7 @@ NOSLEEP_OWNED_FILE="${RUNTIME_DIR}/headless.nosleep-owned"
 # defaults only apply when starting headless mode directly on this machine.
 _env_mode="${HEADLESS_MODE:-}"
 _env_scale="${HEADLESS_SCALE:-}"
+_env_fps="${HEADLESS_FPS:-}"
 
 CONFIG_FILE="${XDG_CONFIG_HOME:-${HOME}/.config}/headless.conf"
 if [[ -r "${CONFIG_FILE}" ]]; then
@@ -60,6 +61,7 @@ fi
 
 HEADLESS_MODE="${_env_mode:-${HEADLESS_MODE:-2880x1800}}"
 HEADLESS_SCALE="${_env_scale:-${HEADLESS_SCALE:-2}}"
+HEADLESS_FPS="${_env_fps:-${HEADLESS_FPS:-60}}"
 
 usage() {
   cat <<'EOF'
@@ -79,6 +81,7 @@ Usage: headless <command>
 Environment / ~/.config/headless.conf:
   HEADLESS_MODE         Virtual output mode  (default: 2880x1800)
   HEADLESS_SCALE        Virtual output scale (default: 2)
+  HEADLESS_FPS          Stream frame rate cap (default: 60)
   HEADLESS_VIEWER       VNC client to use, in preference order
                         (default: wlvncc remote-viewer vncviewer)
   HEADLESS_VIEWER_ARGS  Extra arguments passed to the viewer, e.g. to run
@@ -269,10 +272,14 @@ headless_on() {
   # twice the size it should be.
   # --disable-resizing refuses SetDesktopSize outright rather than failing the
   # request, since a Sway output cannot be resized on a client's say-so.
+  # --gpu enables H.264 through VA-API for clients that ask for it (wlvncc
+  # does by default). Under full-screen motion it measured ~7% of a core
+  # against ~47% for Tight, which is what makes 60 fps affordable. Clients
+  # without H.264 (remote-viewer) still get Tight.
   systemd-run --user --quiet --collect --unit="${UNIT}" \
     --description="wayvnc serving ${virtual} (headless mode)" \
     wayvnc --output="${virtual}" --render-cursor --disable-resizing \
-    "${VNC_ADDR}" "${VNC_PORT}"
+    --gpu --max-fps="${HEADLESS_FPS}" "${VNC_ADDR}" "${VNC_PORT}"
 
   # swayidle still suspends at 60 min, which would drop every remote session.
   # Only claim the inhibitor if it is not already held, so that turning
@@ -437,7 +444,10 @@ run_viewer() {
   local viewer="$1"
   case "${viewer}" in
     wlvncc)
-      wlvncc "${VNC_ADDR}" "${VNC_PORT}"
+      # -i asks for the keyboard-shortcuts-inhibit protocol while focused, so
+      # $mod+N reaches the remote session; wlvncc leaves it off by default.
+      # The --inhibited bindings in sway/config ($mod+Ctrl+N) stay local.
+      wlvncc -i "${VNC_ADDR}" "${VNC_PORT}"
       ;;
     remote-viewer)
       # Fullscreen with auto-resize off is what makes the sizing pay off: the
