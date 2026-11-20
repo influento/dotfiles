@@ -34,7 +34,7 @@
     "orientation": "horizontal",
     "modules": [
       "custom/webcam",
-      "custom/display",
+      "custom/settings",
       "tray",
       "custom/power"
     ]
@@ -114,12 +114,12 @@
     "tooltip": false,
     "on-click": "~/.local/bin/widget-toggle claude-usage"
   },
-  "custom/display": {
-    "exec": "~/.local/bin/display-status",
+  "custom/settings": {
+    "exec": "~/.local/bin/settings-status",
     "return-type": "json",
     "interval": "once",
     "tooltip": false,
-    "on-click": "~/.local/bin/widget-toggle display"
+    "on-click": "~/.local/bin/widget-toggle settings"
   },
   "custom/webcam": {
     "exec": "~/.local/bin/webcam-status",

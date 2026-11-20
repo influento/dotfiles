@@ -258,7 +258,7 @@ headless_on() {
     printf '%s\n' "${virtual}" >"${OUTPUT_FILE}"
   fi
 
-  # Scale is always set explicitly: the display popup's scale.conf applies
+  # Scale is always set explicitly: the settings popup's scale.conf applies
   # `output * scale 1.3` for the ultrawide, and inheriting that would misrender
   # the remote view.
   swaymsg -q "output ${virtual} mode --custom ${HEADLESS_MODE} scale ${HEADLESS_SCALE}"
