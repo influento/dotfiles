@@ -55,7 +55,7 @@ window#waybar {
 #custom-bluetooth,
 #custom-usb,
 #custom-claude-usage,
-#custom-display,
+#custom-settings,
 #custom-webcam,
 #custom-headless,
 #custom-nosleep,
@@ -85,7 +85,7 @@ window#waybar {
   color: @@SURFACE2@@;
 }
 
-#custom-display {
+#custom-settings {
   color: @@SAPPHIRE@@;
 }
 

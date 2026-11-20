@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wlsunset — Blue light filter for Wayland
 # Sourced/executed from Sway config: exec ~/.config/wlsunset/wlsunset.sh
-# Temperature is persisted by display-popup widget
+# Temperature is persisted by gtk-widgets' settings popup
 set -euo pipefail
 
 temp_file="$HOME/.local/state/dotfiles/temperature"

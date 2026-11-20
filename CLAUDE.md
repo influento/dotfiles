@@ -93,7 +93,7 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **swayidle** | `workstation/swayidle/` | Idle manager: lock, screen off, suspend timers |
 | **mako** | `workstation/mako/` | Notification daemon: appearance, urgency, timeouts |
 | **swaybg** | `workstation/swaybg/` | Wallpaper: launcher script, images |
-| **wlsunset** | `workstation/wlsunset/` | Night light: one fixed temperature, set from gtk-widgets' display popup |
+| **wlsunset** | `workstation/wlsunset/` | Night light: one fixed temperature, set from gtk-widgets' settings popup |
 | **SwayOSD** | `workstation/swayosd/` | Volume/brightness popup styling |
 | **XDG desktop portal** | `workstation/xdg-desktop-portal/` | Routes desktop portals to wlr for Sway |
 | **xdg-desktop-portal-wlr** | `workstation/xdg-desktop-portal-wlr/` | Screen-share source picker: `launcher --dmenu` |

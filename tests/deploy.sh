@@ -152,8 +152,8 @@ snapshot "$H" >"$TMP/debian.s2"
 check cmp -s "$TMP/debian.s1" "$TMP/debian.s2"
 check not grep -qE 'Linked|Relinked|Backing up' "$TMP/debian.2"
 
-echo "== sway and wlsunset read the display popup's state outside the repo"
-# gtk-widgets' display popup writes both files there. Under ~/.config they would
+echo "== sway and wlsunset read the settings popup's state outside the repo"
+# gtk-widgets' settings popup writes both files there. Under ~/.config they would
 # land in the repo through the links.
 H="$TMP/state"; mkdir -p "$H/.local/state/dotfiles" "$TMP/state-bin"
 deploy "$H" 2>/dev/null

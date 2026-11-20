@@ -205,6 +205,8 @@ exec mako
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 exec wl-paste --watch cliphist-store
 exec ~/.config/wlsunset/wlsunset.sh
+# The CPU power level (EPP) resets at boot: re-apply the settings popup's pick.
+exec ~/.local/bin/settings-epp restore
 exec swayosd-server
 exec network-agent
 exec launcher --daemon
