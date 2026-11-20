@@ -17,6 +17,10 @@ UNIT="wayvnc"
 # Sway increments the suffix on every create_output for the lifetime of the
 # compositor, so the second toggle yields HEADLESS-2 and so on. Never assume
 # HEADLESS-1 — always resolve the current name.
+#
+# Other tools create HEADLESS-* outputs too (to keep the windows on them rendering
+# off screen). This script serves, moves workspaces to and
+# unplugs only the output it created itself, recorded in OUTPUT_FILE.
 HEADLESS_PREFIX="HEADLESS-"
 VNC_ADDR="127.0.0.1"
 VNC_PORT="5900"
@@ -24,6 +28,7 @@ VNC_PORT="5900"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 STATE_FILE="${RUNTIME_DIR}/headless.workspaces"
 FOCUS_FILE="${RUNTIME_DIR}/headless.focus"
+OUTPUT_FILE="${RUNTIME_DIR}/headless.output"
 # Marks that headless mode is the one holding the suspend inhibitor, so a
 # nosleep the user enabled by hand is not released when headless mode ends.
 NOSLEEP_OWNED_FILE="${RUNTIME_DIR}/headless.nosleep-owned"
@@ -127,13 +132,33 @@ headless_outputs() {
   output_names | grep "^${HEADLESS_PREFIX}" || true
 }
 
-# Only ever one is created, so the first match is the one being served.
+# The output this script created, if it still exists.
 current_headless_output() {
-  headless_outputs | head -n1
+  [[ -s "${OUTPUT_FILE}" ]] || return 0
+  local name
+  name="$(cat "${OUTPUT_FILE}")"
+  if headless_outputs | grep -qxF "${name}"; then
+    echo "${name}"
+  fi
 }
 
 have_headless_output() {
   [[ -n "$(current_headless_output)" ]]
+}
+
+workspaces_on() {
+  swaymsg -t get_workspaces -r | python3 -c '
+import json, sys
+for workspace in json.load(sys.stdin):
+    if workspace["output"] == sys.argv[1]:
+        print(workspace["name"])
+' "$1"
+}
+
+# Sway moves whichever workspace is focused, so focus each one first.
+move_workspace() {
+  swaymsg -q "workspace \"$1\"" || true
+  swaymsg -q "move workspace to output \"$2\"" || true
 }
 
 is_active() {
@@ -161,20 +186,47 @@ for workspace in json.load(sys.stdin):
 ' >"${FOCUS_FILE}"
 }
 
-# Sway moves whichever workspace is focused, so this walks the recorded pairs
-# and restores focus afterwards rather than leaving the user somewhere random.
-restore_layout() {
-  [[ -f "${STATE_FILE}" ]] || return 0
-  local workspace output
-  while read -r workspace output; do
-    [[ -n "${workspace}" && -n "${output}" ]] || continue
-    swaymsg -q "workspace \"${workspace}\"" || true
-    swaymsg -q "move workspace to output \"${output}\"" || true
-  done <"${STATE_FILE}"
-
+restore_focus() {
   if [[ -s "${FOCUS_FILE}" ]]; then
     swaymsg -q "workspace \"$(cat "${FOCUS_FILE}")\"" || true
   fi
+}
+
+# Moves the workspaces of the physical outputs onto the virtual one before the
+# physical ones are disabled. Left to itself, Sway may pick another tool's
+# HEADLESS-* output instead.
+take_workspaces() {
+  local virtual="$1"
+  shift
+  local workspace output
+  while read -r workspace output; do
+    [[ -n "${workspace}" && -n "${output}" ]] || continue
+    printf '%s\n' "$@" | grep -qxF "${output}" || continue
+    move_workspace "${workspace}" "${virtual}"
+  done <"${STATE_FILE}"
+  restore_focus
+}
+
+# Moves every workspace on the virtual output back: to the physical output it
+# came from, or to the first one for a workspace created while headless. Ones
+# that never left another tool's output are not touched.
+return_workspaces() {
+  local virtual="$1"
+  shift
+  local workspace saved target
+  while read -r workspace; do
+    [[ -n "${workspace}" ]] || continue
+    saved=""
+    if [[ -f "${STATE_FILE}" ]]; then
+      saved="$(awk -v ws="${workspace}" '$1 == ws { print $2; exit }' "${STATE_FILE}")"
+    fi
+    target="$1"
+    if [[ -n "${saved}" ]] && printf '%s\n' "$@" | grep -qxF "${saved}"; then
+      target="${saved}"
+    fi
+    move_workspace "${workspace}" "${target}"
+  done < <(workspaces_on "${virtual}")
+  restore_focus
   rm -f "${STATE_FILE}" "${FOCUS_FILE}"
 }
 
@@ -193,12 +245,18 @@ headless_on() {
 
   save_layout
 
-  if ! have_headless_output; then
-    swaymsg -q create_output
-  fi
+  # Always a fresh output, named by what create_output added: an existing
+  # HEADLESS-* may belong to another tool.
   local virtual
   virtual="$(current_headless_output)"
-  [[ -n "${virtual}" ]] || die "could not create a headless output"
+  if [[ -z "${virtual}" ]]; then
+    local before
+    before="$(headless_outputs)"
+    swaymsg -q create_output
+    virtual="$(headless_outputs | grep -vxF -f <(printf '%s\n' "${before}") | head -n1 || true)"
+    [[ -n "${virtual}" ]] || die "could not create a headless output"
+    printf '%s\n' "${virtual}" >"${OUTPUT_FILE}"
+  fi
 
   # Scale is always set explicitly: the display popup's scale.conf applies
   # `output * scale 1.3` for the ultrawide, and inheriting that would misrender
@@ -226,8 +284,9 @@ headless_on() {
     : >"${NOSLEEP_OWNED_FILE}"
   fi
 
-  # disable, not power off: it puts the monitor in standby and makes Sway move
-  # the workspaces to the virtual output by itself.
+  take_workspaces "${virtual}" "${physical[@]}"
+
+  # disable, not power off: it puts the monitor in standby.
   local output
   for output in "${physical[@]}"; do
     swaymsg -q "output \"${output}\" disable" || true
@@ -254,7 +313,11 @@ headless_off() {
     swaymsg -q "output \"${output}\" enable" || true
   done
 
-  restore_layout
+  local virtual
+  virtual="$(current_headless_output)"
+  if [[ -n "${virtual}" ]]; then
+    return_workspaces "${virtual}" "${physical[@]}"
+  fi
 
   if is_active; then
     systemctl --user stop "${UNIT}"
@@ -265,12 +328,10 @@ headless_off() {
     rm -f "${NOSLEEP_OWNED_FILE}"
   fi
 
-  # Unplug every one, so an earlier interrupted run cannot strand any.
-  local virtual
-  while read -r virtual; do
-    [[ -n "${virtual}" ]] || continue
+  if [[ -n "${virtual}" ]]; then
     swaymsg -q "output ${virtual} unplug" || true
-  done < <(headless_outputs)
+  fi
+  rm -f "${OUTPUT_FILE}"
 
   echo "headless: off — physical outputs restored: ${physical[*]}"
   notify "Headless Mode" "Monitor restored. Remote session stopped."
