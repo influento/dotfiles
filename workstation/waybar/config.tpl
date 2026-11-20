@@ -12,8 +12,9 @@
   "modules-right": [
     "custom/headless",
     "custom/nosleep",
-    "custom/stale-kernel",
+    "pulseaudio",
     "group/connectivity",
+    "group/readouts",
     "group/controls"
   ],
   "group/workspaces": {
@@ -33,7 +34,6 @@
   "group/controls": {
     "orientation": "horizontal",
     "modules": [
-      "custom/webcam",
       "custom/settings",
       "tray",
       "custom/power"
@@ -52,16 +52,19 @@
       "default": "<span color=\"@@OVERLAY1@@\"></span>"
     }
   },
+  "group/readouts": {
+    "orientation": "horizontal",
+    "modules": [
+      "custom/stale-kernel",
+      "sway/language",
+      "battery"
+    ]
+  },
   "group/connectivity": {
     "orientation": "horizontal",
     "modules": [
       "custom/usb",
-      "custom/timer",
-      "sway/language",
-      "pulseaudio",
-      "custom/bluetooth",
-      "custom/network",
-      "battery"
+      "custom/network"
     ]
   },
   "sway/mode": {
@@ -82,15 +85,6 @@
     "on-click-right": "~/.local/bin/widget-toggle audio",
     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-  },
-  "custom/bluetooth": {
-    "exec": "~/.local/bin/bluetooth-status",
-    "return-type": "json",
-    "interval": 5,
-    "signal": 10,
-    "tooltip": false,
-    "on-click": "~/.local/bin/widget-toggle bluetooth",
-    "on-click-right": "bash -c \"bluetoothctl show | grep -q 'Powered: yes' && bluetoothctl power off || bluetoothctl power on; pkill -RTMIN+10 waybar\""
   },
   "sway/language": {
     "format": " {short}",
@@ -121,13 +115,6 @@
     "tooltip": false,
     "on-click": "~/.local/bin/widget-toggle settings"
   },
-  "custom/webcam": {
-    "exec": "~/.local/bin/webcam-status",
-    "return-type": "json",
-    "interval": 5,
-    "tooltip": false,
-    "on-click": "~/.local/bin/widget-toggle webcam"
-  },
   "custom/stale-kernel": {
     "exec": "~/.local/bin/stale-kernel",
     "return-type": "json",
@@ -150,7 +137,8 @@
     "on-click": "~/.local/bin/nosleep cycle"
   },
   "tray": {
-    "spacing": 8
+    "spacing": 8,
+    "ignore-list": ["dropbox"]
   },
   "custom/calendar": {
     "exec": "~/.local/bin/calendar-status",
@@ -158,13 +146,6 @@
     "interval": 60,
     "tooltip": false,
     "on-click": "~/.local/bin/widget-toggle calendar"
-  },
-  "custom/timer": {
-    "exec": "~/.local/bin/timer-status",
-    "return-type": "json",
-    "interval": 1,
-    "tooltip": false,
-    "on-click": "~/.local/bin/widget-toggle timer"
   },
   "custom/usb": {
     "exec": "~/.local/bin/usb-status",
