@@ -47,16 +47,13 @@ window#waybar {
 
 
 #custom-calendar,
-#custom-timer,
 #language,
 #custom-network,
 #pulseaudio,
 #battery,
-#custom-bluetooth,
 #custom-usb,
 #custom-claude-usage,
 #custom-settings,
-#custom-webcam,
 #custom-headless,
 #custom-nosleep,
 #custom-stale-kernel,
@@ -87,15 +84,6 @@ window#waybar {
 
 #custom-settings {
   color: @@SAPPHIRE@@;
-}
-
-#custom-webcam {
-  color: @@SUBTEXT0@@;
-}
-
-/* webcam-effects runs: apps see the "Webcam effects" camera (/dev/video10) */
-#custom-webcam.effects {
-  color: @@GREEN@@;
 }
 
 
@@ -210,31 +198,11 @@ window#waybar {
   color: @@PEACH@@;
 }
 
-#custom-timer {
-  color: @@PINK@@;
-}
-
 #custom-usb.empty {
   font-size: 0;
   margin: 0;
   padding: 0;
   min-width: 0;
-}
-
-#custom-bluetooth {
-  color: @@BLUE@@;
-}
-
-#custom-bluetooth.off {
-  color: @@SUBTEXT0@@;
-}
-
-#custom-bluetooth.connected {
-  color: @@GREEN@@;
-}
-
-#custom-bluetooth.error {
-  color: @@RED@@;
 }
 
 #custom-power {
