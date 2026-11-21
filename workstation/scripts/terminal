@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# terminal: sway's $mod+Return. Brings the tmux terminal to the focused
+# workspace and focuses it; opens Ghostty only when there is none. Every
+# terminal attaches the same tmux server (tmux-attach), so a second one only
+# adds a second client to the same session, and the user never needs one.
+#
+# The terminal is the Ghostty window titled "tmux" (set-titles in tmux.conf):
+# Ghostty windows that xdg-open starts for nvim have the same app_id.
+# It is moved, not focused where it is: it may sit on a hidden workspace, on
+# another tool's HEADLESS-* output or in the scratchpad, and focusing it there
+# would switch to a screen no one sees.
+
+APP_ID="com.mitchellh.ghostty"
+TITLE="tmux"
+
+# The terminal on the focused workspace if there is one, else the first one.
+con_id="$(swaymsg -t get_tree -r | jq -r --arg app "${APP_ID}" --arg title "${TITLE}" '
+  def windows: recurse(.nodes[]?, .floating_nodes[]?)
+    | select(.app_id? == $app and .name? == $title);
+  [.. | select(.type? == "workspace")
+    | (any(recurse(.nodes[]?, .floating_nodes[]?); .focused? == true)) as $here
+    | windows | {id, here: $here}]
+  | (map(select(.here)) + .)[0].id // empty
+')" || con_id=""
+
+if [[ -z "${con_id}" ]]; then
+  exec ghostty
+fi
+swaymsg -q "[con_id=${con_id}] move container to workspace current, focus"

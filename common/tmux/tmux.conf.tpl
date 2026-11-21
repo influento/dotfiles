@@ -18,6 +18,10 @@ set -g renumber-windows on
 set -sg escape-time 0
 set -g history-limit 50000
 set -g focus-events on
+# The terminal tmux runs in is titled "tmux": `terminal` ($mod+Return in
+# sway) finds it by that, apart from Ghostty windows that run nvim.
+set -g set-titles on
+set -g set-titles-string "tmux"
 set -g allow-passthrough on
 set -s set-clipboard on
 # OSC 52 copies from panes (nvim over ssh, Claude Code) reach the system
