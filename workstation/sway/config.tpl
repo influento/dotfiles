@@ -57,8 +57,11 @@ bindsym --to-code $mod+Shift+q kill
 bindsym --to-code Mod4+v exec ~/.local/bin/cliphist-pick
 bindsym --to-code $mod+Escape exec ~/.local/bin/lock
 
-# Headless mode: disable the monitor and serve the session over VNC instead
-bindsym --to-code $mod+Shift+o exec ~/.local/bin/headless toggle
+# Headless mode: disable the monitor and serve the session over VNC instead.
+# --locked: a headless session is nearly always locked when you come back to
+# it, and this is the key that turns the monitor back on. While locked,
+# toggle only turns headless mode off.
+bindsym --to-code --locked $mod+Shift+o exec ~/.local/bin/headless toggle
 
 # Screenshots and GIF clips via `capture` (gtk-widgets). Kept for the whole
 # session; wiped at the next sway start (see the capture lines in Autostart below).
