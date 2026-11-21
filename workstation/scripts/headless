@@ -149,6 +149,27 @@ headless_outputs() {
   output_names | grep "^${HEADLESS_PREFIX}" || true
 }
 
+# Physical outputs that are enabled: what workspaces can go back to.
+active_physical_outputs() {
+  swaymsg -t get_outputs -r | python3 -c '
+import json, sys
+for output in json.load(sys.stdin):
+    if output["active"] and not output["name"].startswith(sys.argv[1]):
+        print(output["name"])
+' "${HEADLESS_PREFIX}"
+}
+
+# The physical outputs the workspaces were saved from at `on`.
+saved_outputs() {
+  [[ -f "${STATE_FILE}" ]] || return 0
+  awk -v prefix="${HEADLESS_PREFIX}" 'NF >= 2 && index($2, prefix) != 1 { print $2 }' "${STATE_FILE}"
+}
+
+# Swaylock is running: the screen is locked, or is about to be.
+is_locked() {
+  pgrep -xu "$(id -u)" swaylock >/dev/null
+}
+
 # The output this script created, if it still exists.
 current_headless_output() {
   [[ -s "${OUTPUT_FILE}" ]] || return 0
@@ -347,18 +368,43 @@ headless_off() {
     return 0
   fi
 
+  # The outputs sway lists, and the ones the workspaces were saved from: a
+  # monitor can drop out of sway's list (it re-syncs on a VT switch, and
+  # wlroots does not rescan while its VT is inactive). Sway keeps the config
+  # of an absent output and applies it when the output comes back.
+  # power on: swayidle's `dpms off` may have left a listed one powered off,
+  # which would come back enabled but dark.
   local physical=()
-  mapfile -t physical < <(physical_outputs)
+  mapfile -t physical < <({ physical_outputs; saved_outputs; } | awk 'NF && !seen[$0]++')
 
   local output
   for output in "${physical[@]}"; do
-    swaymsg -q "output \"${output}\" enable" || true
+    swaymsg -q "output \"${output}\" enable power on" || true
   done
+
+  local active=() _
+  for _ in $(seq 20); do
+    mapfile -t active < <(active_physical_outputs)
+    [[ ${#active[@]} -eq 0 ]] || break
+    sleep 0.1
+  done
+
+  # With nothing to return the workspaces to, unplugging the virtual output
+  # would leave sway to move them onto another tool's HEADLESS-* output, and
+  # the session would be on no screen and no VNC stream. Stay on, and put
+  # back the disable so an absent monitor does not light up later on its own.
+  if [[ ${#active[@]} -eq 0 ]]; then
+    for output in "${physical[@]}"; do
+      swaymsg -q "output \"${output}\" disable" || true
+    done
+    notify "Headless Mode" "No monitor found: headless mode stays on. Switch to tty1 and try again."
+    die "no physical output is active (tried ${physical[*]:-none}); headless mode stays on. Sway finds a monitor again only while its VT is the active one: switch to tty1 (Ctrl+Alt+F1), then run headless off or press \$mod+Shift+o"
+  fi
 
   local virtual
   virtual="$(current_headless_output)"
   if [[ -n "${virtual}" ]]; then
-    return_workspaces "${virtual}" "${physical[@]}"
+    return_workspaces "${virtual}" "${active[@]}"
   fi
 
   if is_active; then
@@ -376,7 +422,7 @@ headless_off() {
   fi
   rm -f "${OUTPUT_FILE}"
 
-  echo "headless: off — physical outputs restored: ${physical[*]}"
+  echo "headless: off — physical outputs restored: ${active[*]}"
   notify "Headless Mode" "Monitor restored. Remote session stopped."
 }
 
@@ -421,11 +467,13 @@ headless_dpms() {
     *) die "dpms needs 'on' or 'off'" ;;
   esac
 
+  # off skips disabled outputs (headless mode's monitor): the power state is
+  # kept in their config, and they would come back dark at `headless off`.
   local output
   while read -r output; do
     [[ -n "${output}" ]] || continue
     swaymsg -q "output \"${output}\" power ${action}" || true
-  done < <(physical_outputs)
+  done < <(if [[ "${action}" == off ]]; then active_physical_outputs; else physical_outputs; fi)
 }
 
 # Mode and scale of this machine's active output, so the remote virtual output
@@ -1336,7 +1384,16 @@ main() {
     status) headless_status ;;
     toggle)
       # Also off when only part of it is up: the virtual output without wayvnc.
-      if is_active || have_headless_output; then headless_off; else headless_on; fi
+      # The binding works on the lock screen, so the monitor can be brought
+      # back at the desk. Turning headless mode on from there is refused.
+      if is_active || have_headless_output; then
+        headless_off
+      elif is_locked; then
+        notify "Headless Mode" "The screen is locked: unlock it to turn headless mode on."
+        die "the screen is locked: unlock it to turn headless mode on"
+      else
+        headless_on
+      fi
       ;;
     connect)
       shift
