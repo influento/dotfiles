@@ -234,7 +234,10 @@ local function open()
   for _, key in ipairs({ "i", "a", "I", "A", "o", "O", "c", "s", "r", "x", "d", "p", "u" }) do
     vim.keymap.set("n", key, function()
       vim.cmd.MarkdownRead()
-      vim.api.nvim_feedkeys(key, "m", false)  -- remap, so the config's own x and d still apply
+      -- m: remap, so the config's own x and d still apply. i: ahead of the keys
+      -- already waiting (a paste, key repeat, fast typing), which would
+      -- otherwise run first, as normal-mode commands on the source.
+      vim.api.nvim_feedkeys(key, "mi", false)
     end, { buffer = rbuf, silent = true, desc = "Edit the source" })
   end
   -- Leaving by any route -- close(), :bd, another buffer opened here -- takes the
@@ -275,6 +278,10 @@ local function close()
     vim.cmd.enew()
     return
   end
+  -- Left to be edited: it stays raw when the session reads again (another file
+  -- read since) and you come back to it. Otherwise the mirror takes its place
+  -- and :w there fails with E382.
+  vim.b[st.src].markdown_reader_edit = true
   vim.api.nvim_win_set_buf(win, st.src)
   vim.api.nvim_win_set_cursor(win, { math.min(best, vim.api.nvim_buf_line_count(st.src)), 0 })
   vim.cmd("normal! zz")
@@ -312,7 +319,8 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
   callback = function(args)
     if not auto or vim.bo[args.buf].filetype ~= "markdown" then return end
     if vim.bo[args.buf].buftype ~= "" or reader[args.buf] then return end
-    -- Opened for editing: by :EditAt just now, or earlier in this buffer's life.
+    -- Opened for editing: by :EditAt just now, or by leaving the reader on it
+    -- earlier in this buffer's life (close()).
     -- Buffer-scoped rather than one-shot so that leaving the tab and coming back
     -- does not quietly turn the file being edited into the rendered view.
     -- <leader>z still works -- MarkdownRead clears the mark.
