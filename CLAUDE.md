@@ -86,7 +86,7 @@ Source paths are relative to the repo. A bare directory deploys to `~/.config/<t
 | **zsh** | `workstation/zsh/.zshrc-workstation` → `~/.zshrc-workstation` | Desktop-only shell setup |
 | **LazyGit** | `workstation/lazygit/` | Terminal git UI: theme, pager, editor |
 | **yazi** | `workstation/yazi/` | File manager: keymaps, appearance |
-| **Sway** | `workstation/sway/` | Wayland compositor: keybindings, monitors, workspaces, window rules. Machine-only, untracked: `~/.local/share/sway/*.conf` (included last) and `~/.local/share/sway/env.d/*` (each sourced before `exec sway`, one file per tool) |
+| **Sway** | `workstation/sway/` | Wayland compositor: keybindings, monitors, workspaces, window rules. Machine-only, untracked: `~/.local/share/sway/*.conf` (included last), `~/.local/share/sway/env.d/*` (each sourced before `exec sway`, one file per tool) and `~/.local/share/sway/dpms-off.d/*` (each run by `headless dpms off` before the monitors power off, one per tool) |
 | **Waybar** | `workstation/waybar/` | Status bar: modules, CSS styling |
 | **Ghostty** | `workstation/ghostty/` | Terminal emulator: font, theme, window settings |
 | **swaylock** | `workstation/swaylock/` | Screen locker: colors, indicator, behavior |

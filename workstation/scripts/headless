@@ -90,7 +90,8 @@ Usage: headless <command>
   app <host> <cmd>...   Run one remote app locally over waypipe
 
   dpms <on|off>         Power the physical outputs only, never the virtual
-                        one (used by swayidle)
+                        one (used by swayidle). off first runs each
+                        executable in ~/.local/share/sway/dpms-off.d/
 
 Environment / ~/.config/headless.conf:
   HEADLESS_MODE         Virtual output mode  (default: 2880x1800)
@@ -469,11 +470,68 @@ headless_dpms() {
 
   # off skips disabled outputs (headless mode's monitor): the power state is
   # kept in their config, and they would come back dark at `headless off`.
-  local output
-  while read -r output; do
+  local outputs=() output
+  if [[ "${action}" == off ]]; then
+    mapfile -t outputs < <(active_physical_outputs)
+    [[ ${#outputs[@]} -eq 0 ]] || run_dpms_off_hooks
+  else
+    mapfile -t outputs < <(physical_outputs)
+  fi
+  for output in "${outputs[@]}"; do
     [[ -n "${output}" ]] || continue
     swaymsg -q "output \"${output}\" power ${action}" || true
-  done < <(if [[ "${action}" == off ]]; then active_physical_outputs; else physical_outputs; fi)
+  done
+}
+
+# The machine-only slot before `dpms off`: each executable in DPMS_OFF_DIR,
+# owned by another tool (one per tool, like ~/.local/share/sway/env.d/), runs
+# in name order before the outputs power off, e.g. to move windows that must
+# keep rendering off the monitor. Only when an output is about to go off.
+# A hook gets SWAYSOCK and WAYLAND_DISPLAY and at most DPMS_OFF_TIMEOUT
+# seconds (HEADLESS_DPMS_OFF_TIMEOUT, default 15). Its failure is logged
+# (journal tag headless) and never stops the power-off. Nothing runs on
+# `dpms on`.
+DPMS_OFF_DIR="${HOME}/.local/share/sway/dpms-off.d"
+DPMS_OFF_TIMEOUT="${HEADLESS_DPMS_OFF_TIMEOUT:-15}"
+
+log_warn() {
+  echo "headless: $1" >&2
+  logger -t headless -p user.warning -- "$1" 2>/dev/null || true
+}
+
+run_dpms_off_hooks() {
+  [[ -d "${DPMS_OFF_DIR}" ]] || return 0
+  # Over SSH there is no WAYLAND_DISPLAY: take sway's from a child of sway
+  # (sway sets it after it starts, so its own /proc environ lacks it).
+  if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+    local sway_pid child line
+    sway_pid="$(basename "${SWAYSOCK}" .sock)"
+    sway_pid="${sway_pid##*.}"
+    for child in $(pgrep -P "${sway_pid}" 2>/dev/null || true); do
+      line="$(tr '\0' '\n' <"/proc/${child}/environ" 2>/dev/null | grep -m1 '^WAYLAND_DISPLAY=' || true)"
+      if [[ -n "${line}" ]]; then
+        export WAYLAND_DISPLAY="${line#WAYLAND_DISPLAY=}"
+        break
+      fi
+    done
+  fi
+
+  local hook name status
+  for hook in "${DPMS_OFF_DIR}"/*; do
+    [[ -e "${hook}" ]] || continue
+    name="$(basename "${hook}")"
+    if [[ ! -f "${hook}" || ! -x "${hook}" ]]; then
+      log_warn "dpms-off hook ${name} skipped: not an executable file"
+      continue
+    fi
+    status=0
+    timeout -k 2 "${DPMS_OFF_TIMEOUT}" "${hook}" </dev/null || status=$?
+    case "${status}" in
+      0) ;;
+      124 | 137) log_warn "dpms-off hook ${name} timed out after ${DPMS_OFF_TIMEOUT}s" ;;
+      *) log_warn "dpms-off hook ${name} failed (exit ${status})" ;;
+    esac
+  done
 }
 
 # Mode and scale of this machine's active output, so the remote virtual output

@@ -8,6 +8,9 @@
 #   - off brings a monitor back lit, even after swayidle's dpms off
 #   - dpms off leaves a disabled output's power alone, so it is not dark when
 #     enabled again (headless off, lid open)
+#   - dpms off runs the dpms-off.d hooks in name order while the monitor is
+#     still on; a failing or hung hook is logged and the monitor still powers
+#     off; no hooks when no output is about to go off, nor on dpms on
 # Fakes on PATH: swaymsg (outputs and workspaces in files; config for an
 # output sway does not list is ignored, as sway keeps it until it appears),
 # systemctl (wayvnc active while a file exists), systemd-run (marks that a
@@ -96,6 +99,7 @@ EOF
 printf '#!/usr/bin/env bash\nexit 0\n' >"$TMP/bin/nosleep"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$TMP/bin/notify-send"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/bin/wayvncctl"
+printf '#!/usr/bin/env bash\necho "$*" >>"$XDG_RUNTIME_DIR/logged"\n' >"$TMP/bin/logger"
 chmod +x "$TMP/bin/"*
 
 fail=0
@@ -182,6 +186,39 @@ check "dpms off leaves a disabled monitor's power alone" 'output_is "HDMI-A-1 0 
 headless_session "HDMI-A-1 1 1"
 run dpms off
 check "dpms off powers off an active monitor" 'output_is "HDMI-A-1 1 0" && output_is "HEADLESS-36 1 1"'
+
+# --- dpms-off.d hooks
+# Each hook appends its name, the monitor's power at that moment and SWAYSOCK.
+hooks="$TMP/.local/share/sway/dpms-off.d"
+mkdir -p "$hooks"
+for name in 20-b 10-a 30-fail 40-hang; do
+  cat >"$hooks/$name" <<'EOF'
+#!/usr/bin/env bash
+R="$XDG_RUNTIME_DIR"
+echo "$(basename "$0") $(awk '$1 == "HDMI-A-1" { print $3 }' "$R/outputs") ${SWAYSOCK:-none}" >>"$R/hooks-ran"
+case "$0" in *fail) exit 3 ;; *hang) sleep 30 ;; esac
+EOF
+  chmod +x "$hooks/$name"
+done
+echo 'not executable' >"$hooks/50-plain"
+
+headless_session "HDMI-A-1 1 1"
+SECONDS=0
+HEADLESS_DPMS_OFF_TIMEOUT=1 run dpms off
+took=$SECONDS
+check "dpms off runs the hooks in name order, monitor still on, with SWAYSOCK" \
+  'diff <(cut -d" " -f1,2 "$R/hooks-ran") <(printf "10-a 1\n20-b 1\n30-fail 1\n40-hang 1\n") >/dev/null && ! grep -q " none$" "$R/hooks-ran"'
+check "a failing or hung hook is logged and the monitor still powers off" \
+  '[[ $status -eq 0 && $took -lt 10 ]] && output_is "HDMI-A-1 1 0" && grep -q "30-fail failed" "$R/logged" && grep -q "40-hang timed out" "$R/logged" && grep -q "50-plain skipped" "$R/logged"'
+
+headless_session "HDMI-A-1 0 1"
+run dpms off
+check "dpms off runs no hook when no output goes off" '[[ ! -e "$R/hooks-ran" ]]'
+
+headless_session "HDMI-A-1 0 0"
+run dpms on
+check "dpms on runs no hook" '[[ ! -e "$R/hooks-ran" ]]'
+rm -rf "$hooks"
 
 # --- bound workspace with a view-only marker
 # serve runs with the sway and wayvnc lookups stubbed, systemd-run logging its
