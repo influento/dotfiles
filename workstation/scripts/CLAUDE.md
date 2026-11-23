@@ -25,3 +25,10 @@ its size and scale. Bind by workspace number, never by output name: the
 owner recreates outputs and their names change. Never move such a workspace
 onto headless's own output: its scale differs, and the windows would be
 rescaled.
+
+A bound workspace can be made view-only by another tool: while
+`$XDG_RUNTIME_DIR/view-only/<n>` exists (the tool writes it while it drives
+workspace n), its wayvnc runs with `--disable-input` and `show` leaves the
+host's focus off it (focusing a window there can disturb the tool driving
+it). The tool that writes the markers runs `headless restream` when they
+change, which serves the bound workspaces again with the matching input.

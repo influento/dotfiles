@@ -183,4 +183,38 @@ headless_session "HDMI-A-1 1 1"
 run dpms off
 check "dpms off powers off an active monitor" 'output_is "HDMI-A-1 1 0" && output_is "HEADLESS-36 1 1"'
 
+# --- bound workspace with a view-only marker
+# serve runs with the sway and wayvnc lookups stubbed, systemd-run logging its
+# arguments. A view-only stream takes no input, says so in the unit
+# Description (what restream compares), and show leaves the host's focus off
+# the workspace.
+serve() {
+  (
+    export XDG_RUNTIME_DIR="$R"
+    # shellcheck source=/dev/null
+    source <(sed '/^main "\$@"$/d' "$HEADLESS")
+    ensure_swaysock() { :; }
+    is_active() { true; }
+    headless_bindable() { printf '9\tHEADLESS-2\tapp\n'; }
+    served_output() { [[ -e "$R/run-args" ]] && echo HEADLESS-2; }
+    systemctl() { [[ "$*" != *is-active* ]] || [[ -e "$R/run-args" ]]; }
+    systemd-run() { printf '%s\n' "$@" >"$R/run-args"; }
+    swaymsg() { echo "$*" >>"$R/sway-cmds"; }
+    "$@"
+  ) >"$TMP/out" 2>"$TMP/err"
+}
+
+headless_session "HDMI-A-1 1 1"
+serve headless_serve 9 both
+check "a bound workspace without a marker takes input" \
+  '! grep -qx -- --disable-input "$R/run-args" && grep -q "input on)" "$R/run-args"'
+
+headless_session "HDMI-A-1 1 1"
+mkdir -p "$R/view-only" && echo "test: view-only" >"$R/view-only/9"
+serve headless_serve 9 both
+check "a view-only workspace's stream takes no input" \
+  'grep -qx -- --disable-input "$R/run-args" && grep -q "view only)" "$R/run-args"'
+serve headless_show 9 both
+check "show leaves the host's focus off a view-only workspace" '[[ ! -e "$R/sway-cmds" ]]'
+
 exit "$fail"
