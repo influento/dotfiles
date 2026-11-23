@@ -125,8 +125,8 @@ tmux keys and colors for tmux-agent and tmux-revive: `common/tmux/tmux.conf.tpl`
 | `nosleep`, `nosleep-status` | workstation | Keep the machine running: `on` blocks sleep, lid close included; `awake [DURATION]` also skips the idle lock and display-off (calls, reading). `off`/`status`/`toggle`/`cycle`, or `hibernate` now; waybar indicator, click cycles |
 | `headless`, `headless-status` | workstation | Backup/low-power mode: serves the live Sway session over VNC with the monitor off (`$mod+Shift+o`, waybar indicator); `connect` and `app` reach it from the laptop (`connect` also carries the clipboard both ways), `bind` (`$mod+Ctrl+o`) gives a workspace on another tool's headless output its own viewer on the same workspace number |
 | `startup-reminders` | workstation | Nags about post-install manual steps on sway start until a script marks them done (`reminders/`) |
-| `terminal` | workstation | `$mod+Return`: brings the tmux terminal (the Ghostty window titled `tmux`) to the focused workspace from wherever it is; opens Ghostty only when there is none |
-| `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing |
+| `terminal` | workstation | `$mod+Return`: brings the tmux terminal (the Ghostty window titled `tmux`) to the focused workspace from wherever it is; opens Ghostty only when there is none. `$mod+Shift+Return` opens a plain Ghostty that never runs tmux |
+| `tmux-attach` | workstation | Terminal entry point: `tmux-revive attach`, or `tmux new-session -A -s main` when the binary is missing; a failed attach leaves a plain login shell in the window |
 | `lock` | workstation | Switches to the US layout, then locks. `--lid`: sway's lid close, locks only while nosleep keeps the machine running |
 | `cliphist-pick` | workstation | Clipboard history picker on `$mod+v`, through gtk-widgets' launcher: thumbnails, preview, delete |
 | `cliphist-store` | workstation | The clipboard history writer sway runs (`wl-paste --watch cliphist-store`): images and file links paste as picture or path |

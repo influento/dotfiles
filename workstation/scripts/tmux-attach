@@ -5,5 +5,22 @@ set -euo pipefail
 # (influento/tmux-plugins) restores the saved sessions on a new server, then
 # attaches. Without the binary a plain tmux session opens, so a failed
 # download never costs the terminal.
-command -v tmux-revive >/dev/null && exec tmux-revive attach
-exec tmux new-session -A -s main
+#
+# A broken tmux must not cost it either: when the attach fails (a starved or
+# crashed server, tmux-revive giving up on its deadline), the same window
+# becomes a plain login shell. Exit 0 is a detach or the last session
+# ending: the window closes as before. The fallback lives here, not in
+# tmux-revive, so it also covers a broken tmux-revive. It cannot help when
+# the attach hangs instead of failing: $mod+Shift+Return opens a Ghostty that
+# never runs tmux.
+
+fallback() {
+  printf '\ntmux-attach: %s. This is a plain shell, without tmux.\n\n' "$1" >&2
+  exec "${SHELL:-/bin/zsh}" -l
+}
+
+if command -v tmux-revive >/dev/null; then
+  tmux-revive attach || fallback "tmux-revive attach failed (exit $?)"
+else
+  tmux new-session -A -s main || fallback "tmux failed (exit $?)"
+fi

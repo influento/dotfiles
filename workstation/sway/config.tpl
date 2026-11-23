@@ -54,6 +54,9 @@ client.urgent           @@RED@@ @@RED@@ @@BASE@@ @@RED@@   @@RED@@
 # The tmux terminal, brought here from wherever it is; a new one only when
 # there is none (terminal).
 bindsym --to-code $mod+Return exec ~/.local/bin/terminal
+# A terminal that never runs tmux, for when tmux is broken: a starved server
+# can hang the attach, which tmux-attach's fallback cannot catch.
+bindsym --to-code $mod+Shift+Return exec ghostty -e zsh -l
 bindsym --to-code $mod+d exec $menu
 bindsym --to-code $mod+Shift+q kill
 bindsym --to-code Mod4+v exec ~/.local/bin/cliphist-pick
