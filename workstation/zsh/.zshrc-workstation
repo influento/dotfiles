@@ -142,5 +142,8 @@ doc() {
 # --- Auto-start Sway on tty1 ---
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" = "1" ]; then
   export ELECTRON_OZONE_PLATFORM_HINT=wayland
+  # Machine-only environment for sway, one file per tool, not tracked here
+  # (beside the machine-only sway includes). Read only at sway start.
+  for f in ~/.local/share/sway/env.d/*(N); do . "$f"; done
   exec sway
 fi
