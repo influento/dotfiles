@@ -24,9 +24,13 @@ set -g set-titles on
 set -g set-titles-string "tmux"
 set -g allow-passthrough on
 set -s set-clipboard on
+# Every run-shell -b in this file prints nothing and exits 0: tmux 3.8
+# crashes (cmd-run-shell.c:94) when a background job prints or fails while
+# its client sits in a session with no windows, as a closing ov-* session is.
+# A failure that matters goes to display-message instead.
 # OSC 52 copies from panes (nvim over ssh, Claude Code) reach the system
 # clipboard through wl-copy: Ghostty denies OSC 52 writes, see its config.
-set-hook -g pane-set-clipboard 'run-shell -b "command -v wl-copy >/dev/null && tmux save-buffer - | wl-copy"'
+set-hook -g pane-set-clipboard 'run-shell -b "{ command -v wl-copy && tmux save-buffer - | wl-copy; } >/dev/null 2>&1 || true"'
 
 # --- True color ---
 set -g default-terminal "tmux-256color"
@@ -111,7 +115,7 @@ set -g @attention_fg_repo "@@TEAL@@"
 # tmux-overlay's hidden sessions: tmux-agent's lists and tmux-revive's attach
 # skip them.
 set -g @skip_sessions 'ov-*'
-bind f run-shell -b "if command -v tmux-agent >/dev/null; then tmux-agent popup #{client_name}; else tmux display-message 'tmux-agent is not installed'; fi"
+bind f run-shell -b "{ if command -v tmux-agent; then tmux-agent popup #{client_name} || tmux display-message -c '#{client_name}' 'tmux-agent popup failed'; else tmux display-message -c '#{client_name}' 'tmux-agent is not installed'; fi; } >/dev/null 2>&1 || true"
 bind o run-shell "if command -v tmux-agent >/dev/null; then tmux-agent jump; else tmux display-message 'tmux-agent is not installed'; fi"
 # Hooks: tmux-agent sets its own at index [10] and tmux-revive at [20], from
 # their tmux-init lines at the end of this file; [0] is free for this file.
@@ -142,7 +146,7 @@ bind -T ov-prefix g run-shell "$OV_G"
 bind -T ov-prefix v run-shell "$OV_V"
 bind -T ov-prefix t run-shell "$OV_T"
 # A closed session can leave hidden ones nothing owns; each press checks too.
-set-hook -g session-closed[0] 'run-shell -b "tmux-overlay --reap"'
+set-hook -g session-closed[0] 'run-shell -b "tmux-overlay --reap >/dev/null 2>&1 || true"'
 # The pane's whole history in nvim, in a window of its own; :q cleans up. The
 # file name is what lua/scrollback.lua keys on for ]] and [[ between prompts.
 bind e run-shell 'f=$(mktemp -t tmux-scrollback.XXXXXX) && tmux capture-pane -pJ -S - -t "#{pane_id}" > "$f" && tmux new-window -n "e:#{window_name}" "nvim +\$ \"$f\"; rm -f \"$f\""'
