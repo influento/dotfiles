@@ -45,6 +45,7 @@ DOTFILES_DIR="$TMP/repo"; mkdir -p "$DOTFILES_DIR"
 git -C "$REPO" ls-files -z -co --exclude-standard |
   tar -C "$REPO" --null --ignore-failed-read -T - -cf - 2>/dev/null | tar -C "$DOTFILES_DIR" -xf -
 THEME=catppuccin-mocha
+# shellcheck source=/dev/null
 [[ -f "${DOTFILES_DIR}/theme.conf" ]] && source "${DOTFILES_DIR}/theme.conf"
 load_theme "$THEME" 2>/dev/null
 build_sed_script
