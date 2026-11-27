@@ -79,6 +79,10 @@
     ],
     "defaultMode": "auto"
   },
+  "statusLine": {
+    "type": "command",
+    "command": "command -v tmux-agent >/dev/null && tmux-agent statusline claude || true"
+  },
   "hooks": {
     "SessionStart": [
       { "hooks": [ { "type": "command", "command": "command -v tmux-agent >/dev/null && tmux-agent hook claude || true", "timeout": 5 } ] }
