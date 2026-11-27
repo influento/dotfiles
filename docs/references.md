@@ -26,7 +26,7 @@ Check these when upgrading tools or debugging config issues.
 | **LazyGit** | [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) | — |
 | **Yazi** | [yazi-rs.github.io/docs](https://yazi-rs.github.io/docs/configuration/yazi) | v25+ renamed `[manager]` → `[mgr]`, shell syntax uses `%s` not `"$@"`, open rules use `url` not `name` |
 | **Sway** | [swaywm.org](https://man.archlinux.org/man/sway.5) | i3-compatible syntax |
-| **Waybar** | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling |
+| **Waybar** | [Waybar wiki](https://github.com/Alexays/Waybar/wiki) | JSON config + CSS styling. `ignore-workspaces` regexes must match the whole name (`std::regex_match`): `^~.*`, not `^~` |
 | **Ghostty** | [ghostty.org/docs](https://ghostty.org/docs/config) | Key=value format |
 | **swaylock** | [swaylock man](https://man.archlinux.org/man/swaylock.1) | — |
 | **swayidle** | [swayidle man](https://man.archlinux.org/man/swayidle.1) | — |

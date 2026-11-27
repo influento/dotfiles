@@ -110,6 +110,10 @@ bindsym --to-code $mod+space focus mode_toggle
 bindsym --to-code $mod+a focus parent
 
 # --- Keybindings: Workspaces ---
+# 1–10 are the user's; 0 is workspace 10. A workspace whose name starts with
+# "~" is hidden: another tool's (a placeholder on its own HEADLESS-* output).
+# It has no number, so no key here reaches it, and waybar leaves it out
+# (ignore-workspaces). No next/prev binding here: those would cycle onto it.
 bindsym --to-code $mod+1 workspace number 1
 bindsym --to-code $mod+2 workspace number 2
 bindsym --to-code $mod+3 workspace number 3
@@ -119,6 +123,7 @@ bindsym --to-code $mod+6 workspace number 6
 bindsym --to-code $mod+7 workspace number 7
 bindsym --to-code $mod+8 workspace number 8
 bindsym --to-code $mod+9 workspace number 9
+bindsym --to-code $mod+0 workspace number 10
 
 bindsym --to-code $mod+Shift+1 move container to workspace number 1
 bindsym --to-code $mod+Shift+2 move container to workspace number 2
@@ -129,6 +134,7 @@ bindsym --to-code $mod+Shift+6 move container to workspace number 6
 bindsym --to-code $mod+Shift+7 move container to workspace number 7
 bindsym --to-code $mod+Shift+8 move container to workspace number 8
 bindsym --to-code $mod+Shift+9 move container to workspace number 9
+bindsym --to-code $mod+Shift+0 move container to workspace number 10
 
 # --- Keybindings: Local escape while a remote session holds the keyboard ---
 # Remote desktop clients ask for the Wayland keyboard-shortcuts-inhibit
@@ -146,6 +152,7 @@ bindsym --to-code --inhibited $mod+Ctrl+6 workspace number 6
 bindsym --to-code --inhibited $mod+Ctrl+7 workspace number 7
 bindsym --to-code --inhibited $mod+Ctrl+8 workspace number 8
 bindsym --to-code --inhibited $mod+Ctrl+9 workspace number 9
+bindsym --to-code --inhibited $mod+Ctrl+0 workspace number 10
 
 # Move the focused window — typically the remote viewer itself — between local
 # workspaces while it still holds the keyboard. Mirrors $mod+Shift+N, which is
@@ -159,6 +166,7 @@ bindsym --to-code --inhibited $mod+Ctrl+Shift+6 move container to workspace numb
 bindsym --to-code --inhibited $mod+Ctrl+Shift+7 move container to workspace number 7
 bindsym --to-code --inhibited $mod+Ctrl+Shift+8 move container to workspace number 8
 bindsym --to-code --inhibited $mod+Ctrl+Shift+9 move container to workspace number 9
+bindsym --to-code --inhibited $mod+Ctrl+Shift+0 move container to workspace number 10
 
 # Close the focused window even when it is holding the keyboard, so a
 # misbehaving or unresponsive remote viewer can always be dismissed.

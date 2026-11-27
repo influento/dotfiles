@@ -42,6 +42,7 @@
   "sway/workspaces": {
     "disable-scroll": true,
     "all-outputs": true,
+    "ignore-workspaces": ["^~.*"],
     "format": "{icon}",
     "format-icons": {
       "1": "<span color=\"@@BLUE@@\"></span>",
